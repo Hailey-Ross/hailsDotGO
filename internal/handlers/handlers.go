@@ -34,8 +34,8 @@ func New(store *pogodata.Store, db *sql.DB) *Handlers {
 func (h *Handlers) loadTemplates() {
 	h.tmpl = make(map[string]*template.Template)
 	pages := []string{
-		"home", "raids", "dps", "pvp", "events", "changelog",
-		"login", "register", "shinies", "admin",
+		"home", "raids", "dps", "pvp", "events", "credits",
+		"login", "register", "shinies", "admin", "settings", "trainers",
 	}
 	for _, page := range pages {
 		t, err := template.ParseFiles(
@@ -83,8 +83,8 @@ func (h *Handlers) Events(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "events", nil)
 }
 
-func (h *Handlers) Changelog(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "changelog", nil)
+func (h *Handlers) Credits(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "credits", nil)
 }
 
 // API handlers
@@ -109,6 +109,19 @@ func (h *Handlers) APIRefresh(w http.ResponseWriter, r *http.Request) {
 	h.store.Refresh()
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"refresh triggered"}`))
+}
+
+func staffBadge(username, role string) string {
+	if auth.SuperadminUser != "" && username == auth.SuperadminUser {
+		return "superadmin"
+	}
+	switch role {
+	case "admin":
+		return "admin"
+	case "moderator":
+		return "moderator"
+	}
+	return ""
 }
 
 func writeJSON(w http.ResponseWriter, data json.RawMessage) {

@@ -25,6 +25,21 @@ func (h *Handlers) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (h *Handlers) RequireMod(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := h.currentUser(r)
+		if u == nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if !u.IsMod() {
+			http.Error(w, "403 forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func (h *Handlers) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := h.currentUser(r)

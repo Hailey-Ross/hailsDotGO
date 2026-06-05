@@ -11,6 +11,55 @@ import (
 	"time"
 )
 
+// TrainerClass holds a Pokémon game trainer class for the avatar picker.
+// Sprites are served from Pokémon Showdown's public sprite CDN.
+type TrainerClass struct {
+	Slug      string `json:"slug"`
+	Label     string `json:"label"`
+	SpriteURL string `json:"sprite_url"`
+}
+
+const showdownBase = "https://play.pokemonshowdown.com/sprites/trainers/"
+
+// showdownSources maps slug → Showdown URL for the sprite proxy to fetch from.
+var showdownSources = map[string]string{}
+
+func init() {
+	for _, tc := range builtinTrainerClasses {
+		showdownSources[tc.Slug] = tc.SpriteURL
+	}
+}
+
+var builtinTrainerClasses = []TrainerClass{
+	{Slug: "youngster",    Label: "Youngster",    SpriteURL: showdownBase + "youngster.png"},
+	{Slug: "lass",         Label: "Lass",          SpriteURL: showdownBase + "lass.png"},
+	{Slug: "bug-catcher",  Label: "Bug Catcher",   SpriteURL: showdownBase + "bugcatcher.png"},
+	{Slug: "biker",        Label: "Biker",          SpriteURL: showdownBase + "biker.png"},
+	{Slug: "blackbelt",    Label: "Black Belt",     SpriteURL: showdownBase + "blackbelt.png"},
+	{Slug: "hiker",        Label: "Hiker",          SpriteURL: showdownBase + "hiker.png"},
+	{Slug: "fisherman",    Label: "Fisherman",      SpriteURL: showdownBase + "fisherman.png"},
+	{Slug: "sailor",       Label: "Sailor",         SpriteURL: showdownBase + "sailor.png"},
+	{Slug: "firebreather", Label: "Fire Breather",  SpriteURL: showdownBase + "firebreather.png"},
+	{Slug: "birdkeeper",   Label: "Bird Keeper",    SpriteURL: showdownBase + "birdkeeper.png"},
+	{Slug: "juggler",      Label: "Juggler",        SpriteURL: showdownBase + "juggler.png"},
+	{Slug: "gambler",      Label: "Gambler",        SpriteURL: showdownBase + "gambler.png"},
+	{Slug: "burglar",      Label: "Burglar",        SpriteURL: showdownBase + "burglar.png"},
+	{Slug: "beauty",       Label: "Beauty",         SpriteURL: showdownBase + "beauty.png"},
+	{Slug: "picnicker",    Label: "Picnicker",      SpriteURL: showdownBase + "picnicker.png"},
+	{Slug: "camper",       Label: "Camper",         SpriteURL: showdownBase + "camper.png"},
+	{Slug: "swimmer",      Label: "Swimmer",        SpriteURL: showdownBase + "swimmer.png"},
+	{Slug: "battlegirl",   Label: "Battle Girl",    SpriteURL: showdownBase + "battlegirl.png"},
+	{Slug: "dancer",       Label: "Dancer",         SpriteURL: showdownBase + "dancer.png"},
+	{Slug: "psychic",      Label: "Psychic",        SpriteURL: showdownBase + "psychic.png"},
+	{Slug: "ace-trainer",  Label: "Ace Trainer",    SpriteURL: showdownBase + "acetrainer.png"},
+	{Slug: "dragontamer",  Label: "Dragon Tamer",   SpriteURL: showdownBase + "dragontamer.png"},
+	{Slug: "pokemaniac",   Label: "Pokemaniac",     SpriteURL: showdownBase + "pokemaniac.png"},
+	{Slug: "super-nerd",   Label: "Super Nerd",     SpriteURL: showdownBase + "supernerd.png"},
+	{Slug: "gentleman",    Label: "Gentleman",      SpriteURL: showdownBase + "gentleman.png"},
+	{Slug: "medium",       Label: "Medium",         SpriteURL: showdownBase + "medium.png"},
+	{Slug: "worker",       Label: "Worker",         SpriteURL: showdownBase + "worker.png"},
+}
+
 // ScrapedDuck (github.com/bigfoott/ScrapedDuck) scrapes LeekDuck and
 // publishes clean JSON on every game event update.
 type scrapedTypeEntry struct {
@@ -99,21 +148,30 @@ func tierKey(t string) string {
 // ── Store ─────────────────────────────────────────────────────
 
 type Store struct {
-	mu            sync.RWMutex
-	raids         json.RawMessage
-	pokemon       json.RawMessage
-	pokemonMoves  json.RawMessage
-	fastMoves     json.RawMessage
-	chargedMoves  json.RawMessage
-	shinies       json.RawMessage
-	shadowPokemon json.RawMessage
-	typeChart     json.RawMessage
-	cpMults       json.RawMessage
-	client        *http.Client
+	mu             sync.RWMutex
+	raids          json.RawMessage
+	pokemon        json.RawMessage
+	pokemonMoves   json.RawMessage
+	fastMoves      json.RawMessage
+	chargedMoves   json.RawMessage
+	shinies        json.RawMessage
+	shadowPokemon  json.RawMessage
+	typeChart      json.RawMessage
+	cpMults        json.RawMessage
+	trainerClasses []TrainerClass
+	spriteCache    sync.Map
+	client         *http.Client
 }
 
 func New() *Store {
-	return &Store{client: &http.Client{Timeout: 15 * time.Second}}
+	classes := make([]TrainerClass, len(builtinTrainerClasses))
+	for i, tc := range builtinTrainerClasses {
+		classes[i] = TrainerClass{Slug: tc.Slug, Label: tc.Label, SpriteURL: "/api/trainer-sprite/" + tc.Slug}
+	}
+	return &Store{
+		client:         &http.Client{Timeout: 15 * time.Second},
+		trainerClasses: classes,
+	}
 }
 
 func (s *Store) Start() {
@@ -281,7 +339,7 @@ func (s *Store) fetch(url string) (json.RawMessage, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 120))
-		return nil, fmt.Errorf("HTTP %d — %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
 	}
 	var raw json.RawMessage
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
@@ -313,6 +371,18 @@ func (s *Store) Moves() json.RawMessage {
 	data, _ := json.Marshal(combined{Fast: s.fastMoves, Charged: s.chargedMoves})
 	return data
 }
+func (s *Store) TrainerClasses() []TrainerClass {
+	s.mu.RLock(); defer s.mu.RUnlock(); return s.trainerClasses
+}
+func (s *Store) TrainerSpriteSourceURL(slug string) string { return showdownSources[slug] }
+func (s *Store) SpriteCacheGet(slug string) ([]byte, bool) {
+	v, ok := s.spriteCache.Load(slug)
+	if !ok {
+		return nil, false
+	}
+	return v.([]byte), true
+}
+func (s *Store) SpriteCacheSet(slug string, data []byte) { s.spriteCache.Store(slug, data) }
 func (s *Store) AllData() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock()
 	type all struct {

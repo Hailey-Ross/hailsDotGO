@@ -1,5 +1,8 @@
 import { loadGameData } from "./shared/gamedata";
+import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
+
+let cryVolume = 0.8;
 
 interface UserShiny {
   id: number;
@@ -141,8 +144,27 @@ async function init() {
   modal.innerHTML = `
     <div class="sc-modal-inner">
       <button class="sc-modal-close">&times;</button>
-      <img class="sc-modal-img" alt="">
-      <div class="sc-modal-name"></div>
+      <div class="shiny-compare" id="sc-compare-wrap">
+        <div class="shiny-compare-side">
+          <img class="shiny-compare-img" id="sc-modal-normal" alt="">
+          <span>Normal</span>
+        </div>
+        <div class="shiny-compare-side">
+          <img class="shiny-compare-img sc-modal-img" id="sc-modal-shiny" alt="">
+          <span>✨ Shiny</span>
+        </div>
+      </div>
+      <div class="shiny-modal-name-row">
+        <div class="sc-modal-name"></div>
+      </div>
+      <div class="poke-cry-controls" id="sc-cry-controls" style="display:none">
+        <button class="poke-cry-btn" id="sc-modal-cry" title="Play cry">🔊</button>
+        <input type="range" class="poke-volume-slider" id="sc-modal-volume" min="0" max="80" value="80" title="Volume">
+        <span class="poke-volume-label" id="sc-modal-vlabel">80%</span>
+      </div>
+      <span class="poke-genus" id="sc-modal-genus"></span>
+      <span class="poke-legend-badge" id="sc-modal-badge" style="display:none"></span>
+      <p class="poke-flavor" id="sc-modal-flavor" style="display:none"></p>
       <div class="sc-add-title">Add to collection</div>
       <div id="sc-modal-fields" style="width:100%;display:flex;flex-direction:column;gap:0.5rem"></div>
       <button class="btn-primary" id="sc-modal-add" style="width:100%;margin-top:0.25rem">Add</button>
@@ -151,7 +173,6 @@ async function init() {
   `;
   document.body.appendChild(modal);
 
-  const modalImg    = modal.querySelector(".sc-modal-img") as HTMLImageElement;
   const modalName   = modal.querySelector(".sc-modal-name") as HTMLElement;
   const modalFields = document.getElementById("sc-modal-fields")!;
   const modalAddBtn = document.getElementById("sc-modal-add") as HTMLButtonElement;
@@ -169,9 +190,69 @@ async function init() {
 
   function openAddModal(s: ShinyPokemon) {
     modalTarget = s;
-    modalImg.src = spriteUrl(s.id);
+    (document.getElementById("sc-modal-normal") as HTMLImageElement).src =
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${s.id}.png`;
+    (document.getElementById("sc-modal-shiny") as HTMLImageElement).src = spriteUrl(s.id);
     modalName.textContent = s.name.replace(/_/g, " ");
     modalStatus.textContent = "";
+
+    const flavorP    = document.getElementById("sc-modal-flavor")  as HTMLElement;
+    const genusEl    = document.getElementById("sc-modal-genus")   as HTMLElement;
+    const badgeEl    = document.getElementById("sc-modal-badge")   as HTMLElement;
+    const cryPanel   = document.getElementById("sc-cry-controls")  as HTMLElement;
+    const cryBtn     = document.getElementById("sc-modal-cry")     as HTMLButtonElement;
+    const volSlider  = document.getElementById("sc-modal-volume")  as HTMLInputElement;
+    const volLabel   = document.getElementById("sc-modal-vlabel")  as HTMLElement;
+    const compareWrap = document.getElementById("sc-compare-wrap") as HTMLElement;
+    flavorP.textContent = ""; flavorP.style.display = "none";
+    genusEl.textContent  = "";
+    badgeEl.textContent  = ""; badgeEl.style.display = "none";
+    cryPanel.style.display = "none"; cryBtn.onclick = null;
+    compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
+
+    volSlider.value = String(Math.round(cryVolume * 100));
+    volLabel.textContent = `${volSlider.value}%`;
+    volSlider.oninput = () => {
+      cryVolume = Number(volSlider.value) / 100;
+      volLabel.textContent = `${volSlider.value}%`;
+    };
+
+    fetchSpeciesData(s.id).then(d => {
+      if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
+      if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+      if (d.isLegendary || d.isMythical) {
+        badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+        badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+        badgeEl.style.display = "";
+      }
+      for (const variety of d.varieties.filter(v => v.includes("primal"))) {
+        fetchFormSprites(variety).then(sprites => {
+          if (!sprites.normal && !sprites.shiny) return;
+          if (sprites.normal) {
+            const side = document.createElement("div");
+            side.className = "shiny-compare-side shiny-compare-side--extra";
+            side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="Primal"><span>🌋 Primal</span>`;
+            compareWrap.appendChild(side);
+          }
+          if (sprites.shiny) {
+            const side = document.createElement("div");
+            side.className = "shiny-compare-side shiny-compare-side--extra";
+            side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="Primal Shiny"><span>✨ Primal Shiny</span>`;
+            compareWrap.appendChild(side);
+          }
+        });
+      }
+    });
+    fetchCryUrl(s.id).then(url => {
+      if (!url) return;
+      cryPanel.style.display = "";
+      cryBtn.onclick = (e) => {
+        e.stopPropagation();
+        const a = new Audio(url);
+        a.volume = Math.min(cryVolume, 0.8);
+        a.play();
+      };
+    });
     modalAddBtn.disabled = false;
     modalAddBtn.textContent = "Add";
 
@@ -218,11 +299,45 @@ async function init() {
     }
   });
 
-  // ── Counter ──────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────
+
+  function timeAgo(dateStr: string): string {
+    const d    = new Date(dateStr);
+    const diff = Date.now() - d.getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days === 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 30)  return `${days} days ago`;
+    if (days < 365) return d.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
+    return d.toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  // ── Counter / Stats bar ──────────────────────────────────────
+
+  const METHOD_ICONS: Record<string, string> = {
+    wild: "🌿", egg: "🥚", raid: "⚔️", research: "📋",
+    evolution: "⬆️", photobomb: "📸", trade: "🤝", go_tour: "🎟️",
+  };
 
   function updateCounter() {
     const unique = new Set(Array.from(caughtIndex.keys()).map((k) => k.split(":")[0])).size;
-    counterEl.textContent = `${unique} / ${allShinies.length} caught`;
+    const total  = userShinies.length;
+
+    const methodCounts: Record<string, number> = {};
+    for (const s of userShinies) {
+      if (s.method) methodCounts[s.method] = (methodCounts[s.method] ?? 0) + 1;
+    }
+
+    const chipsHtml = Object.entries(methodCounts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([m, n]) => {
+        const icon = METHOD_ICONS[m] ?? "";
+        return `<span class="sc-stat-chip">${icon} ${m.replace(/_/g, " ")} (${n})</span>`;
+      }).join("");
+
+    counterEl.innerHTML =
+      `<span class="sc-stat-counts">${unique} unique / ${total} total</span>` +
+      (chipsHtml ? `<span class="sc-stat-chips">${chipsHtml}</span>` : "");
   }
 
   // ── Render: All / Missing grid ───────────────────────────────
@@ -286,7 +401,7 @@ async function init() {
     if (!entries.length) {
       contentEl.innerHTML = q
         ? `<p class="empty-state">No results.</p>`
-        : `<p class="empty-state">Nothing caught yet — use All Shinies to add some.</p>`;
+        : `<p class="empty-state">Nothing caught yet. Use All Shinies to add some.</p>`;
       return;
     }
 
@@ -309,10 +424,17 @@ async function init() {
         img.style.display = "none";
       }
 
-      // Name
+      // Name + date
+      const nameWrap = document.createElement("div");
+      nameWrap.className = "sc-entry-namewrap";
       const name = document.createElement("span");
       name.className = "sc-entry-name";
       name.textContent = rec.pokemon_id.replace(/_/g, " ");
+      const dateEl = document.createElement("span");
+      dateEl.className = "sc-caught-date";
+      dateEl.textContent = rec.caught_at ? timeAgo(rec.caught_at) : "";
+      nameWrap.appendChild(name);
+      nameWrap.appendChild(dateEl);
 
       // Form selector
       const formSel = makeSelect(FORMS, rec.form);
@@ -374,7 +496,7 @@ async function init() {
       });
 
       row.appendChild(img);
-      row.appendChild(name);
+      row.appendChild(nameWrap);
       row.appendChild(formSel);
       row.appendChild(methodSel);
       row.appendChild(statusEl);

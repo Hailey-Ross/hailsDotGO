@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   username   VARCHAR(32)  NOT NULL,
   email      VARCHAR(255) NOT NULL,
   password   VARCHAR(60)  NOT NULL,         -- bcrypt hash
-  role       ENUM('user','admin') NOT NULL DEFAULT 'user',
+  role       ENUM('user','moderator','admin') NOT NULL DEFAULT 'user',
+  disabled   TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_username (username),
@@ -70,3 +71,100 @@ CREATE TABLE IF NOT EXISTS invites (
 
 -- After first deploy, register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';
+
+-- Migration: run these on existing installs to add moderator role and disabled flag.
+--   ALTER TABLE users MODIFY COLUMN role ENUM('user','moderator','admin') NOT NULL DEFAULT 'user';
+--   ALTER TABLE users ADD COLUMN disabled TINYINT(1) NOT NULL DEFAULT 0 AFTER role;
+
+-- Migration: add trainer profile columns (settings page + trainer directory).
+--   ALTER TABLE users ADD COLUMN trainer_name  VARCHAR(64)  NOT NULL DEFAULT '' AFTER disabled;
+--   ALTER TABLE users ADD COLUMN trainer_code  VARCHAR(16)  NOT NULL DEFAULT '' AFTER trainer_name;
+--   ALTER TABLE users ADD COLUMN avatar        VARCHAR(32)  NOT NULL DEFAULT '' AFTER trainer_name;
+--   ALTER TABLE users ADD COLUMN city          VARCHAR(100) NOT NULL DEFAULT '' AFTER trainer_code;
+--   ALTER TABLE users ADD COLUMN profile_public TINYINT(1)  NOT NULL DEFAULT 0  AFTER city;
+
+-- Migration: add granular location fields for trainer directory privacy controls.
+--   ALTER TABLE users ADD COLUMN region           VARCHAR(100) NOT NULL DEFAULT '' AFTER city;
+--   ALTER TABLE users ADD COLUMN country          VARCHAR(100) NOT NULL DEFAULT '' AFTER region;
+--   ALTER TABLE users ADD COLUMN location_display ENUM('none','country','full') NOT NULL DEFAULT 'none' AFTER country;
+
+-- Migration: add pronouns field to user profiles.
+--   ALTER TABLE users ADD COLUMN pronouns VARCHAR(32) NOT NULL DEFAULT '' AFTER avatar;
+
+-- Migration: add directory_hidden flag for staff moderation.
+--   ALTER TABLE users ADD COLUMN directory_hidden TINYINT(1) NOT NULL DEFAULT 0 AFTER profile_public;
+
+-- Migration: add raid_banned flag for raid moderation.
+--   ALTER TABLE users ADD COLUMN raid_banned TINYINT(1) NOT NULL DEFAULT 0 AFTER directory_hidden;
+
+-- Migration: user strikes / penalty system.
+--   CREATE TABLE IF NOT EXISTS user_strikes (
+--     id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id        INT UNSIGNED NOT NULL,
+--     reason         VARCHAR(255) NOT NULL DEFAULT '',
+--     issued_by      INT UNSIGNED NOT NULL,
+--     issued_by_name VARCHAR(32)  NOT NULL DEFAULT '',
+--     created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     KEY idx_strike_user (user_id),
+--     CONSTRAINT fk_strike_user   FOREIGN KEY (user_id)   REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_strike_issuer FOREIGN KEY (issued_by) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration: raid finder tables (run as a block).
+--
+--   CREATE TABLE IF NOT EXISTS raid_posts (
+--     id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id         INT UNSIGNED NOT NULL,
+--     boss_name       VARCHAR(64)  NOT NULL,
+--     note            VARCHAR(160) NOT NULL DEFAULT '',
+--     players_needed  TINYINT UNSIGNED NOT NULL DEFAULT 0,
+--     weather_boosted TINYINT(1) NOT NULL DEFAULT 0,
+--     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     expires_at      DATETIME NOT NULL,
+--     PRIMARY KEY (id),
+--     KEY idx_raid_expires (expires_at),
+--     CONSTRAINT fk_raidpost_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS raid_joins (
+--     id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     post_id      INT UNSIGNED NOT NULL,
+--     joiner_id    INT UNSIGNED NOT NULL,
+--     confirmed    TINYINT(1) NOT NULL DEFAULT 0,
+--     host_invited TINYINT(1) NOT NULL DEFAULT 0,
+--     joined_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_join (post_id, joiner_id),
+--     CONSTRAINT fk_join_post FOREIGN KEY (post_id) REFERENCES raid_posts (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_join_user FOREIGN KEY (joiner_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS raid_leave_log (
+--     id       INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id  INT UNSIGNED NOT NULL,
+--     left_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     KEY idx_leave_user_time (user_id, left_at),
+--     CONSTRAINT fk_leave_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS raid_join_cooldowns (
+--     user_id INT UNSIGNED NOT NULL,
+--     until   DATETIME NOT NULL,
+--     PRIMARY KEY (user_id),
+--     CONSTRAINT fk_cooldown_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS raid_ratings (
+--     id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     post_id    INT UNSIGNED NOT NULL,
+--     rater_id   INT UNSIGNED NOT NULL,
+--     rated_id   INT UNSIGNED NOT NULL,
+--     score      TINYINT UNSIGNED NOT NULL,
+--     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_rating (post_id, rater_id, rated_id),
+--     CONSTRAINT fk_rating_rater FOREIGN KEY (rater_id) REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_rating_rated FOREIGN KEY (rated_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

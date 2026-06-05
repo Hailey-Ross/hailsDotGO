@@ -1,0 +1,712 @@
+{{define "title"}}Trainers{{end}}
+
+{{define "content"}}
+<div class="page-header trainers-page-header">
+  <div>
+    <h1>Trainers</h1>
+    <p>Find friends to trade and raid with.</p>
+  </div>
+  {{if .User}}
+  <a href="/settings" class="btn-secondary">Edit my profile</a>
+  {{end}}
+</div>
+
+<div class="tabs" id="trainers-tabs">
+  <button class="tab-btn active" data-tab="directory">Trainer Directory</button>
+  <button class="tab-btn" data-tab="raids" id="raid-tab-btn">Raid Finder</button>
+</div>
+
+<!-- ── Trainer Directory tab ─────────────────────────────────── -->
+<div id="tab-directory" class="tab-panel active">
+
+  {{if not .User}}
+  <div class="trainers-join-banner fade-up">
+    <p>Want to appear here? <a href="/register">Sign up</a> or <a href="/login">log in</a>, then add your trainer code in Settings.</p>
+  </div>
+  {{end}}
+
+  <div class="trainers-toolbar fade-up">
+    <input type="text" class="search-input trainers-search" placeholder="Search trainers…" id="trainers-search">
+    <span class="trainers-count" id="trainers-count"></span>
+  </div>
+
+  {{if .Data}}
+  <div class="trainers-grid" id="trainers-grid">
+    {{range .Data}}
+    <div class="trainer-card fade-up" data-name="{{.TrainerName}}">
+      <div class="trainer-card-header">
+        {{if .AvatarURL}}
+        <img class="trainer-avatar-sprite" src="{{.AvatarURL}}" alt="trainer">
+        {{else}}
+        <span class="trainer-avatar-sm avatar--default">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
+        </span>
+        {{end}}
+        <div class="trainer-card-namegroup">
+          <div class="trainer-card-nameline">
+            <span class="trainer-card-name">{{if .TrainerName}}{{.TrainerName}}{{else}}Trainer{{end}}</span>{{if eq .StaffBadge "superadmin"}}<span class="staff-icon" title="Superadmin">👑</span>{{else if eq .StaffBadge "admin"}}<span class="staff-icon" title="Admin">💎</span>{{else if eq .StaffBadge "moderator"}}<span class="staff-icon" title="Moderator">🏅</span>{{end}}
+          </div>
+          {{if .Pronouns}}<span class="trainer-card-pronouns">({{.Pronouns}})</span>{{end}}
+        </div>
+      </div>
+      <div class="trainer-card-divider"></div>
+      <div class="trainer-code-row">
+        <span class="trainer-code" data-raw="{{.TrainerCode}}">{{.TrainerCode}}</span>
+        <button class="trainer-copy-btn" data-code="{{.TrainerCode}}" title="Copy trainer code">Copy</button>
+      </div>
+      {{if eq .LocationDisplay "country"}}
+        {{if .Country}}<div class="trainer-area">📍 {{.Country}}</div>{{end}}
+      {{else if eq .LocationDisplay "full"}}
+        {{if and .Region .Country}}<div class="trainer-area">📍 {{.Region}}, {{.Country}}</div>
+        {{else if .Country}}<div class="trainer-area">📍 {{.Country}}</div>
+        {{else if .Region}}<div class="trainer-area">📍 {{.Region}}</div>{{end}}
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  <p class="trainers-no-results" id="trainers-no-results" style="display:none">No trainers match your search.</p>
+  {{else}}
+  <div class="trainers-empty fade-up">
+    <p>No trainers in the directory yet.</p>
+    {{if .User}}
+    <p>Go to <a href="/settings">Settings</a>, add your trainer code, and make your profile public to be the first!</p>
+    {{else}}
+    <p><a href="/register">Sign up</a> and add your trainer code to be the first!</p>
+    {{end}}
+  </div>
+  {{end}}
+
+</div>
+
+<!-- ── Raid Finder tab ───────────────────────────────────────── -->
+<div id="tab-raids" class="tab-panel">
+
+  <div id="raid-finder-root">
+    <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
+  </div>
+
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function() {
+
+  // ── Trainer Directory ────────────────────────────────────────
+  document.querySelectorAll('.trainer-code[data-raw]').forEach(function(el) {
+    var c = el.dataset.raw;
+    if (c && c.length === 12) el.textContent = c.slice(0,4)+' '+c.slice(4,8)+' '+c.slice(8);
+  });
+  document.querySelectorAll('.trainer-copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      navigator.clipboard.writeText(btn.dataset.code).then(function() {
+        btn.textContent = 'Copied!'; btn.classList.add('trainer-copy-btn--done');
+        setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('trainer-copy-btn--done'); }, 1500);
+      });
+    });
+  });
+  var cards = Array.from(document.querySelectorAll('.trainer-card'));
+  var countEl = document.getElementById('trainers-count');
+  var noResults = document.getElementById('trainers-no-results');
+  if (countEl) countEl.textContent = cards.length + ' trainer' + (cards.length === 1 ? '' : 's');
+  var searchEl = document.getElementById('trainers-search');
+  if (searchEl) {
+    searchEl.addEventListener('input', function() {
+      var q = searchEl.value.trim().toLowerCase();
+      var visible = 0;
+      cards.forEach(function(card) {
+        var match = !q || (card.dataset.name||'').toLowerCase().includes(q);
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      if (countEl) countEl.textContent = visible + ' trainer' + (visible === 1 ? '' : 's');
+      if (noResults) noResults.style.display = (visible === 0 && q) ? '' : 'none';
+    });
+  }
+
+  // ── Tab switching ────────────────────────────────────────────
+  document.getElementById('trainers-tabs').addEventListener('click', function(e) {
+    var btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    var id = btn.dataset.tab;
+    document.querySelectorAll('#trainers-tabs .tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === id); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + id).classList.add('active');
+  });
+
+  // ── Raid Finder ──────────────────────────────────────────────
+  var IS_LOGGED_IN = {{if .User}}true{{else}}false{{end}};
+  var IS_MOD = {{if .User}}{{if .User.IsMod}}true{{else}}false{{end}}{{else}}false{{end}};
+
+  var raidRoot = document.getElementById('raid-finder-root');
+  var refreshTimer = null;
+  var raidBosses = null; // cached from /api/raids
+
+  function fmt(c) { return c && c.length===12 ? c.slice(0,4)+' '+c.slice(4,8)+' '+c.slice(8) : c; }
+
+  function timeAgo(s) {
+    var d = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
+    if (d < 60) return 'just now';
+    if (d < 3600) return Math.floor(d/60) + 'm ago';
+    return Math.floor(d/3600) + 'h ago';
+  }
+  function timeLeft(s) {
+    var d = Math.floor((new Date(s).getTime() - Date.now()) / 1000);
+    if (d <= 0) return 'expired';
+    var m = Math.floor(d/60);
+    if (m < 60) return m + 'm left';
+    return Math.floor(m/60) + 'h ' + (m%60) + 'm left';
+  }
+  function stars(n) {
+    var s = '';
+    for (var i=1; i<=5; i++) s += i<=n ? '★' : '☆';
+    return s;
+  }
+
+  function api(method, url, body) {
+    return fetch(url, {
+      method: method,
+      headers: body ? {'Content-Type':'application/json'} : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r) { return r.json(); });
+  }
+
+  function renderRaidFinder(posts) {
+    raidRoot.innerHTML = '';
+
+    var activePosts  = posts.filter(function(p) { return !p.expired; });
+    var rateablePosts = posts.filter(function(p) { return p.expired; });
+    var myActive     = activePosts.find(function(p) { return p.is_own; });
+    var cooldownMsg  = null;
+
+    // Update tab badge
+    var tabBtn = document.getElementById('raid-tab-btn');
+    if (tabBtn) {
+      tabBtn.textContent = activePosts.length > 0 ? 'Raid Finder (' + activePosts.length + ')' : 'Raid Finder';
+    }
+
+    // Post form / active post notice
+    if (IS_LOGGED_IN) {
+      if (myActive) {
+        var notice = document.createElement('div');
+        notice.className = 'raid-own-notice fade-up';
+        notice.innerHTML = 'You have an active post for <strong>' + esc(myActive.boss_name) + '</strong>. ' +
+          'Delete it below to post a new one.';
+        raidRoot.appendChild(notice);
+      } else {
+        raidRoot.appendChild(buildPostForm());
+      }
+    } else {
+      var loginNotice = document.createElement('div');
+      loginNotice.className = 'trainers-join-banner fade-up';
+      loginNotice.innerHTML = '<p><a href="/login">Log in</a> or <a href="/register">sign up</a> to post a raid and join others.</p>';
+      raidRoot.appendChild(loginNotice);
+    }
+
+    // Active posts
+    var listHeader = document.createElement('div');
+    listHeader.className = 'raid-list-header';
+    listHeader.innerHTML = '<span class="raid-list-title">Active Raids</span>' +
+      '<span class="raid-posts-count">' + activePosts.length + ' active</span>' +
+      '<button class="raid-refresh-btn" id="raid-refresh-btn">Refresh</button>';
+    raidRoot.appendChild(listHeader);
+
+    document.getElementById('raid-refresh-btn').addEventListener('click', loadRaidPosts);
+
+    if (activePosts.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'raid-posts-empty fade-up';
+      empty.textContent = 'No active raids right now. Be the first to post one!';
+      raidRoot.appendChild(empty);
+    } else {
+      var list = document.createElement('div');
+      list.className = 'raid-posts-list';
+      activePosts.forEach(function(p) { list.appendChild(buildPostCard(p)); });
+      raidRoot.appendChild(list);
+    }
+
+    // Rateable expired posts
+    if (rateablePosts.length > 0) {
+      var rateHeader = document.createElement('div');
+      rateHeader.className = 'raid-list-header';
+      rateHeader.innerHTML = '<span class="raid-list-title">Rate Recent Raids</span>';
+      raidRoot.appendChild(rateHeader);
+
+      var rateList = document.createElement('div');
+      rateList.className = 'raid-posts-list';
+      rateablePosts.forEach(function(p) { rateList.appendChild(buildPostCard(p)); });
+      raidRoot.appendChild(rateList);
+    }
+  }
+
+  function buildBossSelect() {
+    var sel = document.createElement('select');
+    sel.className = 'search-input raid-boss-select';
+    sel.id = 'rf-boss'; sel.required = true;
+    var blank = document.createElement('option');
+    blank.value = ''; blank.textContent = 'Select a raid boss…';
+    sel.appendChild(blank);
+
+    var tierLabels = { '1': 'Tier 1', '3': 'Tier 3', '5': 'Legendary / Tier 5', '6': 'Mega / Primal' };
+    var tierOrder  = ['6', '5', '3', '1'];
+    tierOrder.forEach(function(tier) {
+      var bosses = raidBosses && raidBosses[tier];
+      if (!bosses || !bosses.length) return;
+      var grp = document.createElement('optgroup');
+      grp.label = tierLabels[tier] || ('Tier ' + tier);
+      bosses.forEach(function(b) {
+        var opt = document.createElement('option');
+        opt.value = b.pokemon_name;
+        opt.textContent = b.pokemon_name;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    });
+    return sel;
+  }
+
+  function buildPostForm() {
+    var card = document.createElement('div');
+    card.className = 'raid-post-form-card fade-up';
+
+    var title = document.createElement('h3');
+    title.textContent = 'Post a Raid';
+    card.appendChild(title);
+
+    var form = document.createElement('form');
+    form.className = 'raid-post-form';
+    form.id = 'raid-post-form';
+
+    // Boss dropdown
+    var bossField = document.createElement('div');
+    bossField.className = 'raid-post-field';
+    var bossLabel = document.createElement('label');
+    bossLabel.htmlFor = 'rf-boss'; bossLabel.textContent = 'Raid Boss';
+    bossField.appendChild(bossLabel);
+    bossField.appendChild(buildBossSelect());
+    form.appendChild(bossField);
+
+    // Weather boosted toggle
+    var wxField = document.createElement('div');
+    wxField.className = 'raid-post-field raid-wx-field';
+    var wxLabel = document.createElement('label');
+    wxLabel.className = 'raid-wx-label';
+    var wxCheck = document.createElement('input');
+    wxCheck.type = 'checkbox'; wxCheck.id = 'rf-wx'; wxCheck.name = 'weather_boosted';
+    wxLabel.appendChild(wxCheck);
+    wxLabel.appendChild(document.createTextNode(' Weather Boosted'));
+    wxField.appendChild(wxLabel);
+    form.appendChild(wxField);
+
+    // Note
+    var noteField = document.createElement('div');
+    noteField.className = 'raid-post-field';
+    var noteLabel = document.createElement('label');
+    noteLabel.htmlFor = 'rf-note';
+    noteLabel.innerHTML = 'Note <span class="raid-optional">(optional)</span>';
+    var noteInput = document.createElement('input');
+    noteInput.className = 'search-input'; noteInput.id = 'rf-note';
+    noteInput.placeholder = 'e.g. Central Park gym, south entrance'; noteInput.maxLength = 160;
+    noteField.appendChild(noteLabel); noteField.appendChild(noteInput);
+    form.appendChild(noteField);
+
+    // Players needed
+    var playersField = document.createElement('div');
+    playersField.className = 'raid-post-field raid-post-field--sm';
+    var playersLabel = document.createElement('label');
+    playersLabel.htmlFor = 'rf-players'; playersLabel.textContent = 'Players needed';
+    var playersInput = document.createElement('input');
+    playersInput.className = 'search-input'; playersInput.id = 'rf-players';
+    playersInput.type = 'number'; playersInput.min = '0'; playersInput.max = '20'; playersInput.placeholder = 'Any';
+    playersField.appendChild(playersLabel); playersField.appendChild(playersInput);
+    form.appendChild(playersField);
+
+    var submitBtn = document.createElement('button');
+    submitBtn.type = 'submit'; submitBtn.className = 'btn-primary raid-post-btn';
+    submitBtn.textContent = 'Post Raid';
+    form.appendChild(submitBtn);
+
+    var errEl = document.createElement('p');
+    errEl.className = 'raid-form-error'; errEl.style.display = 'none';
+    form.appendChild(errEl);
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      errEl.style.display = 'none';
+      var boss    = form.querySelector('#rf-boss').value.trim();
+      var note    = form.querySelector('#rf-note').value.trim();
+      var players = parseInt(form.querySelector('#rf-players').value) || 0;
+      var wx      = form.querySelector('#rf-wx').checked;
+      api('POST', '/api/raid-posts', { boss_name: boss, note: note, players_needed: players, weather_boosted: wx })
+        .then(function(d) {
+          if (d.error) { errEl.textContent = d.error; errEl.style.display = ''; }
+          else loadRaidPosts();
+        });
+    });
+
+    card.appendChild(form);
+    return card;
+  }
+
+  function buildPostCard(p) {
+    var card = document.createElement('div');
+    card.className = 'raid-post-card fade-up' + (p.expired ? ' raid-post-card--expired' : '');
+    card.dataset.id = p.id;
+
+    // Top row: boss + players badge
+    var top = document.createElement('div');
+    top.className = 'raid-post-top';
+
+    var bossWrap = document.createElement('div');
+    bossWrap.className = 'raid-post-boss-wrap';
+    var bossEl = document.createElement('span');
+    bossEl.className = 'raid-post-boss';
+    bossEl.textContent = p.boss_name;
+    bossWrap.appendChild(bossEl);
+    if (p.weather_boosted) {
+      var wxBadge = document.createElement('span');
+      wxBadge.className = 'raid-wx-badge';
+      wxBadge.title = 'Weather Boosted';
+      wxBadge.textContent = '⛅ Boosted';
+      bossWrap.appendChild(wxBadge);
+    }
+    if (p.host_rating > 0) {
+      var ratingEl = document.createElement('span');
+      ratingEl.className = 'raid-host-rating';
+      ratingEl.title = p.rating_count + ' rating' + (p.rating_count===1?'':'s');
+      ratingEl.textContent = '★ ' + p.host_rating.toFixed(1);
+      bossWrap.appendChild(ratingEl);
+    }
+    top.appendChild(bossWrap);
+
+    if (p.players_needed > 0) {
+      var badge = document.createElement('span');
+      badge.className = 'raid-post-players';
+      badge.textContent = 'Need ' + p.players_needed;
+      top.appendChild(badge);
+    }
+    card.appendChild(top);
+
+    // Meta
+    var meta = document.createElement('div');
+    meta.className = 'raid-post-meta';
+    meta.innerHTML = 'Posted by ' + esc(p.username) + staffIcon(p.staff_badge) + ' · ' + timeAgo(p.created_at);
+    card.appendChild(meta);
+
+    // Note
+    if (p.note) {
+      var noteEl = document.createElement('p');
+      noteEl.className = 'raid-post-note';
+      noteEl.textContent = p.note;
+      card.appendChild(noteEl);
+    }
+
+    // Join section (expanded when has_joined=true)
+    if (!p.is_own && IS_LOGGED_IN && p.has_joined && !p.expired) {
+      card.appendChild(buildJoinInfo(p));
+    }
+
+    // Joiners list (own post)
+    if (p.is_own && p.joiners && p.joiners.length > 0) {
+      card.appendChild(buildJoinersList(p));
+    }
+
+    // Rating section (expired posts)
+    if (p.expired && IS_LOGGED_IN && p.my_rating === 0) {
+      card.appendChild(buildRateSection(p));
+    }
+    if (p.expired && IS_LOGGED_IN && p.my_rating > 0) {
+      var rated = document.createElement('div');
+      rated.className = 'raid-rated-badge';
+      rated.textContent = 'You rated: ' + stars(p.my_rating);
+      card.appendChild(rated);
+    }
+
+    // Footer: time remaining + actions
+    var footer = document.createElement('div');
+    footer.className = 'raid-post-footer';
+
+    if (!p.expired) {
+      var joinCount = document.createElement('span');
+      joinCount.className = 'raid-join-count';
+      joinCount.textContent = p.join_count + ' joined';
+      footer.appendChild(joinCount);
+
+      var exp = document.createElement('span');
+      exp.className = 'raid-post-expires';
+      exp.textContent = timeLeft(p.expires_at);
+      footer.appendChild(exp);
+    } else {
+      var expiredBadge = document.createElement('span');
+      expiredBadge.className = 'raid-post-expired-badge';
+      expiredBadge.textContent = 'Expired';
+      footer.appendChild(expiredBadge);
+    }
+
+    // Action buttons
+    if (!p.expired && !IS_LOGGED_IN) {
+      var loginLink = document.createElement('a');
+      loginLink.href = '/login';
+      loginLink.className = 'raid-login-link';
+      loginLink.textContent = 'Log in to join';
+      footer.appendChild(loginLink);
+    }
+    if (!p.expired && IS_LOGGED_IN) {
+      if (!p.is_own && !p.has_joined) {
+        var joinBtn = document.createElement('button');
+        joinBtn.className = 'btn-primary raid-action-btn';
+        joinBtn.textContent = 'Join Raid';
+        joinBtn.addEventListener('click', function() { joinRaid(p.id, card); });
+        footer.appendChild(joinBtn);
+      }
+      if (!p.is_own && p.has_joined) {
+        var leaveBtn = document.createElement('button');
+        leaveBtn.className = 'raid-leave-btn';
+        leaveBtn.textContent = 'Leave';
+        leaveBtn.addEventListener('click', function() { leaveRaid(p.id); });
+        footer.appendChild(leaveBtn);
+      }
+      if (p.is_own || IS_MOD) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'raid-delete-btn';
+        delBtn.textContent = 'Remove';
+        delBtn.addEventListener('click', function() { deleteRaidPost(p.id); });
+        footer.appendChild(delBtn);
+      }
+    }
+
+    card.appendChild(footer);
+    return card;
+  }
+
+  function buildJoinInfo(p) {
+    var wrap = document.createElement('div');
+    wrap.className = 'raid-join-info';
+
+    // Remote pass warning
+    var warn = document.createElement('div');
+    warn.className = 'raid-remote-warning';
+    warn.innerHTML = '<strong>Remote Raid Pass required</strong> to join this raid remotely. ' +
+      'Make sure you have one before sending the friend request.';
+    wrap.appendChild(warn);
+
+    // Counter tip
+    var tip = document.createElement('div');
+    tip.className = 'raid-counter-tip';
+    tip.innerHTML = 'Prepare your team: use the <a href="/raids">Raids page</a> to find the best counters for ' +
+      '<strong>' + esc(p.boss_name) + '</strong>, then search Pokémon GO for those types.';
+    wrap.appendChild(tip);
+
+    // Host code
+    if (p.host_code) {
+      var codeRow = document.createElement('div');
+      codeRow.className = 'raid-host-code-row';
+      codeRow.innerHTML = 'Add <strong>' + esc(p.username) + '</strong> in-game:&nbsp;' +
+        '<span class="trainer-code">' + fmt(p.host_code) + '</span>&nbsp;' +
+        '<button class="trainer-copy-btn" data-code="' + esc(p.host_code) + '">Copy</button>';
+      codeRow.querySelector('.trainer-copy-btn').addEventListener('click', function(e) {
+        navigator.clipboard.writeText(p.host_code).then(function() {
+          e.target.textContent = 'Copied!';
+          setTimeout(function() { e.target.textContent = 'Copy'; }, 1500);
+        });
+      });
+      wrap.appendChild(codeRow);
+    } else {
+      var noCode = document.createElement('div');
+      noCode.className = 'raid-host-code-row';
+      noCode.innerHTML = '<em>Host has not set a trainer code yet. Check the Trainer Directory for their code.</em>';
+      wrap.appendChild(noCode);
+    }
+
+    // Confirmation flow
+    if (!p.join_confirmed) {
+      var confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn-secondary raid-confirm-btn';
+      confirmBtn.textContent = 'I\'ve sent a friend request';
+      confirmBtn.addEventListener('click', function() {
+        api('POST', '/api/raid-posts/' + p.id + '/confirm', {}).then(function(d) {
+          if (!d.error) loadRaidPosts();
+        });
+      });
+      wrap.appendChild(confirmBtn);
+    } else if (!p.host_invited) {
+      var waitMsg = document.createElement('div');
+      waitMsg.className = 'raid-status-msg';
+      waitMsg.innerHTML = 'Friend request sent. Waiting for <strong>' + esc(p.username) + '</strong> to send the raid invite…';
+      wrap.appendChild(waitMsg);
+    } else {
+      var invitedMsg = document.createElement('div');
+      invitedMsg.className = 'raid-status-msg raid-status-msg--ok';
+      invitedMsg.textContent = 'Raid invite sent! Check your in-game notifications.';
+      wrap.appendChild(invitedMsg);
+    }
+
+    return wrap;
+  }
+
+  function buildJoinersList(p) {
+    var wrap = document.createElement('div');
+    wrap.className = 'raid-joiners-list';
+    var title = document.createElement('div');
+    title.className = 'raid-joiners-title';
+    title.textContent = p.joiners.length + ' player' + (p.joiners.length===1?'':'s') + ' joining:';
+    wrap.appendChild(title);
+
+    p.joiners.forEach(function(j) {
+      var row = document.createElement('div');
+      row.className = 'raid-joiner-row';
+
+      var name = document.createElement('span');
+      name.className = 'raid-joiner-name';
+      name.innerHTML = esc(j.username) + staffIcon(j.staff_badge);
+      row.appendChild(name);
+
+      if (j.confirmed) {
+        var confirmBadge = document.createElement('span');
+        confirmBadge.className = 'raid-joiner-badge raid-joiner-badge--confirmed';
+        confirmBadge.textContent = 'Friend request sent';
+        row.appendChild(confirmBadge);
+      } else {
+        var pendingBadge = document.createElement('span');
+        pendingBadge.className = 'raid-joiner-badge raid-joiner-badge--pending';
+        pendingBadge.textContent = 'Pending';
+        row.appendChild(pendingBadge);
+      }
+
+      if (j.confirmed && !j.host_invited) {
+        var invBtn = document.createElement('button');
+        invBtn.className = 'btn-secondary raid-invite-btn';
+        invBtn.textContent = 'Send Invite';
+        invBtn.addEventListener('click', (function(jj) { return function() {
+          api('POST', '/api/raid-posts/' + p.id + '/invite', { joiner_id: jj.id })
+            .then(function(d) { if (!d.error) loadRaidPosts(); });
+        }; })(j));
+        row.appendChild(invBtn);
+      } else if (j.host_invited) {
+        var invBadge = document.createElement('span');
+        invBadge.className = 'raid-joiner-badge raid-joiner-badge--invited';
+        invBadge.textContent = 'Invite sent';
+        row.appendChild(invBadge);
+      }
+
+      wrap.appendChild(row);
+    });
+
+    return wrap;
+  }
+
+  function buildRateSection(p) {
+    var isHost = p.is_own;
+    var wrap = document.createElement('div');
+    wrap.className = 'raid-rate-section';
+
+    var label = document.createElement('div');
+    label.className = 'raid-rate-label';
+    label.textContent = isHost ? 'Rate your joiners:' : 'How was the raid?';
+    wrap.appendChild(label);
+
+    var targets = isHost
+      ? p.joiners.filter(function(j) { return j.confirmed; })
+      : [{ id: null, username: p.username }];
+
+    targets.forEach(function(t) {
+      var row = document.createElement('div');
+      row.className = 'raid-rate-row';
+
+      if (isHost) {
+        var tname = document.createElement('span');
+        tname.className = 'raid-rate-name';
+        tname.textContent = t.username;
+        row.appendChild(tname);
+      }
+
+      var starRow = document.createElement('div');
+      starRow.className = 'raid-star-row';
+      for (var i = 1; i <= 5; i++) {
+        (function(score) {
+          var btn = document.createElement('button');
+          btn.className = 'raid-star-btn';
+          btn.textContent = '★';
+          btn.title = score + ' star' + (score===1?'':'s');
+          btn.addEventListener('click', (function(ratedId) { return function() {
+            var ratedID = ratedId !== null ? ratedId : null;
+            var body = { score: score };
+            if (ratedID !== null) body.rated_id = ratedID;
+            else body.rated_id = 0;
+            api('POST', '/api/raid-posts/' + p.id + '/rate', body)
+              .then(function(d) { if (!d.error) loadRaidPosts(); });
+          }; })(t.id));
+          starRow.appendChild(btn);
+        })(i);
+      }
+      row.appendChild(starRow);
+      wrap.appendChild(row);
+    });
+
+    return wrap;
+  }
+
+  function joinRaid(id, card) {
+    api('POST', '/api/raid-posts/' + id + '/join', {}).then(function(d) {
+      if (d.error) { showCardError(card, d.error); }
+      else loadRaidPosts();
+    });
+  }
+  function leaveRaid(id) {
+    api('DELETE', '/api/raid-posts/' + id + '/join').then(loadRaidPosts);
+  }
+  function deleteRaidPost(id) {
+    api('DELETE', '/api/raid-posts/' + id).then(loadRaidPosts);
+  }
+
+  function showCardError(card, msg) {
+    var existing = card.querySelector('.raid-card-error');
+    if (existing) existing.remove();
+    var el = document.createElement('div');
+    el.className = 'raid-card-error';
+    el.textContent = msg;
+    card.appendChild(el);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function staffIcon(badge) {
+    var icons = {superadmin: '👑', admin: '💎', moderator: '🏅'};
+    var labels = {superadmin: 'Superadmin', admin: 'Admin', moderator: 'Moderator'};
+    return icons[badge] ? '<span class="staff-icon" title="' + labels[badge] + '">' + icons[badge] + '</span>' : '';
+  }
+
+  function loadRaidPosts() {
+    var bossPromise = raidBosses
+      ? Promise.resolve(raidBosses)
+      : fetch('/api/raids').then(function(r) { return r.json(); }).then(function(d) { raidBosses = d; return d; });
+
+    bossPromise.then(function() {
+      return fetch('/api/raid-posts').then(function(r) { return r.json(); });
+    }).then(function(posts) {
+      renderRaidFinder(posts || []);
+    }).catch(function() {
+      raidRoot.innerHTML = '<div class="error-state">Could not load raid posts. Please try again.</div>';
+    });
+  }
+
+  // Load on first tab switch to raids, auto-refresh every 30s
+  var raidLoaded = false;
+  document.getElementById('trainers-tabs').addEventListener('click', function(e) {
+    var btn = e.target.closest('.tab-btn');
+    if (btn && btn.dataset.tab === 'raids' && !raidLoaded) {
+      raidLoaded = true;
+      loadRaidPosts();
+    }
+  });
+  refreshTimer = setInterval(function() {
+    if (document.getElementById('tab-raids').classList.contains('active')) {
+      loadRaidPosts();
+    }
+  }, 30000);
+
+})();
+</script>
+{{end}}

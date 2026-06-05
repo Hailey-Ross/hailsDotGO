@@ -1,5 +1,6 @@
 import { loadGameData } from "./shared/gamedata";
 import { typeBadge } from "./shared/typecolors";
+import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
 const app = document.getElementById("events-app")!;
@@ -11,16 +12,19 @@ interface ShinyGroup {
   label: string;
   icon: string;
   flag: keyof ShinyPokemon;
+  tooltip: string;
 }
 
 const SHINY_GROUPS: ShinyGroup[] = [
-  { id: "wild",      label: "Wild",       icon: "🌿", flag: "shiny_found_wild" },
-  { id: "raid",      label: "Raids",      icon: "⚔️", flag: "shiny_found_raid" },
-  { id: "egg",       label: "Eggs",       icon: "🥚", flag: "shiny_found_egg" },
-  { id: "research",  label: "Research",   icon: "📋", flag: "shiny_found_research" },
-  { id: "evolution", label: "Evolution",  icon: "⬆️", flag: "shiny_found_evolution" },
-  { id: "photobomb", label: "Photobomb",  icon: "📸", flag: "shiny_found_photobomb" },
+  { id: "wild",      label: "Wild",       icon: "🌿", flag: "found_wild",      tooltip: "Encountered randomly in the overworld" },
+  { id: "raid",      label: "Raids",      icon: "⚔️", flag: "found_raid",      tooltip: "Rare reward after defeating a raid boss" },
+  { id: "egg",       label: "Eggs",       icon: "🥚", flag: "found_egg",       tooltip: "Hatched from 2km, 5km, 7km, or 12km eggs" },
+  { id: "research",  label: "Research",   icon: "📋", flag: "found_research",  tooltip: "Reward encounter from field research tasks" },
+  { id: "evolution", label: "Evolution",  icon: "⬆️", flag: "found_evolution", tooltip: "Evolve the base form: cannot be caught directly" },
+  { id: "photobomb", label: "Photobomb",  icon: "📸", flag: "found_photobomb", tooltip: "Appears by surprise when taking a GO Snapshot" },
 ];
+
+let cryVolume = 0.8;
 
 function buildShiniesPanel(data: GameData): () => HTMLElement {
   return () => {
@@ -41,12 +45,32 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
     const modal = document.createElement("div");
     modal.className = "shiny-modal";
     modal.innerHTML = `<div class="shiny-modal-inner">
-      <img class="shiny-modal-img" alt="" />
-      <span class="shiny-modal-name"></span>
+      <div class="shiny-compare" id="shiny-compare-wrap">
+        <div class="shiny-compare-side">
+          <img class="shiny-compare-img" id="shiny-modal-normal" alt="" />
+          <span>Normal</span>
+        </div>
+        <div class="shiny-compare-side">
+          <img class="shiny-compare-img" id="shiny-modal-shiny" alt="" />
+          <span>✨ Shiny</span>
+        </div>
+      </div>
+      <div class="shiny-modal-name-row">
+        <span class="shiny-modal-name"></span>
+      </div>
+      <span class="poke-genus" id="shiny-modal-genus"></span>
+      <span class="poke-legend-badge" id="shiny-modal-badge" style="display:none"></span>
+      <div class="poke-cry-controls" id="shiny-cry-controls" style="display:none">
+        <button class="poke-cry-btn" id="shiny-modal-cry" title="Play cry">🔊</button>
+        <input type="range" class="poke-volume-slider" id="shiny-modal-volume" min="0" max="80" value="80" title="Volume">
+        <span class="poke-volume-label" id="shiny-modal-vlabel">80%</span>
+      </div>
+      <p class="poke-flavor" id="shiny-modal-flavor" style="display:none"></p>
       <div class="shiny-modal-methods"></div>
     </div>`;
     document.body.appendChild(modal);
-    modal.addEventListener("click", () => modal.classList.remove("open"));
+    // Only close when clicking the backdrop, not inner content
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("open"); });
     const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") modal.classList.remove("open"); };
     document.addEventListener("keydown", onEsc);
 
@@ -73,6 +97,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
       const btn = document.createElement("button");
       btn.className = "method-tab";
       btn.dataset.group = g.id;
+      btn.dataset.tooltip = g.tooltip;
       btn.textContent = `${g.icon} ${g.label} (${g.items.length})`;
       methodTabs.appendChild(btn);
     }
@@ -120,10 +145,72 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
         card.appendChild(label);
 
         card.addEventListener("click", () => {
-          (modal.querySelector(".shiny-modal-img") as HTMLImageElement).src =
+          (document.getElementById("shiny-modal-normal") as HTMLImageElement).src =
+            `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${s.id}.png`;
+          (document.getElementById("shiny-modal-shiny") as HTMLImageElement).src =
             `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${s.id}.png`;
           (modal.querySelector(".shiny-modal-name") as HTMLElement).textContent =
             s.name.replace(/_/g, " ");
+
+          const flavorEl   = document.getElementById("shiny-modal-flavor")   as HTMLElement;
+          const genusEl    = document.getElementById("shiny-modal-genus")    as HTMLElement;
+          const badgeEl    = document.getElementById("shiny-modal-badge")    as HTMLElement;
+          const cryPanel   = document.getElementById("shiny-cry-controls")   as HTMLElement;
+          const cryBtn     = document.getElementById("shiny-modal-cry")      as HTMLButtonElement;
+          const volSlider  = document.getElementById("shiny-modal-volume")   as HTMLInputElement;
+          const volLabel   = document.getElementById("shiny-modal-vlabel")   as HTMLElement;
+          const compareWrap = document.getElementById("shiny-compare-wrap")  as HTMLElement;
+          flavorEl.textContent = ""; flavorEl.style.display = "none";
+          genusEl.textContent  = "";
+          badgeEl.textContent  = ""; badgeEl.style.display = "none";
+          cryPanel.style.display = "none"; cryBtn.onclick = null;
+          // Remove any primal panels from a previous open
+          compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
+
+          // Keep slider in sync with shared volume
+          volSlider.value = String(Math.round(cryVolume * 100));
+          volLabel.textContent = `${volSlider.value}%`;
+          volSlider.oninput = () => {
+            cryVolume = Number(volSlider.value) / 100;
+            volLabel.textContent = `${volSlider.value}%`;
+          };
+
+          fetchSpeciesData(s.id).then(d => {
+            if (d.flavor) { flavorEl.textContent = d.flavor; flavorEl.style.display = ""; }
+            if (d.genus)  { genusEl.textContent  = `The ${d.genus}`; }
+            if (d.isLegendary || d.isMythical) {
+              badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+              badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+              badgeEl.style.display = "";
+            }
+            for (const variety of d.varieties.filter(v => v.includes("primal"))) {
+              fetchFormSprites(variety).then(sprites => {
+                if (!sprites.normal && !sprites.shiny) return;
+                if (sprites.normal) {
+                  const side = document.createElement("div");
+                  side.className = "shiny-compare-side shiny-compare-side--extra";
+                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="Primal"><span>🌋 Primal</span>`;
+                  compareWrap.appendChild(side);
+                }
+                if (sprites.shiny) {
+                  const side = document.createElement("div");
+                  side.className = "shiny-compare-side shiny-compare-side--extra";
+                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="Primal Shiny"><span>✨ Primal Shiny</span>`;
+                  compareWrap.appendChild(side);
+                }
+              });
+            }
+          });
+          fetchCryUrl(s.id).then(url => {
+            if (!url) return;
+            cryPanel.style.display = "";
+            cryBtn.onclick = (e) => {
+              e.stopPropagation();
+              const a = new Audio(url);
+              a.volume = Math.min(cryVolume, 0.8);
+              a.play();
+            };
+          });
 
           const methodsEl = modal.querySelector(".shiny-modal-methods") as HTMLElement;
           methodsEl.innerHTML = "";

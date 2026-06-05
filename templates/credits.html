@@ -1,0 +1,197 @@
+{{define "title"}}Credits{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Credits &amp; Info</h1>
+</div>
+
+<div class="tabs" id="credits-tabs">
+  <button class="tab-btn active" data-tab="about">About</button>
+  <button class="tab-btn" data-tab="changelog">Changelog</button>
+</div>
+
+<div id="tab-about" class="tab-panel active">
+  <div class="credits-card">
+    <h2>What is hailsDotGO?</h2>
+    <p>hailsDotGO is a fan-made toolkit for Pokémon GO players: raid counters, DPS calculations, PvP IV rankings, a full shiny Pokémon dex, a personal shiny collection tracker, a Trainer Directory, and a live Raid Finder for coordinating remote raids with other players.</p>
+    <p>The site is not affiliated with Niantic, The Pokémon Company, or Nintendo.</p>
+  </div>
+
+  <div class="credits-card">
+    <h2>Data Sources</h2>
+    <ul class="credits-list">
+      <li><a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a>: Pokémon stats, moves, type effectiveness, shiny availability, CP multipliers</li>
+      <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>: current raid bosses</li>
+      <li><a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>: Pokémon sprites, Pokédex flavor text, genus, legendary/mythical flags, and in-game cries</li>
+      <li><a href="https://openweathermap.org" target="_blank" rel="noopener">OpenWeatherMap</a>: current weather data used to determine Pokémon GO weather boosts</li>
+      <li><a href="https://pokemonshowdown.com" target="_blank" rel="noopener">Pokémon Showdown</a>: trainer class sprites used for trainer profile avatars</li>
+    </ul>
+  </div>
+
+  <div class="credits-card">
+    <h2>Project</h2>
+    <ul class="credits-list">
+      <li>Built with Go, chi, and TypeScript</li>
+      <li>Hosted on <a href="https://links.hails.cc" target="_blank" rel="noopener">hails.cc</a></li>
+      <li>Open source: <a href="https://github.com/Hailey-Ross/hailsDotGO" target="_blank" rel="noopener">github.com/Hailey-Ross/hailsDotGO</a></li>
+    </ul>
+  </div>
+</div>
+
+<div id="tab-changelog" class="tab-panel">
+  <div class="page-header" style="margin-bottom:1.25rem">
+    <p>A running log of updates and improvements.</p>
+  </div>
+
+  <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (7)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Role indicators, trainer name uniqueness, and Raid Finder improvements</h2>
+        <ul class="cl-list">
+          <li>Staff role icons shown next to usernames everywhere they appear: 👑 Superadmin, 💎 Admin, 🏅 Moderator; visible in the navbar, Trainer Directory cards, raid post headers, and the joiner list</li>
+          <li>In-game trainer name and trainer code must be unique across all accounts; duplicate submissions are rejected with an error</li>
+          <li>Raid Finder: non-logged-in visitors can browse active raids but must log in to post or join; a "Log in to join" prompt appears on each card</li>
+          <li>Trainer sprite size increased to 64px on directory cards and 80px in the settings preview</li>
+          <li>Pronouns and location text on trainer cards now render without the global text outline and in a lighter colour for improved readability</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (6)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Trainer avatar and pronouns dropdown polish</h2>
+        <ul class="cl-list">
+          <li>Avatar picker converted from a radio button grid to a dropdown with a live sprite preview that updates as you change selection</li>
+          <li>Pronouns converted from radio buttons to a dropdown; selecting "Other" reveals a custom text input</li>
+          <li>Trainer sprites are now cached server-side on first load and served from the local proxy with a 30-day browser cache header, eliminating repeat fetches from the Pokémon Showdown CDN</li>
+          <li>Expanded trainer class list to 27 confirmed sprites</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (5)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Pronouns, trainer sprites, and settings tabs</h2>
+        <ul class="cl-list">
+          <li>Trainers can now set pronouns (He/Him, She/Her, They/Them, Any/All, or custom); shown in muted text beside their name in the Trainer Directory</li>
+          <li>Trainer avatar picker replaced with actual game trainer class sprites via Pokémon Showdown: Youngster, Lass, Bug Catcher, Hiker, Beauty, Psychic, Ace Trainer, Swimmer, Picnicker, Camper, Pokemaniac, Super Nerd, Gentleman, Medium, and Worker</li>
+          <li>Trainer cards in the directory show the selected sprite; trainers with no avatar set show the default silhouette</li>
+          <li>Settings page split into tabs: Trainer Profile (name, pronouns, avatar, trainer code) and Location &amp; Privacy</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (3)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder, trainer avatars, and directory improvements</h2>
+        <ul class="cl-list">
+          <li>New Raid Finder tab on /trainers: post and join remote raids with other players in real time</li>
+          <li>Raid boss selection uses a live dropdown of current raid bosses grouped by tier</li>
+          <li>Weather Boosted toggle on raid posts; boosted raids are badged in the list</li>
+          <li>Raid posts expire automatically after 2 hours</li>
+          <li>Joiners receive a remote raid pass reminder and a link to the Raids page for counters</li>
+          <li>Host's trainer code is revealed to joiners upon joining so they can add the host in-game</li>
+          <li>Joiners confirm they have sent a friend request; host is notified and can mark the invite as sent</li>
+          <li>After the raid, joiners can rate the host (1-5 stars); host can rate confirmed joiners</li>
+          <li>Anti-churn cooldown: leaving 4 raids within an hour triggers a 10-minute join block</li>
+          <li>Trainer Directory now shows trainer name only (not site username) for privacy</li>
+          <li>Trainers can pick a colour avatar theme from Settings; shown on their directory card</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (2)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Trainer Directory, Settings page, and location privacy controls</h2>
+        <ul class="cl-list">
+          <li>New Settings page: set your in-game trainer name, 12-digit friend code, and opt into the public Trainer Directory</li>
+          <li>New Trainer Directory (/trainers): public list of opted-in players with one-click trainer code copy buttons</li>
+          <li>Trainer codes displayed as XXXX XXXX XXXX; copied without spaces for easy in-game pasting</li>
+          <li>Location privacy controls: choose to show no location, country only, or state and country on your directory card</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Pokédex details, shiny comparison, and collection improvements</h2>
+        <ul class="cl-list">
+          <li>Normal vs shiny sprite comparison: opening any shiny card now shows both sprites side by side so you can compare the colour difference</li>
+          <li>Pokédex flavor text pulled from PokéAPI and shown in shiny, raid, DPS, and PvP detail views</li>
+          <li>Genus tag shown beneath each Pokémon name (e.g., "The Mouse Pokémon")</li>
+          <li>Legendary and Mythical badges on applicable Pokémon across all detail views</li>
+          <li>Pokémon cry audio button (🔊) in shiny modals plays the official in-game cry; includes a volume slider capped at 80%</li>
+          <li>Primal form sprites shown alongside Normal and Shiny in the compare panel for Groudon and Kyogre</li>
+          <li>Shiny collection caught list now shows when each Pokémon was caught (e.g., "3 days ago")</li>
+          <li>Collection stats bar: unique and total counts plus a method breakdown (Wild, Raid, Egg, etc.)</li>
+          <li>Shiny method tabs show a tooltip on hover explaining how each method works</li>
+          <li>Fixed shiny method details not displaying (PoGoAPI field name update)</li>
+          <li>Removed focus glow rings from all input fields; fixed black text outline on mobile inputs</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-04</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Pokémon lookup, weather boosted CPs, raid overhaul, and more</h2>
+        <ul class="cl-list">
+          <li>New Pokémon lookup on the Raids page: search any Pokémon to see its best moveset and DPS/TDO against every current raid boss, sorted by best matchup first</li>
+          <li>Pokémon lookup form selector: Normal, Shadow, and Purified are available for all Pokémon; Primal is available only for Groudon and Kyogre</li>
+          <li>Pokémon lookup uses CP input instead of level; default CP shown at L40/15/15/15; CPM derived from CP and IVs automatically</li>
+          <li>DPS calculator and compare tabs now use CP input instead of level</li>
+          <li>Shiny Pokémon cards now show how to obtain each shiny in the detail popup</li>
+          <li>Raid boss cards now show weather boosted CP range alongside the normal catch CP</li>
+          <li>Rebranded to hailsDotGO Beta</li>
+          <li>Combined Current Raids and Raid Counters into a single page</li>
+          <li>Raid bosses now display as visual cards with artwork, type badges, CP, and shiny availability</li>
+          <li>Pokémon sprites added throughout: counter table, DPS result, DPS compare table, PvP IV rankings</li>
+          <li>Events page simplified to Shinies-only (raids moved to the Raids page)</li>
+          <li>hailsDotGO branding is now pink across the site</li>
+          <li>Black text outline added globally for readability</li>
+          <li>Added this changelog</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-03</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid counters, mobile, and deploy fixes</h2>
+        <ul class="cl-list">
+          <li>Fixed raid counters showing wrong Pokémon and NaN DPS/TDO values</li>
+          <li>Counters now only consider moves each Pokémon can actually learn</li>
+          <li>Fixed duplicate Pokémon in counter list (keeps highest-DPS result per species)</li>
+          <li>Lazy loading added for all 863 shiny images on the Shinies page</li>
+          <li>Mobile-friendly layout: improved touch targets, horizontal table scroll, iOS font-size zoom fix</li>
+          <li>Various backend stability improvements</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+  function switchTab(id) {
+    document.querySelectorAll('#credits-tabs .tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === id); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + id).classList.add('active');
+  }
+  document.getElementById('credits-tabs').addEventListener('click', function(e) {
+    var btn = e.target.closest('.tab-btn');
+    if (btn) switchTab(btn.dataset.tab);
+  });
+  // Support ?tab=changelog redirect from /changelog
+  if (new URLSearchParams(location.search).get('tab') === 'changelog') switchTab('changelog');
+</script>
+{{end}}

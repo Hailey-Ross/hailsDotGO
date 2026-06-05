@@ -11,15 +11,28 @@ import (
 const CookieName = "hgo_session"
 const sessionTTL = 30 * 24 * time.Hour
 
+// SuperadminUser is the username that always has admin privileges regardless
+// of their DB role. Set from SUPERADMIN_USER env var at startup.
+var SuperadminUser string
+
 type User struct {
 	ID       uint
 	Username string
 	Email    string
 	Role     string
+	Disabled bool
+}
+
+func (u *User) IsSuperAdmin() bool {
+	return SuperadminUser != "" && u.Username == SuperadminUser
 }
 
 func (u *User) IsAdmin() bool {
-	return u.Role == "admin" || u.Username == "hails"
+	return u.Role == "admin" || u.IsSuperAdmin()
+}
+
+func (u *User) IsMod() bool {
+	return u.Role == "moderator" || u.IsAdmin()
 }
 
 func CreateSession(db *sql.DB, userID uint) (string, error) {
@@ -42,16 +55,19 @@ func CreateSession(db *sql.DB, userID uint) (string, error) {
 func GetSession(db *sql.DB, token string) (*User, error) {
 	var u User
 	err := db.QueryRow(`
-		SELECT u.id, u.username, u.email, u.role
+		SELECT u.id, u.username, u.email, u.role, u.disabled
 		FROM sessions s JOIN users u ON s.user_id = u.id
 		WHERE s.token = ? AND s.expires_at > NOW()`,
 		token,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.Role)
+	).Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.Disabled)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("auth: get session: %w", err)
+	}
+	if u.Disabled {
+		return nil, nil
 	}
 	return &u, nil
 }

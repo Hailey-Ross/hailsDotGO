@@ -1,15 +1,17 @@
 # hailsDotGO
 
-A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, PvP IV rankings, a shiny availability tracker, and a personal shiny collection tracker with user accounts.
+A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, PvP IV rankings, a shiny availability tracker, a personal shiny collection tracker, a Trainer Directory, and a live Raid Finder for coordinating remote raids.
 
 This project includes:
 - Real-time raid boss listings with inline counter recommendations
 - DPS calculator and bulk moveset comparison
 - PvP IV ranker across all three leagues
-- Full shiny availability tracker with obtain-method detail
-- Personal shiny collection: log every shiny you've caught with method tracking
+- Full shiny availability tracker with obtain-method detail and normal vs shiny sprite comparison
+- Personal shiny collection: log every shiny you've caught with method tracking and stats
+- Trainer Directory: opt in to share your trainer code publicly, searchable by trainer name
+- Raid Finder: post and join remote raids in real time with friend-code sharing, confirm/invite flow, and post-raid ratings
 - User accounts with registration (open or invite-only), login, and an admin panel
-- A changelog so you can follow along with updates
+- Credits and changelog tab
 
 ---
 
@@ -84,10 +86,13 @@ TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
 | `/pvp` | IV stat product ranker (GL / UL / ML) |
 | `/events` | Shiny Pokémon availability tracker |
 | `/shinies` | Your personal shiny collection (login required) |
-| `/changelog` | Running log of site updates |
+| `/trainers` | Trainer Directory and Raid Finder |
+| `/settings` | Trainer profile: name, pronouns, avatar, friend code, location privacy (login required) |
+| `/credits` | About, data sources, and changelog |
+| `/changelog` | Redirects to `/credits?tab=changelog` |
 | `/login` | Sign in |
 | `/register` | Create an account (open or invite-only) |
-| `/admin` | Admin panel: registration toggle, invite generation (admin role required) |
+| `/admin` | Admin panel: registration toggle, invite generation, user management (mod+ required) |
 
 ---
 
@@ -165,7 +170,7 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 .\deploy.ps1
 ```
 
-> **Note:** Requires `VPS_HOST` and `VPS_USER` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server.
+> **Note:** Requires `VPS_HOST`, `VPS_USER`, and `SUPERADMIN_USER` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server.
 
 ---
 
@@ -178,6 +183,8 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | `DB_USER` | Yes | | MySQL username |
 | `DB_PASS` | Yes | | MySQL password |
 | `DB_NAME` | Yes | | MySQL database name |
+| `SUPERADMIN_USER` | No | | Username that always has admin privileges regardless of DB role |
+| `OPENWEATHER_KEY` | No | | OpenWeatherMap API key for weather boost data |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
 | `VPS_PASS` | Deploy only | | SSH password for the VPS |
@@ -190,7 +197,9 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 |---|---|
 | [PoGoAPI](https://pogoapi.net) | Pokémon stats, moves, shinies, type effectiveness, CP multipliers |
 | [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Live raid boss data (sourced from LeekDuck) |
-| [PokeAPI sprites](https://github.com/PokeAPI/sprites) | Pokémon sprite images |
+| [PokéAPI](https://pokeapi.co) | Pokémon sprites, Pokédex flavor text, genus, legendary/mythical flags, in-game cries |
+| [OpenWeatherMap](https://openweathermap.org) | Current weather data for Pokémon GO weather boost detection |
+| [Pokémon Showdown](https://pokemonshowdown.com) | Trainer class sprites for trainer profile avatars |
 
 ---
 

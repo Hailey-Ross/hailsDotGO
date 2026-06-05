@@ -21,17 +21,18 @@
     <a href="/dps">DPS Calc</a>
     <a href="/pvp">PvP</a>
     <a href="/events">Shinies</a>
+    <a href="/trainers">Trainers</a>
     {{if .User}}
     <a href="/shinies" class="nav-link-highlight">My Collection</a>
-    {{if .User.IsAdmin}}<a href="/admin">Admin</a>{{end}}
+    <a href="/settings">Settings</a>
+    {{if .User.IsMod}}<a href="/admin">{{if .User.IsAdmin}}Admin{{else}}Mod{{end}}</a>{{end}}
     <form method="POST" action="/logout" style="display:inline;margin:0">
-      <button type="submit" class="nav-logout-btn">{{.User.Username}} &times;</button>
+      <button type="submit" class="nav-logout-btn">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Superadmin">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{end}}{{.User.Username}} &times;</button>
     </form>
     {{else}}
     <a href="/login">Login</a>
     <a href="/register" class="nav-link-highlight">Sign Up</a>
     {{end}}
-    <a href="/changelog">Changelog</a>
   </div>
 </nav>
 
@@ -40,7 +41,7 @@
 </main>
 
 <footer class="footer">
-  <p>Fan-made tool &bull; Not affiliated with Niantic or The Pokémon Company &bull; Data: <a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a> &bull; Powered by <a href="https://hails.cc" target="_blank" rel="noopener">hails.cc</a> &bull; <a href="https://github.com/Hailey-Ross/hailsDotGO" target="_blank" rel="noopener">Check our code</a></p>
+  <p>Fan-made tool &bull; Not affiliated with Niantic or The Pokémon Company &bull; <a href="/credits">Credits &amp; Info</a></p>
 </footer>
 
 <script>
