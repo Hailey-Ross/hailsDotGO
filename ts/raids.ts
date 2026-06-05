@@ -200,62 +200,45 @@ function buildRaidsView(data: GameData): HTMLElement {
     configPanel.innerHTML = "";
 
     const nameLower = pokemonName.toLowerCase();
-    // Strip known prefixes to find the base name for variant lookups
     const baseLookup = nameLower.replace(/^shadow_/, "").replace(/^primal_/, "");
 
-    // Aggregate names from every source so either stats or moves data can signal a variant
-    const allPokeNames = new Set([
-      ...(data.pokemon ?? []).map((p) => p.pokemon_name.toLowerCase()),
-      ...(data.pokemonMoves ?? []).map((pm) => pm.pokemon_name.toLowerCase()),
-    ]);
-    // shadowPokemon = base names from shadow_pokemon.json; fall back to prefix scan when unavailable
-    const shadowList = data.shadowPokemon ?? [];
-    const hasShadow = shadowList.length > 0
-      ? shadowList.some((n) => n.toLowerCase() === baseLookup)
-      : allPokeNames.has(`shadow_${baseLookup}`);
-    const hasPrimal = allPokeNames.has(`primal_${baseLookup}`);
+    const hasPrimal = baseLookup === "groudon" || baseLookup === "kyogre";
 
     // Set default form from name prefix
     if (/^shadow_/.test(nameLower)) config.form = "shadow";
     else if (/^primal_/.test(nameLower)) config.form = "primal";
     else config.form = "normal";
 
-    // Build only the applicable forms for this Pokémon
+    // Shadow/Purified apply to all Pokemon; Primal only to Groudon and Kyogre
     const forms: { value: PokemonForm; label: string }[] = [
       { value: "normal", label: "Normal" },
-      ...(hasShadow ? [
-        { value: "shadow" as PokemonForm, label: "Shadow" },
-        { value: "purified" as PokemonForm, label: "Purified" },
-      ] : []),
+      { value: "shadow" as PokemonForm, label: "Shadow" },
+      { value: "purified" as PokemonForm, label: "Purified" },
       ...(hasPrimal ? [{ value: "primal" as PokemonForm, label: "Primal" }] : []),
     ];
 
-    // Guard: if active form is no longer in the list, reset
     if (!forms.some((f) => f.value === config.form)) config.form = "normal";
 
-    // Only render the form row if there's more than just Normal
-    if (forms.length > 1) {
-      const modRow = document.createElement("div");
-      modRow.className = "config-row config-mods";
-      const modLbl = document.createElement("span");
-      modLbl.className = "config-label";
-      modLbl.textContent = "Form";
-      modRow.appendChild(modLbl);
+    const modRow = document.createElement("div");
+    modRow.className = "config-row config-mods";
+    const modLbl = document.createElement("span");
+    modLbl.className = "config-label";
+    modLbl.textContent = "Form";
+    modRow.appendChild(modLbl);
 
-      for (const f of forms) {
-        const btn = document.createElement("button");
-        btn.className = `filter-chip${config.form === f.value ? " active" : ""}`;
-        btn.textContent = f.label;
-        btn.addEventListener("click", () => {
-          config.form = f.value;
-          modRow.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
-          btn.classList.add("active");
-          renderResults();
-        });
-        modRow.appendChild(btn);
-      }
-      configPanel.appendChild(modRow);
+    for (const f of forms) {
+      const btn = document.createElement("button");
+      btn.className = `filter-chip${config.form === f.value ? " active" : ""}`;
+      btn.textContent = f.label;
+      btn.addEventListener("click", () => {
+        config.form = f.value;
+        modRow.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        renderResults();
+      });
+      modRow.appendChild(btn);
     }
+    configPanel.appendChild(modRow);
 
     // CP + IV inputs
     const statsRow = document.createElement("div");
