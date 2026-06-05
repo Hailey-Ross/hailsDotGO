@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>hailsDotGO — Updating</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a1a;
+      --surface: rgba(255,255,255,0.05);
+      --border: rgba(255,255,255,0.1);
+      --text: #e8e8f0;
+      --text-2: rgba(255,255,255,0.5);
+      --blue: #5b9cf6;
+      --red: #e53935;
+      --font: 'Inter', system-ui, sans-serif;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
+    body {
+      font-family: var(--font);
+      background-color: var(--bg);
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(91,156,246,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(91,156,246,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      animation: gridScroll 20s linear infinite;
+      pointer-events: none;
+    }
+
+    /* Radial glow */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(91,156,246,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    @keyframes gridScroll {
+      from { transform: translateY(0); }
+      to   { transform: translateY(48px); }
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 3rem 3.5rem;
+      max-width: 480px;
+      width: calc(100% - 2rem);
+      text-align: center;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 2rem;
+      color: #f472b6;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+    .logo span { color: #f472b6; }
+
+    /* Spinning pokeball */
+    .ball {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1.75rem;
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes rainbow {
+      0%   { fill: #ff0000; }
+      17%  { fill: #ff8800; }
+      33%  { fill: #ffff00; }
+      50%  { fill: #00cc00; }
+      67%  { fill: #0066ff; }
+      83%  { fill: #8800ff; }
+      100% { fill: #ff0000; }
+    }
+    .ball svg { width: 100%; height: 100%; }
+    .ball-top { animation: rainbow 2s linear infinite; }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 0.6rem;
+      letter-spacing: -0.3px;
+    }
+
+    p {
+      color: var(--text-2);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .dot-row {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 2rem;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.2; transform: scale(0.8); }
+      50%       { opacity: 1;   transform: scale(1.1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">hails<span>DotGO</span></div>
+
+    <div class="ball">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="30" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+        <!-- top half -->
+        <path class="ball-top" d="M2 32 A30 30 0 0 1 62 32 Z" fill="#9b59b6" opacity="0.85"/>
+        <!-- bottom half -->
+        <path d="M2 32 A30 30 0 0 0 62 32 Z" fill="rgba(255,255,255,0.82)"/>
+        <!-- center band -->
+        <line x1="2" y1="32" x2="62" y2="32" stroke="rgba(255,255,255,0.2)" stroke-width="3"/>
+        <!-- center button -->
+        <circle cx="32" cy="32" r="8" fill="rgba(0,0,0,0.6)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+        <circle cx="32" cy="32" r="4" fill="rgba(255,255,255,0.15)"/>
+      </svg>
+    </div>
+
+    <h1>Updating&hellip;</h1>
+    <p>The site is down for a quick update.<br>Check back in a moment.</p>
+
+    <div class="dot-row">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+<script>
+  (function() {
+    var bgs = [
+      'https://assets.hails.cc/i/bg1.jpg',
+      'https://assets.hails.cc/i/bg2_transFlag.jpg',
+      'https://assets.hails.cc/i/bg3_paintIt.png'
+    ];
+    var chosen = bgs[Math.floor(Math.random() * bgs.length)];
+    var img = new Image();
+    img.onload = function() { document.body.style.backgroundImage = "url('" + chosen + "')"; };
+    img.src = chosen;
+  })();
+</script>
+<script>
+  (function() {
+    function check() {
+      fetch('/api/data', { cache: 'no-store' })
+        .then(function(res) {
+          if (res.ok && (res.headers.get('content-type') || '').indexOf('application/json') !== -1) {
+            window.location.reload();
+          }
+        })
+        .catch(function() {});
+    }
+    setInterval(check, 5000);
+  })();
+</script>
+</body>
+</html>

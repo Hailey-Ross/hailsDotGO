@@ -1,0 +1,20 @@
+[Unit]
+Description=hailsDotGO — Pokemon GO Tools (pogo.hails.live)
+After=network.target
+
+[Service]
+Type=simple
+User=hailsdotgo
+Group=hailsdotgo
+WorkingDirectory=/opt/hailsdotgo
+ExecStart=/opt/hailsdotgo/hailsDotGO
+Restart=always
+RestartSec=5
+Environment=PORT=8080
+
+# Basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

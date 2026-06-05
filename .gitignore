@@ -1,0 +1,19 @@
+# Go
+hailsDotGO
+hailsDotGO-linux
+hailsDotGO.exe
+pogo.hails.cc.exe
+
+# esbuild output
+static/js/
+
+# Node
+node_modules/
+
+# Misc
+*.env
+.env
+.DS_Store
+
+# Claude session context
+.claude/

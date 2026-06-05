@@ -1,0 +1,49 @@
+{{define "title"}}Changelog{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Changelog</h1>
+  <p>A running log of updates and improvements to hailsDotGO</p>
+</div>
+
+<div class="changelog">
+
+  <div class="cl-entry fade-up">
+    <div class="cl-date">2026-06-04</div>
+    <div class="cl-body">
+      <h2 class="cl-title">Raid overhaul, Pokémon images, and more</h2>
+      <ul class="cl-list">
+        <li>Combined Current Raids and Raid Counters into a single page — click any boss card to see the best counters inline; clicking again closes them</li>
+        <li>Raid bosses now display as visual cards with artwork, type badges, CP, and shiny availability</li>
+        <li>Pokémon sprites added throughout — counter table, DPS calculator result, DPS compare table, and PvP IV rankings</li>
+        <li>Events page simplified to Shinies-only (raids moved to the Raids page)</li>
+        <li>Maintenance page pokéball now cycles through the full RGB spectrum; bottom half is white</li>
+        <li>Maintenance page auto-detects when the service is back online and reloads automatically</li>
+        <li>Maintenance page now uses a random background image matching the rest of the site</li>
+        <li>hailsDotGO branding is now pink across the site (hero heading, navbar, maintenance page)</li>
+        <li>Black text outline added globally for readability; removed from SHINY badge where it looked wrong</li>
+        <li>Added this changelog</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="cl-entry fade-up">
+    <div class="cl-date">2026-06-03</div>
+    <div class="cl-body">
+      <h2 class="cl-title">Raid counters, mobile, and deploy fixes</h2>
+      <ul class="cl-list">
+        <li>Fixed raid counters showing wrong Pokémon and NaN DPS/TDO values</li>
+        <li>Counters now only consider moves each Pokémon can actually learn</li>
+        <li>Fixed duplicate Pokémon in counter list (keeps highest-DPS result per species)</li>
+        <li>Lazy loading added for all 863 shiny images on the Shinies page</li>
+        <li>Mobile-friendly layout: improved touch targets, horizontal table scroll, iOS font-size zoom fix</li>
+        <li>Maintenance page pokéball colour changed from red to purple</li>
+        <li>Various backend stability improvements</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+{{end}}
+
+{{define "scripts"}}{{end}}

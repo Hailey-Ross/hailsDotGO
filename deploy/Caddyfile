@@ -1,0 +1,15 @@
+# hails.live — AzuraCast
+hails.live {
+    encode gzip zstd
+    reverse_proxy localhost:8002 {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+}
+
+# pogo.hails.live — hailsDotGO
+pogo.hails.live {
+    encode gzip zstd
+    reverse_proxy localhost:8080
+}

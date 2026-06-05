@@ -1,0 +1,11 @@
+# Place this file at /var/azuracast/docker-compose.override.yml on your VPS.
+#
+# This moves AzuraCast's web ports off 80/443 so Caddy can own those ports
+# and reverse-proxy to AzuraCast. The radio streaming ports (8000, 8005, etc.)
+# are unaffected and remain directly accessible.
+
+services:
+  nginx:
+    ports:
+      - "127.0.0.1:8001:80"
+      - "127.0.0.1:8002:443"
