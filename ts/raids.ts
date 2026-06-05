@@ -199,40 +199,55 @@ function buildRaidsView(data: GameData): HTMLElement {
   function buildConfigPanel(pokemonName: string) {
     configPanel.innerHTML = "";
 
-    // Detect form from name so we can set a sensible default
     const nameLower = pokemonName.toLowerCase();
+    // Strip known prefixes to find the base name for variant lookups
+    const baseLookup = nameLower.replace(/^shadow_/, "").replace(/^primal_/, "");
+
+    const allPokeNames = new Set((data.pokemon ?? []).map((p) => p.pokemon_name.toLowerCase()));
+    const hasShadow = allPokeNames.has(`shadow_${baseLookup}`);
+    const hasPrimal = allPokeNames.has(`primal_${baseLookup}`);
+
+    // Set default form from name prefix
     if (/^shadow_/.test(nameLower)) config.form = "shadow";
     else if (/^primal_/.test(nameLower)) config.form = "primal";
     else config.form = "normal";
 
-    // Form selector
-    const modRow = document.createElement("div");
-    modRow.className = "config-row config-mods";
-    const modLbl = document.createElement("span");
-    modLbl.className = "config-label";
-    modLbl.textContent = "Form";
-    modRow.appendChild(modLbl);
-
+    // Build only the applicable forms for this Pokémon
     const forms: { value: PokemonForm; label: string }[] = [
-      { value: "normal",   label: "Normal"   },
-      { value: "shadow",   label: "Shadow"   },
-      { value: "purified", label: "Purified" },
-      { value: "primal",   label: "Primal"   },
+      { value: "normal", label: "Normal" },
+      ...(hasShadow ? [
+        { value: "shadow" as PokemonForm, label: "Shadow" },
+        { value: "purified" as PokemonForm, label: "Purified" },
+      ] : []),
+      ...(hasPrimal ? [{ value: "primal" as PokemonForm, label: "Primal" }] : []),
     ];
 
-    for (const f of forms) {
-      const btn = document.createElement("button");
-      btn.className = `filter-chip${config.form === f.value ? " active" : ""}`;
-      btn.textContent = f.label;
-      btn.addEventListener("click", () => {
-        config.form = f.value;
-        modRow.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
-        btn.classList.add("active");
-        renderResults();
-      });
-      modRow.appendChild(btn);
+    // Guard: if active form is no longer in the list, reset
+    if (!forms.some((f) => f.value === config.form)) config.form = "normal";
+
+    // Only render the form row if there's more than just Normal
+    if (forms.length > 1) {
+      const modRow = document.createElement("div");
+      modRow.className = "config-row config-mods";
+      const modLbl = document.createElement("span");
+      modLbl.className = "config-label";
+      modLbl.textContent = "Form";
+      modRow.appendChild(modLbl);
+
+      for (const f of forms) {
+        const btn = document.createElement("button");
+        btn.className = `filter-chip${config.form === f.value ? " active" : ""}`;
+        btn.textContent = f.label;
+        btn.addEventListener("click", () => {
+          config.form = f.value;
+          modRow.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
+          btn.classList.add("active");
+          renderResults();
+        });
+        modRow.appendChild(btn);
+      }
+      configPanel.appendChild(modRow);
     }
-    configPanel.appendChild(modRow);
 
     // CP + IV inputs
     const statsRow = document.createElement("div");
