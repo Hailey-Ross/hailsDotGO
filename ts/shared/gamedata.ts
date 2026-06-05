@@ -1,4 +1,4 @@
-import type { GameData } from "./types";
+import type { GameData, PokemonStat } from "./types";
 
 let cached: GameData | null = null;
 
@@ -32,6 +32,40 @@ export function chargedMoveByName(data: GameData, name: string) {
 
 export function pokeSprite(id: number): string {
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+}
+
+export function cpForLevel(
+  poke: PokemonStat,
+  atkIV: number,
+  defIV: number,
+  staIV: number,
+  cpm: number
+): number {
+  const atk = poke.base_attack + atkIV;
+  const def = poke.base_defense + defIV;
+  const sta = poke.base_stamina + staIV;
+  return Math.max(10, Math.floor(atk * Math.sqrt(def) * Math.sqrt(sta) * cpm * cpm / 10));
+}
+
+export function cpmFromCP(
+  data: GameData,
+  poke: PokemonStat,
+  atkIV: number,
+  defIV: number,
+  staIV: number,
+  targetCP: number
+): number {
+  const mults = (data.cpMultipliers ?? []).slice().sort((a, b) => a.level - b.level);
+  let bestCPM = mults[0]?.multiplier ?? 0.094;
+  for (const { multiplier } of mults) {
+    const cp = cpForLevel(poke, atkIV, defIV, staIV, multiplier);
+    if (cp <= targetCP) {
+      bestCPM = multiplier;
+    } else {
+      break;
+    }
+  }
+  return bestCPM;
 }
 
 export function typeEffectiveness(

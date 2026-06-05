@@ -13,7 +13,7 @@ This project includes:
 
 ## Preview
 
-**[pogo.hails.live](https://pogo.hails.live)** - live and free to use.
+**[pogo.hails.live](https://pogo.hails.live)** live and free to use.
 
 ---
 
@@ -109,10 +109,10 @@ Edit `.env` with your values (see [Environment Variables](#environment-variables
 Two processes need to run side by side:
 
 ```bash
-# Terminal 1 - watch and recompile TypeScript on save
+# Terminal 1: watch and recompile TypeScript on save
 npm run watch
 
-# Terminal 2 - run the Go server
+# Terminal 2: run the Go server
 go run .
 ```
 

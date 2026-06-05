@@ -70,12 +70,14 @@ func parseTypes(raw json.RawMessage) []string {
 }
 
 type raidBoss struct {
-	PokemonName string   `json:"pokemon_name"`
-	CP          int      `json:"cp"`
-	CPMax       int      `json:"cp_max,omitempty"`
-	ImageURL    string   `json:"image_url,omitempty"`
-	Types       []string `json:"types,omitempty"`
-	CanBeShiny  bool     `json:"can_be_shiny,omitempty"`
+	PokemonName   string   `json:"pokemon_name"`
+	CP            int      `json:"cp"`
+	CPMax         int      `json:"cp_max,omitempty"`
+	CPBoostedMin  int      `json:"cp_boosted_min,omitempty"`
+	CPBoostedMax  int      `json:"cp_boosted_max,omitempty"`
+	ImageURL      string   `json:"image_url,omitempty"`
+	Types         []string `json:"types,omitempty"`
+	CanBeShiny    bool     `json:"can_be_shiny,omitempty"`
 }
 
 func tierKey(t string) string {
@@ -233,12 +235,14 @@ func (s *Store) fetchScrapedDuckRaids() (json.RawMessage, error) {
 		for _, b := range bosses {
 			key := tierKey(b.Tier)
 			grouped[key] = append(grouped[key], raidBoss{
-				PokemonName: b.Name,
-				CP:          b.CombatPower.Normal.Min,
-				CPMax:       b.CombatPower.Normal.Max,
-				ImageURL:    b.Image,
-				Types:       parseTypes(b.Types),
-				CanBeShiny:  b.CanBeShiny,
+				PokemonName:  b.Name,
+				CP:           b.CombatPower.Normal.Min,
+				CPMax:        b.CombatPower.Normal.Max,
+				CPBoostedMin: b.CombatPower.Boosted.Min,
+				CPBoostedMax: b.CombatPower.Boosted.Max,
+				ImageURL:     b.Image,
+				Types:        parseTypes(b.Types),
+				CanBeShiny:   b.CanBeShiny,
 			})
 		}
 

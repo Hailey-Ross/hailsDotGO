@@ -28,6 +28,8 @@ export interface RaidBoss {
   pokemon_name: string;
   cp: number;
   cp_max?: number;
+  cp_boosted_min?: number;
+  cp_boosted_max?: number;
   image_url?: string;
   types?: string[];
   can_be_shiny?: boolean;

@@ -1,7 +1,8 @@
-import { loadGameData } from "./shared/gamedata";
-import { calcCounters, renderCounterTable } from "./shared/counters";
+import { loadGameData, pokeSprite, cpForLevel, cpmFromCP } from "./shared/gamedata";
+import { calcCounters, renderCounterTable, calcSinglePokemon, DEFAULT_CONFIG } from "./shared/counters";
+import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
-import type { GameData, RaidBoss } from "./shared/types";
+import type { GameData, RaidBoss, PokemonStat } from "./shared/types";
 
 const app = document.getElementById("raids-app")!;
 
@@ -47,6 +48,15 @@ function createBossCard(boss: RaidBoss): HTMLElement {
       ? `${boss.cp.toLocaleString()}–${boss.cp_max.toLocaleString()} CP`
       : `${boss.cp.toLocaleString()} CP`;
     inner.appendChild(cp);
+
+    if (boss.cp_boosted_min) {
+      const boosted = document.createElement("span");
+      boosted.className = "boss-cp boss-cp-boosted";
+      boosted.textContent = boss.cp_boosted_max && boss.cp_boosted_max > boss.cp_boosted_min
+        ? `⛅ ${boss.cp_boosted_min.toLocaleString()}–${boss.cp_boosted_max.toLocaleString()} CP`
+        : `⛅ ${boss.cp_boosted_min.toLocaleString()} CP`;
+      inner.appendChild(boosted);
+    }
   }
 
   card.appendChild(inner);
@@ -127,6 +137,376 @@ function buildRaidsView(data: GameData): HTMLElement {
   counterPanel.style.display = "none";
   let activeCard: HTMLElement | null = null;
 
+  // ── Pokémon picker ──────────────────────────────────────────
+  const allBosses = tiers.flatMap(([tier, bosses]) =>
+    bosses.map((boss) => ({ boss, tier }))
+  );
+
+  const picker = document.createElement("div");
+  picker.className = "pokemon-picker";
+
+  const pickerLabel = document.createElement("div");
+  pickerLabel.className = "picker-label";
+  pickerLabel.textContent = "Check your Pokémon";
+  picker.appendChild(pickerLabel);
+
+  const searchRow = document.createElement("div");
+  searchRow.className = "picker-search-row";
+
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.className = "search-input";
+  searchInput.placeholder = "Search Pokémon...";
+  searchInput.setAttribute("autocomplete", "off");
+
+  const clearBtn = document.createElement("button");
+  clearBtn.className = "picker-clear-btn";
+  clearBtn.textContent = "×";
+  clearBtn.hidden = true;
+  clearBtn.setAttribute("aria-label", "Clear selection");
+
+  searchRow.appendChild(searchInput);
+  searchRow.appendChild(clearBtn);
+  picker.appendChild(searchRow);
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "picker-dropdown";
+  dropdown.hidden = true;
+  picker.appendChild(dropdown);
+
+  const configPanel = document.createElement("div");
+  configPanel.className = "picker-config";
+  configPanel.hidden = true;
+  picker.appendChild(configPanel);
+
+  const resultsPanel = document.createElement("div");
+  resultsPanel.className = "picker-results-panel";
+  resultsPanel.hidden = true;
+  picker.appendChild(resultsPanel);
+
+  let currentName = "";
+  let currentPoke: PokemonStat | null = null;
+  let currentCP = 0;
+  const config: PokemonConfig = { ...DEFAULT_CONFIG };
+
+  function clampIV(v: number) { return Math.max(0, Math.min(15, v | 0)); }
+
+  function updateCPM() {
+    if (!currentPoke || !currentCP) return;
+    config.cpm = cpmFromCP(data, currentPoke, config.atkIV, config.defIV, config.staIV, currentCP);
+  }
+
+  function buildConfigPanel(pokemonName: string) {
+    configPanel.innerHTML = "";
+
+    // Detect form from name so we can set a sensible default
+    const nameLower = pokemonName.toLowerCase();
+    if (/^shadow_/.test(nameLower)) config.form = "shadow";
+    else if (/^primal_/.test(nameLower)) config.form = "primal";
+    else config.form = "normal";
+
+    // Form selector
+    const modRow = document.createElement("div");
+    modRow.className = "config-row config-mods";
+    const modLbl = document.createElement("span");
+    modLbl.className = "config-label";
+    modLbl.textContent = "Form";
+    modRow.appendChild(modLbl);
+
+    const forms: { value: PokemonForm; label: string }[] = [
+      { value: "normal",   label: "Normal"   },
+      { value: "shadow",   label: "Shadow"   },
+      { value: "purified", label: "Purified" },
+      { value: "primal",   label: "Primal"   },
+    ];
+
+    for (const f of forms) {
+      const btn = document.createElement("button");
+      btn.className = `filter-chip${config.form === f.value ? " active" : ""}`;
+      btn.textContent = f.label;
+      btn.addEventListener("click", () => {
+        config.form = f.value;
+        modRow.querySelectorAll(".filter-chip").forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        renderResults();
+      });
+      modRow.appendChild(btn);
+    }
+    configPanel.appendChild(modRow);
+
+    // CP + IV inputs
+    const statsRow = document.createElement("div");
+    statsRow.className = "config-row config-stats";
+
+    function makeStatInput(
+      labelText: string,
+      value: number,
+      min: number,
+      max: number,
+      onChange: (v: number) => void
+    ) {
+      const group = document.createElement("div");
+      group.className = "config-group";
+      const lbl = document.createElement("label");
+      lbl.className = "config-label";
+      lbl.textContent = labelText;
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.className = "config-input";
+      inp.min = String(min);
+      inp.max = String(max);
+      inp.value = String(value);
+      inp.addEventListener("change", () => {
+        const v = Number(inp.value);
+        if (isNaN(v)) return;
+        const clamped = Math.max(min, Math.min(max, Math.round(v)));
+        inp.value = String(clamped);
+        onChange(clamped);
+        updateCPM();
+        renderResults();
+      });
+      group.appendChild(lbl);
+      group.appendChild(inp);
+      return group;
+    }
+
+    const cpGroup = document.createElement("div");
+    cpGroup.className = "config-group";
+    const cpLbl = document.createElement("label");
+    cpLbl.className = "config-label";
+    cpLbl.textContent = "CP";
+    const cpInp = document.createElement("input");
+    cpInp.type = "number";
+    cpInp.className = "config-input config-input-cp";
+    cpInp.min = "10";
+    cpInp.max = "99999";
+    cpInp.value = String(currentCP);
+    cpInp.addEventListener("change", () => {
+      const v = Math.max(10, Math.round(Number(cpInp.value)));
+      cpInp.value = String(v);
+      currentCP = v;
+      updateCPM();
+      renderResults();
+    });
+    cpGroup.appendChild(cpLbl);
+    cpGroup.appendChild(cpInp);
+    statsRow.appendChild(cpGroup);
+
+    statsRow.appendChild(makeStatInput("ATK IV", config.atkIV, 0, 15, (v) => { config.atkIV = clampIV(v); }));
+    statsRow.appendChild(makeStatInput("DEF IV", config.defIV, 0, 15, (v) => { config.defIV = clampIV(v); }));
+    statsRow.appendChild(makeStatInput("STA IV", config.staIV, 0, 15, (v) => { config.staIV = clampIV(v); }));
+
+    configPanel.appendChild(statsRow);
+    configPanel.hidden = false;
+  }
+
+  function renderResults() {
+    if (!currentName) return;
+
+    const rows = allBosses.map(({ boss, tier }) => ({
+      boss,
+      tier,
+      result: calcSinglePokemon(data, currentName, boss, config),
+    }));
+    rows.sort((a, b) => (b.result?.dps ?? -1) - (a.result?.dps ?? -1));
+
+    resultsPanel.innerHTML = "";
+
+    const headingWrap = document.createElement("div");
+    headingWrap.className = "picker-heading-wrap";
+
+    if (currentPoke) {
+      const sprite = document.createElement("img");
+      sprite.src = pokeSprite(currentPoke.pokemon_id);
+      sprite.alt = currentName;
+      sprite.className = "picker-sprite";
+      sprite.loading = "lazy"; sprite.decoding = "async";
+      headingWrap.appendChild(sprite);
+    }
+
+    const heading = document.createElement("h3");
+    heading.className = "picker-results-heading";
+    heading.textContent = `${currentName.replace(/_/g, " ")} vs all current raids`;
+    headingWrap.appendChild(heading);
+    resultsPanel.appendChild(headingWrap);
+
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "table-wrap";
+
+    const table = document.createElement("table");
+    table.className = "counter-table";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Boss</th>
+          <th>Tier</th>
+          <th>Fast Move</th>
+          <th>Charged Move</th>
+          <th>DPS</th>
+          <th>TDO</th>
+        </tr>
+      </thead>
+    `;
+
+    const tbody = document.createElement("tbody");
+    for (const { boss, tier, result } of rows) {
+      const tr = document.createElement("tr");
+
+      const bossTd = document.createElement("td");
+      bossTd.style.whiteSpace = "nowrap";
+      if (boss.image_url) {
+        const img = document.createElement("img");
+        img.src = boss.image_url;
+        img.alt = boss.pokemon_name;
+        img.className = "poke-sprite";
+        img.loading = "lazy"; img.decoding = "async";
+        bossTd.appendChild(img);
+      }
+      bossTd.append(` ${boss.pokemon_name.replace(/_/g, " ")}`);
+
+      const tierTd = document.createElement("td");
+      tierTd.textContent = tier === "6" ? "Mega" : `T${tier}`;
+
+      tr.appendChild(bossTd);
+      tr.appendChild(tierTd);
+
+      if (result) {
+        const fastTd = document.createElement("td");
+        fastTd.appendChild(typeBadge(result.fastType));
+        fastTd.append(` ${result.fastMove}`);
+
+        const chargedTd = document.createElement("td");
+        chargedTd.appendChild(typeBadge(result.chargedType));
+        chargedTd.append(` ${result.chargedMove}`);
+
+        const dpsTd = document.createElement("td");
+        dpsTd.textContent = result.dps.toFixed(2);
+
+        const tdoTd = document.createElement("td");
+        tdoTd.textContent = result.tdo.toFixed(0);
+
+        tr.append(fastTd, chargedTd, dpsTd, tdoTd);
+      } else {
+        const emptyTd = document.createElement("td");
+        emptyTd.colSpan = 4;
+        emptyTd.className = "text-dim";
+        emptyTd.textContent = "n/a";
+        tr.appendChild(emptyTd);
+      }
+
+      tbody.appendChild(tr);
+    }
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    resultsPanel.appendChild(tableWrap);
+    resultsPanel.hidden = false;
+  }
+
+  function selectPokemon(name: string) {
+    currentName = name;
+    currentPoke = (data.pokemon ?? []).find(
+      (p) => p.pokemon_name.toLowerCase() === name.toLowerCase()
+    ) ?? null;
+
+    searchInput.value = name.replace(/_/g, " ");
+    dropdown.hidden = true;
+    clearBtn.hidden = false;
+
+    // Reset config, compute default CP at L40 15/15/15
+    Object.assign(config, DEFAULT_CONFIG);
+    currentCP = currentPoke
+      ? cpForLevel(currentPoke, 15, 15, 15, DEFAULT_CONFIG.cpm)
+      : 0;
+
+    // Clear boss counter panel if open
+    if (activeCard) { activeCard.classList.remove("active"); activeCard = null; }
+    counterPanel.style.display = "none";
+    counterPanel.innerHTML = "";
+
+    buildConfigPanel(name);
+    renderResults();
+    resultsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function buildDropdown(query: string) {
+    dropdown.innerHTML = "";
+    if (!query) { dropdown.hidden = true; return; }
+
+    const q = query.toLowerCase();
+    const norm = (n: string) => n.toLowerCase().replace(/_/g, " ");
+    const matches = (data.pokemon ?? [])
+      .filter((p) => norm(p.pokemon_name).includes(q))
+      .sort((a, b) => {
+        const na = norm(a.pokemon_name);
+        const nb = norm(b.pokemon_name);
+        const rank = (s: string) => s === q ? 0 : s.startsWith(q) ? 1 : 2;
+        return rank(na) - rank(nb);
+      })
+      .slice(0, 10);
+
+    if (!matches.length) {
+      const none = document.createElement("button");
+      none.className = "picker-option no-match";
+      none.textContent = "No Pokémon found";
+      none.disabled = true;
+      dropdown.appendChild(none);
+    } else {
+      for (const p of matches) {
+        const opt = document.createElement("button");
+        opt.className = "picker-option";
+        opt.textContent = p.pokemon_name.replace(/_/g, " ");
+        opt.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          selectPokemon(p.pokemon_name);
+        });
+        dropdown.appendChild(opt);
+      }
+    }
+    dropdown.hidden = false;
+  }
+
+  searchInput.addEventListener("input", () => {
+    buildDropdown(searchInput.value.trim());
+  });
+
+  searchInput.addEventListener("blur", () => {
+    setTimeout(() => { dropdown.hidden = true; }, 150);
+  });
+
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") dropdown.hidden = true;
+    if (e.key === "Enter") {
+      const first = dropdown.querySelector<HTMLButtonElement>(".picker-option:not(.no-match)");
+      if (first) first.dispatchEvent(new MouseEvent("mousedown"));
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const first = dropdown.querySelector<HTMLButtonElement>(".picker-option");
+      if (first) first.focus();
+    }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    currentName = "";
+    currentPoke = null;
+    currentCP = 0;
+    searchInput.value = "";
+    clearBtn.hidden = true;
+    dropdown.hidden = true;
+    configPanel.hidden = true;
+    configPanel.innerHTML = "";
+    resultsPanel.hidden = true;
+    resultsPanel.innerHTML = "";
+    searchInput.focus();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!picker.contains(e.target as Node)) dropdown.hidden = true;
+  });
+
+  wrap.appendChild(picker);
+
   // ── Tier sections ──────────────────────────────────────────
   const tierSections = new Map<string, HTMLElement>();
   const cardMeta = new Map<string, { el: HTMLElement; types: string[] }>();
@@ -151,7 +531,6 @@ function buildRaidsView(data: GameData): HTMLElement {
       card.style.cursor = "pointer";
 
       card.addEventListener("click", () => {
-        // Toggle off if already active
         if (activeCard === card) {
           card.classList.remove("active");
           activeCard = null;

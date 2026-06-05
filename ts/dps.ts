@@ -1,4 +1,4 @@
-import { loadGameData, typeEffectiveness, pokemonByName, pokeSprite } from "./shared/gamedata";
+import { loadGameData, typeEffectiveness, pokemonByName, pokeSprite, cpForLevel, cpmFromCP } from "./shared/gamedata";
 import { trueDPS, estimateTDO, fastDPS, fastEPS } from "./shared/damage";
 import { buildTabs } from "./shared/tabs";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
@@ -25,15 +25,30 @@ function buildMoveSelect(
   return sel;
 }
 
-function levelWidget(): { label: HTMLLabelElement; input: HTMLInputElement } {
+function cpWidget(data: GameData): {
+  label: HTMLLabelElement;
+  input: HTMLInputElement;
+  getCPM: (poke: PokemonStat | null, atkIV: number, defIV: number, staIV: number) => number;
+} {
   const label = document.createElement("label");
   label.className = "level-label";
-  label.textContent = "Level ";
+  label.textContent = "CP ";
   const input = document.createElement("input");
-  input.type = "number"; input.className = "level-input";
-  input.min = "1"; input.max = "51"; input.value = "40";
+  input.type = "number";
+  input.className = "level-input";
+  input.min = "10";
+  input.max = "99999";
+  input.value = "3000";
+  input.placeholder = "CP";
   label.appendChild(input);
-  return { label, input };
+
+  function getCPM(poke: PokemonStat | null, atkIV: number, defIV: number, staIV: number): number {
+    const targetCP = Math.max(10, Number(input.value) || 3000);
+    if (!poke) return 0.7903;
+    return cpmFromCP(data, poke, atkIV, defIV, staIV, targetCP);
+  }
+
+  return { label, input, getCPM };
 }
 
 // ── Calculator tab (single Pokémon) ──────────────────────────
@@ -57,7 +72,7 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
       data.chargedMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
       "Select Charged Move"
     );
-    const { label: lvLbl, input: lvInput } = levelWidget();
+    const { label: cpLbl, input: cpInput, getCPM } = cpWidget(data);
 
     const calcBtn = document.createElement("button");
     calcBtn.className = "btn-primary"; calcBtn.textContent = "Calculate";
@@ -65,17 +80,25 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
     form.appendChild(pokeInput);
     form.appendChild(fastSel);
     form.appendChild(chargedSel);
-    form.appendChild(lvLbl);
+    form.appendChild(cpLbl);
     form.appendChild(calcBtn);
 
     const resultArea = document.createElement("div");
     resultArea.className = "result-area";
 
+    // Auto-fill CP when Pokémon name is typed
+    pokeInput.addEventListener("change", () => {
+      const poke = pokemonByName(data, pokeInput.value.trim());
+      if (poke) {
+        const defaultCP = cpForLevel(poke, 15, 15, 15, 0.7903);
+        cpInput.value = String(defaultCP);
+      }
+    });
+
     calcBtn.addEventListener("click", () => {
       const poke = pokemonByName(data, pokeInput.value.trim());
       const fast = data.fastMoves!.find((m) => m.name === fastSel.value);
       const charged = data.chargedMoves!.find((m) => m.name === chargedSel.value);
-      const level = Number(lvInput.value);
 
       if (!poke) {
         resultArea.innerHTML = `<p class="error-text">Pokémon not found. Check the spelling.</p>`;
@@ -86,8 +109,7 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
         return;
       }
 
-      const cpMult = data.cpMultipliers?.find((c) => c.level === level)?.multiplier
-        ?? data.cpMultipliers?.[data.cpMultipliers.length - 1]?.multiplier ?? 0.7903;
+      const cpMult = getCPM(poke, 15, 15, 15);
       const atkStat = (poke.base_attack + 15) * cpMult;
       const defStat = 150;
 
@@ -154,7 +176,7 @@ interface Attacker {
   poke: PokemonStat;
   fast: FastMove;
   charged: ChargedMove;
-  level: number;
+  cp: number;
 }
 
 function buildComparePanel(data: GameData): () => HTMLElement {
@@ -179,7 +201,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     const raidSel = document.createElement("select");
     raidSel.className = "move-select";
     const noTarget = document.createElement("option");
-    noTarget.value = ""; noTarget.textContent = "— No target —";
+    noTarget.value = ""; noTarget.textContent = "No target";
     raidSel.appendChild(noTarget);
 
     if (data.raids) {
@@ -260,7 +282,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       data.chargedMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
       "Charged Move"
     );
-    const { label: lvLbl, input: lvInput } = levelWidget();
+    const { label: cpLbl, input: cpInput } = cpWidget(data);
 
     const addBtn = document.createElement("button");
     addBtn.className = "btn-primary"; addBtn.textContent = "+ Add";
@@ -268,10 +290,19 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     const errText = document.createElement("p");
     errText.className = "error-text"; errText.style.display = "none";
 
+    // Auto-fill CP when Pokémon name is typed
+    pokeInput.addEventListener("change", () => {
+      const poke = pokemonByName(data, pokeInput.value.trim());
+      if (poke) {
+        const defaultCP = cpForLevel(poke, 15, 15, 15, 0.7903);
+        cpInput.value = String(defaultCP);
+      }
+    });
+
     attackerForm.appendChild(pokeInput);
     attackerForm.appendChild(fastSel);
     attackerForm.appendChild(chargedSel);
-    attackerForm.appendChild(lvLbl);
+    attackerForm.appendChild(cpLbl);
     attackerForm.appendChild(addBtn);
     attackerForm.appendChild(errText);
     wrap.appendChild(attackerForm);
@@ -296,8 +327,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       const hasTarget = targetTypes.length > 0;
 
       const rows = attackers.map((a) => {
-        const cpMult = data.cpMultipliers?.find((c) => c.level === a.level)?.multiplier
-          ?? data.cpMultipliers?.[data.cpMultipliers.length - 1]?.multiplier ?? 0.7903;
+        const cpMult = cpmFromCP(data, a.poke, 15, 15, 15, a.cp);
         const atkStat = (a.poke.base_attack + 15) * cpMult;
         const defStat = 150;
         const fEff = hasTarget ? typeEffectiveness(data, a.fast.type, targetTypes) : 1;
@@ -316,7 +346,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       table.className = "counter-table";
       table.innerHTML = `<thead><tr>
         <th>#</th><th>Pokémon</th><th>Fast Move</th><th>Charged Move</th>
-        <th>Lv</th><th>DPS</th><th>TDO</th><th></th>
+        <th>CP</th><th>DPS</th><th>TDO</th><th></th>
       </tr></thead>`;
 
       const tbody = document.createElement("tbody");
@@ -360,7 +390,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
           chargedTd.appendChild(s);
         }
 
-        const lvTd = document.createElement("td"); lvTd.textContent = String(a.level);
+        const cpTd = document.createElement("td"); cpTd.textContent = a.cp.toLocaleString();
         const dpsTd = document.createElement("td"); dpsTd.textContent = dps.toFixed(2);
         if (rows[0].a.id === a.id) dpsTd.className = "rank-s";
         const tdoTd = document.createElement("td"); tdoTd.textContent = tdo.toFixed(0);
@@ -372,7 +402,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
         removeBtn.addEventListener("click", () => { attackers = attackers.filter((x) => x.id !== a.id); renderTable(); });
         removeTd.appendChild(removeBtn);
 
-        tr.append(rankTd, pokeTd, fastTd, chargedTd, lvTd, dpsTd, tdoTd, removeTd);
+        tr.append(rankTd, pokeTd, fastTd, chargedTd, cpTd, dpsTd, tdoTd, removeTd);
         tbody.appendChild(tr);
       }
 
@@ -400,18 +430,17 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       const poke = pokemonByName(data, pokeInput.value.trim());
       const fast = data.fastMoves!.find((m) => m.name === fastSel.value);
       const charged = data.chargedMoves!.find((m) => m.name === chargedSel.value);
-      const level = Math.min(51, Math.max(1, Number(lvInput.value) || 40));
+      const cp = Math.max(10, Number(cpInput.value) || 3000);
 
       if (!poke) { errText.textContent = `Pokémon not found.`; errText.style.display = ""; return; }
       if (!fast || !charged) { errText.textContent = "Select both moves."; errText.style.display = ""; return; }
 
-      attackers.push({ id: nextId++, poke, fast, charged, level });
+      attackers.push({ id: nextId++, poke, fast, charged, cp });
       renderTable();
       pokeInput.value = "";
       pokeInput.focus();
     });
 
-    // Allow Enter key in Pokémon field to add
     pokeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.click(); });
 
     renderTable();

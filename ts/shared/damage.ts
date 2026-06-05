@@ -40,7 +40,8 @@ export function trueDPS(
   return cycleDmg / (cycleMs / 1000);
 }
 
-// Total Damage Output: how much damage before fainting (simplified)
+// Total Damage Output: how much damage before fainting (simplified).
+// defMult: 5/6 for Shadow (takes 20% more damage per hit), 1 otherwise.
 export function estimateTDO(
   pokemon: PokemonStat,
   fast: FastMove,
@@ -49,10 +50,12 @@ export function estimateTDO(
   defenderDef: number,
   fastEff = 1,
   chargedEff = 1,
-  cpMultiplier: number
+  cpMultiplier: number,
+  staIV = 15,
+  defMult = 1
 ): number {
-  const hp = Math.floor((pokemon.base_stamina + 15) * cpMultiplier);
+  const hp = Math.floor((pokemon.base_stamina + staIV) * cpMultiplier);
   const dps = trueDPS(fast, charged, attackerAtk, defenderDef, fastEff, chargedEff);
-  const survivalTime = hp / 15;
+  const survivalTime = (hp * defMult) / 15;
   return dps * survivalTime;
 }
