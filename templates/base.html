@@ -1,0 +1,79 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}hailsDotGO{{end}} — pogo.hails.live</title>
+  <link rel="icon" type="image/png" href="https://assets.hails.cc/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css?v=8">
+</head>
+<body>
+
+<div id="particles-js"></div>
+
+<nav class="navbar">
+  <a href="/" class="nav-brand">hailsDotGO</a>
+  <div class="nav-links">
+    <a href="/raids">Raids</a>
+    <a href="/dps">DPS Calc</a>
+    <a href="/pvp">PvP</a>
+    <a href="/events">Shinies</a>
+    <a href="/changelog">Changelog</a>
+  </div>
+</nav>
+
+<main class="container">
+  {{block "content" .}}{{end}}
+</main>
+
+<footer class="footer">
+  <p>Fan-made tool &bull; Not affiliated with Niantic or The Pokémon Company &bull; Data: <a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a> &bull; Powered by <a href="https://hails.cc" target="_blank" rel="noopener">hails.cc</a></p>
+</footer>
+
+<script>
+  (function() {
+    // Optional: overlay a background image from hails.cc asset pool
+    var bgs = [
+      'https://assets.hails.cc/i/bg1.jpg',
+      'https://assets.hails.cc/i/bg2_transFlag.jpg',
+      'https://assets.hails.cc/i/bg3_paintIt.png'
+    ];
+    var chosen = bgs[Math.floor(Math.random() * bgs.length)];
+    var img = new Image();
+    img.onload = function() {
+      document.body.style.backgroundImage = "url('" + chosen + "')";
+    };
+    img.src = chosen;
+  })();
+</script>
+
+<script src="https://assets.hails.cc/particlejs/particles.js"></script>
+<script>
+if (typeof particlesJS !== 'undefined') {
+  particlesJS("particles-js", {
+    particles: {
+      number: { value: 60, density: { enable: true, value_area: 900 } },
+      color: { value: "#ffffff" },
+      shape: { type: "circle" },
+      opacity: { value: 0.25, random: true, anim: { enable: true, speed: 0.8, opacity_min: 0.05, sync: false } },
+      size: { value: 2, random: true },
+      line_linked: { enable: false },
+      move: { enable: true, speed: 0.6, direction: "none", random: true, out_mode: "out" }
+    },
+    interactivity: {
+      detect_on: "window",
+      events: { onhover: { enable: true, mode: "repulse" }, resize: true },
+      modes: { repulse: { distance: 80, duration: 0.4 } }
+    },
+    retina_detect: true
+  });
+}
+</script>
+
+{{block "scripts" .}}{{end}}
+</body>
+</html>
+{{end}}

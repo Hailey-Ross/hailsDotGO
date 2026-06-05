@@ -1,0 +1,19 @@
+{{define "title"}}Current Raids{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Current Raids</h1>
+  <p>Tap a boss to see the best counters</p>
+</div>
+
+<div id="raids-app">
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading raid data…</p>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/raids.js"></script>
+{{end}}

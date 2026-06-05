@@ -1,0 +1,12 @@
+{
+  "name": "hailsdotgo",
+  "private": true,
+  "scripts": {
+    "build": "esbuild ts/raids.ts ts/dps.ts ts/pvp.ts ts/events.ts --bundle --outdir=static/js --target=es2020 --minify",
+    "watch": "esbuild ts/raids.ts ts/dps.ts ts/pvp.ts ts/events.ts --bundle --outdir=static/js --target=es2020 --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
