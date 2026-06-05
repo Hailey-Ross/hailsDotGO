@@ -206,7 +206,7 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | `OPENWEATHER_KEY` | No | | OpenWeatherMap API key for weather boost data |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
-| `VPS_PASS` | Deploy only | | SSH password for the VPS |
+| `VPS_PASS` | No | | VPS password for manual reference; not read by `deploy.ps1`, which uses SSH key auth |
 
 ---
 
