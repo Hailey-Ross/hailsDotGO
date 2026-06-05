@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	appdb "pogo.hails.cc/internal/db"
 	"pogo.hails.cc/internal/pogodata"
 	"pogo.hails.cc/internal/server"
 )
@@ -19,12 +20,21 @@ func main() {
 		port = "8080"
 	}
 
+	db, err := appdb.Open()
+	if err != nil {
+		log.Fatalf("db: %v", err)
+	}
+	if err := db.Ping(); err != nil {
+		log.Fatalf("db ping: %v", err)
+	}
+	defer db.Close()
+
 	store := pogodata.New()
 	store.Start()
 
 	srv := &http.Server{
 		Addr:         ":" + port,
-		Handler:      server.New(store),
+		Handler:      server.New(store, db),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

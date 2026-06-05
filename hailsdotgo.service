@@ -1,0 +1,16 @@
+[Unit]
+Description=hailsDotGO Pokemon GO tool
+After=network.target
+
+[Service]
+Type=simple
+User=hailsdotgo
+Group=hailsdotgo
+WorkingDirectory=/opt/hailsdotgo
+ExecStart=/opt/hailsdotgo/hailsDotGO
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/hailsdotgo/app.env
+
+[Install]
+WantedBy=multi-user.target
