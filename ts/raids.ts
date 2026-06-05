@@ -2,6 +2,7 @@ import { loadGameData, pokeSprite, cpForLevel, cpmFromCP } from "./shared/gameda
 import { calcCounters, renderCounterTable, calcSinglePokemon, DEFAULT_CONFIG } from "./shared/counters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
+import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, RaidBoss, PokemonStat } from "./shared/types";
 
 const app = document.getElementById("raids-app")!;
@@ -45,7 +46,7 @@ function createBossCard(boss: RaidBoss): HTMLElement {
     const cp = document.createElement("span");
     cp.className = "boss-cp";
     cp.textContent = boss.cp_max && boss.cp_max > boss.cp
-      ? `${boss.cp.toLocaleString()}–${boss.cp_max.toLocaleString()} CP`
+      ? `${boss.cp.toLocaleString()}-${boss.cp_max.toLocaleString()} CP`
       : `${boss.cp.toLocaleString()} CP`;
     inner.appendChild(cp);
 
@@ -53,7 +54,7 @@ function createBossCard(boss: RaidBoss): HTMLElement {
       const boosted = document.createElement("span");
       boosted.className = "boss-cp boss-cp-boosted";
       boosted.textContent = boss.cp_boosted_max && boss.cp_boosted_max > boss.cp_boosted_min
-        ? `⛅ ${boss.cp_boosted_min.toLocaleString()}–${boss.cp_boosted_max.toLocaleString()} CP`
+        ? `⛅ ${boss.cp_boosted_min.toLocaleString()}-${boss.cp_boosted_max.toLocaleString()} CP`
         : `⛅ ${boss.cp_boosted_min.toLocaleString()} CP`;
       inner.appendChild(boosted);
     }
@@ -551,6 +552,30 @@ function buildRaidsView(data: GameData): HTMLElement {
 
         counterPanel.innerHTML = "";
         counterPanel.style.display = "";
+
+        const flavorP = document.createElement("p");
+        flavorP.className = "poke-flavor";
+        flavorP.style.display = "none";
+        counterPanel.appendChild(flavorP);
+
+        const genusEl = document.createElement("span");
+        genusEl.className = "poke-genus";
+        counterPanel.appendChild(genusEl);
+
+        const badgeEl = document.createElement("span");
+        badgeEl.style.display = "none";
+        counterPanel.appendChild(badgeEl);
+
+        fetchSpeciesData(boss.pokemon_name).then(d => {
+          if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
+          if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+          if (d.isLegendary || d.isMythical) {
+            badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+            badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+            badgeEl.style.display = "";
+          }
+        });
+
         counterPanel.appendChild(renderCounterTable(boss, calcCounters(data, boss)));
         counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });

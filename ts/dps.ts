@@ -2,6 +2,7 @@ import { loadGameData, typeEffectiveness, pokemonByName, pokeSprite, cpForLevel,
 import { trueDPS, estimateTDO, fastDPS, fastEPS } from "./shared/damage";
 import { buildTabs } from "./shared/tabs";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
+import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/types";
 
 const app = document.getElementById("dps-app")!;
@@ -129,6 +130,29 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
       cardHeader.appendChild(cardSprite);
       cardHeader.appendChild(cardTitle);
       card.appendChild(cardHeader);
+
+      const genusEl = document.createElement("span");
+      genusEl.className = "poke-genus";
+      card.appendChild(genusEl);
+
+      const badgeEl = document.createElement("span");
+      badgeEl.style.display = "none";
+      card.appendChild(badgeEl);
+
+      const flavorP = document.createElement("p");
+      flavorP.className = "poke-flavor";
+      flavorP.style.display = "none";
+      card.appendChild(flavorP);
+
+      fetchSpeciesData(poke.pokemon_name).then(d => {
+        if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+        if (d.isLegendary || d.isMythical) {
+          badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+          badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+          badgeEl.style.display = "";
+        }
+        if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
+      });
 
       const rows: [string, () => string | HTMLElement][] = [
         ["Fast Move", () => {

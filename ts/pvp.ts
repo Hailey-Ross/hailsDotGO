@@ -1,5 +1,6 @@
 import { loadGameData, pokemonByName, pokeSprite } from "./shared/gamedata";
 import { buildTabs } from "./shared/tabs";
+import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, PokemonStat, CPMultiplier } from "./shared/types";
 
 const app = document.getElementById("pvp-app")!;
@@ -97,10 +98,33 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
       pvpSprite.loading = "lazy"; pvpSprite.decoding = "async";
       const h3 = document.createElement("h3");
       h3.style.marginBottom = "0";
-      h3.textContent = `${poke.pokemon_name.replace(/_/g, " ")} — ${league.name}`;
+      h3.textContent = `${poke.pokemon_name.replace(/_/g, " ")}: ${league.name}`;
       pvpHeader.appendChild(pvpSprite);
       pvpHeader.appendChild(h3);
       resultArea.appendChild(pvpHeader);
+
+      const genusEl = document.createElement("span");
+      genusEl.className = "poke-genus";
+      resultArea.appendChild(genusEl);
+
+      const badgeEl = document.createElement("span");
+      badgeEl.style.display = "none";
+      resultArea.appendChild(badgeEl);
+
+      const flavorP = document.createElement("p");
+      flavorP.className = "poke-flavor";
+      flavorP.style.display = "none";
+      resultArea.appendChild(flavorP);
+
+      fetchSpeciesData(poke.pokemon_name).then(d => {
+        if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+        if (d.isLegendary || d.isMythical) {
+          badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+          badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+          badgeEl.style.display = "";
+        }
+        if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
+      });
 
       const note = document.createElement("p");
       note.className = "league-note";

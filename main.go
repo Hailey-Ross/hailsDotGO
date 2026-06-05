@@ -9,12 +9,18 @@ import (
 	"syscall"
 	"time"
 
+	"pogo.hails.cc/internal/auth"
 	appdb "pogo.hails.cc/internal/db"
 	"pogo.hails.cc/internal/pogodata"
 	"pogo.hails.cc/internal/server"
 )
 
 func main() {
+	auth.SuperadminUser = os.Getenv("SUPERADMIN_USER")
+	if auth.SuperadminUser == "" {
+		log.Fatal("SUPERADMIN_USER env var is not set")
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

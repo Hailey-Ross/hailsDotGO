@@ -24,7 +24,10 @@ func New(store *pogodata.Store, db *sql.DB) http.Handler {
 	r.Get("/dps", h.DPS)
 	r.Get("/pvp", h.PVP)
 	r.Get("/events", h.Events)
-	r.Get("/changelog", h.Changelog)
+	r.Get("/credits", h.Credits)
+	r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
+	})
 
 	// Auth
 	r.Get("/login", h.LoginPage)
@@ -33,11 +36,42 @@ func New(store *pogodata.Store, db *sql.DB) http.Handler {
 	r.Post("/register", h.Register)
 	r.Post("/logout", h.Logout)
 
+	// Public community pages
+	r.Get("/trainers", h.TrainersPage)
+
 	// Protected pages
+	r.Get("/settings", h.RequireAuth(h.SettingsPage))
+	r.Post("/settings", h.RequireAuth(h.SettingsUpdate))
 	r.Get("/shinies", h.RequireAuth(h.ShiniesPage))
-	r.Get("/admin", h.RequireAdmin(h.AdminPage))
+	r.Get("/admin", h.RequireMod(h.AdminPage))
 	r.Post("/admin/settings", h.RequireAdmin(h.AdminUpdateSettings))
 	r.Post("/admin/invite", h.RequireAdmin(h.AdminGenerateInvite))
+	r.Post("/admin/invite/{token}/cancel", h.RequireAdmin(h.AdminCancelInvite))
+
+	// User management (mod+)
+	r.Get("/admin/users", h.RequireMod(h.AdminUsersAPI))
+	r.Post("/admin/users/{id}/password", h.RequireMod(h.AdminResetPassword))
+	r.Post("/admin/users/{id}/username", h.RequireMod(h.AdminChangeUsername))
+	r.Post("/admin/users/{id}/disable", h.RequireMod(h.AdminToggleDisable))
+	r.Post("/admin/users/{id}/role", h.RequireAdmin(h.AdminChangeRole))
+	r.Post("/admin/users/{id}/directory-hide", h.RequireMod(h.AdminToggleDirectoryHide))
+	r.Post("/admin/users/{id}/raid-ban", h.RequireMod(h.AdminToggleRaidBan))
+	r.Get("/admin/users/{id}/strikes", h.RequireMod(h.AdminStrikesGet))
+	r.Post("/admin/users/{id}/strikes", h.RequireMod(h.AdminStrikesAdd))
+	r.Delete("/admin/users/{id}/strikes/{strikeId}", h.RequireMod(h.AdminStrikesDelete))
+
+	// Raid finder API (list is public; actions require auth)
+	r.Get("/api/raid-posts", h.APIRaidPostsList)
+	r.Post("/api/raid-posts", h.RequireAuth(h.APIRaidPostsCreate))
+	r.Delete("/api/raid-posts/{id}", h.RequireAuth(h.APIRaidPostsDelete))
+	r.Post("/api/raid-posts/{id}/join", h.RequireAuth(h.APIRaidPostsJoin))
+	r.Delete("/api/raid-posts/{id}/join", h.RequireAuth(h.APIRaidPostsLeave))
+	r.Post("/api/raid-posts/{id}/confirm", h.RequireAuth(h.APIRaidPostsConfirm))
+	r.Post("/api/raid-posts/{id}/invite", h.RequireAuth(h.APIRaidPostsMarkInvited))
+	r.Post("/api/raid-posts/{id}/rate", h.RequireAuth(h.APIRaidPostsRate))
+
+	// Trainer sprite proxy (cached, public)
+	r.Get("/api/trainer-sprite/{slug}", h.APITrainerSprite)
 
 	// Public data API
 	r.Get("/api/data", h.APIData)

@@ -17,3 +17,6 @@ node_modules/
 
 # Claude session context
 .claude/
+
+# Deploy manifest (local state, not shared)
+deploy-manifest.json

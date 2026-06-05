@@ -2,8 +2,7 @@
 
 {{define "content"}}
 <div class="page-header">
-  <h1>Admin Panel</h1>
-  <p>Site-wide settings — visible to admin accounts only.</p>
+  <h1>{{if .User.IsAdmin}}Admin Panel{{else}}Mod Panel{{end}}</h1>
 </div>
 
 {{if .Data.Message}}
@@ -12,49 +11,435 @@
 </div>
 {{end}}
 
-<div class="admin-card">
-  <h2>User Registration</h2>
-  <p class="admin-desc">
-    When disabled, the registration page shows a closed message and the
-    sign-up endpoint returns 403. Existing users and logins are unaffected.
-  </p>
-  <form method="POST" action="/admin/settings" class="admin-form">
-    <label class="admin-toggle-label">
-      <input type="checkbox" name="registration_open" value="1"
-             {{if .Data.RegistrationOpen}}checked{{end}}>
-      <span class="admin-toggle-text">
-        {{if .Data.RegistrationOpen}}Registration is open{{else}}Registration is closed{{end}}
-      </span>
-    </label>
-    <button type="submit" class="btn-primary" style="margin-top:1.25rem">Save Settings</button>
-  </form>
+<div class="tabs" id="admin-tabs">
+  {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">Settings</button>{{end}}
+  <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">Users</button>
 </div>
 
-<div class="admin-card">
-  <h2>Invite Links</h2>
-  <p class="admin-desc">
-    Generate a single-use invite link valid for 7 days. The recipient can register
-    even when registration is closed.
-  </p>
-  <form method="POST" action="/admin/invite" class="admin-form">
-    <button type="submit" class="btn-primary">Generate Invite Link</button>
-  </form>
-  {{if .Data.InviteLink}}
-  <div class="admin-message admin-message-ok" style="margin-top:1rem">
-    <strong>New invite link (copy it now):</strong>
-    <div class="admin-invite-link">{{.Data.InviteLink}}</div>
+{{if .User.IsAdmin}}
+<div id="tab-settings" class="tab-panel active">
+
+  <div class="admin-card">
+    <h2>User Registration</h2>
+    <p class="admin-desc">
+      When disabled, the registration page shows a closed message and the
+      sign-up endpoint returns 403. Existing users and logins are unaffected.
+    </p>
+    <form method="POST" action="/admin/settings" class="admin-form">
+      <label class="admin-toggle-label">
+        <input type="checkbox" name="registration_open" value="1"
+               {{if .Data.RegistrationOpen}}checked{{end}}>
+        <span class="admin-toggle-text">
+          {{if .Data.RegistrationOpen}}Registration is open{{else}}Registration is closed{{end}}
+        </span>
+      </label>
+      <button type="submit" class="btn-primary" style="margin-top:1.25rem">Save Settings</button>
+    </form>
   </div>
-  {{end}}
-  {{if .Data.ActiveInvites}}
-  <div class="admin-invite-list">
-    <h3>Active Invites</h3>
-    {{range .Data.ActiveInvites}}
-    <div class="admin-invite-row">
-      <span class="admin-invite-link-cell">{{.Link}}</span>
-      <span class="admin-invite-expires">exp. {{.ExpiresAt.Format "Jan 2"}}</span>
+
+  <div class="admin-card">
+    <h2>Invite Links</h2>
+    <p class="admin-desc">
+      Generate a single-use invite link valid for 7 days. The recipient can register
+      even when registration is closed.
+    </p>
+    <form method="POST" action="/admin/invite" class="admin-form">
+      <button type="submit" class="btn-primary">Generate Invite Link</button>
+    </form>
+    {{if .Data.InviteLink}}
+    <div class="admin-message admin-message-ok" style="margin-top:1rem">
+      <strong>New invite link (copy it now):</strong>
+      <div class="admin-invite-link">{{.Data.InviteLink}}</div>
+    </div>
+    {{end}}
+    {{if .Data.ActiveInvites}}
+    <div class="admin-invite-list">
+      <h3>Active Invites</h3>
+      {{range .Data.ActiveInvites}}
+      <div class="admin-invite-row">
+        <span class="admin-invite-link-cell">{{.Link}}</span>
+        <span class="admin-invite-expires">exp. {{.ExpiresAt.Format "Jan 2"}}</span>
+        <form method="POST" action="/admin/invite/{{.Token}}/cancel" style="margin:0;flex-shrink:0">
+          <button type="submit" class="um-btn um-btn-danger" style="font-size:0.72rem;padding:0.2rem 0.55rem">Cancel</button>
+        </form>
+      </div>
+      {{end}}
     </div>
     {{end}}
   </div>
-  {{end}}
+
 </div>
+{{end}}
+
+<div id="tab-users" class="tab-panel {{if not .User.IsAdmin}}active{{end}}">
+  <input id="um-search" type="text" class="search-input"
+         style="width:100%;margin-bottom:1rem;display:block"
+         placeholder="Search users by name or email…">
+  <div id="um-container">
+    <div class="loading-state"><div class="spinner"></div><span>Loading users…</span></div>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const IS_ADMIN   = {{if .User.IsAdmin}}true{{else}}false{{end}};
+const ME_ID      = {{.User.ID}};
+const SUPERADMIN = {{printf "%q" .Data.SuperadminUser}};
+
+// ── Tab switching ──────────────────────────────────────────────
+(function() {
+  const tabs = document.getElementById('admin-tabs');
+  if (!tabs) return;
+  tabs.addEventListener('click', function(e) {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const panel = document.getElementById('tab-' + btn.dataset.tab);
+    if (panel) panel.classList.add('active');
+    if (btn.dataset.tab === 'users' && !usersLoaded) loadUsers();
+  });
+})();
+
+// ── User management ────────────────────────────────────────────
+let users = [];
+let usersLoaded = false;
+let expandedId   = null;
+let expandedType = null;
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadUsers() {
+  usersLoaded = true;
+  const res = await fetch('/admin/users');
+  if (!res.ok) {
+    document.getElementById('um-container').innerHTML =
+      '<div class="error-state">Failed to load users.</div>';
+    return;
+  }
+  users = await res.json();
+  renderUsers();
+  document.getElementById('um-search').addEventListener('input', function() {
+    renderUsers(this.value.trim().toLowerCase());
+  });
+}
+
+// Load users immediately if the Users tab is active on page load
+if (document.getElementById('tab-users') &&
+    document.getElementById('tab-users').classList.contains('active')) {
+  loadUsers();
+}
+
+function roleBadgeClass(u) {
+  if (u.username === SUPERADMIN) return 'um-role-superadmin';
+  return u.role === 'admin' ? 'um-role-admin' : u.role === 'moderator' ? 'um-role-mod' : 'um-role-user';
+}
+function roleBadgeLabel(u) {
+  if (u.username === SUPERADMIN) return 'Superadmin';
+  return u.role.charAt(0).toUpperCase() + u.role.slice(1);
+}
+function usernameColorClass(u) {
+  if (u.username === SUPERADMIN) return 'um-username-superadmin';
+  if (u.role === 'admin')        return 'um-username-admin';
+  if (u.role === 'moderator')    return 'um-username-mod';
+  return '';
+}
+
+function renderUsers(search) {
+  search = search || '';
+  const list = search
+    ? users.filter(u => u.username.toLowerCase().includes(search) || u.email.toLowerCase().includes(search))
+    : users;
+
+  const container = document.getElementById('um-container');
+  if (!list.length) {
+    container.innerHTML = '<p class="empty-state">No users found.</p>';
+    return;
+  }
+
+  container.innerHTML = list.map(u => {
+    const isMe         = u.id === ME_ID;
+    const isSuperAdmin = u.username === SUPERADMIN;
+    const canDisable   = !isMe && !isSuperAdmin;
+    const canRename    = !isSuperAdmin;
+    const canSetPw     = !isSuperAdmin;
+
+    const roleSelect = IS_ADMIN && !isSuperAdmin ? `
+      <select class="um-role-select move-select" data-uid="${u.id}" onchange="changeRole(${u.id}, this)">
+        <option value="user"      ${u.role==='user'      ? 'selected':''}>User</option>
+        <option value="moderator" ${u.role==='moderator' ? 'selected':''}>Moderator</option>
+        <option value="admin"     ${u.role==='admin'     ? 'selected':''}>Admin</option>
+      </select>` : '';
+
+    const disableBtn = canDisable ? `
+      <button class="um-btn ${u.disabled ? 'um-btn-ok' : 'um-btn-danger'}"
+              onclick="toggleDisable(${u.id}, ${!u.disabled})">
+        ${u.disabled ? 'Enable' : 'Disable'}
+      </button>` : '';
+
+    const dirHideBtn = `
+      <button class="um-btn ${u.directory_hidden ? 'um-btn-ok' : 'um-btn-warn'}"
+              onclick="toggleDirectoryHide(${u.id}, ${!u.directory_hidden})">
+        ${u.directory_hidden ? 'Unhide from Directory' : 'Hide from Directory'}
+      </button>`;
+
+    const dirBadge = u.directory_hidden
+      ? '<span class="um-status-badge um-status-hidden">Dir Hidden</span>'
+      : '';
+
+    const raidBanBadge = u.raid_banned
+      ? '<span class="um-status-badge um-status-raid-ban">Raid Banned</span>'
+      : '';
+
+    const raidBanBtn = `
+      <button class="um-btn ${u.raid_banned ? 'um-btn-ok' : 'um-btn-danger'}"
+              onclick="toggleRaidBan(${u.id}, ${!u.raid_banned})">
+        ${u.raid_banned ? 'Unban from Raids' : 'Ban from Raids'}
+      </button>`;
+
+    const strikeBadge = u.strike_count > 0
+      ? `<span class="um-status-badge um-status-strike">${u.strike_count} Strike${u.strike_count > 1 ? 's' : ''}</span>`
+      : '';
+
+    return `<div class="um-card" id="um-card-${u.id}">
+      <div class="um-header">
+        <div class="um-meta">
+          <span class="um-username ${usernameColorClass(u)}">${esc(u.username)}${isMe ? ' <span class="um-you">(you)</span>' : ''}</span>
+          <span class="um-email">${esc(u.email)}</span>
+          <span class="um-joined">Joined ${esc(u.created_at)}</span>
+        </div>
+        <div class="um-badges">
+          <span class="um-role-badge ${roleBadgeClass(u)}">${esc(roleBadgeLabel(u))}</span>
+          <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? 'Disabled' : 'Active'}</span>
+          ${dirBadge}
+          ${raidBanBadge}
+          ${strikeBadge}
+        </div>
+      </div>
+      <div class="um-actions">
+        ${canSetPw ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'password')">Set Password</button>` : ''}
+        ${canRename ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'username')">Rename</button>` : ''}
+        <button class="um-btn" onclick="toggleExpand(${u.id}, 'strikes')">Strikes</button>
+        ${disableBtn}
+        ${dirHideBtn}
+        ${raidBanBtn}
+        ${roleSelect}
+      </div>
+      <div class="um-expand" id="um-expand-${u.id}"></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleExpand(id, type) {
+  const el = document.getElementById('um-expand-' + id);
+  if (expandedId === id && expandedType === type) {
+    el.innerHTML = '';
+    expandedId = expandedType = null;
+    return;
+  }
+  expandedId   = id;
+  expandedType = type;
+  const u = users.find(u => u.id === id);
+
+  if (type === 'password') {
+    el.innerHTML = `<form class="um-form" onsubmit="submitPassword(event,${id})">
+      <input type="password" name="pw" placeholder="New password (min 8 chars)"
+             minlength="8" required class="auth-input um-form-input">
+      <button type="submit" class="btn-primary um-form-btn">Save</button>
+      <span class="um-form-status" id="um-status-${id}"></span>
+    </form>`;
+  } else if (type === 'username') {
+    el.innerHTML = `<form class="um-form" onsubmit="submitUsername(event,${id})">
+      <input type="text" name="un" value="${esc(u.username)}"
+             minlength="2" maxlength="32" required class="auth-input um-form-input"
+             pattern="[A-Za-z0-9_\\-]+" title="Letters, numbers, _ and - only">
+      <button type="submit" class="btn-primary um-form-btn">Save</button>
+      <span class="um-form-status" id="um-status-${id}"></span>
+    </form>`;
+  } else if (type === 'strikes') {
+    el.innerHTML = '<div class="um-strikes-loading">Loading strikes…</div>';
+    loadStrikes(id, el);
+  }
+}
+
+function setStatus(id, msg, ok) {
+  const el = document.getElementById('um-status-' + id);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : '#fc8181';
+}
+
+async function submitPassword(e, id) {
+  e.preventDefault();
+  const pw  = e.target.pw.value;
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const res = await fetch('/admin/users/' + id + '/password', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({new_password: pw}),
+  });
+  if (res.ok) {
+    setStatus(id, 'Password updated.', true);
+    setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; }, 1200);
+  } else {
+    const d = await res.json();
+    setStatus(id, d.error || 'Error', false);
+    btn.disabled = false;
+  }
+}
+
+async function submitUsername(e, id) {
+  e.preventDefault();
+  const un  = e.target.un.value.trim();
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const res = await fetch('/admin/users/' + id + '/username', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username: un}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.username = un;
+    setStatus(id, 'Username updated.', true);
+    setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; renderUsers(); }, 1200);
+  } else {
+    const d = await res.json();
+    setStatus(id, d.error || 'Error', false);
+    btn.disabled = false;
+  }
+}
+
+async function toggleDisable(id, disable) {
+  const res = await fetch('/admin/users/' + id + '/disable', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({disabled: disable}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.disabled = disable;
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  }
+}
+
+async function toggleRaidBan(id, ban) {
+  const res = await fetch('/admin/users/' + id + '/raid-ban', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({banned: ban}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.raid_banned = ban;
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || 'Action failed.');
+  }
+}
+
+async function toggleDirectoryHide(id, hide) {
+  const res = await fetch('/admin/users/' + id + '/directory-hide', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({hidden: hide}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.directory_hidden = hide;
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || 'Action failed.');
+  }
+}
+
+async function loadStrikes(id, el) {
+  const res = await fetch('/admin/users/' + id + '/strikes');
+  const strikes = res.ok ? await res.json() : [];
+  const strikeRows = strikes.length
+    ? strikes.map(s => `
+        <div class="um-strike-row" id="um-strike-${s.id}">
+          <div class="um-strike-info">
+            <span class="um-strike-reason">${esc(s.reason)}</span>
+            <span class="um-strike-meta">Issued by ${esc(s.issued_by_name)} on ${esc(s.created_at)}</span>
+          </div>
+          <button class="um-btn um-btn-danger" onclick="removeStrike(${id}, ${s.id})">Remove</button>
+        </div>`).join('')
+    : '<p class="um-strikes-empty">No strikes on this account.</p>';
+
+  el.innerHTML = `
+    <div class="um-strikes-panel">
+      <div class="um-strikes-list">${strikeRows}</div>
+      <form class="um-form um-strike-form" onsubmit="addStrike(event, ${id})">
+        <input type="text" name="reason" maxlength="255" required
+               placeholder="Reason for strike…" class="auth-input um-form-input">
+        <button type="submit" class="btn-primary um-form-btn">Add Strike</button>
+        <span class="um-form-status" id="um-strike-status-${id}"></span>
+      </form>
+    </div>`;
+}
+
+async function addStrike(e, id) {
+  e.preventDefault();
+  const reason = e.target.reason.value.trim();
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const res = await fetch('/admin/users/' + id + '/strikes', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({reason}),
+  });
+  const statusEl = document.getElementById('um-strike-status-' + id);
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.strike_count++;
+    e.target.reason.value = '';
+    btn.disabled = false;
+    const el = document.getElementById('um-expand-' + id);
+    loadStrikes(id, el);
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    btn.disabled = false;
+  }
+}
+
+async function removeStrike(userId, strikeId) {
+  const res = await fetch('/admin/users/' + userId + '/strikes/' + strikeId, { method: 'DELETE' });
+  if (res.ok) {
+    const u = users.find(u => u.id === userId);
+    if (u && u.strike_count > 0) u.strike_count--;
+    const el = document.getElementById('um-expand-' + userId);
+    loadStrikes(userId, el);
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  }
+}
+
+async function changeRole(id, select) {
+  const role = select.value;
+  const prev = users.find(u => u.id === id)?.role;
+  const res  = await fetch('/admin/users/' + id + '/role', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({role}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.role = role;
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const d = await res.json();
+    alert(d.error || 'Error changing role');
+    select.value = prev;
+  }
+}
+</script>
 {{end}}

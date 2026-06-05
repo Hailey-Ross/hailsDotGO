@@ -40,12 +40,12 @@ export type RaidTiers = Record<string, RaidBoss[]>;
 export interface ShinyPokemon {
   id: number;
   name: string;
-  shiny_found_wild?: boolean;
-  shiny_found_raid?: boolean;
-  shiny_found_egg?: boolean;
-  shiny_found_research?: boolean;
-  shiny_found_evolution?: boolean;
-  shiny_found_photobomb?: boolean;
+  found_wild?: boolean;
+  found_raid?: boolean;
+  found_egg?: boolean;
+  found_research?: boolean;
+  found_evolution?: boolean;
+  found_photobomb?: boolean;
 }
 
 // type_effectiveness[attackType][defenseType] = multiplier

@@ -1,5 +1,7 @@
 # deploy.ps1 — full build + deploy using OpenSSH (ssh + scp)
 # Requires SSH key at %USERPROFILE%\.ssh\hailsdotgo with access to the VPS.
+# Uses a SHA256 manifest (deploy-manifest.json) to skip unchanged files.
+# The service is only stopped if something actually needs uploading.
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
@@ -9,14 +11,17 @@ $envPath = Join-Path $root ".env"
 Get-Content $envPath | ForEach-Object {
     if ($_ -match "^VPS_HOST=(.+)$") { $script:vpsHost = $matches[1].Trim() }
     if ($_ -match "^VPS_USER=(.+)$") { $script:vpsUser = $matches[1].Trim() }
-    if ($_ -match "^DB_HOST=(.+)$")  { $script:dbHost  = $matches[1].Trim() }
-    if ($_ -match "^DB_USER=(.+)$")  { $script:dbUser  = $matches[1].Trim() }
-    if ($_ -match "^DB_PASS=(.+)$")  { $script:dbPass  = $matches[1].Trim() }
-    if ($_ -match "^DB_NAME=(.+)$")  { $script:dbName  = $matches[1].Trim() }
+    if ($_ -match "^DB_HOST=(.+)$")         { $script:dbHost        = $matches[1].Trim() }
+    if ($_ -match "^DB_USER=(.+)$")         { $script:dbUser        = $matches[1].Trim() }
+    if ($_ -match "^DB_PASS=(.+)$")         { $script:dbPass        = $matches[1].Trim() }
+    if ($_ -match "^DB_NAME=(.+)$")         { $script:dbName        = $matches[1].Trim() }
+    if ($_ -match "^SUPERADMIN_USER=(.+)$") { $script:superadminUser = $matches[1].Trim() }
+    if ($_ -match "^OPENWEATHER_KEY=(.+)$") { $script:openweatherKey = $matches[1].Trim() }
 }
 if (-not $script:vpsHost) { throw ".env missing VPS_HOST" }
 if (-not $script:vpsUser) { throw ".env missing VPS_USER" }
-if (-not $script:dbHost)  { throw ".env missing DB_HOST" }
+if (-not $script:dbHost)         { throw ".env missing DB_HOST" }
+if (-not $script:superadminUser) { throw ".env missing SUPERADMIN_USER" }
 
 $target = "$($script:vpsUser)@$($script:vpsHost)"
 $key    = "$env:USERPROFILE\.ssh\hailsdotgo"
@@ -80,45 +85,105 @@ $env:GOOS = ""; $env:GOARCH = ""; $env:CGO_ENABLED = ""
 
 # ── Write server-side app.env (UTF-8 without BOM — systemd requires it) ──
 $appEnvPath = Join-Path $root "app.env"
-$appEnvContent = "DB_HOST=$($script:dbHost)`nDB_USER=$($script:dbUser)`nDB_PASS=$($script:dbPass)`nDB_NAME=$($script:dbName)`n"
+$appEnvContent = "DB_HOST=$($script:dbHost)`nDB_USER=$($script:dbUser)`nDB_PASS=$($script:dbPass)`nDB_NAME=$($script:dbName)`nSUPERADMIN_USER=$($script:superadminUser)`nOPENWEATHER_KEY=$($script:openweatherKey)`n"
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($appEnvPath, $appEnvContent, $utf8NoBom)
 
+# ── Load hash manifest ───────────────────────────────────────
+$manifestPath = Join-Path $root "deploy-manifest.json"
+$manifest = @{}
+if (Test-Path $manifestPath) {
+    $raw = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    $raw.PSObject.Properties | ForEach-Object { $manifest[$_.Name] = $_.Value }
+}
+$newManifest = @{}
+
+function FileHash([string]$rel) {
+    return (Get-FileHash (Join-Path $root $rel) -Algorithm SHA256).Hash
+}
+
+# ── Diff all tracked files against manifest ──────────────────
+# app.env is always uploaded (regenerated from secrets); not tracked in manifest.
+# Binary is tracked — if Go source didn't change the hash will match and we skip it.
+
+$trackedFiles = @(
+    @{ src = "hailsDotGO-linux";           dst = "/opt/hailsdotgo/hailsDotGO";            binary = $true  },
+    @{ src = "static\css\main.css";        dst = "/opt/hailsdotgo/static/css/";           binary = $false },
+    @{ src = "static\maintenance.html";    dst = "/opt/hailsdotgo/static/";               binary = $false },
+    @{ src = "static\js\raids.js";         dst = "/opt/hailsdotgo/static/js/";            binary = $false },
+    @{ src = "static\js\dps.js";           dst = "/opt/hailsdotgo/static/js/";            binary = $false },
+    @{ src = "static\js\pvp.js";           dst = "/opt/hailsdotgo/static/js/";            binary = $false },
+    @{ src = "static\js\events.js";        dst = "/opt/hailsdotgo/static/js/";            binary = $false },
+    @{ src = "static\js\shinies.js";       dst = "/opt/hailsdotgo/static/js/";            binary = $false },
+    @{ src = "templates\base.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\home.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\raids.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\dps.html";         dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\pvp.html";         dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\events.html";      dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\credits.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\login.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\register.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\shinies.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\admin.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\settings.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\trainers.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "hailsdotgo.service";         dst = "/opt/hailsdotgo/hailsdotgo.service";    binary = $false }
+)
+
+$pending = [System.Collections.Generic.List[object]]::new()
+
+Write-Host "==> Checking for changes..." -ForegroundColor Cyan
+foreach ($f in $trackedFiles) {
+    $key  = $f.src.Replace('\', '/')
+    $hash = FileHash $f.src
+    $newManifest[$key] = $hash
+    if ($manifest[$key] -ne $hash) {
+        $f.changed = $true
+        $pending.Add($f)
+        Write-Host "  changed  $($f.src)" -ForegroundColor White
+    } else {
+        Write-Host "  unchanged $($f.src)" -ForegroundColor DarkGray
+    }
+}
+
+$skipCount   = $trackedFiles.Count - $pending.Count
+$uploadCount = $pending.Count
+
+if ($pending.Count -eq 0) {
+    Write-Host "`n==> Nothing changed. Uploading app.env only (no service restart)." -ForegroundColor Green
+    Put "app.env" "/opt/hailsdotgo/app.env"
+    Run "chmod 600 /opt/hailsdotgo/app.env"
+    Remove-Item $appEnvPath -ErrorAction SilentlyContinue
+    $newManifest | ConvertTo-Json | Out-File -FilePath $manifestPath -Encoding utf8
+    Write-Host "==> Done. $skipCount file(s) unchanged, manifest saved." -ForegroundColor Green
+    exit 0
+}
+
 # ── Deploy ───────────────────────────────────────────────────
-Write-Host "==> Stopping service..." -ForegroundColor Yellow
+Write-Host "`n==> Stopping service ($uploadCount file(s) to upload)..." -ForegroundColor Yellow
 Run "systemctl stop hailsdotgo"
 
-Write-Host "==> Uploading binary..." -ForegroundColor Cyan
-PutBinary "hailsDotGO-linux" "/opt/hailsdotgo/hailsDotGO"
-Run "chmod +x /opt/hailsdotgo/hailsDotGO"
+foreach ($f in $pending) {
+    Write-Host "  uploading $($f.src)" -ForegroundColor Cyan
+    if ($f.binary) {
+        PutBinary $f.src $f.dst
+        Run "chmod +x /opt/hailsdotgo/hailsDotGO"
+    } elseif ($f.src -eq "hailsdotgo.service") {
+        Put $f.src $f.dst
+    } else {
+        Put $f.src $f.dst
+    }
+}
 
-Write-Host "==> Uploading static assets..." -ForegroundColor Cyan
-Put "static\js\raids.js"      "/opt/hailsdotgo/static/js/"
-Put "static\js\dps.js"        "/opt/hailsdotgo/static/js/"
-Put "static\js\pvp.js"        "/opt/hailsdotgo/static/js/"
-Put "static\js\events.js"     "/opt/hailsdotgo/static/js/"
-Put "static\js\shinies.js"    "/opt/hailsdotgo/static/js/"
-Put "static\css\main.css"     "/opt/hailsdotgo/static/css/"
-Put "static\maintenance.html" "/opt/hailsdotgo/static/"
-
-Write-Host "==> Uploading templates..." -ForegroundColor Cyan
-Put "templates\base.html"      "/opt/hailsdotgo/templates/"
-Put "templates\home.html"      "/opt/hailsdotgo/templates/"
-Put "templates\raids.html"     "/opt/hailsdotgo/templates/"
-Put "templates\dps.html"       "/opt/hailsdotgo/templates/"
-Put "templates\pvp.html"       "/opt/hailsdotgo/templates/"
-Put "templates\events.html"    "/opt/hailsdotgo/templates/"
-Put "templates\changelog.html" "/opt/hailsdotgo/templates/"
-Put "templates\login.html"     "/opt/hailsdotgo/templates/"
-Put "templates\register.html"  "/opt/hailsdotgo/templates/"
-Put "templates\shinies.html"   "/opt/hailsdotgo/templates/"
-Put "templates\admin.html"     "/opt/hailsdotgo/templates/"
-
+# Service file: reload systemd if it was updated
+$serviceChanged = $pending | Where-Object { $_.src -eq "hailsdotgo.service" }
 Write-Host "==> Uploading app config..." -ForegroundColor Cyan
-Put "app.env"             "/opt/hailsdotgo/app.env"
-Put "hailsdotgo.service"  "/opt/hailsdotgo/hailsdotgo.service"
+Put "app.env" "/opt/hailsdotgo/app.env"
 Run "chmod 600 /opt/hailsdotgo/app.env"
-Run "cp /opt/hailsdotgo/hailsdotgo.service /etc/systemd/system/hailsdotgo.service && systemctl daemon-reload"
+if ($serviceChanged) {
+    Run "cp /opt/hailsdotgo/hailsdotgo.service /etc/systemd/system/hailsdotgo.service && systemctl daemon-reload"
+}
 
 # Clean up local temp file
 Remove-Item $appEnvPath -ErrorAction SilentlyContinue
@@ -129,7 +194,11 @@ Run "chown -R hailsdotgo:hailsdotgo /opt/hailsdotgo && systemctl start hailsdotg
 Start-Sleep -Seconds 3
 $status = (& ssh @ssh $target "systemctl is-active hailsdotgo").Trim()
 if ($status -eq "active") {
+    # Only save manifest on successful deploy
+    $newManifest | ConvertTo-Json | Out-File -FilePath $manifestPath -Encoding utf8
     Write-Host "`n==> Live at https://pogo.hails.live" -ForegroundColor Green
+    Write-Host "==> $uploadCount uploaded, $skipCount unchanged." -ForegroundColor Green
 } else {
     Write-Host "`n==> Service status: $status - check logs on VPS" -ForegroundColor Red
+    Write-Host "==> Manifest NOT saved (deploy failed). Next run will retry all changed files." -ForegroundColor Yellow
 }
