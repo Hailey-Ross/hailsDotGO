@@ -1,0 +1,60 @@
+{{define "title"}}Admin{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Admin Panel</h1>
+  <p>Site-wide settings — visible to admin accounts only.</p>
+</div>
+
+{{if .Data.Message}}
+<div class="admin-message {{if .Data.MessageOK}}admin-message-ok{{else}}admin-message-error{{end}}">
+  {{.Data.Message}}
+</div>
+{{end}}
+
+<div class="admin-card">
+  <h2>User Registration</h2>
+  <p class="admin-desc">
+    When disabled, the registration page shows a closed message and the
+    sign-up endpoint returns 403. Existing users and logins are unaffected.
+  </p>
+  <form method="POST" action="/admin/settings" class="admin-form">
+    <label class="admin-toggle-label">
+      <input type="checkbox" name="registration_open" value="1"
+             {{if .Data.RegistrationOpen}}checked{{end}}>
+      <span class="admin-toggle-text">
+        {{if .Data.RegistrationOpen}}Registration is open{{else}}Registration is closed{{end}}
+      </span>
+    </label>
+    <button type="submit" class="btn-primary" style="margin-top:1.25rem">Save Settings</button>
+  </form>
+</div>
+
+<div class="admin-card">
+  <h2>Invite Links</h2>
+  <p class="admin-desc">
+    Generate a single-use invite link valid for 7 days. The recipient can register
+    even when registration is closed.
+  </p>
+  <form method="POST" action="/admin/invite" class="admin-form">
+    <button type="submit" class="btn-primary">Generate Invite Link</button>
+  </form>
+  {{if .Data.InviteLink}}
+  <div class="admin-message admin-message-ok" style="margin-top:1rem">
+    <strong>New invite link (copy it now):</strong>
+    <div class="admin-invite-link">{{.Data.InviteLink}}</div>
+  </div>
+  {{end}}
+  {{if .Data.ActiveInvites}}
+  <div class="admin-invite-list">
+    <h3>Active Invites</h3>
+    {{range .Data.ActiveInvites}}
+    <div class="admin-invite-row">
+      <span class="admin-invite-link-cell">{{.Link}}</span>
+      <span class="admin-invite-expires">exp. {{.ExpiresAt.Format "Jan 2"}}</span>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}

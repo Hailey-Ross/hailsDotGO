@@ -1,12 +1,14 @@
 # hailsDotGO
 
-A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, PvP IV rankings, and a shiny tracker.
+A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, PvP IV rankings, a shiny availability tracker, and a personal shiny collection tracker with user accounts.
 
 This project includes:
 - Real-time raid boss listings with inline counter recommendations
 - DPS calculator and bulk moveset comparison
 - PvP IV ranker across all three leagues
-- Full shiny availability tracker
+- Full shiny availability tracker with obtain-method detail
+- Personal shiny collection: log every shiny you've caught with method tracking
+- User accounts with registration (open or invite-only), login, and an admin panel
 - A changelog so you can follow along with updates
 
 ---
@@ -23,6 +25,7 @@ This project includes:
   - [go.dev/dl](https://go.dev/dl/)
 - **Node.js 18+ and npm**
   - [nodejs.org](https://nodejs.org/)
+- **MySQL 8+** *(for user accounts and the shiny collection tracker)*
 - **An SSH key** *(deployment only)*
   - Expected at `~/.ssh/hailsdotgo`
 
@@ -47,29 +50,44 @@ Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/Scra
 
 ---
 
-### 3. API Layer
+### 3. Database
+User accounts, sessions, shiny collection entries, site settings, and invite tokens are stored in MySQL. Apply `schema.sql` to set up the tables:
+
+```bash
+mysql -u youruser -p < schema.sql
+```
+
+Then set the `DB_HOST`, `DB_USER`, `DB_PASS`, and `DB_NAME` environment variables to point the app at your database.
+
+---
+
+### 4. API Layer
 - `GET /api/data` → all game data combined (stats, moves, types, shinies)
 - `GET /api/raids` → current raid bosses grouped by tier
 - `POST /api/refresh` → manually trigger a data re-fetch outside the 6-hour cycle
 
 ---
 
-### 4. Frontend (TypeScript)
+### 5. Frontend (TypeScript)
 All calculations run **client-side**: DPS, TDO, type effectiveness, CP math, IV stat products. The page loads once, gets the data, and does everything locally from there.
 
 TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
 
 ---
 
-### 5. Pages
+### 6. Pages
 | Route | What it does |
 |---|---|
 | `/` | Home |
 | `/raids` | Active raid bosses + inline counters |
 | `/dps` | DPS calculator + compare table |
 | `/pvp` | IV stat product ranker (GL / UL / ML) |
-| `/events` | Shiny Pokémon tracker |
+| `/events` | Shiny Pokémon availability tracker |
+| `/shinies` | Your personal shiny collection (login required) |
 | `/changelog` | Running log of site updates |
+| `/login` | Sign in |
+| `/register` | Create an account (open or invite-only) |
+| `/admin` | Admin panel: registration toggle, invite generation (admin role required) |
 
 ---
 
@@ -156,6 +174,10 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `PORT` | No | `8080` | HTTP listen port |
+| `DB_HOST` | Yes | | MySQL host and port (e.g. `localhost:3306`) |
+| `DB_USER` | Yes | | MySQL username |
+| `DB_PASS` | Yes | | MySQL password |
+| `DB_NAME` | Yes | | MySQL database name |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
 
