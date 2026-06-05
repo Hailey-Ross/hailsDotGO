@@ -40,6 +40,17 @@ function Put([string]$src, [string]$dst) {
     throw "Upload failed after $rounds rounds: $src"
 }
 
+# SCP is unreliable for the large binary on this server.
+# Use cmd.exe stdin redirection to pipe the file through SSH; avoids SCP entirely.
+function PutBinary([string]$src, [string]$dst) {
+    $srcPath = Join-Path $root $src
+    $keyPath = "$env:USERPROFILE\.ssh\hailsdotgo"
+    # cmd /c with "" as escaped quotes; < redirects binary stdin through ssh to cat on the server
+    $cmdStr = "ssh -i ""$keyPath"" -o BatchMode=yes $target ""cat > $dst"" < ""$srcPath"""
+    cmd /c $cmdStr
+    if ($LASTEXITCODE -ne 0) { throw "Binary upload failed: $src" }
+}
+
 # ── Build ────────────────────────────────────────────────────
 Write-Host "==> Building TypeScript..." -ForegroundColor Cyan
 Set-Location $root
@@ -55,7 +66,7 @@ Write-Host "==> Stopping service..." -ForegroundColor Yellow
 Run "systemctl stop hailsdotgo"
 
 Write-Host "==> Uploading binary..." -ForegroundColor Cyan
-Put "hailsDotGO-linux" "/opt/hailsdotgo/hailsDotGO"
+PutBinary "hailsDotGO-linux" "/opt/hailsdotgo/hailsDotGO"
 Run "chmod +x /opt/hailsdotgo/hailsDotGO"
 
 Write-Host "==> Uploading static assets..." -ForegroundColor Cyan
