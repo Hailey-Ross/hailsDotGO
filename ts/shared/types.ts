@@ -72,6 +72,7 @@ export interface GameData {
   chargedMoves: ChargedMove[] | null;
   raids: RaidTiers | null;
   shinies: Record<string, ShinyPokemon> | null;
+  shadowPokemon: string[] | null;
   typeChart: TypeChart | null;
   cpMultipliers: CPMultiplier[] | null;
 }
