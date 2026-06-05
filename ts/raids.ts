@@ -203,11 +203,16 @@ function buildRaidsView(data: GameData): HTMLElement {
     // Strip known prefixes to find the base name for variant lookups
     const baseLookup = nameLower.replace(/^shadow_/, "").replace(/^primal_/, "");
 
-    // shadowPokemon is a list of base names from PoGoAPI shadow_pokemon.json
-    const shadowSet = new Set((data.shadowPokemon ?? []).map((n) => n.toLowerCase()));
-    const hasShadow = shadowSet.has(baseLookup);
-    // Primal forms have their own stat entries in pokemon_stats.json
-    const allPokeNames = new Set((data.pokemon ?? []).map((p) => p.pokemon_name.toLowerCase()));
+    // Aggregate names from every source so either stats or moves data can signal a variant
+    const allPokeNames = new Set([
+      ...(data.pokemon ?? []).map((p) => p.pokemon_name.toLowerCase()),
+      ...(data.pokemonMoves ?? []).map((pm) => pm.pokemon_name.toLowerCase()),
+    ]);
+    // shadowPokemon = base names from shadow_pokemon.json; fall back to prefix scan when unavailable
+    const shadowList = data.shadowPokemon ?? [];
+    const hasShadow = shadowList.length > 0
+      ? shadowList.some((n) => n.toLowerCase() === baseLookup)
+      : allPokeNames.has(`shadow_${baseLookup}`);
     const hasPrimal = allPokeNames.has(`primal_${baseLookup}`);
 
     // Set default form from name prefix
