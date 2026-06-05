@@ -43,6 +43,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
     modal.innerHTML = `<div class="shiny-modal-inner">
       <img class="shiny-modal-img" alt="" />
       <span class="shiny-modal-name"></span>
+      <div class="shiny-modal-methods"></div>
     </div>`;
     document.body.appendChild(modal);
     modal.addEventListener("click", () => modal.classList.remove("open"));
@@ -123,6 +124,23 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
             `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${s.id}.png`;
           (modal.querySelector(".shiny-modal-name") as HTMLElement).textContent =
             s.name.replace(/_/g, " ");
+
+          const methodsEl = modal.querySelector(".shiny-modal-methods") as HTMLElement;
+          methodsEl.innerHTML = "";
+          const obtainMethods = SHINY_GROUPS.filter((g) => s[g.flag] === true);
+          if (obtainMethods.length) {
+            const lbl = document.createElement("span");
+            lbl.className = "shiny-modal-methods-label";
+            lbl.textContent = "How to find:";
+            methodsEl.appendChild(lbl);
+            for (const g of obtainMethods) {
+              const chip = document.createElement("span");
+              chip.className = "shiny-method-chip";
+              chip.textContent = `${g.icon} ${g.label}`;
+              methodsEl.appendChild(chip);
+            }
+          }
+
           modal.classList.add("open");
         });
 
