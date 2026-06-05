@@ -23,7 +23,7 @@ This project includes:
 
 ## What You'll Need
 
-- **Go 1.22+**
+- **Go 1.25+**
   - [go.dev/dl](https://go.dev/dl/)
 - **Node.js 18+ and npm**
   - [nodejs.org](https://nodejs.org/)
@@ -60,6 +60,16 @@ mysql -u youruser -p < schema.sql
 ```
 
 Then set the `DB_HOST`, `DB_USER`, `DB_PASS`, and `DB_NAME` environment variables to point the app at your database.
+
+**First admin setup:** Registration is closed by default. To create your first account:
+
+1. Open registration temporarily:
+   ```sql
+   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'registration_open';
+   ```
+2. Set `SUPERADMIN_USER=yourusername` in `.env` using the username you plan to register with.
+3. Start the server and register at `/register`.
+4. You now have full admin access. Close registration from the admin panel whenever you want.
 
 ---
 
@@ -125,6 +135,14 @@ cp .env.example .env
 
 Edit `.env` with your values (see [Environment Variables](#environment-variables) below).
 
+Generate a CSRF key and paste it in:
+
+```bash
+openssl rand -hex 32
+```
+
+Set `CSRF_KEY` to the output. Without it the app still runs, but CSRF tokens are regenerated on every restart (breaking any active login sessions).
+
 ---
 
 ### 4. Run locally
@@ -170,7 +188,7 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 .\deploy.ps1
 ```
 
-> **Note:** Requires `VPS_HOST`, `VPS_USER`, and `SUPERADMIN_USER` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server.
+> **Note:** Requires `VPS_HOST`, `VPS_USER`, `SUPERADMIN_USER`, and `CSRF_KEY` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server.
 
 ---
 
@@ -183,7 +201,8 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | `DB_USER` | Yes | | MySQL username |
 | `DB_PASS` | Yes | | MySQL password |
 | `DB_NAME` | Yes | | MySQL database name |
-| `SUPERADMIN_USER` | No | | Username that always has admin privileges regardless of DB role |
+| `SUPERADMIN_USER` | Yes | | Username that always has admin privileges; required to start |
+| `CSRF_KEY` | No | random | 64-char hex string for CSRF protection; generate with `openssl rand -hex 32` |
 | `OPENWEATHER_KEY` | No | | OpenWeatherMap API key for weather boost data |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
