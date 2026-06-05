@@ -180,6 +180,7 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | `DB_NAME` | Yes | | MySQL database name |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
+| `VPS_PASS` | Deploy only | | SSH password for the VPS |
 
 ---
 
