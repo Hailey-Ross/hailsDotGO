@@ -99,16 +99,17 @@ func tierKey(t string) string {
 // ── Store ─────────────────────────────────────────────────────
 
 type Store struct {
-	mu           sync.RWMutex
-	raids        json.RawMessage
-	pokemon      json.RawMessage
-	pokemonMoves json.RawMessage
-	fastMoves    json.RawMessage
-	chargedMoves json.RawMessage
-	shinies      json.RawMessage
-	typeChart    json.RawMessage
-	cpMults      json.RawMessage
-	client       *http.Client
+	mu            sync.RWMutex
+	raids         json.RawMessage
+	pokemon       json.RawMessage
+	pokemonMoves  json.RawMessage
+	fastMoves     json.RawMessage
+	chargedMoves  json.RawMessage
+	shinies       json.RawMessage
+	shadowPokemon json.RawMessage
+	typeChart     json.RawMessage
+	cpMults       json.RawMessage
+	client        *http.Client
 }
 
 func New() *Store {
@@ -134,9 +135,10 @@ func (s *Store) refresh() {
 		{"pokemon_moves",  []string{"https://pogoapi.net/api/v1/current_pokemon_moves.json"}},
 		{"fast_moves",     []string{"https://pogoapi.net/api/v1/fast_moves.json"}},
 		{"charged_moves",  []string{"https://pogoapi.net/api/v1/charged_moves.json"}},
-		{"shinies",        []string{"https://pogoapi.net/api/v1/shiny_pokemon.json"}},
-		{"type_chart",     []string{"https://pogoapi.net/api/v1/type_effectiveness.json"}},
-		{"cp_multipliers", []string{"https://pogoapi.net/api/v1/cp_multiplier.json"}},
+		{"shinies",         []string{"https://pogoapi.net/api/v1/shiny_pokemon.json"}},
+		{"shadow_pokemon",  []string{"https://pogoapi.net/api/v1/shadow_pokemon.json"}},
+		{"type_chart",      []string{"https://pogoapi.net/api/v1/type_effectiveness.json"}},
+		{"cp_multipliers",  []string{"https://pogoapi.net/api/v1/cp_multiplier.json"}},
 	}
 
 	results := make(map[string]json.RawMessage, len(endpoints)+1)
@@ -197,6 +199,20 @@ func (s *Store) refresh() {
 	}
 	if v, ok := results["shinies"]; ok {
 		s.shinies = v
+	}
+	if v, ok := results["shadow_pokemon"]; ok {
+		// shadow_pokemon.json is an object keyed by base Pokémon name.
+		// Normalise to []string so the frontend can do a simple Set lookup.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(v, &raw); err == nil {
+			names := make([]string, 0, len(raw))
+			for name := range raw {
+				names = append(names, name)
+			}
+			if encoded, err := json.Marshal(names); err == nil {
+				s.shadowPokemon = encoded
+			}
+		}
 	}
 	if v, ok := results["type_chart"]; ok {
 		s.typeChart = v
@@ -306,6 +322,7 @@ func (s *Store) AllData() json.RawMessage {
 		ChargedMoves  json.RawMessage `json:"chargedMoves"`
 		Raids         json.RawMessage `json:"raids"`
 		Shinies       json.RawMessage `json:"shinies"`
+		ShadowPokemon json.RawMessage `json:"shadowPokemon"`
 		TypeChart     json.RawMessage `json:"typeChart"`
 		CPMultipliers json.RawMessage `json:"cpMultipliers"`
 	}
@@ -316,6 +333,7 @@ func (s *Store) AllData() json.RawMessage {
 		ChargedMoves:  s.chargedMoves,
 		Raids:         s.raids,
 		Shinies:       s.shinies,
+		ShadowPokemon: s.shadowPokemon,
 		TypeChart:     s.typeChart,
 		CPMultipliers: s.cpMults,
 	})
