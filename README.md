@@ -2,8 +2,6 @@
 
 A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, PvP IV rankings, and a shiny tracker.
 
-Live at **[pogo.hails.live](https://pogo.hails.live)**
-
 This project includes:
 - Real-time raid boss listings with inline counter recommendations
 - DPS calculator and bulk moveset comparison
