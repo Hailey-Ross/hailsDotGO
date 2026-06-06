@@ -90,6 +90,19 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (46)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Per-IP bandwidth throttling added to public API</h2>
+        <ul class="cl-list">
+          <li>Public API endpoints now track cumulative bytes sent per IP across a 5-minute rolling window</li>
+          <li>An IP that downloads more than 15 MB in 5 minutes is blocked for 30 minutes regardless of per-endpoint request counts</li>
+          <li>Bandwidth is counted in aggregate across all four endpoints for the same IP, so spreading requests across endpoints does not bypass the limit</li>
+          <li>Logged-in users using the session API (/api/app/data) are unaffected</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (45)</div>
       <div class="cl-body">
         <h2 class="cl-title">Public API rate limit raised to 10 requests per 2 minutes</h2>
