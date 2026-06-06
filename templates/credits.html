@@ -90,6 +90,18 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (43)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Public API rate limit reduced to 5 requests per 30 minutes; raid boss refresh schedule corrected</h2>
+        <ul class="cl-list">
+          <li>All four public API endpoints (/api/data, /api/raids, /api/pokemon, /api/moves) are now limited to 5 requests per 30 minutes per IP, down from 5-10 per minute</li>
+          <li>Credits page API table and all locale strings updated to reflect the new limit</li>
+          <li>Corrected the raid boss refresh schedule display in the API section: refreshes every 4 hours from midnight MT, not daily at noon</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (42)</div>
       <div class="cl-body">
         <h2 class="cl-title">Admin Users tab redesigned as mini-card grid with modal detail view</h2>
