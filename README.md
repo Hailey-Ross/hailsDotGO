@@ -1,22 +1,20 @@
 # hailsDotGO
 
-A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, PvP IV rankings, a shiny availability tracker, a personal shiny collection tracker, a Trainer Directory, and a live Raid Finder for coordinating remote raids.
+A fan-made Pokémon GO companion web app built in Go.
 
-This project includes:
-- Real-time raid boss listings with inline counter recommendations
-- DPS calculator and bulk moveset comparison (with type-effectiveness target picker)
-- PvP IV ranker across all three leagues
-- Full shiny availability tracker with obtain-method detail and normal vs shiny sprite comparison
-- Personal shiny collection: log every shiny you've caught with method tracking and stats
-- Trainer Directory: all registered users appear; set `profile_public` to expose your trainer code and full profile details, searchable by trainer name; sorted by online status, staff rank, super-donator status, raid XP, then alphabetically
-- Raid Finder: post and join remote raids with a queue system, accept/decline flow, lobby view with co-raider list, XP-based ranking, weighted host ratings, and post-raid rating system
-- Current weather boost shown in the Raid Finder based on your saved city
-- User accounts with registration (open or invite-only), login, and an admin panel
-- Per-page maintenance toggle: admins can disable individual pages (Raids, DPS, PvP, Events, Trainers, Trainer Directory section, Raid Finder section, Shinies) from the admin panel; disabled pages show a maintenance screen instead
-- Tag management: superadmins create/edit/delete tags with custom names and colors; mods and above can assign tags to any user
-- Supporter store with optional donation perks: Supporter Pack, raid queue priority, and custom profile tag (PayPal, sandbox/live toggle)
-- Multi-language interface: English, Spanish, French, German (cookie-persisted, synced to account)
-- Credits and changelog tab
+- Raid boss listings with counter recommendations
+- DPS calculator and bulk moveset comparison
+- PvP IV ranker (GL / UL / ML)
+- Shiny availability tracker with normal vs shiny sprite comparison
+- Personal shiny collection tracker
+- Trainer Directory with searchable profiles
+- Raid Finder: post and join remote raids with queue, lobby, and post-raid rating system
+- Weather boost display based on your saved city
+- User accounts with registration (open or invite-only)
+- Per-page maintenance toggles from the admin panel
+- Tag system: superadmins create/edit/delete tags; mods and above assign them to users
+- Supporter store with optional donation perks (PayPal, sandbox/live toggle)
+- Multi-language: English, Spanish, French, German
 
 ---
 
@@ -24,133 +22,38 @@ This project includes:
 
 **Prefer [Releases](https://github.com/Hailey-Ross/hailsDotGO/releases) over cloning `main` directly.**
 
-The `main` branch reflects active development and is not guaranteed to be stable at all times, particularly during larger rewrites or feature implementations. Tagged releases are tested and represent known-good states of the app.
+`main` reflects active development and is not guaranteed to be stable at all times, particularly during larger rewrites or feature implementations. Tagged releases are tested and represent known-good states of the app.
 
 ---
 
 ## Preview
 
-**[pogo.hails.live](https://pogo.hails.live)** live and free to use.
+**[pogo.hails.live](https://pogo.hails.live)** is live and free to use.
 
 ---
 
 ## What You'll Need
 
-- **Go 1.25+**
-  - [go.dev/dl](https://go.dev/dl/)
-- **Node.js 18+ and npm**
-  - [nodejs.org](https://nodejs.org/)
-- **MySQL 8+** *(for user accounts and the shiny collection tracker)*
-- **An SSH key** *(deployment only)*
-  - Expected at `~/.ssh/hailsdotgo`
+- **Go 1.25+** ([go.dev/dl](https://go.dev/dl/))
+- **Node.js 18+ and npm** ([nodejs.org](https://nodejs.org/))
+- **MySQL 8+** for accounts, shiny collections, and all persistent data
+- **An SSH key** *(deployment only)* expected at `~/.ssh/hailsdotgo`
 
 ---
 
 ## How It Works
 
-### 1. Data Fetching (Go backend)
-On startup, the server pulls game data from [PoGoAPI](https://pogoapi.net) and caches it in memory:
-- Pokémon base stats
-- Fast and charged moves
-- Shiny availability
-- Type effectiveness
-- CP multipliers
-
-Data refreshes automatically every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data compiled into the binary so the app can serve requests immediately.
-
----
+### 1. Game Data
+On startup, the server fetches Pokémon stats, moves, shinies, type effectiveness, and CP multipliers from [PoGoAPI](https://pogoapi.net) and caches them in memory. Data refreshes every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data so the app can still serve requests.
 
 ### 2. Raid Data
-Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck). The response is cached to disk so a restart never shows "temporarily unavailable." Raids refresh once daily at noon Mountain Time; a stale on-disk cache is used if the upstream fetch fails.
-
----
+Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck), cached to disk, and refreshed once daily at noon Mountain Time. A stale cache is used if the upstream fetch fails.
 
 ### 3. Database
-All persistent data is stored in MySQL: user accounts, sessions, shiny collections, trainer profiles, raid posts and joins, tags, store purchases, and site settings.
+All persistent data lives in MySQL: accounts, sessions, shiny collections, trainer profiles, raid posts, tags, store purchases, and site settings.
 
-`schema.sql` contains the base `CREATE TABLE` statements followed by all migration blocks as SQL comments. For a **fresh install**, apply the base tables and then run every migration block in order (uncomment and execute each block). The schema automatically seeds all `page_*_enabled` site settings to `1` (all pages on), so no manual SQL is needed to enable pages after a fresh install.
-
-```bash
-mysql -u youruser -p < schema.sql
-```
-
-Then set the `DB_HOST`, `DB_USER`, `DB_PASS`, and `DB_NAME` environment variables to point the app at your database.
-
-**First admin setup:** Registration is closed by default. To create your first account:
-
-1. Open registration temporarily:
-   ```sql
-   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'registration_open';
-   ```
-2. Set `SUPERADMIN_USER=yourusername` in `.env` using the username you plan to register with.
-3. Start the server and register at `/register`.
-4. You now have full admin access. Close registration from the admin panel whenever you want.
-
-**Store setup (optional):** The supporter store is disabled by default. To enable it:
-
-1. Set the four `PAYPAL_*` variables in `.env` (client ID, client secret, mode, webhook ID).
-2. Enable the store from the admin panel, or directly:
-   ```sql
-   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'store_enabled';
-   ```
-3. The migration block in `schema.sql` seeds two default store items (Supporter Pack and Priority Pass). Run it if you haven't already, or insert your own items into `store_items`.
-
----
-
-### 4. API Layer
-
-**Public** (rate-limited per IP):
-- `GET /api/data` → all game data combined (stats, moves, types, shinies, Pokémon types)
-- `GET /api/raids` → current raid bosses grouped by tier
-- `GET /api/pokemon` → Pokémon base stats list
-- `GET /api/moves` → fast and charged move data
-
-**Private** (requires API access permission, no rate limit):
-- `GET /api/private/data`, `/api/private/raids`, `/api/private/pokemon`, `/api/private/moves` → same as public
-
-**Protected:**
-- `POST /api/refresh` → manually trigger a data re-fetch (requires API access, globally rate-limited)
-
----
-
-### 5. Frontend (TypeScript)
-All calculations run **client-side**: DPS, TDO, type effectiveness, CP math, IV stat products. The page loads once, gets the data, and does everything locally from there.
-
-TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
-
----
-
-### 6. Pages
-| Route | What it does |
-|---|---|
-| `/` | Home |
-| `/raids` | Active raid bosses + inline counters |
-| `/dps` | DPS calculator + compare table |
-| `/pvp` | IV stat product ranker (GL / UL / ML) |
-| `/events` | Shiny Pokémon availability tracker |
-| `/shinies` | Your personal shiny collection (login required) |
-| `/trainers` | Trainer Directory and Raid Finder |
-| `/settings` | Trainer profile: name, pronouns, avatar, friend code, location privacy (login required) |
-| `/store` | Supporter store: donation perks, custom profile tag, raid queue priority |
-| `/credits` | About, data sources, and changelog |
-| `/changelog` | Redirects to `/credits?tab=changelog` |
-| `/login` | Sign in |
-| `/register` | Create an account (open or invite-only) |
-| `/admin` | Admin panel: registration toggle, invite generation, page maintenance toggles, tag management, user management (mod+ required) |
-
----
-
-### User Roles
-
-| Role | Permissions |
-|---|---|
-| `user` | Default for all registered accounts |
-| `tester` | Raid rank label "PKMN Scientist"; sorted above regular users in Trainer Directory |
-| `moderator` | Admin panel access: strikes, raid bans, directory hide, tag assignment |
-| `admin` | All mod actions + invite generation, user rename/disable, password reset, role changes, page maintenance toggles |
-| `superadmin` | Set via `SUPERADMIN_USER` env var; all admin capabilities + tag create/edit/delete; cannot be targeted by admin actions |
-
-Staff roles are protected: mods, admins, and superadmins cannot be raid-banned or hidden from the directory.
+### 4. Frontend
+All calculations (DPS, TDO, type effectiveness, CP math, IV stat products) run client-side. TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
 
 ---
 
@@ -171,8 +74,6 @@ cd hailsDotGO
 make setup
 ```
 
-This runs `npm install`.
-
 ---
 
 ### 3. Configure environment
@@ -181,19 +82,39 @@ This runs `npm install`.
 cp .env.example .env
 ```
 
-Edit `.env` with your values (see [Environment Variables](#environment-variables) below).
+Edit `.env` with your values. See [Environment Variables](#environment-variables) below.
 
-Generate a CSRF key and paste it in:
+Generate a CSRF key and set it as `CSRF_KEY`:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Set `CSRF_KEY` to the output. Without it the app still runs, but CSRF tokens are regenerated on every restart (breaking any active login sessions).
+Without `CSRF_KEY` the app will still run, but tokens reset on every restart and break active sessions.
 
 ---
 
-### 4. Run locally
+### 4. Set up the database
+
+```bash
+mysql -u youruser -p yourdbname < schema.sql
+```
+
+`schema.sql` contains all base tables followed by migration blocks as SQL comments. For a fresh install, apply the base tables then run every migration block in order. The schema automatically seeds all `page_*_enabled` settings to `1` so no manual SQL is needed to enable pages.
+
+**First admin account:**
+
+1. Temporarily open registration:
+   ```sql
+   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'registration_open';
+   ```
+2. Set `SUPERADMIN_USER=yourusername` in `.env` using the username you plan to register with.
+3. Start the server and register at `/register`.
+4. Close registration from the admin panel when done.
+
+---
+
+### 5. Run locally
 
 Two processes need to run side by side:
 
@@ -225,18 +146,26 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 
 ## Deployment
 
-`deploy.ps1` handles the full deploy cycle:
-
-1. Cross-compiles a Linux binary
-2. Bundles TypeScript via esbuild
-3. SCPs the binary, templates, static assets, and systemd unit to the VPS
-4. Restarts the systemd service
+`deploy.ps1` handles the full cycle: cross-compiles a Linux binary, bundles TypeScript, SCPs all files to the VPS, and restarts the systemd service.
 
 ```powershell
 .\deploy.ps1
 ```
 
-> **Note:** Requires `VPS_HOST`, `VPS_USER`, `SUPERADMIN_USER`, and `CSRF_KEY` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server. If using the store, also set the four `PAYPAL_*` vars — they are written to the server's `app.env` by the deploy script.
+Requires `VPS_HOST`, `VPS_USER`, `SUPERADMIN_USER`, and `CSRF_KEY` in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server. If using the store, also set the four `PAYPAL_*` vars; the deploy script writes them to the server's `app.env`.
+
+---
+
+## Store Setup (Optional)
+
+The store is disabled by default. To enable:
+
+1. Set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE`, and `PAYPAL_WEBHOOK_ID` in `.env`.
+2. Enable from the admin panel, or directly:
+   ```sql
+   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'store_enabled';
+   ```
+3. Run the store migration block in `schema.sql` to seed the default items (Supporter Pack and Priority Pass), or insert your own into `store_items`.
 
 ---
 
@@ -249,16 +178,29 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | `DB_USER` | Yes | | MySQL username |
 | `DB_PASS` | Yes | | MySQL password |
 | `DB_NAME` | Yes | | MySQL database name |
-| `SUPERADMIN_USER` | Yes | | Username that always has admin privileges; required to start |
-| `CSRF_KEY` | No | random | 64-char hex string for CSRF protection; generate with `openssl rand -hex 32` |
-| `OPENWEATHER_KEY` | No | | *(Unused — weather now uses Open-Meteo, which requires no API key)* |
+| `SUPERADMIN_USER` | Yes | | Username with permanent superadmin privileges |
+| `CSRF_KEY` | No | random | 64-char hex string for CSRF protection |
 | `PAYPAL_CLIENT_ID` | Store only | | PayPal REST API client ID |
 | `PAYPAL_CLIENT_SECRET` | Store only | | PayPal REST API client secret |
 | `PAYPAL_MODE` | Store only | `sandbox` | `sandbox` or `live` |
-| `PAYPAL_WEBHOOK_ID` | Store only | | PayPal webhook ID for server-side payment confirmation |
+| `PAYPAL_WEBHOOK_ID` | Store only | | PayPal webhook ID for payment confirmation |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
-| `VPS_PASS` | No | | VPS password for manual reference; not read by `deploy.ps1`, which uses SSH key auth |
+| `VPS_PASS` | No | | For manual reference only; not used by `deploy.ps1` |
+
+---
+
+## User Roles
+
+| Role | Permissions |
+|---|---|
+| `user` | Default for all registered accounts |
+| `tester` | Raid rank label "PKMN Scientist"; sorted above regular users in the Trainer Directory |
+| `moderator` | Admin panel access: strikes, raid bans, directory hide, tag assignment |
+| `admin` | All mod actions + invite generation, rename/disable users, password reset, role changes, page toggles |
+| `superadmin` | Set via `SUPERADMIN_USER` env var; all admin capabilities + tag create/edit/delete; immune to admin actions |
+
+Staff (mod and above) cannot be raid-banned or hidden from the directory.
 
 ---
 
@@ -268,10 +210,10 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 |---|---|
 | [PoGoAPI](https://pogoapi.net) | Pokémon stats, moves, shinies, type effectiveness, CP multipliers |
 | [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Live raid boss data (sourced from LeekDuck) |
-| [PokéAPI](https://pokeapi.co) | Pokémon sprites, Pokédex flavor text, genus, legendary/mythical flags, in-game cries |
-| [Open-Meteo](https://open-meteo.com) | Current weather data for Pokémon GO weather boost detection (no API key required) |
-| [Pokémon Showdown](https://pokemonshowdown.com) | Trainer class sprites for trainer profile avatars |
-| [Dreamstone Mysteries](https://github.com/dsmyst/dreamstone-mysteries) (dsmyst) | GBA-style trainer sprites bundled as local static files |
+| [PokéAPI](https://pokeapi.co) | Sprites, Pokédex text, genus, legendary/mythical flags, cries |
+| [Open-Meteo](https://open-meteo.com) | Weather data for Pokémon GO weather boost detection (no API key required) |
+| [Pokémon Showdown](https://pokemonshowdown.com) | Trainer class sprites for avatars |
+| [Dreamstone Mysteries](https://github.com/dsmyst/dreamstone-mysteries) | GBA-style trainer sprites |
 
 ---
 
