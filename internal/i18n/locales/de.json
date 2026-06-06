@@ -120,7 +120,7 @@
   "settings.tab.location": "Standort & Datenschutz",
 
   "settings.profile.section": "Trainerprofil",
-  "settings.profile.hint":    "Wird im Trainer-Verzeichnis angezeigt, wenn dein Profil öffentlich ist.",
+  "settings.profile.hint":    "Wenn aktiviert, wird dein vollständiges Trainer-Profil im Trainer-Verzeichnis angezeigt.",
 
   "settings.trainer_name.label": "Trainer-Name im Spiel",
   "settings.trainer_name.hint":  "Dein Pokémon GO Trainer-Name (bis zu 16 Zeichen).",
@@ -154,8 +154,8 @@
   "settings.location_vis.full":   "Bundesland & Land",
 
   "settings.privacy.section":  "Datenschutz",
-  "settings.directory.label":  "Im Trainer-Verzeichnis anzeigen",
-  "settings.directory.hint":   "Dein Trainer-Name und -Code sind für alle sichtbar. Standort wird separat gesteuert.",
+  "settings.directory.label":  "Mein vollständiges Profil im Trainer-Verzeichnis anzeigen",
+  "settings.directory.hint":   "Dein Trainer-Name, Avatar und Code werden für andere sichtbar. Ohne diese Einstellung wird nur dein Benutzername angezeigt.",
   "settings.save":             "Einstellungen speichern",
 
   "admin.title":        "Admin",
@@ -272,7 +272,10 @@
   "admin.js.all_tags_assigned":"Alle Tags zugewiesen.",
   "admin.js.btn_add_tag":     "Tag hinzufügen",
   "admin.js.delete_tag":      "Tag löschen",
+  "admin.js.edit_tag":        "Tag bearbeiten",
   "admin.js.tag_created":     "Tag erstellt.",
+  "admin.js.tag_updated":     "Tag aktualisiert.",
+  "admin.js.btn_cancel":      "Abbrechen",
   "admin.js.no_requests":     "Keine Anfragen.",
   "admin.js.no_items":        "Keine Artikel.",
   "admin.js.submitted":       "Eingereicht",
@@ -432,12 +435,12 @@
   "trainers.join_signup": "Registriere dich",
   "trainers.join_login":  "melde dich an",
   "trainers.join_then":   "oder",
-  "trainers.join_then2":  " und füge deinen Trainer-Code in den Einstellungen hinzu.",
+  "trainers.join_then2":  ", um im Verzeichnis zu erscheinen.",
   "trainers.search":      "Trainer suchen…",
   "trainers.no_results":  "Kein Trainer entspricht deiner Suche.",
   "trainers.empty":       "Noch keine Trainer im Verzeichnis.",
-  "trainers.empty_first": "Gehe zu Einstellungen, füge deinen Trainer-Code hinzu und mache dein Profil öffentlich, um der Erste zu sein!",
-  "trainers.empty_signup":"Registriere dich und füge deinen Trainer-Code hinzu, um der Erste zu sein!",
+  "trainers.asterisk_title": "Profil noch nicht eingerichtet",
+  "trainers.asterisk_note":  "* = Profildetails noch nicht eingerichtet",
   "trainers.loading":     "Wird geladen…",
 
   "error.required_fields":     "Benutzername und Passwort sind erforderlich.",

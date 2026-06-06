@@ -15,6 +15,7 @@
   {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">{{T "admin.tab.settings"}}</button>{{end}}
   <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="pages">{{T "admin.tab.pages"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
   <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
 </div>
@@ -167,6 +168,110 @@
 </div>
 {{end}}
 
+{{if .User.IsAdmin}}
+<div id="tab-pages" class="tab-panel">
+  <div class="admin-card">
+    <h2>{{T "admin.pages.title"}}</h2>
+    <p class="admin-desc">{{T "admin.pages.desc"}}</p>
+    <form method="POST" action="/admin/pages" class="admin-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1.25rem">
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.raids"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_raids_enabled" value="1"
+                   {{if .Data.Maintenance.RaidsEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.RaidsEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.dps"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_dps_enabled" value="1"
+                   {{if .Data.Maintenance.DPSEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.DPSEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.pvp"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_pvp_enabled" value="1"
+                   {{if .Data.Maintenance.PVPEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.PVPEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.events"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_events_enabled" value="1"
+                   {{if .Data.Maintenance.EventsEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.EventsEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.trainers"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_trainers_enabled" value="1"
+                   {{if .Data.Maintenance.TrainersEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.TrainersEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-left:1.5rem">
+          <span style="font-size:0.85rem;color:var(--text-2)">{{T "admin.pages.trainer_directory"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="section_trainer_directory_enabled" value="1"
+                   {{if .Data.Maintenance.TrainerDirectoryEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.TrainerDirectoryEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-left:1.5rem">
+          <span style="font-size:0.85rem;color:var(--text-2)">{{T "admin.pages.raid_finder"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="section_raid_finder_enabled" value="1"
+                   {{if .Data.Maintenance.RaidFinderEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.RaidFinderEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.shinies"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_shinies_enabled" value="1"
+                   {{if .Data.Maintenance.ShiniesEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.ShiniesEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+      </div>
+      <button type="submit" class="btn-primary">{{T "admin.pages.save"}}</button>
+    </form>
+  </div>
+</div>
+{{end}}
+
 <div id="tab-users" class="tab-panel {{if not .User.IsAdmin}}active{{end}}">
 
   <div class="admin-card" id="tag-requests-card" style="display:none">
@@ -256,7 +361,10 @@ const STRINGS = {
   allTagsAssigned:  {{T "admin.js.all_tags_assigned"}},
   btnAddTag:        {{T "admin.js.btn_add_tag"}},
   deleteTag:        {{T "admin.js.delete_tag"}},
+  editTag:          {{T "admin.js.edit_tag"}},
   tagCreated:       {{T "admin.js.tag_created"}},
+  tagUpdated:       {{T "admin.js.tag_updated"}},
+  btnCancel:        {{T "admin.js.btn_cancel"}},
   noRequests:       {{T "admin.js.no_requests"}},
   noItems:          {{T "admin.js.no_items"}},
   submitted:        {{T "admin.js.submitted"}},
@@ -294,6 +402,7 @@ const STRINGS = {
 };
 </script>
 <script>
+const IS_MOD        = {{if .User.IsMod}}true{{else}}false{{end}};
 const IS_ADMIN      = {{if .User.IsAdmin}}true{{else}}false{{end}};
 const IS_SUPERADMIN = {{if .User.IsSuperAdmin}}true{{else}}false{{end}};
 const ME_ID         = {{.User.ID}};
@@ -460,11 +569,12 @@ function renderUsers(search) {
         ${u.api_access ? STRINGS.btnRevokeApi : STRINGS.btnGrantApi}
       </button>` : '';
 
-    const tagPills = IS_ADMIN && u.role === 'admin'
+    const canManageTags = IS_MOD && (u.username !== SUPERADMIN || IS_SUPERADMIN);
+    const tagPills = canManageTags
       ? (u.tags || []).map(t => `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}<button class="user-tag-remove" onclick="removeUserTag(event,${u.id},${t.id})" title="${STRINGS.removeTag}">&times;</button></span>`).join('')
       : (u.tags || []).map(t => `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}</span>`).join('');
 
-    const tagManageBtn = IS_ADMIN && u.role === 'admin' && u.username !== SUPERADMIN
+    const tagManageBtn = canManageTags
       ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'tags')">${STRINGS.btnManageTags}</button>` : '';
 
     const raidStatsBtn = IS_ADMIN
@@ -853,8 +963,9 @@ function loadStats() {
 }
 
 // ── Tag management ─────────────────────────────────────────────
-let allTags   = [];
+let allTags    = [];
 let tagsLoaded = false;
+let editingTagId = null;
 
 async function loadTags() {
   tagsLoaded = true;
@@ -871,9 +982,63 @@ function renderTagsList() {
     el.innerHTML = `<span style="color:var(--text-2);font-size:0.85rem">${STRINGS.noTags}</span>`;
     return;
   }
-  el.innerHTML = allTags.map(t =>
-    `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}${IS_SUPERADMIN ? `<button class="user-tag-remove" onclick="deleteTag(${t.id})" title="${STRINGS.deleteTag}">&times;</button>` : ''}</span>`
-  ).join('');
+  el.innerHTML = allTags.map(t => {
+    if (IS_SUPERADMIN && t.id === editingTagId) {
+      return `<span style="display:inline-flex;align-items:center;gap:0.3rem;background:var(--card-bg);border:1px solid var(--border);border-radius:999px;padding:0.2rem 0.5rem">
+        <input type="color" id="tag-edit-color-${t.id}" value="${esc(t.color)}" style="width:28px;height:22px;padding:1px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer">
+        <input type="text" id="tag-edit-name-${t.id}" value="${esc(t.name)}" maxlength="32" class="auth-input" style="width:120px;padding:0.15rem 0.4rem;font-size:0.8rem">
+        <button class="um-btn um-btn-ok" onclick="saveTag(${t.id})">${STRINGS.btnSave}</button>
+        <button class="um-btn" onclick="cancelEditTag()">${STRINGS.btnCancel}</button>
+        <span id="tag-edit-status-${t.id}" style="font-size:0.8rem"></span>
+      </span>`;
+    }
+    if (IS_SUPERADMIN) {
+      return `<span class="user-tag-wrapper"><span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}<button class="user-tag-remove" onclick="deleteTag(${t.id})" title="${STRINGS.deleteTag}">&times;</button></span><button class="user-tag-edit-btn" onclick="editTagInline(${t.id})" title="${STRINGS.editTag}">✎</button></span>`;
+    }
+    return `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}</span>`;
+  }).join('');
+}
+
+function editTagInline(id) {
+  editingTagId = id;
+  renderTagsList();
+}
+
+function cancelEditTag() {
+  editingTagId = null;
+  renderTagsList();
+}
+
+async function saveTag(id) {
+  const nameEl  = document.getElementById('tag-edit-name-'  + id);
+  const colorEl = document.getElementById('tag-edit-color-' + id);
+  const status  = document.getElementById('tag-edit-status-' + id);
+  if (!nameEl || !colorEl) return;
+  const name  = nameEl.value.trim();
+  const color = colorEl.value;
+  if (!name) return;
+  const res = await csrfFetch('/api/admin/tags/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, color}),
+  });
+  if (res.ok) {
+    const tag = await res.json();
+    const idx = allTags.findIndex(t => t.id === id);
+    if (idx !== -1) allTags[idx] = tag;
+    allTags.sort((a,b) => a.name.localeCompare(b.name));
+    users.forEach(u => {
+      if (!u.tags) return;
+      const ti = u.tags.findIndex(t => t.id === id);
+      if (ti !== -1) u.tags[ti] = tag;
+    });
+    editingTagId = null;
+    renderTagsList();
+    renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (status) { status.textContent = d.error || 'Error'; status.style.color = '#fc8181'; }
+  }
 }
 
 async function deleteTag(id) {
@@ -918,7 +1083,8 @@ if (IS_SUPERADMIN) {
   }
 }
 
-function renderTagExpand(id, el) {
+async function renderTagExpand(id, el) {
+  if (!tagsLoaded) await loadTags();
   const u = users.find(u => u.id === id);
   if (!u) return;
   const assigned = new Set((u.tags || []).map(t => t.id));
@@ -950,7 +1116,7 @@ async function addUserTag(uid) {
     }
     renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
     const el = document.getElementById('um-expand-' + uid);
-    if (el) renderTagExpand(uid, el);
+    if (el) await renderTagExpand(uid, el);
   } else {
     const d = await res.json().catch(() => ({}));
     if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }

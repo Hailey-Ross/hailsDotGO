@@ -1,0 +1,12 @@
+{{define "title"}}{{T "maintenance.title"}}{{end}}
+
+{{define "content"}}
+<div style="display:flex;justify-content:center;align-items:center;min-height:50vh;padding:2rem 1rem">
+  <div class="admin-card" style="max-width:480px;width:100%;text-align:center;padding:2.5rem">
+    <div style="font-size:3rem;margin-bottom:1rem">🔧</div>
+    <h1 style="margin-bottom:0.75rem">{{T "maintenance.title"}}</h1>
+    <p style="color:var(--text-2);margin-bottom:2rem">{{T "maintenance.message"}}</p>
+    <a href="/" class="btn-primary">{{T "maintenance.back_home"}}</a>
+  </div>
+</div>
+{{end}}

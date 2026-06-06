@@ -78,6 +78,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/shinies", h.RequireAuth(h.ShiniesPage))
 		r.Get("/admin", h.RequireMod(h.AdminPage))
 		r.Post("/admin/settings", h.RequireAdmin(h.AdminUpdateSettings))
+		r.Post("/admin/pages", h.RequireAdmin(h.AdminUpdatePageSettings))
 		r.Post("/admin/invite", h.RequireAdmin(h.AdminGenerateInvite))
 		r.Post("/admin/invite/{token}/cancel", h.RequireAdmin(h.AdminCancelInvite))
 
@@ -94,12 +95,13 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/api/admin/store-items", h.RequireAdmin(h.AdminStoreItemsList))
 		r.Post("/api/admin/store-items/{id}/toggle", h.RequireAdmin(h.AdminToggleStoreItem))
 
-		// Tag management (list: admin+; create/delete: superadmin; assign/remove: admin+)
-		r.Get("/api/admin/tags", h.RequireAdmin(h.AdminTagsList))
+		// Tag management (list/assign/remove: mod+; create/delete: superadmin)
+		r.Get("/api/admin/tags", h.RequireMod(h.AdminTagsList))
 		r.Post("/api/admin/tags", h.RequireSuperAdmin(h.AdminTagCreate))
+		r.Patch("/api/admin/tags/{id}", h.RequireSuperAdmin(h.AdminTagUpdate))
 		r.Delete("/api/admin/tags/{id}", h.RequireSuperAdmin(h.AdminTagDelete))
-		r.Post("/api/admin/users/{id}/tags", h.RequireAdmin(h.AdminUserTagAdd))
-		r.Delete("/api/admin/users/{id}/tags/{tagId}", h.RequireAdmin(h.AdminUserTagRemove))
+		r.Post("/api/admin/users/{id}/tags", h.RequireMod(h.AdminUserTagAdd))
+		r.Delete("/api/admin/users/{id}/tags/{tagId}", h.RequireMod(h.AdminUserTagRemove))
 
 		// User management (mod+)
 		r.Get("/admin/users", h.RequireMod(h.AdminUsersAPI))

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/main.css?v=15">
+  <link rel="stylesheet" href="/static/css/main.css?v=16">
   <meta name="csrf-token" content="{{.CSRFToken}}">
 </head>
 <body>
@@ -25,14 +25,14 @@
     <button class="nav-sidebar-close" id="nav-sidebar-close" aria-label="Close menu">&times;</button>
   </div>
   <div class="nav-links" id="nav-links">
-    <a href="/raids">{{T "nav.raids"}}</a>
-    <a href="/dps">{{T "nav.dps"}}</a>
-    <a href="/pvp">{{T "nav.pvp"}}</a>
-    <a href="/events">{{T "nav.shinies"}}</a>
-    <a href="/trainers">{{T "nav.trainers"}}</a>
+    {{if .Maintenance.RaidsEnabled}}<a href="/raids">{{T "nav.raids"}}</a>{{end}}
+    {{if .Maintenance.DPSEnabled}}<a href="/dps">{{T "nav.dps"}}</a>{{end}}
+    {{if .Maintenance.PVPEnabled}}<a href="/pvp">{{T "nav.pvp"}}</a>{{end}}
+    {{if .Maintenance.EventsEnabled}}<a href="/events">{{T "nav.shinies"}}</a>{{end}}
+    {{if .Maintenance.TrainersEnabled}}<a href="/trainers">{{T "nav.trainers"}}</a>{{end}}
     {{if .StoreEnabled}}<a href="/store">{{T "nav.store"}}</a>{{end}}
     {{if .User}}
-    <a href="/shinies" class="nav-link-highlight">{{T "nav.collection"}}</a>
+    {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-link-highlight">{{T "nav.collection"}}</a>{{end}}
     <a href="/settings">{{T "nav.settings"}}</a>
     {{if .User.IsMod}}<a href="/admin">{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
     <form method="POST" action="/logout" style="display:block;margin:0">

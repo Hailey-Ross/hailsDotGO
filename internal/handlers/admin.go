@@ -30,6 +30,7 @@ type inviteRow struct {
 type adminData struct {
 	RegistrationOpen bool
 	StoreEnabled     bool
+	Maintenance      PageMaintenance
 	Message          string
 	MessageOK        bool
 	InviteLink       string
@@ -43,6 +44,7 @@ func (h *Handlers) AdminPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "admin", adminData{
 		RegistrationOpen: h.registrationOpen(),
 		StoreEnabled:     h.storeEnabled(),
+		Maintenance:      h.maintenanceSettings(),
 		ActiveInvites:    h.loadActiveInvites(r),
 		SuperadminUser:   auth.SuperadminUser,
 	})
@@ -95,6 +97,7 @@ func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "admin", adminData{
 		RegistrationOpen: regOpen == "1",
 		StoreEnabled:     storeOn == "1",
+		Maintenance:      h.maintenanceSettings(),
 		Message:          msg,
 		MessageOK:        msgOK,
 		ActiveInvites:    h.loadActiveInvites(r),
@@ -130,6 +133,7 @@ func (h *Handlers) AdminGenerateInvite(w http.ResponseWriter, r *http.Request) {
 		h.render(w, r, "admin", adminData{
 			RegistrationOpen: h.registrationOpen(),
 			StoreEnabled:     h.storeEnabled(),
+			Maintenance:      h.maintenanceSettings(),
 			Message:          msg,
 			MessageOK:        false,
 			ActiveInvites:    h.loadActiveInvites(r),
@@ -168,6 +172,7 @@ func (h *Handlers) AdminGenerateInvite(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "admin", adminData{
 		RegistrationOpen: h.registrationOpen(),
 		StoreEnabled:     h.storeEnabled(),
+		Maintenance:      h.maintenanceSettings(),
 		InviteLink:       link,
 		ActiveInvites:    h.loadActiveInvites(r),
 		SuperadminUser:   auth.SuperadminUser,
@@ -223,6 +228,58 @@ func (h *Handlers) AdminCancelInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	h.db.Exec(`DELETE FROM invites WHERE token = ?`, token)
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	keys := []string{
+		"page_raids_enabled",
+		"page_dps_enabled",
+		"page_pvp_enabled",
+		"page_events_enabled",
+		"page_trainers_enabled",
+		"section_trainer_directory_enabled",
+		"section_raid_finder_enabled",
+		"page_shinies_enabled",
+	}
+
+	saveErr := false
+	for _, key := range keys {
+		val := "0"
+		if r.FormValue(key) == "1" {
+			val = "1"
+		}
+		if _, err := h.db.Exec(`
+			INSERT INTO site_settings (setting_key, setting_value)
+			VALUES (?, ?)
+			ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+			key, val,
+		); err != nil {
+			log.Printf("admin: save page setting %s: %v", key, err)
+			saveErr = true
+		}
+	}
+
+	msg := h.t(r, "admin.settings.saved")
+	msgOK := true
+	if saveErr {
+		msg = h.t(r, "admin.settings.save_error")
+		msgOK = false
+	}
+
+	h.render(w, r, "admin", adminData{
+		RegistrationOpen: h.registrationOpen(),
+		StoreEnabled:     h.storeEnabled(),
+		Maintenance:      h.maintenanceSettings(),
+		Message:          msg,
+		MessageOK:        msgOK,
+		ActiveInvites:    h.loadActiveInvites(r),
+		SuperadminUser:   auth.SuperadminUser,
+	})
 }
 
 // ── User management API ───────────────────────────────────────
@@ -819,19 +876,51 @@ func (h *Handlers) AdminTagDelete(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+func (h *Handlers) AdminTagUpdate(w http.ResponseWriter, r *http.Request) {
+	caller := h.currentUser(r)
+	if caller == nil || !caller.IsSuperAdmin() {
+		writeJSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Name  string `json:"name"`
+		Color string `json:"color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	body.Name = strings.TrimSpace(body.Name)
+	if len(body.Name) == 0 || len(body.Name) > 32 {
+		writeJSONError(w, "name must be 1-32 characters", http.StatusBadRequest)
+		return
+	}
+	if body.Color == "" {
+		body.Color = "#888888"
+	}
+	_, err = h.db.Exec(`UPDATE tags SET name = ?, color = ? WHERE id = ?`, body.Name, body.Color, id)
+	if err != nil {
+		writeJSONError(w, "tag name already exists", http.StatusConflict)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(adminTagEntry{ID: uint(id), Name: body.Name, Color: body.Color})
+}
+
 func (h *Handlers) AdminUserTagAdd(w http.ResponseWriter, r *http.Request) {
 	uid, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	var targetRole string
-	if err := h.db.QueryRow(`SELECT role FROM users WHERE id = ?`, uid).Scan(&targetRole); err != nil {
+	var exists bool
+	if err := h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)`, uid).Scan(&exists); err != nil || !exists {
 		writeJSONError(w, "user not found", http.StatusNotFound)
-		return
-	}
-	if targetRole != "admin" {
-		writeJSONError(w, "tags can only be assigned to admins", http.StatusForbidden)
 		return
 	}
 	var body struct {

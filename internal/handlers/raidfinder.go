@@ -58,7 +58,13 @@ var raidRanks = []struct {
 }
 
 func raidRankLabel(xp int, role string) string {
-	if role == "moderator" || role == "admin" || role == "superadmin" {
+	if role == "tester" {
+		return "PKMN Scientist"
+	}
+	if role == "moderator" {
+		return "PKMN Researcher"
+	}
+	if role == "admin" || role == "superadmin" {
 		return "PKMN PROF"
 	}
 	for _, r := range raidRanks {
@@ -70,7 +76,13 @@ func raidRankLabel(xp int, role string) string {
 }
 
 func raidRankClass(xp int, role string) string {
-	if role == "moderator" || role == "admin" || role == "superadmin" {
+	if role == "tester" {
+		return "pkmn-scientist"
+	}
+	if role == "moderator" {
+		return "pkmn-researcher"
+	}
+	if role == "admin" || role == "superadmin" {
 		return "pkmn-prof"
 	}
 	for _, r := range raidRanks {

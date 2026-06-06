@@ -19,11 +19,13 @@
 <!-- ── Trainer Directory tab ─────────────────────────────────── -->
 <div id="tab-directory" class="tab-panel active">
 
+{{if .Maintenance.TrainerDirectoryEnabled}}
   {{if not .User}}
   <div class="trainers-join-banner fade-up">
     <p>{{T "trainers.join_banner"}} <a href="/register">{{T "trainers.join_signup"}}</a> {{T "trainers.join_then"}} <a href="/login">{{T "trainers.join_login"}}</a>{{T "trainers.join_then2"}}</p>
   </div>
   {{end}}
+  <p class="trainers-asterisk-note">{{T "trainers.asterisk_note"}}</p>
 
   <div class="trainers-toolbar fade-up">
     <input type="text" class="search-input trainers-search" placeholder="{{T "trainers.search"}}" id="trainers-search">
@@ -33,17 +35,22 @@
   {{if .Data}}
   <div class="trainers-grid" id="trainers-grid">
     {{range .Data}}
+    {{$displayName := .Username}}{{if and .ProfilePublic .TrainerName}}{{$displayName = .TrainerName}}{{end}}
+    {{$noProfile := and (eq .TrainerName "") (eq .TrainerCode "")}}
     <div class="trainer-card fade-up"
-         data-name="{{.TrainerName}}"
-         data-avatar="{{.AvatarURL}}"
-         data-pronouns="{{.Pronouns}}"
-         data-code="{{if $.User}}{{.TrainerCode}}{{end}}"
-         data-location-display="{{.LocationDisplay}}"
-         data-region="{{.Region}}"
-         data-country="{{.Country}}"
-         data-fav-url="{{.FavSpriteURL}}"
-         data-fav-name="{{.FavPokemon}}"
-         data-fav-form="{{.FavPokemonForm}}"
+         data-name="{{$displayName}}"
+         data-username="{{.Username}}"
+         data-asterisk="{{if $noProfile}}1{{else}}0{{end}}"
+         data-has-profile="{{if .ProfilePublic}}1{{else}}0{{end}}"
+         data-avatar="{{if .ProfilePublic}}{{.AvatarURL}}{{end}}"
+         data-pronouns="{{if .ProfilePublic}}{{.Pronouns}}{{end}}"
+         data-code="{{if and .ProfilePublic $.User}}{{.TrainerCode}}{{end}}"
+         data-location-display="{{if .ProfilePublic}}{{.LocationDisplay}}{{end}}"
+         data-region="{{if .ProfilePublic}}{{.Region}}{{end}}"
+         data-country="{{if .ProfilePublic}}{{.Country}}{{end}}"
+         data-fav-url="{{if .ProfilePublic}}{{.FavSpriteURL}}{{end}}"
+         data-fav-name="{{if .ProfilePublic}}{{.FavPokemon}}{{end}}"
+         data-fav-form="{{if .ProfilePublic}}{{.FavPokemonForm}}{{end}}"
          data-badge="{{.StaffBadge}}"
          data-rank="{{.RaidRank}}"
          data-rank-class="{{.RaidRankClass}}"
@@ -52,9 +59,9 @@
          data-online="{{if .Online}}1{{else}}0{{end}}"
          data-tag-names="{{range $i,$t := .Tags}}{{if $i}}|{{end}}{{$t.Name}}{{end}}"
          data-tag-colors="{{range $i,$t := .Tags}}{{if $i}}|{{end}}{{$t.Color}}{{end}}"
-         data-super-donator="{{if .SuperDonator}}1{{else}}0{{end}}"
-         data-username="{{.TrainerName}}">
+         data-super-donator="{{if .SuperDonator}}1{{else}}0{{end}}">
       <div class="trainer-card-header">
+        {{if .ProfilePublic}}
         <div class="trainer-sprite-group">
           {{if .FavSpriteURL}}
           <img class="trainer-fav-sprite{{if eq .FavPokemonForm "shadow"}} poke-shadow{{end}}" src="{{.FavSpriteURL}}" alt="{{.FavPokemon}}">
@@ -67,15 +74,16 @@
           </span>
           {{end}}
         </div>
+        {{end}}
         <div class="trainer-card-namegroup">
           <div class="trainer-card-nameline">
-            <span class="trainer-card-name{{if .SuperDonator}} rainbow-name{{end}}">{{if .TrainerName}}{{.TrainerName}}{{else}}Trainer{{end}}</span>{{if eq .StaffBadge "superadmin"}}<span class="staff-icon" title="Owner">👑</span>{{else if eq .StaffBadge "admin"}}<span class="staff-icon" title="Admin">💎</span>{{else if eq .StaffBadge "moderator"}}<span class="staff-icon" title="Moderator">🏅</span>{{else if eq .StaffBadge "tester"}}<span class="staff-icon" title="Tester">🧪</span>{{end}}
+            <span class="trainer-card-name{{if and .ProfilePublic .SuperDonator}} rainbow-name{{end}}">{{$displayName}}</span>{{if $noProfile}}<span class="trainer-asterisk" title="{{T "trainers.asterisk_title"}}">*</span>{{end}}{{if eq .StaffBadge "superadmin"}}<span class="staff-icon" title="Owner">👑</span>{{else if eq .StaffBadge "admin"}}<span class="staff-icon" title="Admin">💎</span>{{else if eq .StaffBadge "moderator"}}<span class="staff-icon" title="Moderator">🏅</span>{{else if eq .StaffBadge "tester"}}<span class="staff-icon" title="Tester">🧪</span>{{end}}
           </div>
-          {{if .Pronouns}}<span class="trainer-card-pronouns">({{.Pronouns}})</span>{{end}}
-          {{if or .RaidXP .StaffBadge .Tags .SuperDonator}}<div class="trainer-tags">{{if .SuperDonator}}<span class="donator-badge">DONATOR</span>{{end}}{{if or .RaidXP .StaffBadge}}<span class="rank-badge rank-{{.RaidRankClass}}">{{.RaidRank}}</span>{{end}}{{range .Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}</div>{{end}}
+          {{if and .ProfilePublic .Pronouns}}<span class="trainer-card-pronouns">({{.Pronouns}})</span>{{end}}
+          {{if or .RaidXP .StaffBadge .Tags .SuperDonator}}<div class="trainer-tags">{{if and .ProfilePublic .SuperDonator}}<span class="donator-badge">DONATOR</span>{{end}}{{if or .RaidXP .StaffBadge}}<span class="rank-badge rank-{{.RaidRankClass}}">{{.RaidRank}}</span>{{end}}{{range .Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}</div>{{end}}
         </div>
       </div>
-      {{if and $.User .TrainerCode}}<div class="trainer-card-code">{{.TrainerCodeFormatted}}</div>{{end}}
+      {{if and .ProfilePublic $.User .TrainerCode}}<div class="trainer-card-code">{{.TrainerCodeFormatted}}</div>{{end}}
     </div>
     {{end}}
   </div>
@@ -83,22 +91,29 @@
   {{else}}
   <div class="trainers-empty fade-up">
     <p>{{T "trainers.empty"}}</p>
-    {{if .User}}
-    <p>{{T "trainers.empty_first"}}</p>
-    {{else}}
-    <p><a href="/register">{{T "trainers.join_signup"}}</a> {{T "trainers.empty_signup"}}</p>
-    {{end}}
   </div>
   {{end}}
+{{else}}
+  <div style="text-align:center;padding:3rem 1rem">
+    <div style="font-size:2rem;margin-bottom:0.75rem">🔧</div>
+    <p style="color:var(--text-2)">{{T "maintenance.section_message"}}</p>
+  </div>
+{{end}}
 
 </div>
 
 <!-- ── Raid Finder tab ───────────────────────────────────────── -->
 <div id="tab-raids" class="tab-panel">
 
-  <div id="weather-banner-slot"></div>
+{{if not .Maintenance.RaidFinderEnabled}}
+  <div style="text-align:center;padding:3rem 1rem">
+    <div style="font-size:2rem;margin-bottom:0.75rem">🔧</div>
+    <p style="color:var(--text-2)">{{T "maintenance.section_message"}}</p>
+  </div>
+{{end}}
+  <div id="weather-banner-slot"{{if not .Maintenance.RaidFinderEnabled}} style="display:none"{{end}}></div>
 
-  <div id="raid-finder-root">
+  <div id="raid-finder-root"{{if not .Maintenance.RaidFinderEnabled}} style="display:none"{{end}}>
     <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
   </div>
 
@@ -108,7 +123,10 @@
 <div id="trainer-modal-overlay" class="trainer-modal-overlay" style="display:none" aria-modal="true" role="dialog">
   <div class="trainer-modal" id="trainer-modal">
     <button class="trainer-modal-close" id="trainer-modal-close" aria-label="Close">&times;</button>
-    <div class="trainer-modal-sprites" id="trainer-modal-sprites"></div>
+    <div class="trainer-modal-header">
+      <div class="trainer-modal-sprites" id="trainer-modal-sprites"></div>
+      <div id="trainer-modal-identity"></div>
+    </div>
     <div class="trainer-modal-body" id="trainer-modal-body"></div>
   </div>
 </div>
@@ -221,7 +239,7 @@ const RF = {
       var q = searchEl.value.trim().toLowerCase();
       var visible = 0;
       cards.forEach(function(card) {
-        var match = !q || (card.dataset.name||'').toLowerCase().includes(q);
+        var match = !q || (card.dataset.name||'').toLowerCase().includes(q) || (card.dataset.username||'').toLowerCase().includes(q);
         card.style.display = match ? '' : 'none';
         if (match) visible++;
       });
@@ -249,11 +267,14 @@ const RF = {
   });
 
   function openTrainerModal(d) {
-    var spritesEl = document.getElementById('trainer-modal-sprites');
-    var bodyEl    = document.getElementById('trainer-modal-body');
-    spritesEl.innerHTML = '';
-    bodyEl.innerHTML    = '';
+    var spritesEl  = document.getElementById('trainer-modal-sprites');
+    var identityEl = document.getElementById('trainer-modal-identity');
+    var bodyEl     = document.getElementById('trainer-modal-body');
+    spritesEl.innerHTML  = '';
+    identityEl.innerHTML = '';
+    bodyEl.innerHTML     = '';
 
+    // Sprites
     var wrap = document.createElement('div');
     wrap.className = 'trainer-modal-sprite-wrap';
 
@@ -277,27 +298,22 @@ const RF = {
       defEl.innerHTML = DEFAULT_SVG;
       wrap.appendChild(defEl);
     }
-
     spritesEl.appendChild(wrap);
 
-    // Name + badge + online dot
+    // Name line → header identity zone
     var nameLine = document.createElement('div');
     nameLine.className = 'trainer-modal-name-line';
     var onlineDot = d.online === '1' ? '<span class="trainer-online-dot" title="Online"></span>' : '';
-    var nameClass = d.superDonator === '1' ? 'trainer-modal-name rainbow-name' : 'trainer-modal-name';
-    var donatorBadge = d.superDonator === '1' ? '<span class="donator-badge">DONATOR</span>' : '';
-    nameLine.innerHTML = onlineDot + '<span class="' + nameClass + '">' + esc(d.name || 'Trainer') + '</span>' + staffIcon(d.badge) + donatorBadge;
-    bodyEl.appendChild(nameLine);
+    var hasProfile = d.hasProfile === '1';
+    var nameClass = (hasProfile && d.superDonator === '1') ? 'trainer-modal-name rainbow-name' : 'trainer-modal-name';
+    var donatorBadge = (hasProfile && d.superDonator === '1') ? '<span class="donator-badge">DONATOR</span>' : '';
+    var asterisk = d.asterisk === '1' ? '<span class="trainer-asterisk" title="Profile not set up">*</span>' : '';
+    nameLine.innerHTML = onlineDot + '<span class="' + nameClass + '">' + esc(d.name || d.username || 'Trainer') + '</span>' + asterisk + staffIcon(d.badge) + donatorBadge;
+    identityEl.appendChild(nameLine);
 
-    // Pronouns
-    if (d.pronouns) {
-      var prEl = document.createElement('div');
-      prEl.className = 'trainer-modal-pronouns';
-      prEl.textContent = '(' + d.pronouns + ')';
-      bodyEl.appendChild(prEl);
-    }
-
-    // Location
+    // Meta line: pronouns + location combined → header identity zone
+    var metaParts = [];
+    if (d.pronouns) metaParts.push('(' + d.pronouns + ')');
     var locText = '';
     if (d.locationDisplay === 'country' && d.country) {
       locText = '📍 ' + d.country;
@@ -306,34 +322,15 @@ const RF = {
       else if (d.country) locText = '📍 ' + d.country;
       else if (d.region) locText = '📍 ' + d.region;
     }
-    if (locText) {
-      var locEl = document.createElement('div');
-      locEl.className = 'trainer-modal-location';
-      locEl.textContent = locText;
-      bodyEl.appendChild(locEl);
+    if (locText) metaParts.push(locText);
+    if (metaParts.length) {
+      var metaEl = document.createElement('div');
+      metaEl.className = 'trainer-modal-meta';
+      metaEl.textContent = metaParts.join(' · ');
+      identityEl.appendChild(metaEl);
     }
 
-    // Trainer code
-    if (d.code) {
-      var codeRow = document.createElement('div');
-      codeRow.className = 'trainer-modal-code-row';
-      var codeDisplay = d.code.length === 12 ? d.code.slice(0,4)+' '+d.code.slice(4,8)+' '+d.code.slice(8) : d.code;
-      var copyBtn = document.createElement('button');
-      copyBtn.className = 'trainer-copy-btn';
-      copyBtn.textContent = RF.copy;
-      copyBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        navigator.clipboard.writeText(d.code).then(function() {
-          copyBtn.textContent = RF.copied; copyBtn.classList.add('trainer-copy-btn--done');
-          setTimeout(function() { copyBtn.textContent = RF.copy; copyBtn.classList.remove('trainer-copy-btn--done'); }, 1500);
-        });
-      });
-      codeRow.innerHTML = '<span class="trainer-modal-code">' + esc(codeDisplay) + '</span>';
-      codeRow.appendChild(copyBtn);
-      bodyEl.appendChild(codeRow);
-    }
-
-    // Rank badge + user tags (same row)
+    // Rank badge + user tags → body (first)
     if (d.rank || d.tagNames) {
       var rowEl = document.createElement('div');
       rowEl.className = 'trainer-tags';
@@ -357,21 +354,38 @@ const RF = {
       bodyEl.appendChild(rowEl);
     }
 
-    // Join date
-    if (d.joined) {
-      var joinedEl = document.createElement('div');
-      joinedEl.className = 'trainer-modal-joined';
-      joinedEl.textContent = RF.trainerSince + ' ' + d.joined;
-      bodyEl.appendChild(joinedEl);
+    // Trainer code → body
+    if (d.code) {
+      var codeRow = document.createElement('div');
+      codeRow.className = 'trainer-modal-code-row';
+      var codeDisplay = d.code.length === 12 ? d.code.slice(0,4)+' '+d.code.slice(4,8)+' '+d.code.slice(8) : d.code;
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'trainer-copy-btn';
+      copyBtn.textContent = RF.copy;
+      copyBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        navigator.clipboard.writeText(d.code).then(function() {
+          copyBtn.textContent = RF.copied; copyBtn.classList.add('trainer-copy-btn--done');
+          setTimeout(function() { copyBtn.textContent = RF.copy; copyBtn.classList.remove('trainer-copy-btn--done'); }, 1500);
+        });
+      });
+      codeRow.innerHTML = '<span class="trainer-modal-code">' + esc(codeDisplay) + '</span>';
+      codeRow.appendChild(copyBtn);
+      bodyEl.appendChild(codeRow);
     }
 
-    // Favorite Pokémon
+    // Footer: fav Pokémon + join date → body
+    var footerParts = [];
     if (d.favName) {
       var formLabels = {shadow: RF.formShadow, shiny: RF.formShiny, primal: RF.formPrimal};
-      var favEl = document.createElement('div');
-      favEl.className = 'trainer-modal-fav-name';
-      favEl.textContent = '❤ ' + (formLabels[d.favForm] ? formLabels[d.favForm] + ' ' : '') + d.favName;
-      bodyEl.appendChild(favEl);
+      footerParts.push('❤ ' + (formLabels[d.favForm] ? formLabels[d.favForm] + ' ' : '') + d.favName);
+    }
+    if (d.joined) footerParts.push(RF.trainerSince + ' ' + d.joined);
+    if (footerParts.length) {
+      var footerEl = document.createElement('div');
+      footerEl.className = 'trainer-modal-footer';
+      footerEl.textContent = footerParts.join(' · ');
+      bodyEl.appendChild(footerEl);
     }
 
     modalOverlay.style.display = 'flex';
