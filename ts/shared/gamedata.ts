@@ -1,5 +1,7 @@
 import type { GameData, PokemonStat } from "./types";
 
+declare var SITE_LANG: string;
+
 let cached: GameData | null = null;
 
 export async function loadGameData(): Promise<GameData> {
@@ -66,6 +68,12 @@ export function cpmFromCP(
     }
   }
   return bestCPM;
+}
+
+export function pokeName(data: GameData, englishName: string): string {
+  const lang = typeof SITE_LANG !== "undefined" ? SITE_LANG : "en";
+  if (lang === "en") return englishName.replace(/_/g, " ");
+  return data.pokemonNames?.[englishName]?.[lang] ?? englishName.replace(/_/g, " ");
 }
 
 export function typeEffectiveness(

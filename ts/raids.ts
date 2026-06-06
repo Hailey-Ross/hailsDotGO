@@ -1,4 +1,4 @@
-import { loadGameData, pokeSprite, cpForLevel, cpmFromCP } from "./shared/gamedata";
+import { loadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
 import { calcCounters, renderCounterTable, calcSinglePokemon, DEFAULT_CONFIG } from "./shared/counters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
@@ -7,7 +7,7 @@ import type { GameData, RaidBoss, PokemonStat } from "./shared/types";
 
 const app = document.getElementById("raids-app")!;
 
-function createBossCard(boss: RaidBoss): HTMLElement {
+function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
   const card = document.createElement("div");
   card.className = "boss-card";
 
@@ -39,7 +39,7 @@ function createBossCard(boss: RaidBoss): HTMLElement {
 
   const name = document.createElement("span");
   name.className = "boss-name";
-  name.textContent = boss.pokemon_name.replace(/_/g, " ");
+  name.textContent = pokeName(data, boss.pokemon_name);
   inner.appendChild(name);
 
   if (boss.cp) {
@@ -534,7 +534,7 @@ function buildRaidsView(data: GameData): HTMLElement {
     grid.className = "raid-boss-grid";
 
     for (const boss of bosses) {
-      const card = createBossCard(boss);
+      const card = createBossCard(boss, data);
       card.style.cursor = "pointer";
 
       card.addEventListener("click", () => {

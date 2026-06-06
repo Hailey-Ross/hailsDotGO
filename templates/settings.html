@@ -1,58 +1,59 @@
-{{define "title"}}Settings{{end}}
+{{define "title"}}{{T "settings.title"}}{{end}}
 
 {{define "content"}}
 <div class="page-header">
-  <h1>Settings</h1>
-  <p class="page-sub">Manage your trainer profile and privacy preferences.</p>
+  <h1>{{T "settings.title"}}</h1>
+  <p class="page-sub">{{T "settings.subtitle"}}</p>
 </div>
 
 {{if .Data.Success}}
-<div class="settings-success">Settings saved.</div>
+<div class="settings-success">{{T "settings.saved"}}</div>
 {{end}}
 {{if .Data.Error}}
 <div class="auth-error" style="margin-bottom:1rem">{{.Data.Error}}</div>
 {{end}}
 
 <div class="tabs" id="settings-tabs">
-  <button class="tab-btn active" data-tab="profile">Trainer Profile</button>
-  <button class="tab-btn" data-tab="location">Location &amp; Privacy</button>
+  <button class="tab-btn active" data-tab="profile">{{T "settings.tab.profile"}}</button>
+  <button class="tab-btn" data-tab="location">{{T "settings.tab.location"}}</button>
 </div>
 
 <div class="settings-wrap">
   <form method="POST" action="/settings" class="settings-form">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
 
     <!-- ── Trainer Profile tab ──────────────────────────────── -->
     <div id="tab-profile" class="tab-panel active">
       <div class="settings-section">
-        <h2 class="settings-section-title">Trainer Profile</h2>
-        <p class="settings-hint">Shown on the <a href="/trainers">Trainer Directory</a> when your profile is public.</p>
+        <h2 class="settings-section-title">{{T "settings.profile.section"}}</h2>
+        <p class="settings-hint">{{T "settings.profile.hint"}}</p>
 
         <div class="settings-field">
-          <label class="settings-label" for="trainer_name">In-game Trainer Name</label>
-          <p class="settings-field-hint">Your Pokémon GO trainer name (up to 16 characters).</p>
+          <label class="settings-label" for="trainer_name">{{T "settings.trainer_name.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.trainer_name.hint"}}</p>
           <input class="auth-input" type="text" id="trainer_name" name="trainer_name"
                  maxlength="16" placeholder="e.g. AshKetchum"
                  value="{{.Data.TrainerName}}">
         </div>
 
         <div class="settings-field">
-          <label class="settings-label" for="pr-sel">Pronouns</label>
-          <p class="settings-field-hint">Shown in muted text beside your name in the Trainer Directory.</p>
+          <label class="settings-label" for="pr-sel">{{T "settings.pronouns.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.pronouns.hint"}}</p>
           <select id="pr-sel" name="pronouns_choice" class="auth-input">
-            <option value="">Prefer not to say</option>
+            <option value="">{{T "settings.pronouns.prefer_not"}}</option>
             <option value="he/him">He/Him</option>
             <option value="she/her">She/Her</option>
             <option value="they/them">They/Them</option>
             <option value="any/all">Any/All</option>
-            <option value="custom">Other (enter below)...</option>
+            <option value="custom">{{T "settings.pronouns.custom"}}</option>
           </select>
           <input type="text" name="pronouns_custom" id="pr-custom-input" maxlength="32"
                  placeholder="e.g. xe/xem" class="auth-input" style="margin-top:0.4rem;display:none">
         </div>
 
         <div class="settings-field">
-          <label class="settings-label" for="trainer_code">Trainer Code</label>
-          <p class="settings-field-hint">Your 12-digit friend code. Spaces are fine.</p>
+          <label class="settings-label" for="trainer_code">{{T "settings.trainer_code.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.trainer_code.hint"}}</p>
           <input class="auth-input" type="text" id="trainer_code" name="trainer_code"
                  maxlength="14" placeholder="e.g. 1234 5678 9012"
                  value="{{.Data.TrainerCode}}"
@@ -60,14 +61,21 @@
         </div>
 
         <div class="settings-field">
-          <label class="settings-label" for="avatar-sel">Trainer Avatar</label>
-          <p class="settings-field-hint">Choose a trainer class sprite for your directory card.</p>
+          <label class="settings-label" for="avatar-sel">{{T "settings.avatar.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.avatar.hint"}}</p>
           <div class="avatar-select-wrap">
             <select id="avatar-sel" name="avatar" class="auth-input">
-              <option value="">Default (silhouette)</option>
-              {{range .Data.TrainerClasses}}
-              <option value="{{.Slug}}" {{if eq $.Data.Avatar .Slug}}selected{{end}}>{{.Label}}</option>
-              {{end}}
+              <option value="">{{T "settings.avatar.default"}}</option>
+              <optgroup label="Classic (Showdown)">
+                {{range .Data.TrainerClasses}}{{if eq .Group "classic"}}
+                <option value="{{.Slug}}" {{if eq $.Data.Avatar .Slug}}selected{{end}}>{{.Label}}</option>
+                {{end}}{{end}}
+              </optgroup>
+              <optgroup label="Dreamstone Mysteries (GBA)">
+                {{range .Data.TrainerClasses}}{{if eq .Group "dreamstone"}}
+                <option value="{{.Slug}}" {{if eq $.Data.Avatar .Slug}}selected{{end}}>{{.Label}}</option>
+                {{end}}{{end}}
+              </optgroup>
             </select>
             <span id="avatar-preview-default" class="trainer-avatar-sm avatar--default">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
@@ -75,77 +83,100 @@
             <img id="avatar-preview-img" class="trainer-avatar-sprite" alt="trainer avatar" style="display:none">
           </div>
         </div>
+
+        <div class="settings-field">
+          <label class="settings-label" for="fav-pokemon-input">{{T "settings.fav.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.fav.hint"}}</p>
+          <datalist id="pokemon-names-list">
+            {{range .Data.PokemonList}}<option value="{{.Name}}">{{end}}
+          </datalist>
+          <input class="auth-input" id="fav-pokemon-input" type="text"
+                 name="fav_pokemon" list="pokemon-names-list" autocomplete="off"
+                 placeholder="e.g. Gengar"
+                 value="{{.Data.FavPokemon}}">
+          <div class="fav-form-wrap">
+            <select name="fav_pokemon_form" id="fav-pokemon-form" class="auth-input">
+              <option value="">{{T "settings.fav.normal"}}</option>
+              <option value="shadow">{{T "settings.fav.shadow"}}</option>
+              <option value="shiny">{{T "settings.fav.shiny"}}</option>
+              <option value="primal" id="fav-primal-opt">{{T "settings.fav.primal"}}</option>
+            </select>
+          </div>
+          <div id="fav-pokemon-preview" style="display:none;margin-top:0.5rem">
+            <img id="fav-pokemon-sprite" class="fav-pokemon-preview-img" alt="">
+          </div>
+        </div>
       </div>
 
-      <button type="submit" class="btn-primary settings-save-btn">Save Settings</button>
+      <button type="submit" class="btn-primary settings-save-btn">{{T "settings.save"}}</button>
     </div>
 
     <!-- ── Location & Privacy tab ───────────────────────────── -->
     <div id="tab-location" class="tab-panel">
       <div class="settings-section">
-        <h2 class="settings-section-title">Location</h2>
+        <h2 class="settings-section-title">{{T "settings.location.section"}}</h2>
 
         <div class="settings-field">
-          <label class="settings-label" for="city">City</label>
-          <p class="settings-field-hint">Used privately for weather boost info. Never shown publicly.</p>
+          <label class="settings-label" for="city">{{T "settings.city.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.city.hint"}}</p>
           <input class="auth-input" type="text" id="city" name="city"
                  maxlength="100" placeholder="e.g. London"
                  value="{{.Data.City}}">
         </div>
 
         <div class="settings-field">
-          <label class="settings-label" for="region">State / Region</label>
-          <p class="settings-field-hint">Your state or province. Shown based on your location setting below.</p>
+          <label class="settings-label" for="region">{{T "settings.region.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.region.hint"}}</p>
           <input class="auth-input" type="text" id="region" name="region"
                  maxlength="100" placeholder="e.g. California"
                  value="{{.Data.Region}}">
         </div>
 
         <div class="settings-field">
-          <label class="settings-label" for="country">Country</label>
-          <p class="settings-field-hint">Shown based on your location setting below.</p>
+          <label class="settings-label" for="country">{{T "settings.country.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.country.hint"}}</p>
           <input class="auth-input" type="text" id="country" name="country"
                  maxlength="100" placeholder="e.g. USA"
                  value="{{.Data.Country}}">
         </div>
 
         <div class="settings-field">
-          <label class="settings-label">Location Visibility</label>
-          <p class="settings-field-hint">Controls what location, if any, is shown in the Trainer Directory.</p>
+          <label class="settings-label">{{T "settings.location_vis.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.location_vis.hint"}}</p>
           <div class="settings-radio-group">
             <label class="settings-radio-row">
               <input type="radio" name="location_display" value="none"
                      {{if or (eq .Data.LocationDisplay "none") (eq .Data.LocationDisplay "")}}checked{{end}}>
-              <span>Don't show my location</span>
+              <span>{{T "settings.location_vis.none"}}</span>
             </label>
             <label class="settings-radio-row">
               <input type="radio" name="location_display" value="country"
                      {{if eq .Data.LocationDisplay "country"}}checked{{end}}>
-              <span>Country only</span>
+              <span>{{T "settings.location_vis.country"}}</span>
             </label>
             <label class="settings-radio-row">
               <input type="radio" name="location_display" value="full"
                      {{if eq .Data.LocationDisplay "full"}}checked{{end}}>
-              <span>State &amp; Country</span>
+              <span>{{T "settings.location_vis.full"}}</span>
             </label>
           </div>
         </div>
       </div>
 
       <div class="settings-section">
-        <h2 class="settings-section-title">Privacy</h2>
+        <h2 class="settings-section-title">{{T "settings.privacy.section"}}</h2>
 
         <label class="settings-toggle-row" for="profile_public">
           <input type="checkbox" class="settings-checkbox" name="profile_public" value="1"
                  id="profile_public" {{if .Data.ProfilePublic}}checked{{end}}>
           <div class="settings-toggle-text">
-            <span class="settings-toggle-label">Show me in the Trainer Directory</span>
-            <span class="settings-toggle-hint">Your trainer name and trainer code will be visible to all visitors. Location is controlled separately above.</span>
+            <span class="settings-toggle-label">{{T "settings.directory.label"}}</span>
+            <span class="settings-toggle-hint">{{T "settings.directory.hint"}}</span>
           </div>
         </label>
       </div>
 
-      <button type="submit" class="btn-primary settings-save-btn">Save Settings</button>
+      <button type="submit" class="btn-primary settings-save-btn">{{T "settings.save"}}</button>
     </div>
 
   </form>
@@ -194,6 +225,53 @@
   }
   avatarSel.addEventListener('change', updateAvatarPreview);
   updateAvatarPreview();
+
+  // ── Favorite Pokémon picker ───────────────────────────────────
+  var pokemonIDs = {};
+  {{range .Data.PokemonList}}pokemonIDs[{{.Name}}] = {{.ID}};
+  {{end}}
+  var primalCapable = {382: true, 383: true}; // Kyogre, Groudon
+
+  var favInput     = document.getElementById('fav-pokemon-input');
+  var favFormSel   = document.getElementById('fav-pokemon-form');
+  var favPreview   = document.getElementById('fav-pokemon-preview');
+  var favSprite    = document.getElementById('fav-pokemon-sprite');
+  var favPrimalOpt = document.getElementById('fav-primal-opt');
+
+  function buildFavSpriteURL(id, form) {
+    var base = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
+    if (form === 'shiny') return base + 'shiny/' + id + '.png';
+    if (form === 'primal') {
+      if (id === 383) return base + '10007.png';
+      if (id === 382) return base + '10008.png';
+    }
+    return base + id + '.png';
+  }
+
+  function updateFavPreview() {
+    var name = favInput.value.trim();
+    var id   = pokemonIDs[name] || 0;
+    var form = favFormSel.value;
+
+    favPrimalOpt.disabled = !primalCapable[id];
+    if (form === 'primal' && !primalCapable[id]) {
+      favFormSel.value = '';
+      form = '';
+    }
+
+    if (id) {
+      favSprite.src = buildFavSpriteURL(id, form);
+      favSprite.className = 'fav-pokemon-preview-img' + (form === 'shadow' ? ' poke-shadow' : '');
+      favPreview.style.display = '';
+    } else {
+      favPreview.style.display = 'none';
+    }
+  }
+
+  favInput.addEventListener('input', updateFavPreview);
+  favFormSel.addEventListener('change', updateFavPreview);
+  favFormSel.value = "{{.Data.FavPokemonForm}}";
+  updateFavPreview();
 
   // ── Tab switching ─────────────────────────────────────────────
   document.getElementById('settings-tabs').addEventListener('click', function(e) {

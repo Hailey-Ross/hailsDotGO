@@ -1,15 +1,15 @@
-{{define "title"}}Current Raids{{end}}
+{{define "title"}}{{T "raids.title"}}{{end}}
 
 {{define "content"}}
 <div class="page-header">
-  <h1>Current Raids</h1>
-  <p>Tap a boss to see the best counters</p>
+  <h1>{{T "raids.title"}}</h1>
+  <p>{{T "raids.subtitle"}}</p>
 </div>
 
 <div id="raids-app">
   <div class="loading-state">
     <div class="spinner"></div>
-    <p>Loading raid data…</p>
+    <p>{{T "raids.loading"}}</p>
   </div>
 </div>
 {{end}}

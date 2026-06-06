@@ -1,0 +1,179 @@
+{{define "title"}}{{T "store.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{T "store.title"}}</h1>
+  <p class="page-subtitle">{{T "store.subtitle"}}</p>
+</div>
+
+{{$d := .Data}}
+
+{{if $d.FlashMsg}}
+<div class="admin-message {{if $d.FlashOK}}admin-message-ok{{else}}admin-message-error{{end}}" style="margin-bottom:1.5rem">
+  {{$d.FlashMsg}}
+</div>
+{{end}}
+
+{{if not $d.PayPalReady}}
+<div class="admin-message admin-message-error" style="margin-bottom:1.5rem">
+  {{T "store.not_configured"}}
+</div>
+{{end}}
+
+<div class="store-items">
+  {{range $d.Items}}
+  <div class="store-card">
+    <div class="store-card-header">
+      <h2 class="store-card-name">{{.Name}}</h2>
+      <span class="store-card-price">${{printf "%.2f" (divf .PriceCents 100)}}</span>
+    </div>
+    <p class="store-card-desc">{{.Description}}</p>
+    {{if $.User}}
+      {{$benefit := .Benefit}}
+      {{$slug := .Slug}}
+      {{$alreadyOwned := false}}
+      {{range $d.Purchases}}{{if eq .Benefit $benefit}}{{$alreadyOwned = true}}{{end}}{{end}}
+      {{if $alreadyOwned}}
+        <button class="btn-primary store-buy-btn" disabled>{{T "store.already_active"}}</button>
+      {{else if $d.PayPalReady}}
+        <form method="POST" action="/store/checkout">
+          <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="item" value="{{$slug}}">
+          <button type="submit" class="btn-primary store-buy-btn">Buy &mdash; ${{printf "%.2f" (divf .PriceCents 100)}}</button>
+        </form>
+      {{else}}
+        <button class="btn-primary store-buy-btn" disabled>{{T "store.unavailable"}}</button>
+      {{end}}
+    {{else}}
+      <a href="/login" class="btn-primary store-buy-btn" style="text-align:center">{{T "store.login_purchase"}}</a>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="empty-state">{{T "store.no_items"}}</p>
+  {{end}}
+</div>
+
+{{if $.User}}
+
+{{if $d.Purchases}}
+<div class="store-section">
+  <h2 class="store-section-title">{{T "store.perks.title"}}</h2>
+  <div class="store-perks-list">
+    {{range $d.Purchases}}
+    <div class="store-perk-row">
+      <span class="store-perk-name">{{.ItemName}}</span>
+      {{if .ExpiresAt}}
+      <span class="store-perk-expires">Expires {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
+      {{else}}
+      <span class="store-perk-expires">{{T "store.perks.permanent"}}</span>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{if $d.HasSupporter}}
+<div class="store-section">
+  <h2 class="store-section-title">{{T "store.tag.title"}}</h2>
+  {{if $d.TagRequest}}
+    {{if eq $d.TagRequest.Status "pending"}}
+    <div class="admin-message" style="background:var(--surface-2);color:var(--text-1)">
+      {{T "store.tag.pending"}}
+    </div>
+    {{else if eq $d.TagRequest.Status "approved"}}
+    <div class="admin-message admin-message-ok">
+      {{T "store.tag.approved"}}
+    </div>
+    {{else if eq $d.TagRequest.Status "rejected"}}
+    <div class="admin-message admin-message-error" style="margin-bottom:1rem">
+      {{T "store.tag.rejected_prefix"}}{{if $d.TagRequest.RejectReason}}: {{$d.TagRequest.RejectReason}}{{end}}. {{T "store.tag.resubmit"}}
+    </div>
+    <div id="tag-request-form-wrap">
+      {{template "tagRequestForm" .}}
+    </div>
+    {{end}}
+  {{else}}
+  <p class="store-perk-desc">{{T "store.tag.pending"}}</p>
+  <div id="tag-request-form-wrap">
+    {{template "tagRequestForm" .}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{end}}{{/* end if $.User */}}
+
+{{end}}
+
+{{define "tagRequestForm"}}
+<form id="tag-request-form" class="admin-form" style="max-width:400px">
+  <div style="display:flex;flex-direction:column;gap:0.75rem">
+    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.85rem;color:var(--text-2)">
+      {{T "store.tag.form.text"}}
+      <input type="text" id="tag-name" maxlength="32" required
+             class="auth-input" placeholder="{{T "store.tag.form.placeholder"}}">
+    </label>
+    <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-2)">
+      {{T "store.tag.form.color"}}
+      <input type="color" id="tag-color" value="#ec4899"
+             style="width:36px;height:28px;padding:2px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer">
+      <span id="tag-preview" class="user-tag" style="background:#ec4899">{{T "store.tag.form.preview"}}</span>
+    </label>
+    <button type="submit" class="btn-primary" style="align-self:flex-start">{{T "store.tag.form.submit"}}</button>
+    <span id="tag-request-status" style="font-size:0.82rem"></span>
+  </div>
+</form>
+{{end}}
+
+{{define "scripts"}}
+{{if $.User}}
+<script>
+(function() {
+  const form = document.getElementById('tag-request-form');
+  if (!form) return;
+
+  const nameInput  = document.getElementById('tag-name');
+  const colorInput = document.getElementById('tag-color');
+  const preview    = document.getElementById('tag-preview');
+  const statusEl   = document.getElementById('tag-request-status');
+  const CSRF       = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const PREVIEW_DEFAULT = {{T "store.tag.form.preview"}};
+  const MSG_SUBMITTED   = {{T "store.tag.submitted"}};
+
+  if (nameInput && preview) {
+    nameInput.addEventListener('input', function() {
+      preview.textContent = this.value || PREVIEW_DEFAULT;
+    });
+  }
+  if (colorInput && preview) {
+    colorInput.addEventListener('input', function() {
+      preview.style.background = this.value;
+    });
+  }
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true;
+    statusEl.textContent = '';
+    const res = await fetch('/api/store/tag-request', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRF-Token': CSRF},
+      body: JSON.stringify({name: nameInput.value.trim(), color: colorInput.value}),
+    });
+    if (res.ok) {
+      statusEl.textContent = MSG_SUBMITTED;
+      statusEl.style.color = 'var(--green)';
+      form.style.display = 'none';
+    } else {
+      const d = await res.json().catch(() => ({}));
+      statusEl.textContent = d.error || 'Error submitting request.';
+      statusEl.style.color = '#fc8181';
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+{{end}}
+{{end}}

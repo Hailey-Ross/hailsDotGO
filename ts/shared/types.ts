@@ -75,6 +75,8 @@ export interface GameData {
   shadowPokemon: string[] | null;
   typeChart: TypeChart | null;
   cpMultipliers: CPMultiplier[] | null;
+  pokemonTypes: Record<string, string[]> | null;
+  pokemonNames: Record<string, Record<string, string>> | null;
 }
 
 export interface DPSResult {

@@ -1,8 +1,8 @@
-{{define "title"}}Admin{{end}}
+﻿{{define "title"}}{{T "admin.title"}}{{end}}
 
 {{define "content"}}
 <div class="page-header">
-  <h1>{{if .User.IsAdmin}}Admin Panel{{else}}Mod Panel{{end}}</h1>
+  <h1>{{if .User.IsAdmin}}{{T "admin.heading_admin"}}{{else}}{{T "admin.heading_mod"}}{{end}}</h1>
 </div>
 
 {{if .Data.Message}}
@@ -12,55 +12,79 @@
 {{end}}
 
 <div class="tabs" id="admin-tabs">
-  {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">Settings</button>{{end}}
-  <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">Users</button>
+  {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">{{T "admin.tab.settings"}}</button>{{end}}
+  <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
+  <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
 </div>
 
 {{if .User.IsAdmin}}
 <div id="tab-settings" class="tab-panel active">
 
   <div class="admin-card">
-    <h2>User Registration</h2>
-    <p class="admin-desc">
-      When disabled, the registration page shows a closed message and the
-      sign-up endpoint returns 403. Existing users and logins are unaffected.
-    </p>
+    <h2>{{T "admin.settings.reg_title"}}</h2>
+    <p class="admin-desc">{{T "admin.settings.reg_desc"}}</p>
     <form method="POST" action="/admin/settings" class="admin-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
       <label class="admin-toggle-label">
         <input type="checkbox" name="registration_open" value="1"
                {{if .Data.RegistrationOpen}}checked{{end}}>
         <span class="admin-toggle-text">
-          {{if .Data.RegistrationOpen}}Registration is open{{else}}Registration is closed{{end}}
+          {{if .Data.RegistrationOpen}}{{T "admin.settings.reg_open"}}{{else}}{{T "admin.settings.reg_closed"}}{{end}}
         </span>
       </label>
-      <button type="submit" class="btn-primary" style="margin-top:1.25rem">Save Settings</button>
+      <button type="submit" class="btn-primary" style="margin-top:1.25rem">{{T "admin.settings.save"}}</button>
     </form>
   </div>
 
+
   <div class="admin-card">
-    <h2>Invite Links</h2>
-    <p class="admin-desc">
-      Generate a single-use invite link valid for 7 days. The recipient can register
-      even when registration is closed.
-    </p>
-    <form method="POST" action="/admin/invite" class="admin-form">
-      <button type="submit" class="btn-primary">Generate Invite Link</button>
+    <h2>{{T "admin.invite.title"}}</h2>
+    <p class="admin-desc">{{T "admin.invite.desc"}}</p>
+    <form method="POST" action="/admin/invite" class="admin-form" id="invite-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end">
+        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.82rem;color:var(--text-2)">
+          {{T "admin.invite.role_label"}}
+          <select name="granted_role" id="invite-role" class="move-select" style="min-width:130px" onchange="syncInviteConstraints()">
+            <option value="user">{{T "admin.invite.role_user"}}</option>
+            <option value="tester">{{T "admin.invite.role_tester"}}</option>
+            <option value="moderator">{{T "admin.invite.role_mod"}}</option>
+            <option value="admin">{{T "admin.invite.role_admin"}}</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.82rem;color:var(--text-2)">
+          {{T "admin.invite.max_uses"}}
+          <input type="number" name="max_uses" id="invite-max-uses" value="1" min="1" max="50"
+                 class="auth-input" style="width:80px" oninput="syncInviteConstraints()">
+        </label>
+        <button type="submit" class="btn-primary">{{T "admin.invite.generate"}}</button>
+      </div>
+      <p id="invite-constraint-msg" style="font-size:0.78rem;color:#fc8181;margin-top:0.4rem;display:none"></p>
     </form>
     {{if .Data.InviteLink}}
     <div class="admin-message admin-message-ok" style="margin-top:1rem">
-      <strong>New invite link (copy it now):</strong>
+      <strong>{{T "admin.invite.new_link"}}</strong>
       <div class="admin-invite-link">{{.Data.InviteLink}}</div>
     </div>
     {{end}}
     {{if .Data.ActiveInvites}}
     <div class="admin-invite-list">
-      <h3>Active Invites</h3>
+      <h3>{{T "admin.invite.active"}}</h3>
       {{range .Data.ActiveInvites}}
       <div class="admin-invite-row">
         <span class="admin-invite-link-cell">{{.Link}}</span>
-        <span class="admin-invite-expires">exp. {{.ExpiresAt.Format "Jan 2"}}</span>
+        <span class="admin-invite-expires">
+          {{if eq .GrantedRole "moderator"}}<span class="um-role-badge um-role-mod" style="font-size:0.7rem">Mod</span>
+          {{else if eq .GrantedRole "admin"}}<span class="um-role-badge um-role-admin" style="font-size:0.7rem">Admin</span>
+          {{else if eq .GrantedRole "tester"}}<span class="um-role-badge um-role-tester" style="font-size:0.7rem">Tester</span>
+          {{end}}
+          {{if gt .MaxUses 1}}{{.UseCount}}/{{.MaxUses}} uses &middot; {{end}}exp. {{.ExpiresAt.Format "Jan 2"}}
+        </span>
         <form method="POST" action="/admin/invite/{{.Token}}/cancel" style="margin:0;flex-shrink:0">
-          <button type="submit" class="um-btn um-btn-danger" style="font-size:0.72rem;padding:0.2rem 0.55rem">Cancel</button>
+          <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+          <button type="submit" class="um-btn um-btn-danger" style="font-size:0.72rem;padding:0.2rem 0.55rem">{{T "admin.invite.cancel"}}</button>
         </form>
       </div>
       {{end}}
@@ -71,21 +95,209 @@
 </div>
 {{end}}
 
+{{if .User.IsAdmin}}
+<div id="tab-donations" class="tab-panel">
+
+  {{if .User.IsSuperAdmin}}
+  <div class="admin-card">
+    <h2>{{T "admin.donations.title"}}</h2>
+    <p class="admin-desc">{{T "admin.donations.desc"}}</p>
+    <form method="POST" action="/admin/settings" class="admin-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <label class="admin-toggle-label">
+        <input type="checkbox" name="store_enabled" value="1"
+               {{if .Data.StoreEnabled}}checked{{end}}>
+        <span class="admin-toggle-text">
+          {{if .Data.StoreEnabled}}{{T "admin.donations.enabled"}}{{else}}{{T "admin.donations.disabled"}}{{end}}
+        </span>
+      </label>
+      <button type="submit" class="btn-primary" style="margin-top:1.25rem">{{T "admin.settings.save"}}</button>
+    </form>
+  </div>
+  {{end}}
+
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2>{{T "admin.store_items.title"}}</h2>
+      <button class="um-btn" onclick="loadStoreItems()">{{T "admin.store_items.refresh"}}</button>
+    </div>
+    <p class="admin-desc">{{T "admin.store_items.desc"}}</p>
+    <div id="store-items-container">
+      <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
+    </div>
+  </div>
+
+</div>
+{{end}}
+
+<div id="tab-stats" class="tab-panel">
+  {{if .User.IsSuperAdmin}}
+  <div class="admin-card" style="margin-bottom:1.25rem">
+    <h2>{{T "admin.data_refresh.title"}}</h2>
+    <p class="admin-desc">{{T "admin.data_refresh.desc"}}</p>
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+      <button id="btn-force-refresh" class="btn-primary">{{T "admin.data_refresh.btn"}}</button>
+      <span id="refresh-status" style="font-size:0.85rem;color:var(--text-2)"></span>
+    </div>
+  </div>
+  {{end}}
+  <div id="stats-container">
+    <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading_stats"}}</span></div>
+  </div>
+</div>
+
+{{if .User.IsAdmin}}
+<div id="tab-tags" class="tab-panel">
+  <div class="admin-card">
+    <h2>{{T "admin.tags.title"}}</h2>
+    <p class="admin-desc">{{T "admin.tags.desc"}}</p>
+    <div id="tags-list" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.25rem"></div>
+    {{if .User.IsSuperAdmin}}
+    <form id="tag-create-form" class="admin-form" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <input type="text" id="tag-name-input" placeholder="{{T "admin.tags.name_placeholder"}}" maxlength="32" required
+             class="auth-input" style="flex:1;min-width:120px">
+      <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:var(--text-2)">
+        {{T "admin.tags.color_label"}} <input type="color" id="tag-color-input" value="#ec4899" style="width:36px;height:28px;padding:2px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer">
+      </label>
+      <button type="submit" class="btn-primary">{{T "admin.tags.create"}}</button>
+      <span id="tag-create-status" style="font-size:0.8rem"></span>
+    </form>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
 <div id="tab-users" class="tab-panel {{if not .User.IsAdmin}}active{{end}}">
+
+  <div class="admin-card" id="tag-requests-card" style="display:none">
+    <div class="admin-card-header">
+      <h2>{{T "admin.tag_requests.title"}}</h2>
+      <button class="um-btn" onclick="loadTagRequests()">{{T "admin.tag_requests.refresh"}}</button>
+    </div>
+    <p class="admin-desc">{{T "admin.tag_requests.desc"}}</p>
+    <div id="tag-requests-container">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
+    </div>
+  </div>
+
   <input id="um-search" type="text" class="search-input"
          style="width:100%;margin-bottom:1rem;display:block"
-         placeholder="Search users by name or email…">
+         placeholder="{{T "admin.users.search"}}">
   <div id="um-container">
-    <div class="loading-state"><div class="spinner"></div><span>Loading users…</span></div>
+    <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading_users"}}</span></div>
   </div>
 </div>
 {{end}}
 
 {{define "scripts"}}
 <script>
-const IS_ADMIN   = {{if .User.IsAdmin}}true{{else}}false{{end}};
-const ME_ID      = {{.User.ID}};
-const SUPERADMIN = {{printf "%q" .Data.SuperadminUser}};
+const STRINGS = {
+  loading:          {{T "admin.js.loading"}},
+  loadingStats:     {{T "admin.js.loading_stats"}},
+  loadingUsers:     {{T "admin.js.loading_users"}},
+  failUsers:        {{T "admin.js.fail_users"}},
+  noUsers:          {{T "admin.js.no_users"}},
+  joined:           {{T "admin.js.joined"}},
+  you:              {{T "admin.js.you"}},
+  active:           {{T "admin.js.active"}},
+  disabled:         {{T "admin.js.disabled"}},
+  dirHidden:        {{T "admin.js.dir_hidden"}},
+  raidBanned:       {{T "admin.js.raid_banned"}},
+  strikeS:          {{T "admin.js.strike_s"}},
+  strikeP:          {{T "admin.js.strike_p"}},
+  apiAccess:        {{T "admin.js.api_access"}},
+  pending:          {{T "admin.js.pending"}},
+  btnEnable:        {{T "admin.js.btn_enable"}},
+  btnDisable:       {{T "admin.js.btn_disable"}},
+  btnUnhide:        {{T "admin.js.btn_unhide"}},
+  btnHide:          {{T "admin.js.btn_hide"}},
+  btnBanRaids:      {{T "admin.js.btn_ban_raids"}},
+  btnUnbanRaids:    {{T "admin.js.btn_unban_raids"}},
+  btnRevokeApi:     {{T "admin.js.btn_revoke_api"}},
+  btnGrantApi:      {{T "admin.js.btn_grant_api"}},
+  btnSetPassword:   {{T "admin.js.btn_set_password"}},
+  btnRename:        {{T "admin.js.btn_rename"}},
+  btnStrikes:       {{T "admin.js.btn_strikes"}},
+  btnRaidStats:     {{T "admin.js.btn_raid_stats"}},
+  btnManageTags:    {{T "admin.js.btn_manage_tags"}},
+  btnConfirmRole:   {{T "admin.js.btn_confirm_role"}},
+  btnRejectRole:    {{T "admin.js.btn_reject_role"}},
+  passwordPh:       {{T "admin.js.password_ph"}},
+  btnSave:          {{T "admin.js.btn_save"}},
+  loadingStrikes:   {{T "admin.js.loading_strikes"}},
+  noStrikes:        {{T "admin.js.no_strikes"}},
+  strikeReasonPh:   {{T "admin.js.strike_reason_ph"}},
+  btnRemove:        {{T "raidfinder.btn_remove"}},
+  btnAddStrike:     {{T "admin.js.btn_add_strike"}},
+  pwUpdated:        {{T "admin.js.pw_updated"}},
+  usernameUpdated:  {{T "admin.js.username_updated"}},
+  actionFailed:     {{T "admin.js.action_failed"}},
+  ratingsCleared:   {{T "admin.js.ratings_cleared"}},
+  activityReset:    {{T "admin.js.activity_reset"}},
+  confirmClearRatings: {{T "admin.js.confirm_clear_ratings"}},
+  raidXP:           {{T "admin.js.raid_xp"}},
+  raterWeight:      {{T "admin.js.rater_weight"}},
+  xpHint:           {{T "admin.js.xp_hint"}},
+  weightHint:       {{T "admin.js.weight_hint"}},
+  btnSet:           {{T "admin.js.btn_set"}},
+  saved:            {{T "admin.js.saved"}},
+  btnClearRatings:  {{T "admin.js.btn_clear_ratings"}},
+  btnResetDecay:    {{T "admin.js.btn_reset_decay"}},
+  roleSuperadmin:   {{T "admin.js.role_superadmin"}},
+  roleUser:         {{T "admin.js.role_user"}},
+  roleTester:       {{T "admin.js.role_tester"}},
+  roleMod:          {{T "admin.js.role_mod"}},
+  roleAdmin:        {{T "admin.js.role_admin"}},
+  inviteStaffNote:  {{T "admin.js.invite_staff_note"}},
+  inviteMultiuseNote: {{T "admin.js.invite_multiuse_note"}},
+  confirmDeleteTag: {{T "admin.js.confirm_delete_tag"}},
+  noTags:           {{T "admin.js.no_tags"}},
+  removeTag:        {{T "admin.js.remove_tag"}},
+  allTagsAssigned:  {{T "admin.js.all_tags_assigned"}},
+  btnAddTag:        {{T "admin.js.btn_add_tag"}},
+  deleteTag:        {{T "admin.js.delete_tag"}},
+  tagCreated:       {{T "admin.js.tag_created"}},
+  noRequests:       {{T "admin.js.no_requests"}},
+  noItems:          {{T "admin.js.no_items"}},
+  submitted:        {{T "admin.js.submitted"}},
+  staffNotes:       {{T "admin.js.staff_notes"}},
+  rejectReason:     {{T "admin.js.reject_reason"}},
+  statusAwaiting:   {{T "admin.js.status_awaiting"}},
+  statusApproved:   {{T "admin.js.status_approved"}},
+  statusRejected:   {{T "admin.js.status_rejected"}},
+  statusPending:    {{T "admin.js.status_pending"}},
+  btnApprove:       {{T "admin.js.btn_approve"}},
+  btnRevision:      {{T "admin.js.btn_revision"}},
+  btnReject:        {{T "admin.js.btn_reject"}},
+  revisionPh:       {{T "admin.js.revision_ph"}},
+  failLoad:         {{T "admin.js.fail_load"}},
+  failStats:        {{T "admin.js.fail_stats"}},
+  statUptime:       {{T "admin.js.stat_uptime"}},
+  statGoroutines:   {{T "admin.js.stat_goroutines"}},
+  statHeap:         {{T "admin.js.stat_heap"}},
+  statGC:           {{T "admin.js.stat_gc"}},
+  statDbPing:       {{T "admin.js.stat_db_ping"}},
+  statDbConns:      {{T "admin.js.stat_db_conns"}},
+  statDbInUse:      {{T "admin.js.stat_db_in_use"}},
+  statDbIdle:       {{T "admin.js.stat_db_idle"}},
+  statDbWait:       {{T "admin.js.stat_db_wait"}},
+  statUsers:        {{T "admin.js.stat_users"}},
+  statRaids:        {{T "admin.js.stat_raids"}},
+  statShinies:      {{T "admin.js.stat_shinies"}},
+  statSessions:     {{T "admin.js.stat_sessions"}},
+  itemActive:       {{T "admin.js.item_active"}},
+  itemDisabled:     {{T "admin.js.item_disabled"}},
+  itemEnable:       {{T "admin.js.item_enable"}},
+  itemDisable:      {{T "admin.js.item_disable"}},
+  refreshOk:        {{T "admin.js.refresh_ok"}},
+  refreshFail:      {{T "admin.js.refresh_fail"}},
+};
+</script>
+<script>
+const IS_ADMIN      = {{if .User.IsAdmin}}true{{else}}false{{end}};
+const IS_SUPERADMIN = {{if .User.IsSuperAdmin}}true{{else}}false{{end}};
+const ME_ID         = {{.User.ID}};
+const SUPERADMIN    = {{.Data.SuperadminUser}};
 
 // ── Tab switching ──────────────────────────────────────────────
 (function() {
@@ -100,6 +312,29 @@ const SUPERADMIN = {{printf "%q" .Data.SuperadminUser}};
     const panel = document.getElementById('tab-' + btn.dataset.tab);
     if (panel) panel.classList.add('active');
     if (btn.dataset.tab === 'users' && !usersLoaded) loadUsers();
+    if (btn.dataset.tab === 'stats' && !statsLoaded) loadStats();
+    if (btn.dataset.tab === 'tags'  && !tagsLoaded)  loadTags();
+  });
+})();
+
+// ── Force data refresh (superadmin only) ──────────────────────
+(function() {
+  var btn = document.getElementById('btn-force-refresh');
+  if (!btn) return;
+  var status = document.getElementById('refresh-status');
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    status.textContent = '';
+    fetch('/admin/refresh-data', {
+      method: 'POST',
+      headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      status.textContent = d.ok ? STRINGS.refreshOk : STRINGS.refreshFail;
+    })
+    .catch(function() { status.textContent = STRINGS.refreshFail; })
+    .finally(function() { btn.disabled = false; });
   });
 })();
 
@@ -109,8 +344,15 @@ let usersLoaded = false;
 let expandedId   = null;
 let expandedType = null;
 
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+function csrfFetch(url, options = {}) {
+  const headers = {...(options.headers || {}), 'X-CSRF-Token': CSRF_TOKEN};
+  return fetch(url, {...options, headers});
+}
+
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 async function loadUsers() {
@@ -118,7 +360,7 @@ async function loadUsers() {
   const res = await fetch('/admin/users');
   if (!res.ok) {
     document.getElementById('um-container').innerHTML =
-      '<div class="error-state">Failed to load users.</div>';
+      `<div class="error-state">${STRINGS.failUsers}</div>`;
     return;
   }
   users = await res.json();
@@ -136,11 +378,12 @@ if (document.getElementById('tab-users') &&
 
 function roleBadgeClass(u) {
   if (u.username === SUPERADMIN) return 'um-role-superadmin';
-  return u.role === 'admin' ? 'um-role-admin' : u.role === 'moderator' ? 'um-role-mod' : 'um-role-user';
+  return u.role === 'admin' ? 'um-role-admin' : u.role === 'moderator' ? 'um-role-mod' : u.role === 'tester' ? 'um-role-tester' : 'um-role-user';
 }
 function roleBadgeLabel(u) {
-  if (u.username === SUPERADMIN) return 'Superadmin';
-  return u.role.charAt(0).toUpperCase() + u.role.slice(1);
+  if (u.username === SUPERADMIN) return STRINGS.roleSuperadmin;
+  const map = {user: STRINGS.roleUser, tester: STRINGS.roleTester, moderator: STRINGS.roleMod, admin: STRINGS.roleAdmin};
+  return map[u.role] || (u.role.charAt(0).toUpperCase() + u.role.slice(1));
 }
 function usernameColorClass(u) {
   if (u.username === SUPERADMIN) return 'um-username-superadmin';
@@ -157,7 +400,7 @@ function renderUsers(search) {
 
   const container = document.getElementById('um-container');
   if (!list.length) {
-    container.innerHTML = '<p class="empty-state">No users found.</p>';
+    container.innerHTML = `<p class="empty-state">${STRINGS.noUsers}</p>`;
     return;
   }
 
@@ -170,63 +413,103 @@ function renderUsers(search) {
 
     const roleSelect = IS_ADMIN && !isSuperAdmin ? `
       <select class="um-role-select move-select" data-uid="${u.id}" onchange="changeRole(${u.id}, this)">
-        <option value="user"      ${u.role==='user'      ? 'selected':''}>User</option>
-        <option value="moderator" ${u.role==='moderator' ? 'selected':''}>Moderator</option>
-        <option value="admin"     ${u.role==='admin'     ? 'selected':''}>Admin</option>
+        <option value="user"      ${u.role==='user'      ? 'selected':''}>` + STRINGS.roleUser + `</option>
+        <option value="tester"    ${u.role==='tester'    ? 'selected':''}>` + STRINGS.roleTester + `</option>
+        <option value="moderator" ${u.role==='moderator' ? 'selected':''}>` + STRINGS.roleMod + `</option>
+        <option value="admin"     ${u.role==='admin'     ? 'selected':''}>` + STRINGS.roleAdmin + `</option>
       </select>` : '';
 
     const disableBtn = canDisable ? `
       <button class="um-btn ${u.disabled ? 'um-btn-ok' : 'um-btn-danger'}"
               onclick="toggleDisable(${u.id}, ${!u.disabled})">
-        ${u.disabled ? 'Enable' : 'Disable'}
+        ${u.disabled ? STRINGS.btnEnable : STRINGS.btnDisable}
       </button>` : '';
 
     const dirHideBtn = `
       <button class="um-btn ${u.directory_hidden ? 'um-btn-ok' : 'um-btn-warn'}"
               onclick="toggleDirectoryHide(${u.id}, ${!u.directory_hidden})">
-        ${u.directory_hidden ? 'Unhide from Directory' : 'Hide from Directory'}
+        ${u.directory_hidden ? STRINGS.btnUnhide : STRINGS.btnHide}
       </button>`;
 
     const dirBadge = u.directory_hidden
-      ? '<span class="um-status-badge um-status-hidden">Dir Hidden</span>'
+      ? `<span class="um-status-badge um-status-hidden">${STRINGS.dirHidden}</span>`
       : '';
 
     const raidBanBadge = u.raid_banned
-      ? '<span class="um-status-badge um-status-raid-ban">Raid Banned</span>'
+      ? `<span class="um-status-badge um-status-raid-ban">${STRINGS.raidBanned}</span>`
       : '';
 
     const raidBanBtn = `
       <button class="um-btn ${u.raid_banned ? 'um-btn-ok' : 'um-btn-danger'}"
               onclick="toggleRaidBan(${u.id}, ${!u.raid_banned})">
-        ${u.raid_banned ? 'Unban from Raids' : 'Ban from Raids'}
+        ${u.raid_banned ? STRINGS.btnUnbanRaids : STRINGS.btnBanRaids}
       </button>`;
 
     const strikeBadge = u.strike_count > 0
-      ? `<span class="um-status-badge um-status-strike">${u.strike_count} Strike${u.strike_count > 1 ? 's' : ''}</span>`
+      ? `<span class="um-status-badge um-status-strike">${u.strike_count} ${u.strike_count > 1 ? STRINGS.strikeP : STRINGS.strikeS}</span>`
       : '';
+
+    const hasAPIAccess = u.username === SUPERADMIN || (u.role === 'admin' && u.api_access);
+    const apiBadge = hasAPIAccess
+      ? `<span class="um-status-badge um-status-api">${STRINGS.apiAccess}</span>`
+      : '';
+
+    const apiAccessBtn = IS_SUPERADMIN && u.role === 'admin' && u.username !== SUPERADMIN ? `
+      <button class="um-btn ${u.api_access ? 'um-btn-danger' : 'um-btn-ok'}"
+              onclick="toggleAPIAccess(${u.id}, ${!u.api_access})">
+        ${u.api_access ? STRINGS.btnRevokeApi : STRINGS.btnGrantApi}
+      </button>` : '';
+
+    const tagPills = IS_ADMIN && u.role === 'admin'
+      ? (u.tags || []).map(t => `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}<button class="user-tag-remove" onclick="removeUserTag(event,${u.id},${t.id})" title="${STRINGS.removeTag}">&times;</button></span>`).join('')
+      : (u.tags || []).map(t => `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}</span>`).join('');
+
+    const tagManageBtn = IS_ADMIN && u.role === 'admin' && u.username !== SUPERADMIN
+      ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'tags')">${STRINGS.btnManageTags}</button>` : '';
+
+    const raidStatsBtn = IS_ADMIN
+      ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'raidstats')">${STRINGS.btnRaidStats}</button>` : '';
+
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const pendingBadge = u.pending_role
+      ? `<span class="um-status-badge um-status-pending">${STRINGS.pending} ${esc(cap(u.pending_role))}</span>`
+      : '';
+
+    const confirmRoleBtn = IS_ADMIN && u.pending_role && u.username !== SUPERADMIN ? `
+      <button class="um-btn um-btn-ok" onclick="confirmRole(${u.id})">${STRINGS.btnConfirmRole} ${esc(cap(u.pending_role))}</button>
+      <button class="um-btn um-btn-danger" onclick="rejectRole(${u.id})">${STRINGS.btnRejectRole}</button>` : '';
 
     return `<div class="um-card" id="um-card-${u.id}">
       <div class="um-header">
         <div class="um-meta">
-          <span class="um-username ${usernameColorClass(u)}">${esc(u.username)}${isMe ? ' <span class="um-you">(you)</span>' : ''}</span>
+          <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+            <span class="um-username ${usernameColorClass(u)}">${esc(u.username)}${isMe ? ` <span class="um-you">${STRINGS.you}</span>` : ''}</span>
+            ${tagPills}
+          </div>
           <span class="um-email">${esc(u.email)}</span>
-          <span class="um-joined">Joined ${esc(u.created_at)}</span>
+          <span class="um-joined">${STRINGS.joined} ${esc(u.created_at)}</span>
         </div>
         <div class="um-badges">
           <span class="um-role-badge ${roleBadgeClass(u)}">${esc(roleBadgeLabel(u))}</span>
-          <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? 'Disabled' : 'Active'}</span>
+          <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? STRINGS.disabled : STRINGS.active}</span>
           ${dirBadge}
           ${raidBanBadge}
           ${strikeBadge}
+          ${apiBadge}
+          ${pendingBadge}
         </div>
       </div>
       <div class="um-actions">
-        ${canSetPw ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'password')">Set Password</button>` : ''}
-        ${canRename ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'username')">Rename</button>` : ''}
-        <button class="um-btn" onclick="toggleExpand(${u.id}, 'strikes')">Strikes</button>
+        ${canSetPw ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'password')">${STRINGS.btnSetPassword}</button>` : ''}
+        ${canRename ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'username')">${STRINGS.btnRename}</button>` : ''}
+        <button class="um-btn" onclick="toggleExpand(${u.id}, 'strikes')">${STRINGS.btnStrikes}</button>
+        ${raidStatsBtn}
+        ${tagManageBtn}
+        ${confirmRoleBtn}
         ${disableBtn}
         ${dirHideBtn}
         ${raidBanBtn}
+        ${apiAccessBtn}
         ${roleSelect}
       </div>
       <div class="um-expand" id="um-expand-${u.id}"></div>
@@ -247,9 +530,9 @@ function toggleExpand(id, type) {
 
   if (type === 'password') {
     el.innerHTML = `<form class="um-form" onsubmit="submitPassword(event,${id})">
-      <input type="password" name="pw" placeholder="New password (min 8 chars)"
+      <input type="password" name="pw" placeholder="${STRINGS.passwordPh}"
              minlength="8" required class="auth-input um-form-input">
-      <button type="submit" class="btn-primary um-form-btn">Save</button>
+      <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnSave}</button>
       <span class="um-form-status" id="um-status-${id}"></span>
     </form>`;
   } else if (type === 'username') {
@@ -257,12 +540,16 @@ function toggleExpand(id, type) {
       <input type="text" name="un" value="${esc(u.username)}"
              minlength="2" maxlength="32" required class="auth-input um-form-input"
              pattern="[A-Za-z0-9_\\-]+" title="Letters, numbers, _ and - only">
-      <button type="submit" class="btn-primary um-form-btn">Save</button>
+      <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnSave}</button>
       <span class="um-form-status" id="um-status-${id}"></span>
     </form>`;
   } else if (type === 'strikes') {
-    el.innerHTML = '<div class="um-strikes-loading">Loading strikes…</div>';
+    el.innerHTML = `<div class="um-strikes-loading">${STRINGS.loadingStrikes}</div>`;
     loadStrikes(id, el);
+  } else if (type === 'tags') {
+    renderTagExpand(id, el);
+  } else if (type === 'raidstats') {
+    renderRaidStatsExpand(id, el);
   }
 }
 
@@ -278,13 +565,13 @@ async function submitPassword(e, id) {
   const pw  = e.target.pw.value;
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true;
-  const res = await fetch('/admin/users/' + id + '/password', {
+  const res = await csrfFetch('/admin/users/' + id + '/password', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({new_password: pw}),
   });
   if (res.ok) {
-    setStatus(id, 'Password updated.', true);
+    setStatus(id, STRINGS.pwUpdated, true);
     setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; }, 1200);
   } else {
     const d = await res.json();
@@ -298,7 +585,7 @@ async function submitUsername(e, id) {
   const un  = e.target.un.value.trim();
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true;
-  const res = await fetch('/admin/users/' + id + '/username', {
+  const res = await csrfFetch('/admin/users/' + id + '/username', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({username: un}),
@@ -306,7 +593,7 @@ async function submitUsername(e, id) {
   if (res.ok) {
     const u = users.find(u => u.id === id);
     if (u) u.username = un;
-    setStatus(id, 'Username updated.', true);
+    setStatus(id, STRINGS.usernameUpdated, true);
     setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; renderUsers(); }, 1200);
   } else {
     const d = await res.json();
@@ -316,7 +603,7 @@ async function submitUsername(e, id) {
 }
 
 async function toggleDisable(id, disable) {
-  const res = await fetch('/admin/users/' + id + '/disable', {
+  const res = await csrfFetch('/admin/users/' + id + '/disable', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({disabled: disable}),
@@ -329,7 +616,7 @@ async function toggleDisable(id, disable) {
 }
 
 async function toggleRaidBan(id, ban) {
-  const res = await fetch('/admin/users/' + id + '/raid-ban', {
+  const res = await csrfFetch('/admin/users/' + id + '/raid-ban', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({banned: ban}),
@@ -345,7 +632,7 @@ async function toggleRaidBan(id, ban) {
 }
 
 async function toggleDirectoryHide(id, hide) {
-  const res = await fetch('/admin/users/' + id + '/directory-hide', {
+  const res = await csrfFetch('/admin/users/' + id + '/directory-hide', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({hidden: hide}),
@@ -356,7 +643,7 @@ async function toggleDirectoryHide(id, hide) {
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   } else {
     const data = await res.json().catch(() => ({}));
-    alert(data.error || 'Action failed.');
+    alert(data.error || STRINGS.actionFailed);
   }
 }
 
@@ -370,17 +657,17 @@ async function loadStrikes(id, el) {
             <span class="um-strike-reason">${esc(s.reason)}</span>
             <span class="um-strike-meta">Issued by ${esc(s.issued_by_name)} on ${esc(s.created_at)}</span>
           </div>
-          <button class="um-btn um-btn-danger" onclick="removeStrike(${id}, ${s.id})">Remove</button>
+          <button class="um-btn um-btn-danger" onclick="removeStrike(${id}, ${s.id})">${STRINGS.btnRemove || 'Remove'}</button>
         </div>`).join('')
-    : '<p class="um-strikes-empty">No strikes on this account.</p>';
+    : `<p class="um-strikes-empty">${STRINGS.noStrikes}</p>`;
 
   el.innerHTML = `
     <div class="um-strikes-panel">
       <div class="um-strikes-list">${strikeRows}</div>
       <form class="um-form um-strike-form" onsubmit="addStrike(event, ${id})">
         <input type="text" name="reason" maxlength="255" required
-               placeholder="Reason for strike…" class="auth-input um-form-input">
-        <button type="submit" class="btn-primary um-form-btn">Add Strike</button>
+               placeholder="${STRINGS.strikeReasonPh}" class="auth-input um-form-input">
+        <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnAddStrike}</button>
         <span class="um-form-status" id="um-strike-status-${id}"></span>
       </form>
     </div>`;
@@ -391,7 +678,7 @@ async function addStrike(e, id) {
   const reason = e.target.reason.value.trim();
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true;
-  const res = await fetch('/admin/users/' + id + '/strikes', {
+  const res = await csrfFetch('/admin/users/' + id + '/strikes', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({reason}),
@@ -413,7 +700,7 @@ async function addStrike(e, id) {
 }
 
 async function removeStrike(userId, strikeId) {
-  const res = await fetch('/admin/users/' + userId + '/strikes/' + strikeId, { method: 'DELETE' });
+  const res = await csrfFetch('/admin/users/' + userId + '/strikes/' + strikeId, { method: 'DELETE' });
   if (res.ok) {
     const u = users.find(u => u.id === userId);
     if (u && u.strike_count > 0) u.strike_count--;
@@ -426,7 +713,7 @@ async function removeStrike(userId, strikeId) {
 async function changeRole(id, select) {
   const role = select.value;
   const prev = users.find(u => u.id === id)?.role;
-  const res  = await fetch('/admin/users/' + id + '/role', {
+  const res  = await csrfFetch('/admin/users/' + id + '/role', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({role}),
@@ -440,6 +727,516 @@ async function changeRole(id, select) {
     alert(d.error || 'Error changing role');
     select.value = prev;
   }
+}
+
+function syncInviteConstraints() {
+  const role = document.getElementById('invite-role');
+  const uses = document.getElementById('invite-max-uses');
+  const msg  = document.getElementById('invite-constraint-msg');
+  if (!role || !uses || !msg) return;
+  const isStaff = role.value === 'moderator' || role.value === 'admin';
+  const multiUse = parseInt(uses.value, 10) > 1;
+  if (isStaff) {
+    uses.value = '1';
+    uses.disabled = true;
+    msg.textContent = STRINGS.inviteStaffNote;
+    msg.style.display = 'block';
+    msg.style.color = 'var(--gold)';
+  } else if (multiUse && role.value !== 'user') {
+    role.value = 'user';
+    msg.textContent = STRINGS.inviteMultiuseNote;
+    msg.style.display = 'block';
+    msg.style.color = '#fc8181';
+  } else {
+    uses.disabled = false;
+    msg.style.display = 'none';
+  }
+}
+
+async function confirmRole(id) {
+  const u = users.find(u => u.id === id);
+  const res = await csrfFetch('/admin/users/' + id + '/confirm-role', { method: 'POST' });
+  if (res.ok) {
+    const data = await res.json();
+    if (u) { u.role = data.role; u.pending_role = ''; }
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert(d.error || STRINGS.actionFailed);
+  }
+}
+
+async function rejectRole(id) {
+  const res = await csrfFetch('/admin/users/' + id + '/reject-role', { method: 'POST' });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.pending_role = '';
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert(d.error || STRINGS.actionFailed);
+  }
+}
+
+async function toggleAPIAccess(id, grant) {
+  const res = await csrfFetch('/admin/users/' + id + '/api-access', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({api_access: grant}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.api_access = grant;
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || STRINGS.actionFailed);
+  }
+}
+
+// ── Site Stats ─────────────────────────────────────────────────
+let statsLoaded = false;
+
+function renderStats(s) {
+  const c = document.getElementById('stats-container');
+  if (!c) return;
+
+  function stat(label, value, sub) {
+    return `<div class="stat-card">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value}</div>
+      ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  c.innerHTML = `
+    <div class="admin-card">
+      <div class="admin-card-header">
+        <h2>System</h2>
+        <button class="um-btn" onclick="loadStats()">${STRINGS.loading}</button>
+      </div>
+      <p class="admin-desc">Runtime and memory stats for the running process.</p>
+      <div class="stat-grid">
+        ${stat(STRINGS.statUptime, s.uptime)}
+        ${stat(STRINGS.statGoroutines, s.goroutines)}
+        ${stat(STRINGS.statHeap, s.heap_mb.toFixed(1) + ' MB')}
+        ${stat(STRINGS.statGC, s.gc_runs)}
+      </div>
+    </div>
+    <div class="admin-card">
+      <h2>Database</h2>
+      <p class="admin-desc">Connection pool state and round-trip latency to the MySQL server.</p>
+      <div class="stat-grid">
+        ${stat(STRINGS.statDbPing, s.db_ping_ms + ' ms')}
+        ${stat(STRINGS.statDbConns, s.db_open, s.db_in_use + ' ' + STRINGS.statDbInUse + ' / ' + s.db_idle + ' ' + STRINGS.statDbIdle)}
+        ${stat('Wait Events', s.db_waits, s.db_waits > 0 ? s.db_wait_ms + ' ' + STRINGS.statDbWait : 'none')}
+      </div>
+    </div>
+    <div class="admin-card">
+      <h2>App</h2>
+      <p class="admin-desc">Live counts from the database.</p>
+      <div class="stat-grid">
+        ${stat(STRINGS.statUsers, s.user_count)}
+        ${stat(STRINGS.statRaids, s.active_raids)}
+        ${stat(STRINGS.statShinies, s.total_shinies)}
+        ${stat(STRINGS.statSessions, s.active_sessions)}
+      </div>
+    </div>`;
+}
+
+function loadStats() {
+  statsLoaded = true;
+  fetch('/api/admin/stats').then(r => r.json()).then(renderStats).catch(function() {
+    const c = document.getElementById('stats-container');
+    if (c) c.innerHTML = `<div class="error-state">${STRINGS.failStats}</div>`;
+  });
+}
+
+// ── Tag management ─────────────────────────────────────────────
+let allTags   = [];
+let tagsLoaded = false;
+
+async function loadTags() {
+  tagsLoaded = true;
+  const res = await fetch('/api/admin/tags');
+  if (!res.ok) return;
+  allTags = await res.json();
+  renderTagsList();
+}
+
+function renderTagsList() {
+  const el = document.getElementById('tags-list');
+  if (!el) return;
+  if (!allTags.length) {
+    el.innerHTML = `<span style="color:var(--text-2);font-size:0.85rem">${STRINGS.noTags}</span>`;
+    return;
+  }
+  el.innerHTML = allTags.map(t =>
+    `<span class="user-tag" style="background:${esc(t.color)}">${esc(t.name)}${IS_SUPERADMIN ? `<button class="user-tag-remove" onclick="deleteTag(${t.id})" title="${STRINGS.deleteTag}">&times;</button>` : ''}</span>`
+  ).join('');
+}
+
+async function deleteTag(id) {
+  if (!confirm(STRINGS.confirmDeleteTag)) return;
+  const res = await csrfFetch('/api/admin/tags/' + id, { method: 'DELETE' });
+  if (res.ok) {
+    allTags = allTags.filter(t => t.id !== id);
+    users.forEach(u => { u.tags = (u.tags || []).filter(t => t.id !== id); });
+    renderTagsList();
+    renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
+  }
+}
+
+if (IS_SUPERADMIN) {
+  const createForm = document.getElementById('tag-create-form');
+  if (createForm) {
+    createForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const name  = document.getElementById('tag-name-input').value.trim();
+      const color = document.getElementById('tag-color-input').value;
+      const status = document.getElementById('tag-create-status');
+      const btn = createForm.querySelector('button[type=submit]');
+      btn.disabled = true;
+      const res = await csrfFetch('/api/admin/tags', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name, color}),
+      });
+      if (res.ok) {
+        const tag = await res.json();
+        allTags.push(tag);
+        allTags.sort((a,b) => a.name.localeCompare(b.name));
+        renderTagsList();
+        document.getElementById('tag-name-input').value = '';
+        if (status) { status.textContent = STRINGS.tagCreated; status.style.color = 'var(--green)'; }
+      } else {
+        const d = await res.json().catch(() => ({}));
+        if (status) { status.textContent = d.error || 'Error'; status.style.color = '#fc8181'; }
+      }
+      btn.disabled = false;
+    });
+  }
+}
+
+function renderTagExpand(id, el) {
+  const u = users.find(u => u.id === id);
+  if (!u) return;
+  const assigned = new Set((u.tags || []).map(t => t.id));
+  const available = allTags.filter(t => !assigned.has(t.id));
+  const addOptions = available.length
+    ? `<select id="tag-add-select-${id}" class="um-role-select" style="margin-right:0.4rem">
+        ${available.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}
+       </select>
+       <button class="um-btn um-btn-ok" onclick="addUserTag(${id})">${STRINGS.btnAddTag}</button>`
+    : `<span style="font-size:0.8rem;color:var(--text-2)">${STRINGS.allTagsAssigned}</span>`;
+  el.innerHTML = `<div class="um-strikes-panel"><div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">${addOptions}<span id="um-tag-status-${id}" style="font-size:0.8rem"></span></div></div>`;
+}
+
+async function addUserTag(uid) {
+  const sel = document.getElementById('tag-add-select-' + uid);
+  if (!sel) return;
+  const tagId = parseInt(sel.value);
+  const res = await csrfFetch('/api/admin/users/' + uid + '/tags', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({tag_id: tagId}),
+  });
+  const statusEl = document.getElementById('um-tag-status-' + uid);
+  if (res.ok) {
+    const tag = allTags.find(t => t.id === tagId);
+    if (tag) {
+      const u = users.find(u => u.id === uid);
+      if (u) { u.tags = u.tags || []; u.tags.push(tag); }
+    }
+    renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
+    const el = document.getElementById('um-expand-' + uid);
+    if (el) renderTagExpand(uid, el);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function removeUserTag(e, uid, tagId) {
+  e.stopPropagation();
+  const res = await csrfFetch('/api/admin/users/' + uid + '/tags/' + tagId, { method: 'DELETE' });
+  if (res.ok) {
+    const u = users.find(u => u.id === uid);
+    if (u) u.tags = (u.tags || []).filter(t => t.id !== tagId);
+    renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
+  }
+}
+
+// ── Raid Ranking & Ratings ─────────────────────────────────────
+
+function renderRaidStatsExpand(id, el) {
+  const u = users.find(u => u.id === id);
+  if (!u) return;
+  const xp     = u.raid_xp     ?? 0;
+  const weight = (u.rater_weight ?? 1).toFixed(3);
+  el.innerHTML = `
+    <div class="um-strikes-panel">
+      <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem">
+        <div>
+          <div style="font-size:0.78rem;color:var(--text-2);margin-bottom:0.3rem">${STRINGS.raidXP} <span style="opacity:0.6">${STRINGS.xpHint}</span></div>
+          <form class="um-form" onsubmit="setRaidXP(event,${id})">
+            <input type="number" name="xp" value="${xp}" min="0" max="9999999" required
+                   class="auth-input um-form-input" style="width:110px">
+            <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnSet}</button>
+            <span class="um-form-status" id="um-xp-status-${id}"></span>
+          </form>
+        </div>
+        <div>
+          <div style="font-size:0.78rem;color:var(--text-2);margin-bottom:0.3rem">${STRINGS.raterWeight} <span style="opacity:0.6">${STRINGS.weightHint}</span></div>
+          <form class="um-form" onsubmit="setRaterWeight(event,${id})">
+            <input type="number" name="weight" value="${weight}" min="0.1" max="1.5" step="0.001" required
+                   class="auth-input um-form-input" style="width:110px">
+            <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnSet}</button>
+            <span class="um-form-status" id="um-weight-status-${id}"></span>
+          </form>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+        <button class="um-btn um-btn-warn" onclick="clearRatings(${id})">${STRINGS.btnClearRatings}</button>
+        <button class="um-btn um-btn-ok" onclick="refreshActivity(${id})">${STRINGS.btnResetDecay}</button>
+        <span id="um-raidstats-status-${id}" style="font-size:0.8rem"></span>
+      </div>
+    </div>`;
+}
+
+async function setRaidXP(e, id) {
+  e.preventDefault();
+  const xp  = parseInt(e.target.xp.value, 10);
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const res = await csrfFetch('/admin/users/' + id + '/raid-xp', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({raid_xp: xp}),
+  });
+  const statusEl = document.getElementById('um-xp-status-' + id);
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.raid_xp = xp;
+    if (statusEl) { statusEl.textContent = STRINGS.saved; statusEl.style.color = 'var(--green)'; }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+  btn.disabled = false;
+}
+
+async function setRaterWeight(e, id) {
+  e.preventDefault();
+  const weight = parseFloat(e.target.weight.value);
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const res = await csrfFetch('/admin/users/' + id + '/rater-weight', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({rater_weight: weight}),
+  });
+  const statusEl = document.getElementById('um-weight-status-' + id);
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.rater_weight = weight;
+    if (statusEl) { statusEl.textContent = STRINGS.saved; statusEl.style.color = 'var(--green)'; }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+  btn.disabled = false;
+}
+
+async function clearRatings(id) {
+  if (!confirm(STRINGS.confirmClearRatings)) return;
+  const res = await csrfFetch('/admin/users/' + id + '/clear-ratings', { method: 'POST' });
+  const statusEl = document.getElementById('um-raidstats-status-' + id);
+  if (res.ok) {
+    if (statusEl) { statusEl.textContent = STRINGS.ratingsCleared; statusEl.style.color = 'var(--green)'; }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2500);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function refreshActivity(id) {
+  const res = await csrfFetch('/admin/users/' + id + '/refresh-activity', { method: 'POST' });
+  const statusEl = document.getElementById('um-raidstats-status-' + id);
+  if (res.ok) {
+    if (statusEl) { statusEl.textContent = STRINGS.activityReset; statusEl.style.color = 'var(--green)'; }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2500);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+// ── Custom Tag Requests ────────────────────────────────────────
+let tagRequests = [];
+
+async function loadTagRequests() {
+  const card = document.getElementById('tag-requests-card');
+  const container = document.getElementById('tag-requests-container');
+  if (!container) return;
+  const res = await fetch('/api/admin/tag-requests');
+  if (!res.ok) { container.innerHTML = `<div class="error-state">${STRINGS.failLoad}</div>`; return; }
+  tagRequests = await res.json();
+  if (!tagRequests.length) {
+    if (card) card.style.display = 'none';
+    return;
+  }
+  if (card) card.style.display = '';
+  renderTagRequests();
+}
+
+function renderTagRequests() {
+  const container = document.getElementById('tag-requests-container');
+  if (!container) return;
+  const pending  = tagRequests.filter(r => r.status === 'pending');
+  const rest     = tagRequests.filter(r => r.status !== 'pending');
+  const rows = [...pending, ...rest].map(r => {
+    const statusColor = r.status === 'approved' ? 'var(--green)'
+                      : r.status === 'rejected'  ? '#fc8181'
+                      : r.status === 'revision'  ? '#f97316'
+                      : 'var(--gold)';
+    const statusLabel = r.status === 'revision' ? STRINGS.statusAwaiting
+                      : r.status === 'approved' ? STRINGS.statusApproved
+                      : r.status === 'rejected' ? STRINGS.statusRejected
+                      : STRINGS.statusPending;
+    const noteLabel   = r.status === 'revision' ? `<span style="font-size:0.8rem;color:#f97316">${STRINGS.staffNotes} ${esc(r.reject_reason)}</span>`
+                      : r.reject_reason ? `<span style="font-size:0.8rem;color:#fc8181">${STRINGS.rejectReason} ${esc(r.reject_reason)}</span>` : '';
+    const actions = r.status === 'pending' ? `
+      <button class="um-btn um-btn-ok" onclick="approveTagRequest(${r.id})">${STRINGS.btnApprove}</button>
+      <button class="um-btn" onclick="revisionTagRequest(${r.id})" style="background:#f97316;color:#fff">${STRINGS.btnRevision}</button>
+      <button class="um-btn um-btn-danger" onclick="rejectTagRequest(${r.id})">${STRINGS.btnReject}</button>` : '';
+    return `<div class="um-card" id="tr-row-${r.id}" style="margin-bottom:0.5rem">
+      <div class="um-header">
+        <div class="um-meta">
+          <span class="um-username">${esc(r.username)}</span>
+          <span style="font-size:0.82rem;color:var(--text-2)">${STRINGS.submitted} ${esc(r.created_at)}</span>
+          ${noteLabel}
+        </div>
+        <div class="um-badges" style="align-items:center;gap:0.5rem">
+          <span class="user-tag" style="background:${esc(r.color)}">${esc(r.name)}</span>
+          <span style="font-size:0.8rem;font-weight:600;color:${statusColor}">${esc(statusLabel)}</span>
+        </div>
+      </div>
+      ${actions ? `<div class="um-actions" id="tr-actions-${r.id}">
+        ${actions}
+        <input type="text" id="tr-reason-${r.id}" placeholder="${STRINGS.revisionPh}" class="auth-input" style="flex:1;min-width:160px;font-size:0.82rem">
+        <span id="tr-status-${r.id}" style="font-size:0.8rem"></span>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+  container.innerHTML = rows || `<p class="empty-state">${STRINGS.noRequests}</p>`;
+}
+
+async function approveTagRequest(id) {
+  const statusEl = document.getElementById('tr-status-' + id);
+  const res = await csrfFetch('/api/admin/tag-requests/' + id + '/approve', { method: 'POST' });
+  if (res.ok) {
+    const r = tagRequests.find(r => r.id === id);
+    if (r) r.status = 'approved';
+    renderTagRequests();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function rejectTagRequest(id) {
+  const reason = (document.getElementById('tr-reason-' + id)?.value || '').trim();
+  const statusEl = document.getElementById('tr-status-' + id);
+  const res = await csrfFetch('/api/admin/tag-requests/' + id + '/reject', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({reason}),
+  });
+  if (res.ok) {
+    const r = tagRequests.find(r => r.id === id);
+    if (r) { r.status = 'rejected'; r.reject_reason = reason; }
+    renderTagRequests();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function revisionTagRequest(id) {
+  const notes = (document.getElementById('tr-reason-' + id)?.value || '').trim();
+  const statusEl = document.getElementById('tr-status-' + id);
+  const res = await csrfFetch('/api/admin/tag-requests/' + id + '/revision', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({notes}),
+  });
+  if (res.ok) {
+    const r = tagRequests.find(r => r.id === id);
+    if (r) { r.status = 'revision'; r.reject_reason = notes; }
+    renderTagRequests();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+// ── Store item management ──────────────────────────────────────
+async function loadStoreItems() {
+  const container = document.getElementById('store-items-container');
+  if (!container) return;
+  const res = await fetch('/api/admin/store-items');
+  if (!res.ok) { container.innerHTML = `<div class="error-state">${STRINGS.failLoad}</div>`; return; }
+  const items = await res.json();
+  if (!items || !items.length) { container.innerHTML = `<p class="empty-state">${STRINGS.noItems}</p>`; return; }
+  container.innerHTML = items.map(it => `
+    <div class="um-card" style="margin-bottom:0.5rem">
+      <div class="um-header">
+        <div class="um-meta">
+          <span class="um-username">${esc(it.name)}</span>
+          <span style="font-size:0.82rem;color:var(--text-2)">$${(it.price_cents/100).toFixed(2)} &middot; ${esc(it.type)} &middot; ${esc(it.slug)}</span>
+        </div>
+        <div class="um-badges" style="align-items:center;gap:0.75rem">
+          <span id="si-status-${it.id}" style="font-size:0.8rem;font-weight:600;color:${it.active ? 'var(--green)' : '#fc8181'}">
+            ${it.active ? STRINGS.itemActive : STRINGS.itemDisabled}
+          </span>
+          <button id="si-btn-${it.id}" class="um-btn ${it.active ? 'um-btn-danger' : 'um-btn-ok'}"
+                  onclick="toggleStoreItem(${it.id}, ${it.active})">
+            ${it.active ? STRINGS.itemDisable : STRINGS.itemEnable}
+          </button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleStoreItem(id, currentlyActive) {
+  const res = await csrfFetch('/api/admin/store-items/' + id + '/toggle', { method: 'POST' });
+  if (!res.ok) return;
+  const d = await res.json();
+  const statusEl = document.getElementById('si-status-' + id);
+  const btnEl    = document.getElementById('si-btn-' + id);
+  if (statusEl) { statusEl.textContent = d.active ? STRINGS.itemActive : STRINGS.itemDisabled; statusEl.style.color = d.active ? 'var(--green)' : '#fc8181'; }
+  if (btnEl)    { btnEl.textContent = d.active ? STRINGS.itemDisable : STRINGS.itemEnable; btnEl.className = 'um-btn ' + (d.active ? 'um-btn-danger' : 'um-btn-ok'); btnEl.setAttribute('onclick', `toggleStoreItem(${id}, ${d.active})`); }
+}
+
+// Load tag requests when Users tab is active
+(function() {
+  const usersTab = document.getElementById('tab-users');
+  if (usersTab && usersTab.classList.contains('active')) loadTagRequests();
+})();
+
+// Load data when switching tabs
+const origTabClick = document.getElementById('admin-tabs');
+if (origTabClick) {
+  origTabClick.addEventListener('click', function(e) {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    if (btn.dataset.tab === 'users') loadTagRequests();
+    if (btn.dataset.tab === 'donations') loadStoreItems();
+  }, true);
 }
 </script>
 {{end}}

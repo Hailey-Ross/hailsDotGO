@@ -3,7 +3,9 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 	"unicode"
@@ -12,6 +14,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"pogo.hails.cc/internal/auth"
 )
+
+const bcryptCost = 13
 
 type authData struct {
 	Error              string
@@ -44,7 +48,7 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if username == "" || password == "" {
-		fail("Username and password are required.")
+		fail(h.t(r, "error.required_fields"))
 		return
 	}
 
@@ -53,29 +57,29 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	err := h.db.QueryRow(`SELECT id, password FROM users WHERE username = ?`, username).
 		Scan(&userID, &hash)
 	if err == sql.ErrNoRows {
-		fail("Invalid username or password.")
+		fail(h.t(r, "error.invalid_credentials"))
 		return
 	}
 	if err != nil {
-		fail("Something went wrong. Please try again.")
+		fail(h.t(r, "error.server"))
 		return
 	}
 
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
-		fail("Invalid username or password.")
+		fail(h.t(r, "error.invalid_credentials"))
 		return
 	}
 
 	token, err := auth.CreateSession(h.db, userID)
 	if err != nil {
-		fail("Could not create session. Please try again.")
+		fail(h.t(r, "error.session"))
 		return
 	}
 
 	http.SetCookie(w, sessionCookie(token, 30*24*time.Hour))
 
 	next := r.FormValue("next")
-	if next == "" || !strings.HasPrefix(next, "/") {
+	if u, err := url.Parse(next); next == "" || err != nil || u.Host != "" || u.Scheme != "" || strings.HasPrefix(next, "//") {
 		next = "/shinies"
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
@@ -91,7 +95,7 @@ func (h *Handlers) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	if inviteToken != "" {
 		if !h.validInvite(inviteToken) {
 			h.render(w, r, "register", authData{
-				Error:              "This invite link is invalid or has already been used.",
+				Error:              h.t(r, "error.invite_invalid"),
 				RegistrationClosed: true,
 			})
 			return
@@ -102,7 +106,7 @@ func (h *Handlers) RegisterPage(w http.ResponseWriter, r *http.Request) {
 
 	if !h.registrationOpen() {
 		h.render(w, r, "register", authData{
-			Error:              "Registration is currently closed.",
+			Error:              h.t(r, "error.reg_closed"),
 			RegistrationClosed: true,
 		})
 		return
@@ -137,27 +141,27 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if username == "" || email == "" || password == "" {
-		fail("All fields are required.")
+		fail(h.t(r, "error.all_fields"))
 		return
 	}
 	if len(username) < 2 || len(username) > 32 {
-		fail("Username must be 2-32 characters.")
+		fail(h.t(r, "error.username_length"))
 		return
 	}
 	for _, c := range username {
 		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '_' && c != '-' {
-			fail("Username may only contain letters, numbers, _ and -.")
+			fail(h.t(r, "error.username_chars"))
 			return
 		}
 	}
 	if len(password) < 8 {
-		fail("Password must be at least 8 characters.")
+		fail(h.t(r, "error.password_length"))
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
-		fail("Something went wrong. Please try again.")
+		fail(h.t(r, "error.server"))
 		return
 	}
 
@@ -169,23 +173,31 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
 			if strings.Contains(mysqlErr.Message, "uk_username") {
-				fail("That username is already taken.")
+				fail(h.t(r, "error.username_taken"))
 			} else {
-				fail("That email address is already registered.")
+				fail(h.t(r, "error.email_taken"))
 			}
 			return
 		}
-		fail("Something went wrong. Please try again.")
+		fail(h.t(r, "error.server"))
 		return
 	}
 
 	id, _ := result.LastInsertId()
 
 	if usingInvite {
-		h.db.Exec(
-			`UPDATE invites SET used_by = ?, used_at = NOW() WHERE token = ?`,
-			id, inviteToken,
-		)
+		var grantedRole string
+		h.db.QueryRow(`SELECT granted_role FROM invites WHERE token = ?`, inviteToken).Scan(&grantedRole)
+		h.db.Exec(`UPDATE invites SET use_count = use_count + 1 WHERE token = ?`, inviteToken)
+
+		switch grantedRole {
+		case "moderator", "admin":
+			// Staff roles are held pending until confirmed by an admin.
+			h.db.Exec(`UPDATE users SET pending_role = ? WHERE id = ?`, grantedRole, id)
+		case "tester":
+			h.db.Exec(`UPDATE users SET role = 'tester' WHERE id = ?`, id)
+		}
+		// "user" is the default — no update needed.
 	}
 
 	token, err := auth.CreateSession(h.db, uint(id))
@@ -200,7 +212,9 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(auth.CookieName); err == nil {
-		auth.DeleteSession(h.db, c.Value)
+		if err := auth.DeleteSession(h.db, c.Value); err != nil {
+			log.Printf("logout: delete session: %v", err)
+		}
 	}
 	http.SetCookie(w, sessionCookie("", -1))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -223,7 +237,7 @@ func (h *Handlers) validInvite(token string) bool {
 	}
 	var count int
 	err := h.db.QueryRow(
-		`SELECT COUNT(*) FROM invites WHERE token = ? AND used_at IS NULL AND expires_at > NOW()`,
+		`SELECT COUNT(*) FROM invites WHERE token = ? AND use_count < max_uses AND expires_at > NOW()`,
 		token,
 	).Scan(&count)
 	return err == nil && count > 0

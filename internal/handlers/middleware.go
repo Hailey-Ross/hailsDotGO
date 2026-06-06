@@ -54,3 +54,30 @@ func (h *Handlers) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
+
+func (h *Handlers) RequireSuperAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := h.currentUser(r)
+		if u == nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if !u.IsSuperAdmin() {
+			http.Error(w, "403 forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (h *Handlers) RequireAPIAccess(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := h.currentUser(r)
+		if u == nil || !u.HasAPIAccess() {
+			w.Header().Set("Content-Type", "application/json")
+			http.Error(w, `{"error":"API access required — contact a superadmin to request access"}`, http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}

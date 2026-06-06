@@ -1,8 +1,8 @@
-import { loadGameData } from "./shared/gamedata";
+import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
-let cryVolume = 0.8;
+let cryVolume = 0.3;
 
 interface UserShiny {
   id: number;
@@ -159,8 +159,8 @@ async function init() {
       </div>
       <div class="poke-cry-controls" id="sc-cry-controls" style="display:none">
         <button class="poke-cry-btn" id="sc-modal-cry" title="Play cry">🔊</button>
-        <input type="range" class="poke-volume-slider" id="sc-modal-volume" min="0" max="80" value="80" title="Volume">
-        <span class="poke-volume-label" id="sc-modal-vlabel">80%</span>
+        <input type="range" class="poke-volume-slider" id="sc-modal-volume" min="0" max="100" value="100" title="Volume">
+        <span class="poke-volume-label" id="sc-modal-vlabel">100%</span>
       </div>
       <span class="poke-genus" id="sc-modal-genus"></span>
       <span class="poke-legend-badge" id="sc-modal-badge" style="display:none"></span>
@@ -193,7 +193,7 @@ async function init() {
     (document.getElementById("sc-modal-normal") as HTMLImageElement).src =
       `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${s.id}.png`;
     (document.getElementById("sc-modal-shiny") as HTMLImageElement).src = spriteUrl(s.id);
-    modalName.textContent = s.name.replace(/_/g, " ");
+    modalName.textContent = pokeName(gameData, s.name);
     modalStatus.textContent = "";
 
     const flavorP    = document.getElementById("sc-modal-flavor")  as HTMLElement;
@@ -210,10 +210,10 @@ async function init() {
     cryPanel.style.display = "none"; cryBtn.onclick = null;
     compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
 
-    volSlider.value = String(Math.round(cryVolume * 100));
+    volSlider.value = String(Math.round((cryVolume / 0.3) * 100));
     volLabel.textContent = `${volSlider.value}%`;
     volSlider.oninput = () => {
-      cryVolume = Number(volSlider.value) / 100;
+      cryVolume = (Number(volSlider.value) / 100) * 0.3;
       volLabel.textContent = `${volSlider.value}%`;
     };
 
@@ -249,7 +249,7 @@ async function init() {
       cryBtn.onclick = (e) => {
         e.stopPropagation();
         const a = new Audio(url);
-        a.volume = Math.min(cryVolume, 0.8);
+        a.volume = cryVolume;
         a.play();
       };
     });
@@ -376,7 +376,7 @@ async function init() {
 
       const label = document.createElement("span");
       label.className = "shiny-label";
-      label.textContent = s.name.replace(/_/g, " ");
+      label.textContent = pokeName(gameData, s.name);
 
       card.appendChild(img);
       card.appendChild(label);
@@ -429,7 +429,7 @@ async function init() {
       nameWrap.className = "sc-entry-namewrap";
       const name = document.createElement("span");
       name.className = "sc-entry-name";
-      name.textContent = rec.pokemon_id.replace(/_/g, " ");
+      name.textContent = pokeName(gameData, rec.pokemon_id);
       const dateEl = document.createElement("span");
       dateEl.className = "sc-caught-date";
       dateEl.textContent = rec.caught_at ? timeAgo(rec.caught_at) : "";

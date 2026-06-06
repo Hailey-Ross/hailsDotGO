@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   username   VARCHAR(32)  NOT NULL,
   email      VARCHAR(255) NOT NULL,
   password   VARCHAR(60)  NOT NULL,         -- bcrypt hash
-  role       ENUM('user','moderator','admin') NOT NULL DEFAULT 'user',
+  role       ENUM('user','tester','moderator','admin') NOT NULL DEFAULT 'user',
   disabled   TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS invites (
 
 -- Migration: run these on existing installs to add moderator role and disabled flag.
 --   ALTER TABLE users MODIFY COLUMN role ENUM('user','moderator','admin') NOT NULL DEFAULT 'user';
+-- Migration: add tester role.
+--   ALTER TABLE users MODIFY COLUMN role ENUM('user','tester','moderator','admin') NOT NULL DEFAULT 'user';
 --   ALTER TABLE users ADD COLUMN disabled TINYINT(1) NOT NULL DEFAULT 0 AFTER role;
 
 -- Migration: add trainer profile columns (settings page + trainer directory).
@@ -96,6 +98,11 @@ CREATE TABLE IF NOT EXISTS invites (
 
 -- Migration: add raid_banned flag for raid moderation.
 --   ALTER TABLE users ADD COLUMN raid_banned TINYINT(1) NOT NULL DEFAULT 0 AFTER directory_hidden;
+
+-- Migration: add favorite Pokémon fields to user profiles.
+--   ALTER TABLE users ADD COLUMN fav_pokemon      VARCHAR(64)  NOT NULL DEFAULT '' AFTER raid_banned;
+--   ALTER TABLE users ADD COLUMN fav_pokemon_form  VARCHAR(32)  NOT NULL DEFAULT '' AFTER fav_pokemon;
+--   ALTER TABLE users ADD COLUMN fav_sprite_url    VARCHAR(255) NOT NULL DEFAULT '' AFTER fav_pokemon_form;
 
 -- Migration: user strikes / penalty system.
 --   CREATE TABLE IF NOT EXISTS user_strikes (
@@ -168,3 +175,123 @@ CREATE TABLE IF NOT EXISTS invites (
 --     CONSTRAINT fk_rating_rater FOREIGN KEY (rater_id) REFERENCES users (id) ON DELETE CASCADE,
 --     CONSTRAINT fk_rating_rated FOREIGN KEY (rated_id) REFERENCES users (id) ON DELETE CASCADE
 --   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration: add queue status to raid_joins (run on VPS, no IF NOT EXISTS in MySQL 8).
+--
+--   ALTER TABLE raid_joins ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'accepted' AFTER host_invited;
+--
+-- Default 'accepted' preserves the existing open-join behaviour for rows created before this migration.
+
+-- Migration: friendlier invite tokens (VARCHAR to support both old 64-char and new 8-char codes).
+--   ALTER TABLE invites MODIFY COLUMN token VARCHAR(64) NOT NULL;
+
+-- Migration: invite role assignment, multi-use codes, and pending staff confirmation.
+--
+--   ALTER TABLE invites ADD COLUMN granted_role ENUM('user','tester','moderator','admin') NOT NULL DEFAULT 'user' AFTER created_by;
+--   ALTER TABLE invites ADD COLUMN max_uses TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER expires_at;
+--   ALTER TABLE invites ADD COLUMN use_count TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER max_uses;
+--   UPDATE invites SET use_count = 1 WHERE used_at IS NOT NULL;
+--
+--   ALTER TABLE users ADD COLUMN pending_role ENUM('tester','moderator','admin') NULL DEFAULT NULL AFTER role;
+
+-- Migration: add API access permission flag to users (admin-only, superadmin-granted).
+--
+--   ALTER TABLE users ADD COLUMN api_access TINYINT(1) NOT NULL DEFAULT 0 AFTER role;
+
+-- Migration: tag system (coloured label pills for admin users).
+--
+--   CREATE TABLE IF NOT EXISTS tags (
+--     id    INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     name  VARCHAR(32)  NOT NULL,
+--     color VARCHAR(7)   NOT NULL DEFAULT '#cccccc',
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_tag_name (name)
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS user_tags (
+--     user_id INT UNSIGNED NOT NULL,
+--     tag_id  INT UNSIGNED NOT NULL,
+--     PRIMARY KEY (user_id, tag_id),
+--     CONSTRAINT fk_ut_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_ut_tag  FOREIGN KEY (tag_id)  REFERENCES tags (id)  ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration: add raid XP, activity tracking, and rating weight to users.
+--
+--   ALTER TABLE users ADD COLUMN raid_xp     INT UNSIGNED         NOT NULL DEFAULT 0     AFTER raid_banned;
+--   ALTER TABLE users ADD COLUMN last_raid_at DATETIME             NULL                   AFTER raid_xp;
+--   ALTER TABLE users ADD COLUMN rater_weight DECIMAL(4,3)         NOT NULL DEFAULT 1.000 AFTER last_raid_at;
+--   ALTER TABLE users ADD COLUMN last_seen_at DATETIME             NULL                   AFTER rater_weight;
+--
+-- raid_xp: cumulative XP for ranking (15 per confirmed join, 20 per host invite, 3–5 for high ratings received).
+-- last_raid_at: used to compute rating decay for inactive hosts.
+-- rater_weight: consensus-based reliability weight, recomputed after each rating.
+
+-- Migration: user language preference (i18n support).
+--   ALTER TABLE users ADD COLUMN lang VARCHAR(8) NOT NULL DEFAULT 'en' AFTER email;
+
+-- Migration: store system (PayPal payments, queue priority, custom tags).
+--
+--   CREATE TABLE IF NOT EXISTS store_items (
+--     id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     name        VARCHAR(64)  NOT NULL,
+--     slug        VARCHAR(32)  NOT NULL,
+--     description TEXT         NOT NULL,   -- no DEFAULT: TEXT can't have one in strict mode
+--     price_cents INT UNSIGNED NOT NULL,
+--     type        ENUM('one_time','monthly','bimonthly') NOT NULL DEFAULT 'one_time',
+--     benefit     VARCHAR(32)  NOT NULL DEFAULT '',
+--     active      TINYINT(1)   NOT NULL DEFAULT 1,
+--     sort_order  TINYINT UNSIGNED NOT NULL DEFAULT 0,
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_slug (slug)
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS purchases (
+--     id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id         INT UNSIGNED NOT NULL,
+--     item_id         INT UNSIGNED NOT NULL,
+--     paypal_order_id VARCHAR(64)  NOT NULL DEFAULT '',
+--     status          ENUM('pending','completed','refunded','cancelled') NOT NULL DEFAULT 'pending',
+--     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     completed_at    DATETIME NULL,
+--     expires_at      DATETIME NULL,
+--     PRIMARY KEY (id),
+--     KEY idx_purchase_user (user_id),
+--     CONSTRAINT fk_purchase_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_purchase_item FOREIGN KEY (item_id) REFERENCES store_items (id)
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS custom_tag_requests (
+--     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id       INT UNSIGNED NOT NULL,
+--     name          VARCHAR(32)  NOT NULL,
+--     color         VARCHAR(7)   NOT NULL DEFAULT '#cccccc',
+--     status        ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+--     reviewed_by   INT UNSIGNED NULL,
+--     reviewed_at   DATETIME NULL,
+--     reject_reason VARCHAR(255) NOT NULL DEFAULT '',
+--     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     KEY idx_ctr_status (status),
+--     CONSTRAINT fk_ctr_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   ALTER TABLE custom_tag_requests
+--     MODIFY COLUMN status ENUM('pending','approved','rejected','revision') NOT NULL DEFAULT 'pending';
+--
+--   ALTER TABLE raid_joins ADD COLUMN priority TINYINT(1) NOT NULL DEFAULT 0 AFTER status;
+--
+--   INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES ('store_enabled', '0');
+--
+--   INSERT IGNORE INTO store_items (name, slug, description, price_cents, type, benefit, sort_order) VALUES
+--     ('Supporter Pack', 'supporter',
+--      'Submit a custom tag (staff-reviewed) that appears on your trainer profile. Includes a Supporter badge.',
+--      299, 'bimonthly', 'supporter', 1),
+--     ('Priority Pass', 'priority_pass',
+--      'Jump to the front of the raid join queue for 30 days.',
+--      799, 'monthly', 'queue_priority', 2);
+-- last_seen_at: updated on every HTML page render; online = within last 5 minutes.
+
+-- Migration: add boss tier to raid posts so the lobby can display it.
+--
+--   ALTER TABLE raid_posts ADD COLUMN boss_tier TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER boss_name;
