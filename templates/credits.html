@@ -1,49 +1,386 @@
-{{define "title"}}Credits{{end}}
+{{define "title"}}{{T "credits.title"}}{{end}}
 
 {{define "content"}}
 <div class="page-header">
-  <h1>Credits &amp; Info</h1>
+  <h1>{{T "credits.heading"}}</h1>
 </div>
 
 <div class="tabs" id="credits-tabs">
-  <button class="tab-btn active" data-tab="about">About</button>
-  <button class="tab-btn" data-tab="changelog">Changelog</button>
+  <button class="tab-btn active" data-tab="about">{{T "credits.tab.about"}}</button>
+  <button class="tab-btn" data-tab="api">{{T "credits.tab.api"}}</button>
+  <button class="tab-btn" data-tab="changelog">{{T "credits.tab.changelog"}}</button>
 </div>
 
 <div id="tab-about" class="tab-panel active">
   <div class="credits-card">
-    <h2>What is hailsDotGO?</h2>
-    <p>hailsDotGO is a fan-made toolkit for Pokémon GO players: raid counters, DPS calculations, PvP IV rankings, a full shiny Pokémon dex, a personal shiny collection tracker, a Trainer Directory, and a live Raid Finder for coordinating remote raids with other players.</p>
-    <p>The site is not affiliated with Niantic, The Pokémon Company, or Nintendo.</p>
+    <h2>{{T "credits.about.what_title"}}</h2>
+    <p>{{T "credits.about.what_body"}}</p>
+    <p>{{T "credits.about.disclaimer"}}</p>
   </div>
 
   <div class="credits-card">
-    <h2>Data Sources</h2>
+    <h2>{{T "credits.about.sources_title"}}</h2>
     <ul class="credits-list">
-      <li><a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a>: Pokémon stats, moves, type effectiveness, shiny availability, CP multipliers</li>
-      <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>: current raid bosses</li>
-      <li><a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>: Pokémon sprites, Pokédex flavor text, genus, legendary/mythical flags, and in-game cries</li>
-      <li><a href="https://openweathermap.org" target="_blank" rel="noopener">OpenWeatherMap</a>: current weather data used to determine Pokémon GO weather boosts</li>
-      <li><a href="https://pokemonshowdown.com" target="_blank" rel="noopener">Pokémon Showdown</a>: trainer class sprites used for trainer profile avatars</li>
+      <li><a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a>: {{T "credits.about.source_pogoapi"}}</li>
+      <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>: {{T "credits.about.source_leekduck"}}</li>
+      <li><a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>: {{T "credits.about.source_pokeapi"}}</li>
+      <li><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>: {{T "credits.about.source_openmeteo"}}</li>
+      <li><a href="https://pokemonshowdown.com" target="_blank" rel="noopener">Pokémon Showdown</a>: {{T "credits.about.source_showdown"}}</li>
+      <li><a href="https://github.com/dsmyst/dreamstone-mysteries" target="_blank" rel="noopener">Dreamstone Mysteries</a> (dsmyst): {{T "credits.about.source_dreamstone"}}</li>
     </ul>
   </div>
 
   <div class="credits-card">
-    <h2>Project</h2>
+    <h2>{{T "credits.about.project_title"}}</h2>
     <ul class="credits-list">
-      <li>Built with Go, chi, and TypeScript</li>
-      <li>Hosted on <a href="https://links.hails.cc" target="_blank" rel="noopener">hails.cc</a></li>
-      <li>Open source: <a href="https://github.com/Hailey-Ross/hailsDotGO" target="_blank" rel="noopener">github.com/Hailey-Ross/hailsDotGO</a></li>
+      <li>{{T "credits.about.built_with"}} <a href="https://go.dev" target="_blank" rel="noopener">Go</a>, <a href="https://github.com/go-chi/chi" target="_blank" rel="noopener">chi</a>, and <a href="https://www.typescriptlang.org" target="_blank" rel="noopener">TypeScript</a></li>
+      <li>{{T "credits.about.hosted_on"}} <a href="https://links.hails.cc" target="_blank" rel="noopener">hails.cc</a></li>
+      <li>{{T "credits.about.open_source"}} <a href="https://github.com/Hailey-Ross/hailsDotGO" target="_blank" rel="noopener">github.com/Hailey-Ross/hailsDotGO</a></li>
+    </ul>
+  </div>
+</div>
+
+<div id="tab-api" class="tab-panel">
+  <div class="credits-card">
+    <h2>{{T "credits.api.public_title"}}</h2>
+    <p>{{T "credits.api.public_body"}}</p>
+    <table class="api-table">
+      <thead><tr><th>{{T "credits.api.col_endpoint"}}</th><th>{{T "credits.api.col_desc"}}</th><th>{{T "credits.api.col_limit"}}</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /api/data</code></td><td>{{T "credits.api.data_desc"}}</td><td>{{T "credits.api.data_limit"}}</td></tr>
+        <tr><td><code>GET /api/raids</code></td><td>{{T "credits.api.raids_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+        <tr><td><code>GET /api/pokemon</code></td><td>{{T "credits.api.pokemon_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+        <tr><td><code>GET /api/moves</code></td><td>{{T "credits.api.moves_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:1rem">{{T "credits.api.cache_note"}} <code>Cache-Control: public, max-age=300</code>. {{T "credits.api.cache_note2"}}</p>
+  </div>
+
+  <div class="credits-card">
+    <h2>{{T "credits.api.private_title"}}</h2>
+    <p>{{T "credits.api.private_body"}}</p>
+    <table class="api-table">
+      <thead><tr><th>{{T "credits.api.col_endpoint"}}</th><th>{{T "credits.api.col_desc"}}</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /api/private/data</code></td><td>{{T "credits.api.private_data_desc"}}</td></tr>
+        <tr><td><code>GET /api/private/raids</code></td><td>{{T "credits.api.private_raids_desc"}}</td></tr>
+        <tr><td><code>GET /api/private/pokemon</code></td><td>{{T "credits.api.private_pokemon_desc"}}</td></tr>
+        <tr><td><code>GET /api/private/moves</code></td><td>{{T "credits.api.private_moves_desc"}}</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:1rem">{{T "credits.api.private_auth"}}</p>
+  </div>
+
+  <div class="credits-card">
+    <h2>{{T "credits.api.notes_title"}}</h2>
+    <ul class="credits-list">
+      <li>{{T "credits.api.note_json"}} <code>application/json</code>.</li>
+      <li>{{T "credits.api.note_rate_limit"}} <code>429 Too Many Requests</code>.</li>
+      <li>{{T "credits.api.note_private"}} <code>403 Forbidden</code> {{T "credits.api.note_private2"}}</li>
+      <li>{{T "credits.api.note_unofficial"}}</li>
     </ul>
   </div>
 </div>
 
 <div id="tab-changelog" class="tab-panel">
   <div class="page-header" style="margin-bottom:1.25rem">
-    <p>A running log of updates and improvements.</p>
+    <p>{{T "credits.changelog.intro"}}</p>
   </div>
 
   <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (29)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Superadmin: force data refresh button in Admin panel</h2>
+        <ul class="cl-list">
+          <li>New "Data Refresh" card in the Admin Stats tab, visible only to the superadmin</li>
+          <li>Clicking "Force Data Refresh" triggers an immediate background reload of all game data from PoGoAPI (Pokémon, moves, shinies, type chart, Pokémon names) without waiting for the scheduled 6-hour cycle</li>
+          <li>Translated into ES, FR, and DE</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (28)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">i18n audit: translation completeness verified, JS double-quoting bug fixed, and pokemon_names parser updated</h2>
+        <ul class="cl-list">
+          <li>All ES, FR, and DE locale files audited and confirmed complete against the English master (no missing keys)</li>
+          <li>Fixed a bug where translated strings embedded in JavaScript objects were double-quoted due to <code>printf "%q"</code> combined with html/template's automatic JS encoding; replaced with direct template calls across admin panel, Raid Finder, and store templates</li>
+          <li>Fixed <code>&lt;html lang="en"&gt;</code> being hardcoded; the page language attribute now reflects the active locale</li>
+          <li>Fixed <code>SITE_LANG</code> and <code>SUPERADMIN</code> JS constants using the same double-encoding pattern</li>
+          <li>Fixed pokemon_names parser to handle the updated PoGoAPI response format (object-of-objects instead of array)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (27)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Full i18n coverage: all pages, JS strings, and Pokémon names</h2>
+        <ul class="cl-list">
+          <li>Every page now has translated titles, headings, and static text (Home, Raids, DPS, PvP, Events, Shinies, Credits)</li>
+          <li>All JavaScript-rendered strings in the Admin panel, Raid Finder, and Shiny Collection are now translated</li>
+          <li>Pokémon species names are translated in all four supported languages on the Raids, Events, Shinies, DPS, and PvP pages</li>
+          <li>Go handler error messages (login, registration, settings, admin actions) are now returned in the user's active language</li>
+          <li>Raid Finder strings now fully covered: tier labels, queue status, lobby messages, rating panel, and weather banner</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (26)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Translations: Spanish, French, and German language support</h2>
+        <ul class="cl-list">
+          <li>Language switcher added to the navigation sidebar; persists via cookie for guests, and is saved to your account for logged-in users</li>
+          <li>Spanish (ES), French (FR), and German (DE) translations available for navigation, auth pages, settings, trainer directory, and the store</li>
+          <li>Translation fallback: missing keys in a locale automatically fall back to English so no UI string is ever blank</li>
+          <li>Language preference is stored in the database for logged-in users, meaning your choice follows you across devices and browsers</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (25)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Donations: Super Donator tier, subscription management, staff tag review</h2>
+        <ul class="cl-list">
+          <li>New Super Donator tier ($24.99/month): animated rainbow username and trainer name in the Trainer Directory and Raid Finder, DONATOR badge on profile, queue priority included, and future rewards as they are added</li>
+          <li>Subscriptions are now manageable directly on the Donations page, even when the store is temporarily disabled</li>
+          <li>Cancel button on each active subscription ends the perk immediately</li>
+          <li>Staff can now send custom tag requests back to the user for revision before approval; users can update and resubmit</li>
+          <li>Admins can enable or disable individual store items from the Donations tab in the Admin Panel</li>
+          <li>Store renamed to "Donations" across all navigation and customer-facing areas</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (24)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Settings: Dreamstone Mysteries trainer avatars</h2>
+        <ul class="cl-list">
+          <li>96 GBA-style trainer sprites from the open-source Pokémon Dreamstone Mysteries ROM hack are now available as trainer avatars in the Settings avatar picker</li>
+          <li>Sprites are stored locally (no external CDN) and are served as static files</li>
+          <li>The avatar picker now groups options under "Classic (Showdown)" and "Dreamstone Mysteries (GBA)" for easier browsing</li>
+          <li>Credit: sprites from <a href="https://github.com/dsmyst/dreamstone-mysteries" target="_blank" rel="noopener">dsmyst/dreamstone-mysteries</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (23)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Store: PayPal-backed perks for supporting the site</h2>
+        <ul class="cl-list">
+          <li>New /store page (superadmin-toggled, off by default) offering two perks: Supporter Pack ($4.99 one-time) and Priority Pass ($2.99/30 days)</li>
+          <li>Supporter Pack grants the ability to submit a custom tag for your trainer profile; staff review and approve or reject submissions from the new Tag Requests panel in the Admin Users tab</li>
+          <li>Priority Pass moves the holder to the front of the raid join queue for 30 days; queue position is determined at join time</li>
+          <li>Payments are processed via PayPal REST API; store toggle in Admin Settings (superadmin-only) shows or hides the page and nav link without affecting active perks</li>
+          <li>Custom tag submission form appears on /store for active Supporter Pack holders; shows current request status (pending, approved, rejected) and allows resubmission after a rejection</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (22)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Admin: Raid Stats panel for adjusting rank and ratings</h2>
+        <ul class="cl-list">
+          <li>Each user card in the Admin Panel now has a "Raid Stats" section (admin-only) that shows the user's current raid XP and rater weight</li>
+          <li>Admins can set a user's XP directly to any value — rank updates immediately based on the new total</li>
+          <li>Admins can adjust a user's rater weight (0.1–1.5) to increase or decrease how much influence their ratings carry in consensus calculations</li>
+          <li>Two action buttons: "Clear Received Ratings" permanently deletes all ratings given to the user (resetting their host score), and "Reset Rating Decay" marks the user as recently active so their displayed rating stops decaying</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (21)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">DPS Compare: all Pokémon in target dropdown; queue position in Raid Finder</h2>
+        <ul class="cl-list">
+          <li>DPS Compare target dropdown now shows current raids first, then all remaining Pokémon in an "All Pokémon" group; Pokémon already listed as a raid boss are not duplicated</li>
+          <li>Raid Finder pending queue status now shows your position in the queue (e.g. "#2 in the queue") so you know where you stand</li>
+          <li>Missing trainer name or code now shows a "Go to Settings" link inline with the error, instead of just the error text</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (20)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Tags display inline next to rank badges</h2>
+        <ul class="cl-list">
+          <li>On trainer directory cards and profile modals, user tags now appear on the same row as the rank badge instead of on a separate line below it</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (19)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">DPS Calculator: target Pokémon picker</h2>
+        <ul class="cl-list">
+          <li>The Calculator tab now has an optional "vs. Target" section: type any Pokémon name to set a defender and see type-effectiveness-adjusted DPS values</li>
+          <li>Type badges appear automatically once a valid Pokémon is entered; a Clear button removes the target</li>
+          <li>Move rows show a coloured multiplier label (e.g. <strong>1.60×</strong> or <strong>0.63×</strong>) when the move type is super effective or not very effective against the target</li>
+          <li>The Compare tab's target section gains a Pokémon name input as an additional way to set the defender (alongside the existing raid boss dropdown and manual type selectors)</li>
+          <li>Pokémon type data is now fetched from PoGoAPI and included in the game data bundle, with a compiled-in fallback so the feature works offline</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (18)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Two-tier API and API documentation</h2>
+        <ul class="cl-list">
+          <li>Public game data API endpoints remain accessible to everyone but are now rate-limited per IP to protect server bandwidth</li>
+          <li>Private API added for trusted consumers — same data, no rate limit, requires API access permission</li>
+          <li>The data refresh endpoint requires API access and is globally rate-limited to prevent hammering upstream data sources</li>
+          <li>New API tab added to this page documenting available endpoints and authentication requirements</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (18)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">User tag system</h2>
+        <ul class="cl-list">
+          <li>Admins can be assigned coloured tag pills (e.g. <strong>Dev</strong>) visible on their Trainer Directory card and profile modal</li>
+          <li>Tags are created and deleted by the superadmin from a new Tags tab in the Admin Panel; assignment and removal is available to all admins</li>
+          <li>Tags are stored in two new database tables (<code>tags</code>, <code>user_tags</code>) with full cascade-delete support</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (17)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">API access permission system</h2>
+        <ul class="cl-list">
+          <li>Private API access is now a separate permission rather than being open to all admin accounts</li>
+          <li>API access can only be held by admin-role accounts and can only be granted or revoked by the site owner</li>
+          <li>Removing admin privileges from an account automatically revokes API access</li>
+          <li>Admin panel shows a blue "API Access" badge on users who hold the permission</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (16)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Improved Pokémon GO weather detection</h2>
+        <ul class="cl-list">
+          <li>Switched weather provider from OpenWeatherMap to <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, which uses standardised WMO weather codes for a much more accurate PoGO condition mapping</li>
+          <li>Weather is now determined from your city's coordinates (geocoded automatically) rather than a city-name string lookup, improving location accuracy</li>
+          <li>Wind speed is now factored in correctly: Windy weather activates only when wind exceeds ~36 km/h and there is no rain, snow, or fog</li>
+          <li>No API key required; OPENWEATHER_KEY is no longer used or needed</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (15)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid data reliability and caching</h2>
+        <ul class="cl-list">
+          <li>Raid boss data is now cached to disk on every successful fetch, so a service restart never shows "temporarily unavailable"</li>
+          <li>Raids refresh once daily at noon Mountain Time instead of on the same 6-hour cycle as other game data</li>
+          <li>PoGoAPI data (moves, types, shinies, etc.) continues to refresh every 6 hours in the background</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (14)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Tester rank</h2>
+        <ul class="cl-list">
+          <li>New Tester role (below Moderator): shows a 🧪 badge in the navbar, Trainer Directory cards, and Raid Finder posts and joiners list</li>
+          <li>Tester ratings carry slightly more weight than regular users when computing host scores</li>
+          <li>Assignable from the Admin panel role selector</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (13)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder: ranking system, weighted ratings, lobby, and online status</h2>
+        <ul class="cl-list">
+          <li>Trainer profiles and raid posts now show a Pokémon-themed raid rank earned by participating in raids: Youngster, Trainer, Gym Leader, Elite Four, Champion, and League Master, each with five roman numeral tiers (I-V)</li>
+          <li>XP is awarded for each completed raid (as a joiner or as a host); rank advances automatically as XP accumulates</li>
+          <li>Host ratings are weighted by how closely each rater's scores align with the group consensus, reducing the impact of outlier votes</li>
+          <li>A host's displayed rating is dimmed if they have not participated in a raid recently, signalling potentially stale data</li>
+          <li>Accepted joiners can now see each other in a lobby panel before entering the raid, so you know who you are playing with</li>
+          <li>Trainer Directory cards and modals show whether a trainer is currently online and the date they joined</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (12)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder: queue system and prerequisites</h2>
+        <ul class="cl-list">
+          <li>Joining a raid now puts you in a queue; the host reviews requests and accepts or declines each one individually</li>
+          <li>The host's trainer code is only revealed once you have been accepted</li>
+          <li>Queue count on each post excludes declined entries so it reflects active requests only</li>
+          <li>Hosts can set a player limit on their post; the queue closes when that number of pending and accepted entries is reached</li>
+          <li>Users must have a Trainer Name and Trainer Code set in Settings before hosting or joining any raid</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (11)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Favorite Pokémon on trainer profiles</h2>
+        <ul class="cl-list">
+          <li>Trainers can now set a favorite Pokémon in Settings, with a choice of Normal, Shadow, Shiny, or Primal form (Primal is available only for Groudon and Kyogre)</li>
+          <li>The Pokémon's sprite appears to the left and slightly behind the trainer's avatar on their directory card</li>
+          <li>Clicking any trainer card opens a profile view with their avatar, favorite Pokémon, pronouns, location, and trainer code in one place</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (10)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Mobile navbar hamburger menu</h2>
+        <ul class="cl-list">
+          <li>Replaced overflowing inline nav links on mobile with a hamburger menu that drops down a full-width stacked list</li>
+          <li>Fixes horizontal scrolling on phones caused by too many nav items at narrow widths</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (9)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Security hardening and backend improvements</h2>
+        <ul class="cl-list">
+          <li>Various security and backend stability improvements</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-05 (8)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Live weather boost display in the Raid Finder</h2>
+        <ul class="cl-list">
+          <li>The Raid Finder now shows your current local weather condition and which Pokémon types are boosted, based on the city saved in your settings</li>
+          <li>Weather is fetched from OpenWeatherMap and mapped to Pokémon GO weather types (Clear, Partly Cloudy, Overcast, Rainy, Snow, Fog, Windy, Extreme)</li>
+          <li>Results are cached server-side and aligned to Pokémon GO's weather clock, so the data refreshes at :00 and :30 rather than on every page load</li>
+        </ul>
+      </div>
+    </div>
 
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-05 (7)</div>
@@ -127,7 +464,7 @@
           <li>Pokédex flavor text pulled from PokéAPI and shown in shiny, raid, DPS, and PvP detail views</li>
           <li>Genus tag shown beneath each Pokémon name (e.g., "The Mouse Pokémon")</li>
           <li>Legendary and Mythical badges on applicable Pokémon across all detail views</li>
-          <li>Pokémon cry audio button (🔊) in shiny modals plays the official in-game cry; includes a volume slider capped at 80%</li>
+          <li>Pokémon cry audio button (🔊) in shiny modals plays the official in-game cry; includes a volume slider (displayed as 0–100%, capped at 30% actual output)</li>
           <li>Primal form sprites shown alongside Normal and Shiny in the compare panel for Groudon and Kyogre</li>
           <li>Shiny collection caught list now shows when each Pokémon was caught (e.g., "3 days ago")</li>
           <li>Collection stats bar: unique and total counts plus a method breakdown (Wild, Raid, Egg, etc.)</li>

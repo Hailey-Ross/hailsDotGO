@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"os"
@@ -35,12 +37,17 @@ func main() {
 	}
 	defer db.Close()
 
+	csrfKey, err := loadCSRFKey()
+	if err != nil {
+		log.Fatalf("csrf key: %v", err)
+	}
+
 	store := pogodata.New()
 	store.Start()
 
 	srv := &http.Server{
 		Addr:         ":" + port,
-		Handler:      server.New(store, db),
+		Handler:      server.New(store, db, csrfKey),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -63,4 +70,21 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("shutdown: %v", err)
 	}
+}
+
+func loadCSRFKey() ([]byte, error) {
+	keyHex := os.Getenv("CSRF_KEY")
+	if keyHex == "" {
+		log.Println("WARNING: CSRF_KEY not set — generating random key. CSRF tokens will not survive restarts.")
+		key := make([]byte, 32)
+		if _, err := rand.Read(key); err != nil {
+			return nil, err
+		}
+		return key, nil
+	}
+	key, err := hex.DecodeString(keyHex)
+	if err != nil || len(key) != 32 {
+		log.Fatal("CSRF_KEY must be a 64-character hex string (32 bytes). Generate with: openssl rand -hex 32")
+	}
+	return key, nil
 }

@@ -4,13 +4,16 @@ A fan-made Pokémon GO companion web app with raid counters, a DPS calculator, P
 
 This project includes:
 - Real-time raid boss listings with inline counter recommendations
-- DPS calculator and bulk moveset comparison
+- DPS calculator and bulk moveset comparison (with type-effectiveness target picker)
 - PvP IV ranker across all three leagues
 - Full shiny availability tracker with obtain-method detail and normal vs shiny sprite comparison
 - Personal shiny collection: log every shiny you've caught with method tracking and stats
 - Trainer Directory: opt in to share your trainer code publicly, searchable by trainer name
-- Raid Finder: post and join remote raids in real time with friend-code sharing, confirm/invite flow, and post-raid ratings
+- Raid Finder: post and join remote raids with a queue system, accept/decline flow, lobby view with co-raider list, XP-based ranking, weighted host ratings, and post-raid rating system
+- Current weather boost shown in the Raid Finder based on your saved city
 - User accounts with registration (open or invite-only), login, and an admin panel
+- Supporter store with optional donation perks: Supporter Pack, raid queue priority, and custom profile tag (PayPal, sandbox/live toggle)
+- Multi-language interface: English, Spanish, French, German (cookie-persisted, synced to account)
 - Credits and changelog tab
 
 ---
@@ -43,17 +46,19 @@ On startup, the server pulls game data from [PoGoAPI](https://pogoapi.net) and c
 - Type effectiveness
 - CP multipliers
 
-Data refreshes automatically every 6 hours.
+Data refreshes automatically every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data compiled into the binary so the app can serve requests immediately.
 
 ---
 
 ### 2. Raid Data
-Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck) and cached for 5 minutes per request.
+Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck). The response is cached to disk so a restart never shows "temporarily unavailable." Raids refresh once daily at noon Mountain Time; a stale on-disk cache is used if the upstream fetch fails.
 
 ---
 
 ### 3. Database
-User accounts, sessions, shiny collection entries, site settings, and invite tokens are stored in MySQL. Apply `schema.sql` to set up the tables:
+All persistent data is stored in MySQL: user accounts, sessions, shiny collections, trainer profiles, raid posts and joins, tags, store purchases, and site settings.
+
+`schema.sql` contains the base `CREATE TABLE` statements followed by all migration blocks as SQL comments. For a **fresh install**, apply the base tables and then run every migration block in order (uncomment and execute each block):
 
 ```bash
 mysql -u youruser -p < schema.sql
@@ -71,12 +76,30 @@ Then set the `DB_HOST`, `DB_USER`, `DB_PASS`, and `DB_NAME` environment variable
 3. Start the server and register at `/register`.
 4. You now have full admin access. Close registration from the admin panel whenever you want.
 
+**Store setup (optional):** The supporter store is disabled by default. To enable it:
+
+1. Set the four `PAYPAL_*` variables in `.env` (client ID, client secret, mode, webhook ID).
+2. Enable the store from the admin panel, or directly:
+   ```sql
+   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'store_enabled';
+   ```
+3. The migration block in `schema.sql` seeds two default store items (Supporter Pack and Priority Pass). Run it if you haven't already, or insert your own items into `store_items`.
+
 ---
 
 ### 4. API Layer
-- `GET /api/data` → all game data combined (stats, moves, types, shinies)
+
+**Public** (rate-limited per IP):
+- `GET /api/data` → all game data combined (stats, moves, types, shinies, Pokémon types)
 - `GET /api/raids` → current raid bosses grouped by tier
-- `POST /api/refresh` → manually trigger a data re-fetch outside the 6-hour cycle
+- `GET /api/pokemon` → Pokémon base stats list
+- `GET /api/moves` → fast and charged move data
+
+**Private** (requires API access permission, no rate limit):
+- `GET /api/private/data`, `/api/private/raids`, `/api/private/pokemon`, `/api/private/moves` → same as public
+
+**Protected:**
+- `POST /api/refresh` → manually trigger a data re-fetch (requires API access, globally rate-limited)
 
 ---
 
@@ -98,6 +121,7 @@ TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
 | `/shinies` | Your personal shiny collection (login required) |
 | `/trainers` | Trainer Directory and Raid Finder |
 | `/settings` | Trainer profile: name, pronouns, avatar, friend code, location privacy (login required) |
+| `/store` | Supporter store: donation perks, custom profile tag, raid queue priority |
 | `/credits` | About, data sources, and changelog |
 | `/changelog` | Redirects to `/credits?tab=changelog` |
 | `/login` | Sign in |
@@ -188,7 +212,7 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 .\deploy.ps1
 ```
 
-> **Note:** Requires `VPS_HOST`, `VPS_USER`, `SUPERADMIN_USER`, and `CSRF_KEY` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server.
+> **Note:** Requires `VPS_HOST`, `VPS_USER`, `SUPERADMIN_USER`, and `CSRF_KEY` set in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server. If using the store, also set the four `PAYPAL_*` vars — they are written to the server's `app.env` by the deploy script.
 
 ---
 
@@ -203,7 +227,11 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | `DB_NAME` | Yes | | MySQL database name |
 | `SUPERADMIN_USER` | Yes | | Username that always has admin privileges; required to start |
 | `CSRF_KEY` | No | random | 64-char hex string for CSRF protection; generate with `openssl rand -hex 32` |
-| `OPENWEATHER_KEY` | No | | OpenWeatherMap API key for weather boost data |
+| `OPENWEATHER_KEY` | No | | *(Unused — weather now uses Open-Meteo, which requires no API key)* |
+| `PAYPAL_CLIENT_ID` | Store only | | PayPal REST API client ID |
+| `PAYPAL_CLIENT_SECRET` | Store only | | PayPal REST API client secret |
+| `PAYPAL_MODE` | Store only | `sandbox` | `sandbox` or `live` |
+| `PAYPAL_WEBHOOK_ID` | Store only | | PayPal webhook ID for server-side payment confirmation |
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
 | `VPS_PASS` | No | | VPS password for manual reference; not read by `deploy.ps1`, which uses SSH key auth |
@@ -217,8 +245,9 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 | [PoGoAPI](https://pogoapi.net) | Pokémon stats, moves, shinies, type effectiveness, CP multipliers |
 | [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Live raid boss data (sourced from LeekDuck) |
 | [PokéAPI](https://pokeapi.co) | Pokémon sprites, Pokédex flavor text, genus, legendary/mythical flags, in-game cries |
-| [OpenWeatherMap](https://openweathermap.org) | Current weather data for Pokémon GO weather boost detection |
+| [Open-Meteo](https://open-meteo.com) | Current weather data for Pokémon GO weather boost detection (no API key required) |
 | [Pokémon Showdown](https://pokemonshowdown.com) | Trainer class sprites for trainer profile avatars |
+| [Dreamstone Mysteries](https://github.com/dsmyst/dreamstone-mysteries) (dsmyst) | GBA-style trainer sprites bundled as local static files |
 
 ---
 

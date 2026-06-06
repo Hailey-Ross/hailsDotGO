@@ -1,4 +1,4 @@
-import { loadGameData } from "./shared/gamedata";
+import { loadGameData, pokeName } from "./shared/gamedata";
 import { typeBadge } from "./shared/typecolors";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
@@ -24,7 +24,7 @@ const SHINY_GROUPS: ShinyGroup[] = [
   { id: "photobomb", label: "Photobomb",  icon: "📸", flag: "found_photobomb", tooltip: "Appears by surprise when taking a GO Snapshot" },
 ];
 
-let cryVolume = 0.8;
+let cryVolume = 0.3;
 
 function buildShiniesPanel(data: GameData): () => HTMLElement {
   return () => {
@@ -62,8 +62,8 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
       <span class="poke-legend-badge" id="shiny-modal-badge" style="display:none"></span>
       <div class="poke-cry-controls" id="shiny-cry-controls" style="display:none">
         <button class="poke-cry-btn" id="shiny-modal-cry" title="Play cry">🔊</button>
-        <input type="range" class="poke-volume-slider" id="shiny-modal-volume" min="0" max="80" value="80" title="Volume">
-        <span class="poke-volume-label" id="shiny-modal-vlabel">80%</span>
+        <input type="range" class="poke-volume-slider" id="shiny-modal-volume" min="0" max="100" value="100" title="Volume">
+        <span class="poke-volume-label" id="shiny-modal-vlabel">100%</span>
       </div>
       <p class="poke-flavor" id="shiny-modal-flavor" style="display:none"></p>
       <div class="shiny-modal-methods"></div>
@@ -139,7 +139,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
 
         const label = document.createElement("span");
         label.className = "shiny-label";
-        label.textContent = s.name.replace(/_/g, " ");
+        label.textContent = pokeName(data, s.name);
 
         card.appendChild(img);
         card.appendChild(label);
@@ -150,7 +150,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
           (document.getElementById("shiny-modal-shiny") as HTMLImageElement).src =
             `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${s.id}.png`;
           (modal.querySelector(".shiny-modal-name") as HTMLElement).textContent =
-            s.name.replace(/_/g, " ");
+            pokeName(data, s.name);
 
           const flavorEl   = document.getElementById("shiny-modal-flavor")   as HTMLElement;
           const genusEl    = document.getElementById("shiny-modal-genus")    as HTMLElement;
@@ -168,10 +168,10 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
           compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
 
           // Keep slider in sync with shared volume
-          volSlider.value = String(Math.round(cryVolume * 100));
+          volSlider.value = String(Math.round((cryVolume / 0.3) * 100));
           volLabel.textContent = `${volSlider.value}%`;
           volSlider.oninput = () => {
-            cryVolume = Number(volSlider.value) / 100;
+            cryVolume = (Number(volSlider.value) / 100) * 0.3;
             volLabel.textContent = `${volSlider.value}%`;
           };
 
@@ -207,7 +207,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
             cryBtn.onclick = (e) => {
               e.stopPropagation();
               const a = new Audio(url);
-              a.volume = Math.min(cryVolume, 0.8);
+              a.volume = cryVolume;
               a.play();
             };
           });

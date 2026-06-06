@@ -1,15 +1,15 @@
-{{define "title"}}PvP Team Builder{{end}}
+{{define "title"}}{{T "pvp.title"}}{{end}}
 
 {{define "content"}}
 <div class="page-header">
-  <h1>PvP Team Builder</h1>
-  <p>GO Battle League matchups and IV analysis</p>
+  <h1>{{T "pvp.title"}}</h1>
+  <p>{{T "pvp.subtitle"}}</p>
 </div>
 
 <div id="pvp-app">
   <div class="loading-state">
     <div class="spinner"></div>
-    <p>Loading battle data…</p>
+    <p>{{T "pvp.loading"}}</p>
   </div>
 </div>
 {{end}}

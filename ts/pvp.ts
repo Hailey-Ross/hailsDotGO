@@ -1,4 +1,4 @@
-import { loadGameData, pokemonByName, pokeSprite } from "./shared/gamedata";
+import { loadGameData, pokemonByName, pokeSprite, pokeName } from "./shared/gamedata";
 import { buildTabs } from "./shared/tabs";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, PokemonStat, CPMultiplier } from "./shared/types";
@@ -98,7 +98,7 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
       pvpSprite.loading = "lazy"; pvpSprite.decoding = "async";
       const h3 = document.createElement("h3");
       h3.style.marginBottom = "0";
-      h3.textContent = `${poke.pokemon_name.replace(/_/g, " ")}: ${league.name}`;
+      h3.textContent = `${pokeName(data, poke.pokemon_name)}: ${league.name}`;
       pvpHeader.appendChild(pvpSprite);
       pvpHeader.appendChild(h3);
       resultArea.appendChild(pvpHeader);

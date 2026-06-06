@@ -30,7 +30,10 @@ type settingsData struct {
 	Country         string
 	LocationDisplay string
 	ProfilePublic   bool
+	FavPokemon      string
+	FavPokemonForm  string
 	TrainerClasses  []pogodata.TrainerClass
+	PokemonList     []pogodata.PokemonEntry
 }
 
 func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
@@ -43,10 +46,12 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(`
 		SELECT COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
 		       COALESCE(pronouns,''), COALESCE(city,''), COALESCE(region,''), COALESCE(country,''),
-		       COALESCE(location_display,'none'), COALESCE(profile_public,0)
+		       COALESCE(location_display,'none'), COALESCE(profile_public,0),
+		       COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,'')
 		FROM users WHERE id = ?`, u.ID,
-	).Scan(&d.TrainerName, &d.TrainerCode, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic)
+	).Scan(&d.TrainerName, &d.TrainerCode, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.FavPokemon, &d.FavPokemonForm)
 	d.TrainerClasses = h.store.TrainerClasses()
+	d.PokemonList = h.store.PokemonList()
 	h.render(w, r, "settings", d)
 }
 
@@ -69,6 +74,8 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	country         := strings.TrimSpace(r.FormValue("country"))
 	locationDisplay := r.FormValue("location_display")
 	profilePublic   := r.FormValue("profile_public") == "1"
+	favPokemon      := strings.TrimSpace(r.FormValue("fav_pokemon"))
+	favPokemonForm  := r.FormValue("fav_pokemon_form")
 
 	pronounsChoice := r.FormValue("pronouns_choice")
 	var pronouns string
@@ -92,26 +99,38 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	if !validAvatars[avatar] {
 		avatar = ""
 	}
+	validForms := map[string]bool{"": true, "shadow": true, "shiny": true, "primal": true}
+	if !validForms[favPokemonForm] {
+		favPokemonForm = ""
+	}
+	if favPokemon != "" && h.store.PokemonDexID(favPokemon) == 0 {
+		favPokemon = ""
+		favPokemonForm = ""
+	}
+	if len(favPokemon) > 64 {
+		favPokemon = favPokemon[:64]
+	}
 
 	fail := func(msg string) {
 		h.render(w, r, "settings", settingsData{
 			Error: msg, TrainerName: trainerName, TrainerCode: trainerCode, Avatar: avatar,
 			Pronouns: pronouns, City: city, Region: region, Country: country,
 			LocationDisplay: locationDisplay, ProfilePublic: profilePublic,
-			TrainerClasses: h.store.TrainerClasses(),
+			FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
+			TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
 		})
 	}
 
 	if len(trainerName) > 16 {
-		fail("Trainer name must be 16 characters or fewer.")
+		fail(h.t(r, "error.trainer_name_length"))
 		return
 	}
 	if trainerCode != "" && !trainerCodeRe.MatchString(trainerCode) {
-		fail("Trainer code must be exactly 12 digits (spaces are fine).")
+		fail(h.t(r, "error.trainer_code_format"))
 		return
 	}
 	if len(city) > 100 || len(region) > 100 || len(country) > 100 {
-		fail("Location fields are too long.")
+		fail(h.t(r, "error.location_too_long"))
 		return
 	}
 
@@ -119,7 +138,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		var count int
 		h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE LOWER(trainer_name) = LOWER(?) AND id != ?`, trainerName, u.ID).Scan(&count)
 		if count > 0 {
-			fail("That trainer name is already registered to another account.")
+			fail(h.t(r, "error.trainer_name_taken"))
 			return
 		}
 	}
@@ -127,7 +146,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		var count int
 		h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE trainer_code = ? AND id != ?`, trainerCode, u.ID).Scan(&count)
 		if count > 0 {
-			fail("That trainer code is already registered to another account.")
+			fail(h.t(r, "error.trainer_code_taken"))
 			return
 		}
 	}
@@ -136,18 +155,25 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	if profilePublic {
 		publicInt = 1
 	}
+	favSpriteURL := ""
+	if favPokemon != "" {
+		if id := h.store.PokemonDexID(favPokemon); id != 0 {
+			favSpriteURL = pokemonSpriteURL(id, favPokemonForm)
+		}
+	}
 	_, err := h.db.Exec(
-		`UPDATE users SET trainer_name=?, trainer_code=?, avatar=?, pronouns=?, city=?, region=?, country=?, location_display=?, profile_public=? WHERE id=?`,
-		trainerName, trainerCode, avatar, pronouns, city, region, country, locationDisplay, publicInt, u.ID,
+		`UPDATE users SET trainer_name=?, trainer_code=?, avatar=?, pronouns=?, city=?, region=?, country=?, location_display=?, profile_public=?, fav_pokemon=?, fav_pokemon_form=?, fav_sprite_url=? WHERE id=?`,
+		trainerName, trainerCode, avatar, pronouns, city, region, country, locationDisplay, publicInt, favPokemon, favPokemonForm, favSpriteURL, u.ID,
 	)
 	if err != nil {
-		fail("Something went wrong. Please try again.")
+		fail(h.t(r, "error.server"))
 		return
 	}
 	h.render(w, r, "settings", settingsData{
 		Success: true, TrainerName: trainerName, TrainerCode: trainerCode, Avatar: avatar,
 		Pronouns: pronouns, City: city, Region: region, Country: country,
 		LocationDisplay: locationDisplay, ProfilePublic: profilePublic,
-		TrainerClasses: h.store.TrainerClasses(),
+		FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
+		TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
 	})
 }

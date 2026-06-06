@@ -1,4 +1,4 @@
-{{define "title"}}Home{{end}}
+{{define "title"}}{{T "home.title"}}{{end}}
 
 {{define "content"}}
 <div class="hero">
@@ -9,26 +9,26 @@
 <div class="tool-grid">
   <a href="/raids" class="tool-card raids-card">
     <div class="tool-icon">⚔️</div>
-    <h2>Current Raids</h2>
-    <p>Browse active raid bosses and find the best counters sorted by DPS and TDO.</p>
+    <h2>{{T "home.raids.title"}}</h2>
+    <p>{{T "home.raids.desc"}}</p>
   </a>
 
   <a href="/dps" class="tool-card dps-card">
     <div class="tool-icon">📊</div>
-    <h2>DPS Calculator</h2>
-    <p>Compare attacker movesets, calculate breakpoints, and maximise damage output.</p>
+    <h2>{{T "home.dps.title"}}</h2>
+    <p>{{T "home.dps.desc"}}</p>
   </a>
 
   <a href="/pvp" class="tool-card pvp-card">
     <div class="tool-icon">🏆</div>
-    <h2>PvP Team Builder</h2>
-    <p>Simulate GO Battle League matchups, check IVs, and build your team.</p>
+    <h2>{{T "home.pvp.title"}}</h2>
+    <p>{{T "home.pvp.desc"}}</p>
   </a>
 
   <a href="/events" class="tool-card events-card">
     <div class="tool-icon">✨</div>
-    <h2>Shinies</h2>
-    <p>Browse all available shiny Pokémon and how to find them.</p>
+    <h2>{{T "home.shinies.title"}}</h2>
+    <p>{{T "home.shinies.desc"}}</p>
   </a>
 </div>
 {{end}}

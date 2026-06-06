@@ -1,9 +1,31 @@
-import { loadGameData, typeEffectiveness, pokemonByName, pokeSprite, cpForLevel, cpmFromCP } from "./shared/gamedata";
+import { loadGameData, typeEffectiveness, pokemonByName, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
 import { trueDPS, estimateTDO, fastDPS, fastEPS } from "./shared/damage";
 import { buildTabs } from "./shared/tabs";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/types";
+
+let pokeDatalist: HTMLDataListElement | null = null;
+
+function getPokeDatalist(data: GameData): HTMLDataListElement {
+  if (pokeDatalist) return pokeDatalist;
+  pokeDatalist = document.createElement("datalist");
+  pokeDatalist.id = "dps-poke-datalist";
+  const seen = new Set<string>();
+  for (const p of data.pokemon ?? []) {
+    if (seen.has(p.pokemon_name)) continue;
+    seen.add(p.pokemon_name);
+    const opt = document.createElement("option");
+    opt.value = p.pokemon_name;
+    pokeDatalist.appendChild(opt);
+  }
+  document.body.appendChild(pokeDatalist);
+  return pokeDatalist;
+}
+
+function typesForTarget(data: GameData, name: string): string[] {
+  return data.pokemonTypes?.[name] ?? [];
+}
 
 const app = document.getElementById("dps-app")!;
 
@@ -84,6 +106,62 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
     form.appendChild(cpLbl);
     form.appendChild(calcBtn);
 
+    // ── Target section ─────────────────────────────────────────
+
+    const targetBlock = document.createElement("div");
+    targetBlock.className = "calc-form";
+    targetBlock.style.marginTop = "0.75rem";
+
+    const targetHeader = document.createElement("span");
+    targetHeader.className = "filter-label";
+    targetHeader.style.cssText = "width:100%;margin-bottom:0.25rem;";
+    targetHeader.textContent = "vs. Target (optional)";
+    targetBlock.appendChild(targetHeader);
+
+    const dl = getPokeDatalist(data);
+    const targetInput = document.createElement("input");
+    targetInput.type = "text";
+    targetInput.className = "search-input";
+    targetInput.placeholder = "Target Pokémon (e.g. Machamp)";
+    targetInput.setAttribute("list", dl.id);
+    targetInput.setAttribute("autocomplete", "off");
+
+    const targetTypesRow = document.createElement("div");
+    targetTypesRow.style.cssText = "display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;width:100%;min-height:1.5rem;";
+
+    let calcTargetTypes: string[] = [];
+
+    function updateCalcTarget() {
+      const name = targetInput.value.trim();
+      calcTargetTypes = name ? typesForTarget(data, name) : [];
+      targetTypesRow.innerHTML = "";
+      if (calcTargetTypes.length) {
+        calcTargetTypes.forEach((t) => targetTypesRow.appendChild(typeBadge(t)));
+      }
+    }
+
+    targetInput.addEventListener("change", updateCalcTarget);
+    targetInput.addEventListener("input", updateCalcTarget);
+
+    const clearTargetBtn = document.createElement("button");
+    clearTargetBtn.textContent = "Clear";
+    clearTargetBtn.style.cssText = "background:none;border:1px solid var(--border);color:var(--text-2);cursor:pointer;font-size:0.78rem;padding:0.2rem 0.6rem;border-radius:4px;font-family:var(--font);";
+    clearTargetBtn.addEventListener("click", () => {
+      targetInput.value = "";
+      calcTargetTypes = [];
+      targetTypesRow.innerHTML = "";
+    });
+
+    const targetRow = document.createElement("div");
+    targetRow.style.cssText = "display:flex;gap:0.5rem;align-items:center;width:100%;";
+    targetRow.appendChild(targetInput);
+    targetRow.appendChild(clearTargetBtn);
+
+    targetBlock.appendChild(targetRow);
+    targetBlock.appendChild(targetTypesRow);
+
+    // ── Result area ────────────────────────────────────────────
+
     const resultArea = document.createElement("div");
     resultArea.className = "result-area";
 
@@ -113,6 +191,9 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
       const cpMult = getCPM(poke, 15, 15, 15);
       const atkStat = (poke.base_attack + 15) * cpMult;
       const defStat = 150;
+      const hasTarget = calcTargetTypes.length > 0;
+      const fEff = hasTarget ? typeEffectiveness(data, fast.type, calcTargetTypes) : 1;
+      const cEff = hasTarget ? typeEffectiveness(data, charged.type, calcTargetTypes) : 1;
 
       const card = document.createElement("div");
       card.className = "result-card";
@@ -126,7 +207,13 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
       cardSprite.loading = "lazy"; cardSprite.decoding = "async";
       const cardTitle = document.createElement("h3");
       cardTitle.style.marginBottom = "0";
-      cardTitle.textContent = poke.pokemon_name.replace(/_/g, " ");
+      cardTitle.textContent = pokeName(data, poke.pokemon_name);
+      if (hasTarget) {
+        const vsSpan = document.createElement("span");
+        vsSpan.style.cssText = "font-size:0.78rem;color:var(--text-2);font-weight:400;margin-left:0.4rem;";
+        vsSpan.textContent = `vs. ${targetInput.value.trim()}`;
+        cardTitle.appendChild(vsSpan);
+      }
       cardHeader.appendChild(cardSprite);
       cardHeader.appendChild(cardTitle);
       card.appendChild(cardHeader);
@@ -154,27 +241,37 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
         if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
       });
 
-      const rows: [string, () => string | HTMLElement][] = [
+      function effLabel(eff: number): HTMLElement | null {
+        if (eff === 1) return null;
+        const s = document.createElement("span");
+        s.style.cssText = `color:${eff > 1 ? "var(--green)" : "var(--red)"};font-weight:700;font-size:0.78rem;margin-left:4px;`;
+        s.textContent = `${eff.toFixed(2)}×`;
+        return s;
+      }
+
+      const rows: [string, () => string | HTMLElement, boolean][] = [
         ["Fast Move", () => {
           const w = document.createElement("span");
           w.style.cssText = "display:flex;align-items:center;gap:6px;";
           w.appendChild(typeBadge(fast.type)); w.append(fast.name);
+          const lbl = effLabel(fEff); if (lbl) w.appendChild(lbl);
           return w;
-        }],
+        }, false],
         ["Charged Move", () => {
           const w = document.createElement("span");
           w.style.cssText = "display:flex;align-items:center;gap:6px;";
           w.appendChild(typeBadge(charged.type)); w.append(charged.name);
+          const lbl = effLabel(cEff); if (lbl) w.appendChild(lbl);
           return w;
-        }],
-        ["Cycle DPS", () => trueDPS(fast, charged, atkStat, defStat).toFixed(2)],
-        ["Fast DPS",  () => fastDPS(fast, atkStat, defStat, 1).toFixed(2)],
-        ["Fast EPS",  () => fastEPS(fast).toFixed(2)],
+        }, false],
+        ["Cycle DPS", () => trueDPS(fast, charged, atkStat, defStat, fEff, cEff).toFixed(2), true],
+        ["Fast DPS",  () => fastDPS(fast, atkStat, defStat, fEff).toFixed(2), false],
+        ["Fast EPS",  () => fastEPS(fast).toFixed(2), false],
       ];
 
-      for (const [lbl, getVal] of rows) {
+      for (const [lbl, getVal, highlight] of rows) {
         const row = document.createElement("div");
-        row.className = `result-row${lbl === "Cycle DPS" ? " highlight" : ""}`;
+        row.className = `result-row${highlight ? " highlight" : ""}`;
         const l = document.createElement("span"); l.className = "label"; l.textContent = lbl;
         const v = document.createElement("span"); v.className = "value";
         const val = getVal();
@@ -188,6 +285,7 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
     });
 
     wrap.appendChild(form);
+    wrap.appendChild(targetBlock);
     wrap.appendChild(resultArea);
     return wrap;
   };
@@ -221,27 +319,63 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     targetHeader.textContent = "Target (optional)";
     targetBlock.appendChild(targetHeader);
 
-    // Raid boss dropdown
+    // Raid boss dropdown (primary), all Pokémon as fallback
     const raidSel = document.createElement("select");
     raidSel.className = "move-select";
     const noTarget = document.createElement("option");
-    noTarget.value = ""; noTarget.textContent = "No target";
+    noTarget.value = ""; noTarget.textContent = "Select target...";
     raidSel.appendChild(noTarget);
 
+    const raidBossNames = new Set<string>();
+
     if (data.raids) {
+      const raidGroup = document.createElement("optgroup");
+      raidGroup.label = "Current Raids";
       for (const [tier, bosses] of Object.entries(data.raids).sort(([a], [b]) => Number(b) - Number(a))) {
         const tierLabel = tier === "6" ? "Mega" : `T${tier}`;
         for (const boss of bosses) {
           if (boss.types?.length) {
+            raidBossNames.add(boss.pokemon_name);
             const o = document.createElement("option");
             o.value = boss.types.join(",");
-            o.textContent = `[${tierLabel}] ${boss.pokemon_name.replace(/_/g, " ")} (${boss.types.join("/")})`;
-            raidSel.appendChild(o);
+            o.textContent = `[${tierLabel}] ${pokeName(data, boss.pokemon_name)} (${boss.types.join("/")})`;
+            raidGroup.appendChild(o);
           }
         }
       }
+      if (raidGroup.children.length) raidSel.appendChild(raidGroup);
+    }
+
+    if (data.pokemon && data.pokemonTypes) {
+      const allGroup = document.createElement("optgroup");
+      allGroup.label = "All Pokémon";
+      for (const p of data.pokemon) {
+        if (raidBossNames.has(p.pokemon_name)) continue;
+        const types = data.pokemonTypes[p.pokemon_name];
+        if (types?.length) {
+          const o = document.createElement("option");
+          o.value = types.join(",");
+          o.textContent = `${pokeName(data, p.pokemon_name)} (${types.join("/")})`;
+          allGroup.appendChild(o);
+        }
+      }
+      if (allGroup.children.length) raidSel.appendChild(allGroup);
     }
     targetBlock.appendChild(raidSel);
+
+    // Pokémon name input (fallback)
+    const orPokeSpan = document.createElement("span");
+    orPokeSpan.className = "level-label"; orPokeSpan.textContent = "or Pokémon:";
+    targetBlock.appendChild(orPokeSpan);
+
+    const dl = getPokeDatalist(data);
+    const targetPokeInput = document.createElement("input");
+    targetPokeInput.type = "text";
+    targetPokeInput.className = "search-input";
+    targetPokeInput.placeholder = "Pokémon name (e.g. Machamp)";
+    targetPokeInput.setAttribute("list", dl.id);
+    targetPokeInput.setAttribute("autocomplete", "off");
+    targetBlock.appendChild(targetPokeInput);
 
     // Manual type dropdowns
     const allTypes = Object.keys(TYPE_COLORS).sort();
@@ -267,7 +401,14 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     targetBlock.appendChild(activeTypesRow);
 
     function updateTarget() {
-      if (raidSel.value) {
+      const pokeName = targetPokeInput.value.trim();
+      const pokeTypes = pokeName ? typesForTarget(data, pokeName) : [];
+      if (pokeTypes.length) {
+        targetTypes = pokeTypes;
+        raidSel.value = "";
+        type1Sel.value = targetTypes[0] ?? "";
+        type2Sel.value = targetTypes[1] ?? "";
+      } else if (raidSel.value) {
         targetTypes = raidSel.value.split(",").filter(Boolean);
         type1Sel.value = targetTypes[0] ?? "";
         type2Sel.value = targetTypes[1] ?? "";
@@ -283,9 +424,16 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       renderTable();
     }
 
-    raidSel.addEventListener("change", () => { type1Sel.value = ""; type2Sel.value = ""; updateTarget(); });
-    type1Sel.addEventListener("change", () => { raidSel.value = ""; updateTarget(); });
-    type2Sel.addEventListener("change", () => { raidSel.value = ""; updateTarget(); });
+    targetPokeInput.addEventListener("change", () => { raidSel.value = ""; type1Sel.value = ""; type2Sel.value = ""; updateTarget(); });
+    targetPokeInput.addEventListener("input", () => {
+      const pokeName = targetPokeInput.value.trim();
+      if (!pokeName) { updateTarget(); return; }
+      const types = typesForTarget(data, pokeName);
+      if (types.length) updateTarget();
+    });
+    raidSel.addEventListener("change", () => { targetPokeInput.value = ""; type1Sel.value = ""; type2Sel.value = ""; updateTarget(); });
+    type1Sel.addEventListener("change", () => { targetPokeInput.value = ""; raidSel.value = ""; updateTarget(); });
+    type2Sel.addEventListener("change", () => { targetPokeInput.value = ""; raidSel.value = ""; updateTarget(); });
 
     wrap.appendChild(targetBlock);
 
@@ -390,7 +538,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
         pokeSpImg.className = "poke-sprite";
         pokeSpImg.loading = "lazy"; pokeSpImg.decoding = "async";
         pokeTd.appendChild(pokeSpImg);
-        pokeTd.append(` ${a.poke.pokemon_name.replace(/_/g, " ")}`);
+        pokeTd.append(` ${pokeName(data, a.poke.pokemon_name)}`);
 
         const fastTd = document.createElement("td");
         fastTd.style.whiteSpace = "nowrap";

@@ -1,22 +1,23 @@
-{{define "title"}}Login{{end}}
+{{define "title"}}{{T "login.title"}}{{end}}
 
 {{define "content"}}
 <div class="auth-wrap">
   <div class="auth-card">
-    <h1 class="auth-title">Welcome back</h1>
-    <p class="auth-sub">Log in to track your shiny collection.</p>
+    <h1 class="auth-title">{{T "login.title"}}</h1>
+    <p class="auth-sub">{{T "login.subtitle"}}</p>
 
     {{if .Data.Error}}
     <div class="auth-error">{{.Data.Error}}</div>
     {{end}}
 
     <form method="POST" action="/login" class="auth-form">
-      <label class="auth-label" for="username">Username</label>
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <label class="auth-label" for="username">{{T "login.username"}}</label>
       <input class="auth-input" type="text" id="username" name="username"
              autocomplete="username" required
              value="{{if .Data.Form}}{{index .Data.Form "username"}}{{end}}">
 
-      <label class="auth-label" for="password">Password</label>
+      <label class="auth-label" for="password">{{T "login.password"}}</label>
       <input class="auth-input" type="password" id="password" name="password"
              autocomplete="current-password" required>
 
@@ -24,10 +25,10 @@
       <input type="hidden" name="next" value="{{.}}">
       {{end}}{{end}}
 
-      <button type="submit" class="btn-primary auth-btn">Login</button>
+      <button type="submit" class="btn-primary auth-btn">{{T "login.submit"}}</button>
     </form>
 
-    <p class="auth-alt">Don't have an account? <a href="/register">Sign up</a></p>
+    <p class="auth-alt">{{T "login.no_account"}} <a href="/register">{{T "login.signup_link"}}</a></p>
   </div>
 </div>
 {{end}}

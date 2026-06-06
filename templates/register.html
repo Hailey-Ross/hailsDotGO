@@ -1,10 +1,10 @@
-{{define "title"}}Create Account{{end}}
+{{define "title"}}{{T "register.title"}}{{end}}
 
 {{define "content"}}
 <div class="auth-wrap">
   <div class="auth-card">
-    <h1 class="auth-title">Create account</h1>
-    <p class="auth-sub">Track your shiny Pokémon GO collection.</p>
+    <h1 class="auth-title">{{T "register.title"}}</h1>
+    <p class="auth-sub">{{T "register.subtitle"}}</p>
 
     {{if .Data.Error}}
     <div class="auth-error">{{.Data.Error}}</div>
@@ -12,32 +12,33 @@
 
     {{if or (not .Data.RegistrationClosed) .Data.InviteToken}}
     <form method="POST" action="/register" class="auth-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
       {{if .Data.InviteToken}}
       <input type="hidden" name="invite" value="{{.Data.InviteToken}}">
       {{end}}
 
-      <label class="auth-label" for="username">Username</label>
+      <label class="auth-label" for="username">{{T "register.username"}}</label>
       <input class="auth-input" type="text" id="username" name="username"
              autocomplete="username" required minlength="2" maxlength="32"
              pattern="[A-Za-z0-9_\-]+"
              title="Letters, numbers, _ and - only"
              value="{{if .Data.Form}}{{index .Data.Form "username"}}{{end}}">
 
-      <label class="auth-label" for="email">Email</label>
+      <label class="auth-label" for="email">{{T "register.email"}}</label>
       <input class="auth-input" type="email" id="email" name="email"
              autocomplete="email" required
              value="{{if .Data.Form}}{{index .Data.Form "email"}}{{end}}">
 
-      <label class="auth-label" for="password">Password</label>
+      <label class="auth-label" for="password">{{T "register.password"}}</label>
       <input class="auth-input" type="password" id="password" name="password"
              autocomplete="new-password" required minlength="8">
-      <span class="auth-hint">Minimum 8 characters</span>
+      <span class="auth-hint">{{T "register.password_hint"}}</span>
 
-      <button type="submit" class="btn-primary auth-btn">Create Account</button>
+      <button type="submit" class="btn-primary auth-btn">{{T "register.submit"}}</button>
     </form>
     {{end}}
 
-    <p class="auth-alt">Already have an account? <a href="/login">Login</a></p>
+    <p class="auth-alt">{{T "register.have_account"}} <a href="/login">{{T "register.login_link"}}</a></p>
   </div>
 </div>
 {{end}}
