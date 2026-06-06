@@ -165,6 +165,7 @@ $trackedFiles = @(
     @{ src = "templates\events.html";      dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\credits.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\login.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\maintenance.html"; dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\register.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\shinies.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\admin.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },

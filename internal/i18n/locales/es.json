@@ -120,7 +120,7 @@
   "settings.tab.location": "Ubicación y Privacidad",
 
   "settings.profile.section": "Perfil de Entrenador",
-  "settings.profile.hint":    "Visible en el Directorio de Entrenadores cuando tu perfil es público.",
+  "settings.profile.hint":    "Cuando está activado, tu perfil completo de entrenador se muestra en el Directorio.",
 
   "settings.trainer_name.label": "Nombre de Entrenador en el juego",
   "settings.trainer_name.hint":  "Tu nombre de entrenador de Pokémon GO (hasta 16 caracteres).",
@@ -154,8 +154,8 @@
   "settings.location_vis.full":   "Estado y País",
 
   "settings.privacy.section":  "Privacidad",
-  "settings.directory.label":  "Mostrarme en el Directorio de Entrenadores",
-  "settings.directory.hint":   "Tu nombre y código de entrenador serán visibles para todos. La ubicación se controla por separado.",
+  "settings.directory.label":  "Mostrar mi perfil completo en el Directorio de Entrenadores",
+  "settings.directory.hint":   "Tu nombre, avatar y código de entrenador serán visibles. Sin esto, solo se muestra tu nombre de usuario.",
   "settings.save":             "Guardar Ajustes",
 
   "admin.title":        "Admin",
@@ -272,7 +272,10 @@
   "admin.js.all_tags_assigned":"Todas las etiquetas asignadas.",
   "admin.js.btn_add_tag":     "Añadir Etiqueta",
   "admin.js.delete_tag":      "Eliminar etiqueta",
+  "admin.js.edit_tag":        "Editar etiqueta",
   "admin.js.tag_created":     "Etiqueta creada.",
+  "admin.js.tag_updated":     "Etiqueta actualizada.",
+  "admin.js.btn_cancel":      "Cancelar",
   "admin.js.no_requests":     "Sin solicitudes.",
   "admin.js.no_items":        "Sin artículos.",
   "admin.js.submitted":       "Enviado",
@@ -432,12 +435,12 @@
   "trainers.join_signup": "Regístrate",
   "trainers.join_login":  "inicia sesión",
   "trainers.join_then":   "o",
-  "trainers.join_then2":  " y añade tu código de entrenador en Ajustes.",
+  "trainers.join_then2":  " para aparecer en el directorio.",
   "trainers.search":      "Buscar entrenadores…",
   "trainers.no_results":  "Ningún entrenador coincide con tu búsqueda.",
   "trainers.empty":       "No hay entrenadores en el directorio todavía.",
-  "trainers.empty_first": "Ve a Ajustes, añade tu código de entrenador y haz público tu perfil para ser el primero.",
-  "trainers.empty_signup":"Regístrate y añade tu código de entrenador para ser el primero.",
+  "trainers.asterisk_title": "Perfil no configurado",
+  "trainers.asterisk_note":  "* = detalles del perfil aún no configurados",
   "trainers.loading":     "Cargando…",
 
   "error.required_fields":     "El usuario y la contraseña son obligatorios.",

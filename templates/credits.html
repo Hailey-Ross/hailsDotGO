@@ -90,6 +90,91 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (36)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Trainer Directory: modal layout restructured</h2>
+        <ul class="cl-list">
+          <li>Profile modal now has a distinct header zone (surface background) containing sprites, name, and a single combined pronouns/location line</li>
+          <li>Details section (rank, tags, trainer code, join date, favourite Pokémon) lives in a separate body zone below</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (35)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Moderator rank: PKMN Researcher</h2>
+        <ul class="cl-list">
+          <li>Moderators now display a distinct "PKMN Researcher" rank badge (purple) instead of sharing "PKMN PROF" with admins</li>
+          <li>PKMN PROF is now exclusive to admins and the superadmin</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (34)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Trainer Directory: sort order by online/role/rank</h2>
+        <ul class="cl-list">
+          <li>Directory now sorts on every load: online staff by rank (SuperAdmin, Admin, Moderator, Tester), then online players by XP rank, then offline staff by rank, then offline players by XP rank</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (33)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Tester role: PKMN Scientist rank</h2>
+        <ul class="cl-list">
+          <li>Users with the Tester role now display a "PKMN Scientist" rank badge in the Trainer Directory and Raid Finder</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (32)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Trainer Directory: all users now visible</h2>
+        <ul class="cl-list">
+          <li>All registered users now appear in the Trainer Directory by default, not just those who opted in with a trainer code</li>
+          <li>Users with no trainer name and no trainer code show their username with an asterisk (*) to indicate their profile is not yet set up</li>
+          <li>The "Show me in the Trainer Directory" setting has been renamed to "Show my full profile" and now controls whether trainer name, avatar, pronouns, trainer code, location, and favourite Pokemon are visible; staff badges, rank, and tags always show</li>
+          <li>A footnote below the search bar explains the asterisk convention</li>
+          <li>Search now matches on username in addition to trainer name</li>
+          <li>Directory results ordered: full profiles first, then minimal entries</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (31)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Admin: per-page and per-section maintenance mode</h2>
+        <ul class="cl-list">
+          <li>Admins and superadmins can now put individual pages into maintenance mode from a new "Pages" tab in the Admin panel</li>
+          <li>Disabled pages return HTTP 503 and show a styled maintenance screen with a "Back to Home" button; the nav link for that page is hidden while it is disabled</li>
+          <li>The Trainers page supports section-level control: Trainer Directory and Raid Finder can each be disabled independently while the other section remains live</li>
+          <li>All eight controllable pages covered: Raids, DPS Calculator, PvP IV Ranker, Events, Trainers (with sub-sections), and Shiny Collection</li>
+          <li>All settings default to enabled and are stored in site_settings; safe-fail-open if the database is unreachable</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (30)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Admin panel: tag editing and assignment fixes</h2>
+        <ul class="cl-list">
+          <li>Tags can now be renamed and recolored inline from the Tags tab (superadmin only)</li>
+          <li>Fixed "Manage Tags" button not appearing: it was incorrectly restricted to admin-role users as targets; it now appears for any user (except the superadmin); superadmins can manage their own tags</li>
+          <li>Tag assignment and removal now available to moderators and above (previously admin+ only)</li>
+          <li>Removed backend restriction that prevented tags from being assigned to non-admin-role users</li>
+          <li>Fixed a bug where opening "Manage Tags" showed "All tags assigned" if the Tags tab had not been visited yet in the same session</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (29)</div>
       <div class="cl-body">
         <h2 class="cl-title">Superadmin: force data refresh button in Admin panel</h2>

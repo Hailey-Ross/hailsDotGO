@@ -120,7 +120,7 @@
   "settings.tab.location": "Location & Privacy",
 
   "settings.profile.section": "Trainer Profile",
-  "settings.profile.hint":    "Shown on the Trainer Directory when your profile is public.",
+  "settings.profile.hint":    "When enabled, your full trainer profile is shown in the Trainer Directory.",
 
   "settings.trainer_name.label": "In-game Trainer Name",
   "settings.trainer_name.hint":  "Your Pokémon GO trainer name (up to 16 characters).",
@@ -154,8 +154,8 @@
   "settings.location_vis.full":   "State & Country",
 
   "settings.privacy.section":  "Privacy",
-  "settings.directory.label":  "Show me in the Trainer Directory",
-  "settings.directory.hint":   "Your trainer name and trainer code will be visible to all visitors. Location is controlled separately above.",
+  "settings.directory.label":  "Show my full profile in the Trainer Directory",
+  "settings.directory.hint":   "Your trainer name, avatar, and trainer code will be visible to others. Without this, only your username appears.",
   "settings.save":             "Save Settings",
 
   "admin.title":        "Admin",
@@ -272,7 +272,10 @@
   "admin.js.all_tags_assigned":"All tags assigned.",
   "admin.js.btn_add_tag":     "Add Tag",
   "admin.js.delete_tag":      "Delete tag",
+  "admin.js.edit_tag":        "Edit tag",
   "admin.js.tag_created":     "Tag created.",
+  "admin.js.tag_updated":     "Tag updated.",
+  "admin.js.btn_cancel":      "Cancel",
   "admin.js.no_requests":     "No requests.",
   "admin.js.no_items":        "No items.",
   "admin.js.submitted":       "Submitted",
@@ -432,12 +435,12 @@
   "trainers.join_signup": "Sign up",
   "trainers.join_login":  "log in",
   "trainers.join_then":   "or",
-  "trainers.join_then2":  ", then add your trainer code in Settings.",
+  "trainers.join_then2":  " to appear in the directory.",
   "trainers.search":      "Search trainers…",
   "trainers.no_results":  "No trainers match your search.",
   "trainers.empty":       "No trainers in the directory yet.",
-  "trainers.empty_first": "Go to Settings, add your trainer code, and make your profile public to be the first!",
-  "trainers.empty_signup":"Sign up and add your trainer code to be the first!",
+  "trainers.asterisk_title": "Profile not set up",
+  "trainers.asterisk_note":  "* = profile details not yet set up",
   "trainers.loading":     "Loading…",
 
   "error.required_fields":     "Username and password are required.",
@@ -459,5 +462,25 @@
   "error.trainer_code_taken":  "That trainer code is already registered to another account.",
   "error.invite_multiuse_role":"Multi-use invites may only grant the User role.",
   "error.invite_staff_single": "Staff invites must be single-use.",
-  "error.invite_generate":     "Error generating invite. Please try again."
+  "error.invite_generate":     "Error generating invite. Please try again.",
+
+  "maintenance.title":            "Under Maintenance",
+  "maintenance.message":          "This page is temporarily unavailable. Check back soon.",
+  "maintenance.section_message":  "This section is temporarily unavailable.",
+  "maintenance.back_home":        "Back to Home",
+
+  "admin.tab.pages":              "Pages",
+  "admin.pages.title":            "Page Maintenance",
+  "admin.pages.desc":             "Enable or disable individual pages and sections. Disabled pages show a maintenance message to visitors.",
+  "admin.pages.save":             "Save Page Settings",
+  "admin.pages.raids":            "Raids (/raids)",
+  "admin.pages.dps":              "DPS Calculator (/dps)",
+  "admin.pages.pvp":              "PvP IV Ranker (/pvp)",
+  "admin.pages.events":           "Events (/events)",
+  "admin.pages.trainers":         "Trainers Page (/trainers)",
+  "admin.pages.trainer_directory":"Trainer Directory (section)",
+  "admin.pages.raid_finder":      "Raid Finder (section)",
+  "admin.pages.shinies":          "Shiny Collection (/shinies)",
+  "admin.pages.enabled":          "Enabled",
+  "admin.pages.disabled":         "Disabled (maintenance)"
 }

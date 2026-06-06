@@ -8,10 +8,12 @@ This project includes:
 - PvP IV ranker across all three leagues
 - Full shiny availability tracker with obtain-method detail and normal vs shiny sprite comparison
 - Personal shiny collection: log every shiny you've caught with method tracking and stats
-- Trainer Directory: opt in to share your trainer code publicly, searchable by trainer name
+- Trainer Directory: all registered users appear; set `profile_public` to expose your trainer code and full profile details, searchable by trainer name; sorted by online status, staff rank, super-donator status, raid XP, then alphabetically
 - Raid Finder: post and join remote raids with a queue system, accept/decline flow, lobby view with co-raider list, XP-based ranking, weighted host ratings, and post-raid rating system
 - Current weather boost shown in the Raid Finder based on your saved city
 - User accounts with registration (open or invite-only), login, and an admin panel
+- Per-page maintenance toggle: admins can disable individual pages (Raids, DPS, PvP, Events, Trainers, Trainer Directory section, Raid Finder section, Shinies) from the admin panel; disabled pages show a maintenance screen instead
+- Tag management: superadmins create/edit/delete tags with custom names and colors; mods and above can assign tags to any user
 - Supporter store with optional donation perks: Supporter Pack, raid queue priority, and custom profile tag (PayPal, sandbox/live toggle)
 - Multi-language interface: English, Spanish, French, German (cookie-persisted, synced to account)
 - Credits and changelog tab
@@ -58,7 +60,7 @@ Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/Scra
 ### 3. Database
 All persistent data is stored in MySQL: user accounts, sessions, shiny collections, trainer profiles, raid posts and joins, tags, store purchases, and site settings.
 
-`schema.sql` contains the base `CREATE TABLE` statements followed by all migration blocks as SQL comments. For a **fresh install**, apply the base tables and then run every migration block in order (uncomment and execute each block):
+`schema.sql` contains the base `CREATE TABLE` statements followed by all migration blocks as SQL comments. For a **fresh install**, apply the base tables and then run every migration block in order (uncomment and execute each block). The schema automatically seeds all `page_*_enabled` site settings to `1` (all pages on), so no manual SQL is needed to enable pages after a fresh install.
 
 ```bash
 mysql -u youruser -p < schema.sql
@@ -126,7 +128,21 @@ TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
 | `/changelog` | Redirects to `/credits?tab=changelog` |
 | `/login` | Sign in |
 | `/register` | Create an account (open or invite-only) |
-| `/admin` | Admin panel: registration toggle, invite generation, user management (mod+ required) |
+| `/admin` | Admin panel: registration toggle, invite generation, page maintenance toggles, tag management, user management (mod+ required) |
+
+---
+
+### User Roles
+
+| Role | Permissions |
+|---|---|
+| `user` | Default for all registered accounts |
+| `tester` | Raid rank label "PKMN Scientist"; sorted above regular users in Trainer Directory |
+| `moderator` | Admin panel access: strikes, raid bans, directory hide, tag assignment |
+| `admin` | All mod actions + invite generation, user rename/disable, password reset, role changes, page maintenance toggles |
+| `superadmin` | Set via `SUPERADMIN_USER` env var; all admin capabilities + tag create/edit/delete; cannot be targeted by admin actions |
+
+Staff roles are protected: mods, admins, and superadmins cannot be raid-banned or hidden from the directory.
 
 ---
 

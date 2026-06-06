@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -12,6 +13,8 @@ type tagEntry struct {
 }
 
 type trainerEntry struct {
+	Username             string
+	ProfilePublic        bool
 	TrainerName          string
 	TrainerCode          string
 	TrainerCodeFormatted string
@@ -32,6 +35,21 @@ type trainerEntry struct {
 	Online          bool
 	SuperDonator    bool
 	Tags            []tagEntry
+}
+
+// staffSortRank returns a staff sort priority (lower = higher rank); 99 = not staff.
+func staffSortRank(badge string) int {
+	switch badge {
+	case "superadmin":
+		return 0
+	case "admin":
+		return 1
+	case "moderator":
+		return 2
+	case "tester":
+		return 3
+	}
+	return 99
 }
 
 func pokemonSpriteURL(id int, form string) string {
@@ -62,13 +80,13 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 
 	superDonators := h.superDonatorSet()
 
-	// Load tags for all public trainers in one query
+	// Load tags for all visible trainers in one query
 	tagMap := map[int][]tagEntry{}
 	if tagRows, err := h.db.Query(`
 		SELECT ut.user_id, t.name, t.color
 		FROM user_tags ut JOIN tags t ON t.id = ut.tag_id
 		JOIN users u ON u.id = ut.user_id
-		WHERE u.profile_public = 1 AND u.trainer_code != '' AND u.directory_hidden = 0
+		WHERE u.directory_hidden = 0 AND u.disabled = 0
 		ORDER BY ut.user_id, t.name`); err == nil {
 		defer tagRows.Close()
 		for tagRows.Next() {
@@ -81,14 +99,14 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT id, COALESCE(trainer_name,''), trainer_code, COALESCE(avatar,''),
+		SELECT id, username, COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
 		       COALESCE(pronouns,''), COALESCE(region,''), COALESCE(country,''), COALESCE(location_display,'none'),
-		       role, username, COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,''), COALESCE(fav_sprite_url,''),
-		       COALESCE(raid_xp,0), created_at,
+		       role, COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,''), COALESCE(fav_sprite_url,''),
+		       COALESCE(raid_xp,0), created_at, COALESCE(profile_public,0),
 		       CASE WHEN last_seen_at IS NOT NULL AND last_seen_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END
 		FROM users
-		WHERE profile_public = 1 AND trainer_code != '' AND directory_hidden = 0
-		ORDER BY trainer_name ASC, username ASC`)
+		WHERE directory_hidden = 0 AND disabled = 0
+		ORDER BY username ASC`)
 	if err != nil {
 		h.render(w, r, "trainers", []trainerEntry{})
 		return
@@ -99,18 +117,19 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var t trainerEntry
 		var userID int
-		var role, username string
-		var onlineInt int
-		if err := rows.Scan(&userID, &t.TrainerName, &t.TrainerCode, &t.Avatar, &t.Pronouns, &t.Region, &t.Country, &t.LocationDisplay, &role, &username, &t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt, &onlineInt); err != nil {
+		var role string
+		var profilePublicInt, onlineInt int
+		if err := rows.Scan(&userID, &t.Username, &t.TrainerName, &t.TrainerCode, &t.Avatar, &t.Pronouns, &t.Region, &t.Country, &t.LocationDisplay, &role, &t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt, &profilePublicInt, &onlineInt); err != nil {
 			continue
 		}
+		t.ProfilePublic = profilePublicInt > 0
 		if len(t.TrainerCode) == 12 {
 			t.TrainerCodeFormatted = t.TrainerCode[:4] + " " + t.TrainerCode[4:8] + " " + t.TrainerCode[8:]
 		} else {
 			t.TrainerCodeFormatted = t.TrainerCode
 		}
 		t.AvatarURL = avatarURLBySlug[t.Avatar]
-		t.StaffBadge = staffBadge(username, role)
+		t.StaffBadge = staffBadge(t.Username, role)
 		t.RaidRank = raidRankLabel(t.RaidXP, role)
 		t.RaidRankClass = raidRankClass(t.RaidXP, role)
 		t.Online = onlineInt > 0
@@ -131,5 +150,36 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 	if trainers == nil {
 		trainers = []trainerEntry{}
 	}
+
+	sort.SliceStable(trainers, func(i, j int) bool {
+		a, b := trainers[i], trainers[j]
+		if a.Online != b.Online {
+			return a.Online
+		}
+		aRank, bRank := staffSortRank(a.StaffBadge), staffSortRank(b.StaffBadge)
+		aIsStaff, bIsStaff := aRank < 99, bRank < 99
+		if aIsStaff != bIsStaff {
+			return aIsStaff
+		}
+		if aIsStaff {
+			return aRank < bRank
+		}
+		if a.SuperDonator != b.SuperDonator {
+			return a.SuperDonator
+		}
+		if a.RaidXP != b.RaidXP {
+			return a.RaidXP > b.RaidXP
+		}
+		nameA := a.TrainerName
+		if nameA == "" {
+			nameA = a.Username
+		}
+		nameB := b.TrainerName
+		if nameB == "" {
+			nameB = b.Username
+		}
+		return nameA < nameB
+	})
+
 	h.render(w, r, "trainers", trainers)
 }
