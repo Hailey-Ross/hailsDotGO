@@ -2,6 +2,8 @@ import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
+const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
+
 let cryVolume = 0.3;
 
 interface UserShiny {
@@ -47,7 +49,7 @@ async function fetchUserShinies(): Promise<UserShiny[]> {
 async function apiAdd(pokemonId: string, form: string, method: string): Promise<boolean> {
   const res = await fetch("/api/shinies", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
     body: JSON.stringify({ pokemon_id: pokemonId, form, method }),
   });
   return res.ok;
@@ -56,13 +58,16 @@ async function apiAdd(pokemonId: string, form: string, method: string): Promise<
 async function apiUpdate(id: number, form: string, method: string): Promise<Response> {
   return fetch(`/api/shinies/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
     body: JSON.stringify({ form, method }),
   });
 }
 
 async function apiRemove(id: number): Promise<boolean> {
-  const res = await fetch(`/api/shinies/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/shinies/${id}`, {
+    method: "DELETE",
+    headers: { "X-CSRF-Token": CSRF_TOKEN },
+  });
   return res.ok;
 }
 
