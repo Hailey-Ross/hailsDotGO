@@ -25,6 +25,17 @@ func (h *Handlers) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (h *Handlers) RequireAuthAPI(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.currentUser(r) == nil {
+			w.Header().Set("Content-Type", "application/json")
+			http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func (h *Handlers) RequireMod(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := h.currentUser(r)

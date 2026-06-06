@@ -90,6 +90,19 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (44)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Site frontend excluded from public API rate limit via session-authenticated endpoint</h2>
+        <ul class="cl-list">
+          <li>Added /api/app/data: same game data as /api/data but requires a valid session and carries no rate limit</li>
+          <li>The TypeScript game data loader now tries /api/app/data first; falls back to the public /api/data endpoint for unauthenticated visitors</li>
+          <li>Logged-in users will never hit the 5 req/30 min public limit regardless of how many pages they visit</li>
+          <li>External scrapers and unauthenticated callers still hit the restricted public endpoint</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (43)</div>
       <div class="cl-body">
         <h2 class="cl-title">Public API rate limit reduced to 5 requests per 30 minutes; raid boss refresh schedule corrected</h2>

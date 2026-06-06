@@ -148,6 +148,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(httprate.LimitByIP(5, 30*time.Minute)).Get("/api/pokemon", h.APIPokemon)
 		r.With(httprate.LimitByIP(5, 30*time.Minute)).Get("/api/moves", h.APIMoves)
 
+		// Session-auth game data (site frontend — no rate limit for logged-in users)
+		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
+
 		// Refresh — requires API access; globally rate-limited
 		r.With(httprate.LimitAll(2, 10*time.Minute)).Post("/api/refresh", h.RequireAPIAccess(h.APIRefresh))
 

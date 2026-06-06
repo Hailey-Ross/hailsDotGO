@@ -7,7 +7,11 @@ let cached: GameData | null = null;
 export async function loadGameData(): Promise<GameData> {
   if (cached) return cached;
 
-  const res = await fetch("/api/data");
+  // Try session endpoint (no rate limit); fall back to public if not logged in.
+  let res = await fetch("/api/app/data");
+  if (res.status === 401) {
+    res = await fetch("/api/data");
+  }
   if (!res.ok) throw new Error(`Failed to load game data: ${res.status}`);
 
   cached = (await res.json()) as GameData;
