@@ -32,6 +32,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 	h := handlers.New(store, db)
 
+	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
+	// Counts aggregate bytes across all four public API endpoints for the same IP.
+	apiBW := newBWLimiter(15*1024*1024, 5*time.Minute, 30*time.Minute)
+
 	// CSRF-exempt: PayPal sends server-to-server POSTs without browser CSRF tokens.
 	r.Post("/api/store/webhook", h.StoreWebhook)
 
@@ -143,10 +147,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))
 
 		// Public game data API
-		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
-		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
-		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
-		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
 
 		// Session-auth game data (site frontend — no rate limit for logged-in users)
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
