@@ -143,10 +143,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))
 
 		// Public game data API
-		r.With(httprate.LimitByIP(5, 30*time.Minute)).Get("/api/data", h.APIData)
-		r.With(httprate.LimitByIP(5, 30*time.Minute)).Get("/api/raids", h.APIRaids)
-		r.With(httprate.LimitByIP(5, 30*time.Minute)).Get("/api/pokemon", h.APIPokemon)
-		r.With(httprate.LimitByIP(5, 30*time.Minute)).Get("/api/moves", h.APIMoves)
+		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
+		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
+		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
+		r.With(httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
 
 		// Session-auth game data (site frontend — no rate limit for logged-in users)
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
