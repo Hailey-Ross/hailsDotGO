@@ -309,3 +309,22 @@ CREATE TABLE IF NOT EXISTS invites (
 -- No schema change required for Trainer Directory "show all users" update.
 -- profile_public now means "show full profile" instead of "appear in directory".
 -- All non-disabled, non-hidden users appear; profile_public gates rich details.
+
+-- Migration: custom tag weekly cooldown + color rate limiting (2026-06-06).
+--
+--   ALTER TABLE users
+--     ADD COLUMN tag_requested_at DATETIME NULL AFTER last_seen_at;
+--
+--   CREATE TABLE IF NOT EXISTS tag_color_changes (
+--     id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id    INT UNSIGNED NOT NULL,
+--     changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     KEY idx_tcc_user_time (user_id, changed_at),
+--     CONSTRAINT fk_tcc_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration: account suspension reason (2026-06-06).
+--
+--   ALTER TABLE users
+--     ADD COLUMN disabled_reason VARCHAR(255) NOT NULL DEFAULT '' AFTER disabled;

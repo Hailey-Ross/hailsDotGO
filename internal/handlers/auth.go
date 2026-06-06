@@ -54,8 +54,10 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 
 	var userID uint
 	var hash string
-	err := h.db.QueryRow(`SELECT id, password FROM users WHERE username = ?`, username).
-		Scan(&userID, &hash)
+	var disabled bool
+	var disabledReason string
+	err := h.db.QueryRow(`SELECT id, password, disabled, COALESCE(disabled_reason,'') FROM users WHERE username = ?`, username).
+		Scan(&userID, &hash, &disabled, &disabledReason)
 	if err == sql.ErrNoRows {
 		fail(h.t(r, "error.invalid_credentials"))
 		return
@@ -67,6 +69,15 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		fail(h.t(r, "error.invalid_credentials"))
+		return
+	}
+
+	if disabled {
+		msg := h.t(r, "error.account_disabled")
+		if disabledReason != "" {
+			msg += " " + h.t(r, "error.reason_label") + " " + disabledReason
+		}
+		fail(msg)
 		return
 	}
 

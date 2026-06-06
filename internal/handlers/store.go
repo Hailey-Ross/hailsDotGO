@@ -29,10 +29,27 @@ type userPurchase struct {
 }
 
 type tagRequestStatus struct {
-	Status       string
-	RejectReason string
-	Name         string
-	Color        string
+	Status        string
+	RejectReason  string
+	Name          string
+	Color         string
+	NextRequestAt *time.Time
+}
+
+func (h *Handlers) computeTagCooldown(userID uint) *time.Time {
+	var endStr string
+	err := h.db.QueryRow(`
+		SELECT DATE_FORMAT(DATE_ADD(tag_requested_at, INTERVAL 7 DAY), '%Y-%m-%d %H:%i:%s')
+		FROM users
+		WHERE id = ? AND tag_requested_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`, userID).Scan(&endStr)
+	if err != nil {
+		return nil
+	}
+	ts, err := time.Parse("2006-01-02 15:04:05", endStr)
+	if err != nil {
+		return nil
+	}
+	return &ts
 }
 
 type storePageData struct {
@@ -85,12 +102,7 @@ func (h *Handlers) StorePage(w http.ResponseWriter, r *http.Request) {
 		data.HasSupporter = h.hasActivePurchase(u.ID, "supporter")
 		data.HasPriority = h.hasActivePurchase(u.ID, "queue_priority")
 
-		var ctr tagRequestStatus
-		if err := h.db.QueryRow(
-			`SELECT status, COALESCE(reject_reason,''), COALESCE(name,''), COALESCE(color,'#ec4899') FROM custom_tag_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, u.ID,
-		).Scan(&ctr.Status, &ctr.RejectReason, &ctr.Name, &ctr.Color); err == nil {
-			data.TagRequest = &ctr
-		}
+		data.TagRequest = h.queryTagRequest(u.ID)
 
 		switch r.URL.Query().Get("status") {
 		case "success":
@@ -140,6 +152,59 @@ func (h *Handlers) StorePurchaseCancel(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "subscription not found or already cancelled", http.StatusNotFound)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+func (h *Handlers) StoreTagColorUpdate(w http.ResponseWriter, r *http.Request) {
+	if !h.storeEnabled() {
+		writeJSONError(w, "not found", http.StatusNotFound)
+		return
+	}
+	u := h.currentUser(r)
+	if u == nil {
+		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !h.hasActivePurchase(u.ID, "supporter") {
+		writeJSONError(w, "Supporter Pack required", http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		Color string `json:"color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if len(body.Color) != 7 || body.Color[0] != '#' {
+		writeJSONError(w, "invalid color format", http.StatusBadRequest)
+		return
+	}
+
+	var requestID uint
+	var tagName string
+	if err := h.db.QueryRow(
+		`SELECT id, name FROM custom_tag_requests WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1`, u.ID,
+	).Scan(&requestID, &tagName); err != nil {
+		writeJSONError(w, h.t(r, "error.tag_no_approved"), http.StatusBadRequest)
+		return
+	}
+
+	var recentChanges int
+	h.db.QueryRow(
+		`SELECT COUNT(*) FROM tag_color_changes WHERE user_id = ? AND changed_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)`, u.ID,
+	).Scan(&recentChanges)
+	if recentChanges >= 5 {
+		writeJSONError(w, h.t(r, "error.tag_color_cooldown"), http.StatusTooManyRequests)
+		return
+	}
+
+	h.db.Exec(`UPDATE custom_tag_requests SET color = ? WHERE id = ?`, body.Color, requestID)
+	h.db.Exec(`UPDATE tags SET color = ? WHERE name = ?`, body.Color, tagName)
+	h.db.Exec(`INSERT INTO tag_color_changes (user_id) VALUES (?)`, u.ID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
@@ -405,6 +470,14 @@ func (h *Handlers) StoreTagRequestSubmit(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	default:
+		var cooldownActive int
+		h.db.QueryRow(`
+			SELECT CASE WHEN tag_requested_at > DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END
+			FROM users WHERE id = ?`, u.ID).Scan(&cooldownActive)
+		if cooldownActive == 1 {
+			writeJSONError(w, h.t(r, "error.tag_cooldown"), http.StatusTooManyRequests)
+			return
+		}
 		if _, err := h.db.Exec(
 			`INSERT INTO custom_tag_requests (user_id, name, color) VALUES (?, ?, ?)`,
 			u.ID, body.Name, body.Color,
@@ -412,6 +485,7 @@ func (h *Handlers) StoreTagRequestSubmit(w http.ResponseWriter, r *http.Request)
 			writeJSONError(w, "db error", http.StatusInternalServerError)
 			return
 		}
+		h.db.Exec(`UPDATE users SET tag_requested_at = NOW() WHERE id = ?`, u.ID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

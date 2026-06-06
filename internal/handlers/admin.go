@@ -285,9 +285,10 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 // ── User management API ───────────────────────────────────────
 
 type adminTagEntry struct {
-	ID    uint   `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Color  string `json:"color"`
+	Custom bool   `json:"custom"`
 }
 
 type adminUserRecord struct {
@@ -297,6 +298,7 @@ type adminUserRecord struct {
 	Role            string          `json:"role"`
 	PendingRole     string          `json:"pending_role"`
 	Disabled        bool            `json:"disabled"`
+	DisabledReason  string          `json:"disabled_reason"`
 	DirectoryHidden bool            `json:"directory_hidden"`
 	RaidBanned      bool            `json:"raid_banned"`
 	StrikeCount     int             `json:"strike_count"`
@@ -310,7 +312,7 @@ type adminUserRecord struct {
 func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT u.id, u.username, u.email, u.role, COALESCE(u.pending_role, ''),
-		       u.disabled, u.directory_hidden, u.raid_banned,
+		       u.disabled, COALESCE(u.disabled_reason, ''), u.directory_hidden, u.raid_banned,
 		       COUNT(s.id) AS strike_count, u.created_at, u.api_access,
 		       COALESCE(u.raid_xp, 0), COALESCE(u.rater_weight, 1.000)
 		FROM users u
@@ -329,7 +331,7 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 		var u adminUserRecord
 		var createdAt time.Time
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.PendingRole,
-			&u.Disabled, &u.DirectoryHidden, &u.RaidBanned, &u.StrikeCount, &createdAt, &u.APIAccess,
+			&u.Disabled, &u.DisabledReason, &u.DirectoryHidden, &u.RaidBanned, &u.StrikeCount, &createdAt, &u.APIAccess,
 			&u.RaidXP, &u.RaterWeight); err != nil {
 			continue
 		}
@@ -342,12 +344,21 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 		users = append(users, u)
 	}
 
-	if tagRows, err := h.db.Query(`SELECT ut.user_id, t.id, t.name, t.color FROM user_tags ut JOIN tags t ON t.id = ut.tag_id ORDER BY ut.user_id, t.name`); err == nil {
+	if tagRows, err := h.db.Query(`
+		SELECT ut.user_id, t.id, t.name, t.color,
+		       CASE WHEN ctr.id IS NOT NULL THEN 1 ELSE 0 END AS custom
+		FROM user_tags ut
+		JOIN tags t ON t.id = ut.tag_id
+		LEFT JOIN custom_tag_requests ctr
+		       ON ctr.user_id = ut.user_id AND ctr.name = t.name AND ctr.status = 'approved'
+		ORDER BY ut.user_id, t.name`); err == nil {
 		defer tagRows.Close()
 		for tagRows.Next() {
 			var uid uint
 			var tag adminTagEntry
-			if tagRows.Scan(&uid, &tag.ID, &tag.Name, &tag.Color) == nil {
+			var customInt int
+			if tagRows.Scan(&uid, &tag.ID, &tag.Name, &tag.Color, &customInt) == nil {
+				tag.Custom = customInt == 1
 				if idx, ok := idxByID[uid]; ok {
 					users[idx].Tags = append(users[idx].Tags, tag)
 				}
@@ -500,7 +511,8 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Disabled bool `json:"disabled"`
+		Disabled bool   `json:"disabled"`
+		Reason   string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, "invalid json", http.StatusBadRequest)
@@ -522,7 +534,11 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.db.Exec(`UPDATE users SET disabled = ? WHERE id = ?`, body.Disabled, id); err != nil {
+	reason := strings.TrimSpace(body.Reason)
+	if !body.Disabled {
+		reason = ""
+	}
+	if _, err := h.db.Exec(`UPDATE users SET disabled = ?, disabled_reason = ? WHERE id = ?`, body.Disabled, reason, id); err != nil {
 		writeJSONError(w, "db error", http.StatusInternalServerError)
 		return
 	}
@@ -944,6 +960,16 @@ func (h *Handlers) AdminUserTagRemove(w http.ResponseWriter, r *http.Request) {
 	tagID, err := strconv.ParseUint(chi.URLParam(r, "tagId"), 10, 64)
 	if err != nil {
 		writeJSONError(w, "invalid tag id", http.StatusBadRequest)
+		return
+	}
+	var isCustom int
+	h.db.QueryRow(`
+		SELECT COUNT(*) FROM custom_tag_requests ctr
+		JOIN tags t ON t.name = ctr.name
+		WHERE t.id = ? AND ctr.user_id = ? AND ctr.status = 'approved'`,
+		tagID, uid).Scan(&isCustom)
+	if isCustom > 0 {
+		writeJSONError(w, "custom tags must be managed from Tag Requests", http.StatusForbidden)
 		return
 	}
 	h.db.Exec(`DELETE FROM user_tags WHERE user_id = ? AND tag_id = ?`, uid, tagID)

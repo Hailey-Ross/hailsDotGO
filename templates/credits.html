@@ -90,6 +90,87 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (42)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Admin Users tab redesigned as mini-card grid with modal detail view</h2>
+        <ul class="cl-list">
+          <li>Users are now displayed as a compact mini-card grid showing username, role, status, and tags at a glance</li>
+          <li>Clicking any user card opens a modal overlay with the full detail view and all action controls</li>
+          <li>Modal closes on click-outside or Escape; after any action the mini grid and modal both refresh automatically</li>
+          <li>All existing controls (password, username, strikes, tags, role, suspend, hide, raid ban, API access) work inside the modal</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (41)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Account suspension reason and login message</h2>
+        <ul class="cl-list">
+          <li>Disabled users who try to log in now see a clear message: "Your account has been suspended by a staff member"</li>
+          <li>Admins can optionally provide a reason when suspending an account; the reason is shown to the user on the login page</li>
+          <li>The suspension reason is displayed on the user card in the Admin Panel Users tab</li>
+          <li>Re-enabling an account automatically clears the reason</li>
+          <li>Suspend button now opens an inline reason field before confirming, instead of acting immediately</li>
+          <li>Translated into ES, FR, and DE</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (40)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Custom Tag Requests moved to own Admin Panel tab; paid tags protected in Users tab</h2>
+        <ul class="cl-list">
+          <li>Tag Requests is now a dedicated tab in the Admin Panel between Tags and Pages</li>
+          <li>Custom tags (purchased via Supporter Pack) no longer show a remove button in the Users tab; they can only be revoked or revised from the Tag Requests tab</li>
+          <li>Backend blocks deletion of custom tags via the user tag remove endpoint and returns a clear error if attempted</li>
+          <li>The tag expand panel in Users shows custom tags as read-only pills with a note directing staff to Tag Requests</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (39)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Custom tag: admin revoke, weekly cooldown, and color rate limit</h2>
+        <ul class="cl-list">
+          <li>Admins can now request revisions on already-approved tags (not just pending ones); the tag is removed from the user's profile until resubmitted and approved again</li>
+          <li>Admins can deny/revoke an approved tag outright, removing it from the trainer card and requiring the user to restart the request process</li>
+          <li>New tag requests are on a 7-day cooldown per user; revision resubmissions are exempt from the cooldown</li>
+          <li>Tag color can be changed freely; changing it more than 5 times in 30 minutes triggers a short cooldown</li>
+          <li>Cooldown expiry date shown on the rejected status block in Settings and the Store page</li>
+          <li>Color picker added to the approved status block in Settings for inline color changes</li>
+          <li>All new strings translated into ES, FR, and DE</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (38)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Settings: custom tag request status tab</h2>
+        <ul class="cl-list">
+          <li>Users with a tag request now see a "Custom Tag" tab in Settings showing the current status (pending, approved, rejected, or awaiting revision)</li>
+          <li>Staff notes are displayed for rejected and revision states</li>
+          <li>Users with a revision request can update their tag name and color and resubmit directly from the Settings page without visiting the store</li>
+          <li>Translated into ES, FR, and DE</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-06 (37)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid data now refreshes six times daily</h2>
+        <ul class="cl-list">
+          <li>Raid boss data previously refreshed once daily at noon Mountain Time; it now refreshes at 12:01 AM, 4:00 AM, 8:00 AM, 12:01 PM, 4:00 PM, and 8:00 PM Mountain Time</li>
+          <li>Schedule is DST-aware via the America/Denver timezone</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (36)</div>
       <div class="cl-body">
         <h2 class="cl-title">Trainer Directory: modal layout restructured</h2>

@@ -87,11 +87,18 @@
     </div>
     {{else if eq $d.TagRequest.Status "rejected"}}
     <div class="admin-message admin-message-error" style="margin-bottom:1rem">
-      {{T "store.tag.rejected_prefix"}}{{if $d.TagRequest.RejectReason}}: {{$d.TagRequest.RejectReason}}{{end}}. {{T "store.tag.resubmit"}}
+      {{T "store.tag.rejected_prefix"}}{{if $d.TagRequest.RejectReason}}: {{$d.TagRequest.RejectReason}}{{end}}.
+      {{if $d.TagRequest.NextRequestAt}}
+        {{T "store.tag.cooldown_hint"}} {{$d.TagRequest.NextRequestAt.Format "January 2, 2006"}}.
+      {{else}}
+        {{T "store.tag.resubmit"}}
+      {{end}}
     </div>
+    {{if not $d.TagRequest.NextRequestAt}}
     <div id="tag-request-form-wrap">
       {{template "tagRequestForm" .}}
     </div>
+    {{end}}
     {{end}}
   {{else}}
   <p class="store-perk-desc">{{T "store.tag.pending"}}</p>

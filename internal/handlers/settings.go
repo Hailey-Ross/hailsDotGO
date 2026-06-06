@@ -34,6 +34,22 @@ type settingsData struct {
 	FavPokemonForm  string
 	TrainerClasses  []pogodata.TrainerClass
 	PokemonList     []pogodata.PokemonEntry
+	TagRequest      *tagRequestStatus
+}
+
+func (h *Handlers) queryTagRequest(userID uint) *tagRequestStatus {
+	var t tagRequestStatus
+	err := h.db.QueryRow(
+		`SELECT status, COALESCE(reject_reason,''), COALESCE(name,''), COALESCE(color,'#ec4899')
+		 FROM custom_tag_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, userID,
+	).Scan(&t.Status, &t.RejectReason, &t.Name, &t.Color)
+	if err != nil {
+		return nil
+	}
+	if t.Status == "rejected" {
+		t.NextRequestAt = h.computeTagCooldown(userID)
+	}
+	return &t
 }
 
 func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +68,7 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	).Scan(&d.TrainerName, &d.TrainerCode, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.FavPokemon, &d.FavPokemonForm)
 	d.TrainerClasses = h.store.TrainerClasses()
 	d.PokemonList = h.store.PokemonList()
+	d.TagRequest = h.queryTagRequest(u.ID)
 	h.render(w, r, "settings", d)
 }
 
@@ -118,6 +135,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 			LocationDisplay: locationDisplay, ProfilePublic: profilePublic,
 			FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
 			TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
+			TagRequest: h.queryTagRequest(u.ID),
 		})
 	}
 
@@ -175,5 +193,6 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		LocationDisplay: locationDisplay, ProfilePublic: profilePublic,
 		FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
 		TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
+		TagRequest: h.queryTagRequest(u.ID),
 	})
 }

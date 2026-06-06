@@ -70,6 +70,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/store/return", h.StoreReturn)
 		r.Get("/store/cancel", h.StoreCancel)
 		r.Post("/api/store/tag-request", h.RequireAuth(h.StoreTagRequestSubmit))
+		r.Post("/api/store/tag-color", h.RequireAuth(h.StoreTagColorUpdate))
 		r.Post("/api/store/purchases/cancel", h.RequireAuth(h.StorePurchaseCancel))
 
 		// Protected pages

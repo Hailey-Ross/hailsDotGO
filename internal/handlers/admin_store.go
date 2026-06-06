@@ -73,15 +73,12 @@ func (h *Handlers) AdminTagRequestApprove(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	res, err := h.db.Exec(`INSERT IGNORE INTO tags (name, color) VALUES (?, ?)`, name, color)
-	if err != nil {
+	if _, err = h.db.Exec(`INSERT INTO tags (name, color) VALUES (?, ?) ON DUPLICATE KEY UPDATE color = VALUES(color)`, name, color); err != nil {
 		writeJSONError(w, "db error", http.StatusInternalServerError)
 		return
 	}
-	tagID, _ := res.LastInsertId()
-	if tagID == 0 {
-		h.db.QueryRow(`SELECT id FROM tags WHERE name = ?`, name).Scan(&tagID)
-	}
+	var tagID int64
+	h.db.QueryRow(`SELECT id FROM tags WHERE name = ?`, name).Scan(&tagID)
 
 	h.db.Exec(`INSERT IGNORE INTO user_tags (user_id, tag_id) VALUES (?, ?)`, userID, tagID)
 	h.db.Exec(
@@ -114,9 +111,22 @@ func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request)
 		reason = reason[:255]
 	}
 
+	var userID uint
+	var tagName, currentStatus string
+	if err := h.db.QueryRow(
+		`SELECT user_id, COALESCE(name,''), status FROM custom_tag_requests WHERE id = ?`, id,
+	).Scan(&userID, &tagName, &currentStatus); err != nil {
+		writeJSONError(w, "not found", http.StatusNotFound)
+		return
+	}
+	if currentStatus != "pending" && currentStatus != "approved" {
+		writeJSONError(w, "request is not pending or approved", http.StatusBadRequest)
+		return
+	}
+
 	result, err := h.db.Exec(
 		`UPDATE custom_tag_requests SET status = 'rejected', reject_reason = ?, reviewed_by = ?, reviewed_at = NOW()
-		 WHERE id = ? AND status = 'pending'`,
+		 WHERE id = ? AND status IN ('pending','approved')`,
 		reason, actor.ID, id,
 	)
 	if err != nil {
@@ -124,9 +134,17 @@ func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found or not pending", http.StatusNotFound)
+		writeJSONError(w, "not found or already processed", http.StatusNotFound)
 		return
 	}
+
+	if currentStatus == "approved" && tagName != "" {
+		var tagID uint
+		if h.db.QueryRow(`SELECT id FROM tags WHERE name = ?`, tagName).Scan(&tagID) == nil && tagID != 0 {
+			h.db.Exec(`DELETE FROM user_tags WHERE user_id = ? AND tag_id = ?`, userID, tagID)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
@@ -152,9 +170,22 @@ func (h *Handlers) AdminTagRequestRevision(w http.ResponseWriter, r *http.Reques
 		notes = notes[:255]
 	}
 
+	var userID uint
+	var tagName, currentStatus string
+	if err := h.db.QueryRow(
+		`SELECT user_id, COALESCE(name,''), status FROM custom_tag_requests WHERE id = ?`, id,
+	).Scan(&userID, &tagName, &currentStatus); err != nil {
+		writeJSONError(w, "not found", http.StatusNotFound)
+		return
+	}
+	if currentStatus != "pending" && currentStatus != "approved" {
+		writeJSONError(w, "request is not pending or approved", http.StatusBadRequest)
+		return
+	}
+
 	result, err := h.db.Exec(
 		`UPDATE custom_tag_requests SET status = 'revision', reject_reason = ?, reviewed_by = ?, reviewed_at = NOW()
-		 WHERE id = ? AND status = 'pending'`,
+		 WHERE id = ? AND status IN ('pending','approved')`,
 		notes, actor.ID, id,
 	)
 	if err != nil {
@@ -162,9 +193,17 @@ func (h *Handlers) AdminTagRequestRevision(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found or not pending", http.StatusNotFound)
+		writeJSONError(w, "not found or already processed", http.StatusNotFound)
 		return
 	}
+
+	if currentStatus == "approved" && tagName != "" {
+		var tagID uint
+		if h.db.QueryRow(`SELECT id FROM tags WHERE name = ?`, tagName).Scan(&tagID) == nil && tagID != 0 {
+			h.db.Exec(`DELETE FROM user_tags WHERE user_id = ? AND tag_id = ?`, userID, tagID)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
