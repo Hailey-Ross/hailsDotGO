@@ -14,6 +14,9 @@ A fan-made Pokémon GO companion web app built in Go.
 - Per-page maintenance toggles from the admin panel
 - Tag system: superadmins create/edit/delete tags; mods and above assign them to users
 - Supporter store with optional donation perks (PayPal, sandbox/live toggle)
+- Custom tag requests: supporters submit a tag name and color (staff-reviewed); weekly submission cooldown and color change rate limit enforced
+- Account suspension with optional staff-entered reason shown to the user on login
+- Admin Users tab: mini-card grid with click-to-open modal detail view and full controls
 - Multi-language: English, Spanish, French, German
 
 ---
@@ -47,7 +50,7 @@ A fan-made Pokémon GO companion web app built in Go.
 On startup, the server fetches Pokémon stats, moves, shinies, type effectiveness, and CP multipliers from [PoGoAPI](https://pogoapi.net) and caches them in memory. Data refreshes every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data so the app can still serve requests.
 
 ### 2. Raid Data
-Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck), cached to disk, and refreshed once daily at noon Mountain Time. A stale cache is used if the upstream fetch fails.
+Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck), cached to disk, and refreshed every 4 hours starting at midnight Mountain Time (12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM). A stale cache is used if the upstream fetch fails.
 
 ### 3. Database
 All persistent data lives in MySQL: accounts, sessions, shiny collections, trainer profiles, raid posts, tags, store purchases, and site settings.
@@ -197,7 +200,7 @@ The store is disabled by default. To enable:
 | `user` | Default for all registered accounts |
 | `tester` | Raid rank label "PKMN Scientist"; sorted above regular users in the Trainer Directory |
 | `moderator` | Admin panel access: strikes, raid bans, directory hide, tag assignment |
-| `admin` | All mod actions + invite generation, rename/disable users, password reset, role changes, page toggles |
+| `admin` | All mod actions + invite generation, rename/suspend users (with optional reason), password reset, role changes, page toggles |
 | `superadmin` | Set via `SUPERADMIN_USER` env var; all admin capabilities + tag create/edit/delete; immune to admin actions |
 
 Staff (mod and above) cannot be raid-banned or hidden from the directory.

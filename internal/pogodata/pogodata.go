@@ -591,19 +591,30 @@ func (s *Store) refreshRaids() {
 	s.mu.Unlock()
 }
 
-// scheduleRaidRefresh loops forever, sleeping until the next noon Mountain Time,
-// then triggering a raid refresh. Raids change infrequently so daily is enough.
+// scheduleRaidRefresh loops forever, sleeping until the next scheduled refresh
+// time in Mountain Time (DST-aware via America/Denver), then fetching raids.
+// Schedule: 12:01 AM, 4:00 AM, 8:00 AM, 12:01 PM, 4:00 PM, 8:00 PM.
 func (s *Store) scheduleRaidRefresh() {
 	loc, err := time.LoadLocation("America/Denver")
 	if err != nil {
 		log.Printf("pogodata: scheduleRaidRefresh: %v", err)
 		return
 	}
+	type target struct{ h, m int }
+	targets := []target{{0, 1}, {4, 0}, {8, 0}, {12, 1}, {16, 0}, {20, 0}}
 	for {
 		now := time.Now().In(loc)
-		next := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, loc)
-		if !now.Before(next) {
-			next = next.Add(24 * time.Hour)
+		y, mo, d := now.Date()
+		var next time.Time
+		for _, t := range targets {
+			candidate := time.Date(y, mo, d, t.h, t.m, 0, 0, loc)
+			if now.Before(candidate) {
+				next = candidate
+				break
+			}
+		}
+		if next.IsZero() {
+			next = time.Date(y, mo, d+1, targets[0].h, targets[0].m, 0, 0, loc)
 		}
 		log.Printf("pogodata: raids: next scheduled refresh at %s", next.Format("2006-01-02 15:04 MST"))
 		time.Sleep(time.Until(next))
