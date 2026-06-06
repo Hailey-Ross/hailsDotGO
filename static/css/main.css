@@ -1827,7 +1827,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 /* ── Language switcher ──────────────────────────────────────── */
 .lang-switcher {
   display: flex; gap: 0.3rem; margin-top: 0.5rem; padding-top: 0.5rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border); justify-content: center;
 }
 .lang-btn {
   background: transparent; border: 1px solid var(--border); border-radius: 4px;
