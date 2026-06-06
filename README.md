@@ -20,6 +20,14 @@ This project includes:
 
 ---
 
+## A Note on Stability
+
+**Prefer [Releases](https://github.com/Hailey-Ross/hailsDotGO/releases) over cloning `main` directly.**
+
+The `main` branch reflects active development and is not guaranteed to be stable at all times, particularly during larger rewrites or feature implementations. Tagged releases are tested and represent known-good states of the app.
+
+---
+
 ## Preview
 
 **[pogo.hails.live](https://pogo.hails.live)** live and free to use.
