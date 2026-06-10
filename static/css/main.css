@@ -452,7 +452,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
 }
 .picker-option {
-  display: block; width: 100%; background: none; border: none;
+  display: flex; align-items: center; gap: 0.55rem;
+  width: 100%; background: none; border: none;
   border-bottom: 1px solid var(--surface-2); color: var(--text);
   font-family: var(--font); font-size: 0.875rem;
   text-align: left; padding: 0.55rem 0.9rem;
@@ -501,6 +502,114 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   font-size: 0.95rem; color: var(--text-2); font-weight: 600;
 }
 .text-dim { color: var(--text-3); }
+
+/* == Sprite picker (shared component) ======================== */
+/* Glass cards (backdrop-filter) form sibling stacking contexts that paint
+   in DOM order, so an open dropdown would be covered by the next card.
+   Raise whichever card currently contains the focused picker input. */
+.calc-form:focus-within,
+.pokemon-picker:focus-within { position: relative; z-index: 40; }
+
+.pokemon-picker.picker-inline {
+  background: none; border: none; padding: 0; margin: 0;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  width: 100%;
+}
+.picker-inline .picker-dropdown { left: 0; right: 0; }
+.picker-option-sprite {
+  width: 32px; height: 32px; image-rendering: pixelated; flex-shrink: 0;
+}
+.picker-option-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.picker-option-tag {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--gold);
+  border: 1px solid currentColor; border-radius: var(--r-pill);
+  padding: 0.05rem 0.45rem; flex-shrink: 0;
+}
+.picker-selected {
+  display: flex; align-items: center; gap: 0.75rem;
+  margin-top: 0.6rem; padding: 0.55rem 0.7rem; width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  animation: fadeUp 0.25s ease both;
+}
+.picker-selected-sprite {
+  width: 64px; height: 64px; image-rendering: pixelated; flex-shrink: 0;
+}
+.picker-selected-info {
+  display: flex; flex-direction: column; gap: 0.3rem; min-width: 0;
+}
+.picker-selected-name {
+  font-weight: 700; font-size: 0.95rem; color: var(--text);
+}
+.picker-selected-types { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.picker-advanced-toggle {
+  background: none; border: none; color: var(--text-3);
+  font-size: 0.75rem; text-decoration: underline; cursor: pointer;
+  font-family: var(--font); padding: 0;
+}
+.picker-advanced-toggle:hover { color: var(--text-2); }
+.picker-advanced-row { display: flex; gap: 0.5rem; flex-wrap: wrap; width: 100%; }
+.picker-advanced-row[hidden] { display: none; }
+
+/* == Compare attacker cards (mobile) ========================== */
+.compare-cards { display: none; flex-direction: column; gap: 0.6rem; }
+.attacker-card {
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0.75rem 0.85rem;
+  animation: fadeUp 0.3s ease both;
+}
+.attacker-card.rank-1 {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(255,179,64,0.25);
+}
+.attacker-card-head { display: flex; align-items: center; gap: 0.6rem; }
+.attacker-card-rank {
+  font-weight: 800; color: var(--text-3); font-size: 0.85rem; min-width: 1.6rem;
+}
+.attacker-card.rank-1 .attacker-card-rank { color: var(--gold); }
+.attacker-card-sprite {
+  width: 48px; height: 48px; image-rendering: pixelated; flex-shrink: 0;
+}
+.attacker-card-id { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.attacker-card-name {
+  font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.attacker-card-cp { font-size: 0.75rem; color: var(--text-2); }
+.attacker-card-remove {
+  background: none; border: none; color: var(--text-2); cursor: pointer;
+  font-size: 1.3rem; line-height: 1; margin-left: auto;
+  min-height: 44px; min-width: 44px; flex-shrink: 0;
+  font-family: var(--font); transition: color var(--trans);
+}
+.attacker-card-remove:hover { color: var(--text); }
+.attacker-card-moves {
+  display: flex; flex-direction: column; gap: 0.3rem;
+  margin-top: 0.55rem; font-size: 0.82rem;
+}
+.attacker-move { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.attacker-card-stats {
+  display: flex; gap: 1.5rem;
+  margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--border);
+}
+.attacker-stat { display: flex; flex-direction: column; }
+.attacker-stat-value {
+  font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.attacker-card.rank-1 .attacker-stat-dps { color: var(--gold); }
+.attacker-stat-label {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-3);
+}
+.compare-clear-btn {
+  background: none; border: none; color: var(--text-2); cursor: pointer;
+  font-size: 0.8rem; text-decoration: underline; font-family: var(--font);
+  align-self: flex-end; padding: 0.25rem 0;
+}
 
 /* ── Raid filter bar ────────────────────────────────────────── */
 .raid-filter-bar {
@@ -1138,6 +1247,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   .shiny-grid {
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
+  .compare-results .table-wrap { display: none; }
+  .compare-cards { display: flex; }
 }
 
 @media (max-width: 640px) {
