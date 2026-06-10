@@ -3,29 +3,9 @@ import { trueDPS, estimateTDO, fastDPS, fastEPS } from "./shared/damage";
 import { buildTabs } from "./shared/tabs";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
+import { createPicker, pokemonEntries } from "./shared/picker";
+import type { PickerEntry } from "./shared/picker";
 import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/types";
-
-let pokeDatalist: HTMLDataListElement | null = null;
-
-function getPokeDatalist(data: GameData): HTMLDataListElement {
-  if (pokeDatalist) return pokeDatalist;
-  pokeDatalist = document.createElement("datalist");
-  pokeDatalist.id = "dps-poke-datalist";
-  const seen = new Set<string>();
-  for (const p of data.pokemon ?? []) {
-    if (seen.has(p.pokemon_name)) continue;
-    seen.add(p.pokemon_name);
-    const opt = document.createElement("option");
-    opt.value = p.pokemon_name;
-    pokeDatalist.appendChild(opt);
-  }
-  document.body.appendChild(pokeDatalist);
-  return pokeDatalist;
-}
-
-function typesForTarget(data: GameData, name: string): string[] {
-  return data.pokemonTypes?.[name] ?? [];
-}
 
 const app = document.getElementById("dps-app")!;
 
@@ -74,18 +54,25 @@ function cpWidget(data: GameData): {
   return { label, input, getCPM };
 }
 
-// ── Calculator tab (single Pokémon) ──────────────────────────
+// Sprite for the attacker card / sprite cell; hides itself on 404.
+function cardSpriteImg(src: string, alt: string, cls: string): HTMLImageElement {
+  const img = document.createElement("img");
+  img.src = src;
+  img.alt = alt;
+  img.className = cls;
+  img.loading = "lazy"; img.decoding = "async";
+  img.addEventListener("error", () => { img.style.visibility = "hidden"; });
+  return img;
+}
 
-function buildCalcPanel(data: GameData): () => HTMLElement {
+// == Calculator tab (single Pokemon) ==========================
+
+function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
 
     const form = document.createElement("div");
     form.className = "calc-form";
-
-    const pokeInput = document.createElement("input");
-    pokeInput.type = "text"; pokeInput.className = "search-input";
-    pokeInput.placeholder = "Pokémon name (e.g. Mewtwo)";
 
     const fastSel = buildMoveSelect(
       data.fastMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
@@ -97,16 +84,25 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
     );
     const { label: cpLbl, input: cpInput, getCPM } = cpWidget(data);
 
+    const attackerPicker = createPicker({
+      entries: allEntries,
+      placeholder: "Search Pokémon (e.g. Mewtwo)",
+      onSelect: (e) => {
+        const poke = e.data as PokemonStat;
+        cpInput.value = String(cpForLevel(poke, 15, 15, 15, 0.7903));
+      },
+    });
+
     const calcBtn = document.createElement("button");
     calcBtn.className = "btn-primary"; calcBtn.textContent = "Calculate";
 
-    form.appendChild(pokeInput);
+    form.appendChild(attackerPicker.root);
     form.appendChild(fastSel);
     form.appendChild(chargedSel);
     form.appendChild(cpLbl);
     form.appendChild(calcBtn);
 
-    // ── Target section ─────────────────────────────────────────
+    // -- Target section ------------------------------------------
 
     const targetBlock = document.createElement("div");
     targetBlock.className = "calc-form";
@@ -118,69 +114,28 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
     targetHeader.textContent = "vs. Target (optional)";
     targetBlock.appendChild(targetHeader);
 
-    const dl = getPokeDatalist(data);
-    const targetInput = document.createElement("input");
-    targetInput.type = "text";
-    targetInput.className = "search-input";
-    targetInput.placeholder = "Target Pokémon (e.g. Machamp)";
-    targetInput.setAttribute("list", dl.id);
-    targetInput.setAttribute("autocomplete", "off");
-
-    const targetTypesRow = document.createElement("div");
-    targetTypesRow.style.cssText = "display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;width:100%;min-height:1.5rem;";
-
     let calcTargetTypes: string[] = [];
 
-    function updateCalcTarget() {
-      const name = targetInput.value.trim();
-      calcTargetTypes = name ? typesForTarget(data, name) : [];
-      targetTypesRow.innerHTML = "";
-      if (calcTargetTypes.length) {
-        calcTargetTypes.forEach((t) => targetTypesRow.appendChild(typeBadge(t)));
-      }
-    }
-
-    targetInput.addEventListener("change", updateCalcTarget);
-    targetInput.addEventListener("input", updateCalcTarget);
-
-    const clearTargetBtn = document.createElement("button");
-    clearTargetBtn.textContent = "Clear";
-    clearTargetBtn.style.cssText = "background:none;border:1px solid var(--border);color:var(--text-2);cursor:pointer;font-size:0.78rem;padding:0.2rem 0.6rem;border-radius:4px;font-family:var(--font);";
-    clearTargetBtn.addEventListener("click", () => {
-      targetInput.value = "";
-      calcTargetTypes = [];
-      targetTypesRow.innerHTML = "";
+    const targetPicker = createPicker({
+      entries: allEntries,
+      placeholder: "Target Pokémon (e.g. Machamp)",
+      onSelect: (e) => { calcTargetTypes = e.types; },
+      onClear: () => { calcTargetTypes = []; },
     });
+    targetBlock.appendChild(targetPicker.root);
 
-    const targetRow = document.createElement("div");
-    targetRow.style.cssText = "display:flex;gap:0.5rem;align-items:center;width:100%;";
-    targetRow.appendChild(targetInput);
-    targetRow.appendChild(clearTargetBtn);
-
-    targetBlock.appendChild(targetRow);
-    targetBlock.appendChild(targetTypesRow);
-
-    // ── Result area ────────────────────────────────────────────
+    // -- Result area ----------------------------------------------
 
     const resultArea = document.createElement("div");
     resultArea.className = "result-area";
 
-    // Auto-fill CP when Pokémon name is typed
-    pokeInput.addEventListener("change", () => {
-      const poke = pokemonByName(data, pokeInput.value.trim());
-      if (poke) {
-        const defaultCP = cpForLevel(poke, 15, 15, 15, 0.7903);
-        cpInput.value = String(defaultCP);
-      }
-    });
-
     calcBtn.addEventListener("click", () => {
-      const poke = pokemonByName(data, pokeInput.value.trim());
+      const poke = attackerPicker.getSelected()?.data as PokemonStat | undefined;
       const fast = data.fastMoves!.find((m) => m.name === fastSel.value);
       const charged = data.chargedMoves!.find((m) => m.name === chargedSel.value);
 
       if (!poke) {
-        resultArea.innerHTML = `<p class="error-text">Pokémon not found. Check the spelling.</p>`;
+        resultArea.innerHTML = `<p class="error-text">Select a Pokémon from the search list.</p>`;
         return;
       }
       if (!fast || !charged) {
@@ -200,18 +155,14 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
 
       const cardHeader = document.createElement("div");
       cardHeader.className = "result-poke-header";
-      const cardSprite = document.createElement("img");
-      cardSprite.src = pokeSprite(poke.pokemon_id);
-      cardSprite.alt = poke.pokemon_name;
-      cardSprite.className = "result-poke-sprite";
-      cardSprite.loading = "lazy"; cardSprite.decoding = "async";
+      const cardSprite = cardSpriteImg(pokeSprite(poke.pokemon_id), poke.pokemon_name, "result-poke-sprite");
       const cardTitle = document.createElement("h3");
       cardTitle.style.marginBottom = "0";
       cardTitle.textContent = pokeName(data, poke.pokemon_name);
       if (hasTarget) {
         const vsSpan = document.createElement("span");
         vsSpan.style.cssText = "font-size:0.78rem;color:var(--text-2);font-weight:400;margin-left:0.4rem;";
-        vsSpan.textContent = `vs. ${targetInput.value.trim()}`;
+        vsSpan.textContent = `vs. ${targetPicker.getSelected()?.label ?? ""}`;
         cardTitle.appendChild(vsSpan);
       }
       cardHeader.appendChild(cardSprite);
@@ -291,7 +242,7 @@ function buildCalcPanel(data: GameData): () => HTMLElement {
   };
 }
 
-// ── Compare tab ───────────────────────────────────────────────
+// == Compare tab ===============================================
 
 interface Attacker {
   id: number;
@@ -301,14 +252,42 @@ interface Attacker {
   cp: number;
 }
 
-function buildComparePanel(data: GameData): () => HTMLElement {
+// Current raid bosses first (with tier tags), then every other Pokemon.
+function targetEntries(data: GameData, all: PickerEntry[]): PickerEntry[] {
+  const out: PickerEntry[] = [];
+  const seen = new Set<string>();
+  for (const [tier, bosses] of Object.entries(data.raids ?? {}).sort(([a], [b]) => Number(b) - Number(a))) {
+    const tag = tier === "6" ? "Mega" : `T${tier}`;
+    for (const boss of bosses) {
+      if (!boss.types?.length || seen.has(boss.pokemon_name)) continue;
+      seen.add(boss.pokemon_name);
+      const base = pokemonByName(data, boss.pokemon_name);
+      out.push({
+        key: `raid:${boss.pokemon_name}`,
+        name: boss.pokemon_name,
+        label: pokeName(data, boss.pokemon_name),
+        sprite: boss.image_url ?? (base ? pokeSprite(base.pokemon_id) : null),
+        types: boss.types,
+        tag,
+        group: 0,
+        data: boss,
+      });
+    }
+  }
+  for (const p of all) {
+    if (!seen.has(p.name)) out.push(p);
+  }
+  return out;
+}
+
+function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
     let targetTypes: string[] = [];
     let attackers: Attacker[] = [];
     let nextId = 0;
 
-    // ── Target section ─────────────────────────────────────────
+    // -- Target section --------------------------------------------
 
     const targetBlock = document.createElement("div");
     targetBlock.className = "calc-form";
@@ -319,65 +298,6 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     targetHeader.textContent = "Target (optional)";
     targetBlock.appendChild(targetHeader);
 
-    // Raid boss dropdown (primary), all Pokémon as fallback
-    const raidSel = document.createElement("select");
-    raidSel.className = "move-select";
-    const noTarget = document.createElement("option");
-    noTarget.value = ""; noTarget.textContent = "Select target...";
-    raidSel.appendChild(noTarget);
-
-    const raidBossNames = new Set<string>();
-
-    if (data.raids) {
-      const raidGroup = document.createElement("optgroup");
-      raidGroup.label = "Current Raids";
-      for (const [tier, bosses] of Object.entries(data.raids).sort(([a], [b]) => Number(b) - Number(a))) {
-        const tierLabel = tier === "6" ? "Mega" : `T${tier}`;
-        for (const boss of bosses) {
-          if (boss.types?.length) {
-            raidBossNames.add(boss.pokemon_name);
-            const o = document.createElement("option");
-            o.value = boss.types.join(",");
-            o.textContent = `[${tierLabel}] ${pokeName(data, boss.pokemon_name)} (${boss.types.join("/")})`;
-            raidGroup.appendChild(o);
-          }
-        }
-      }
-      if (raidGroup.children.length) raidSel.appendChild(raidGroup);
-    }
-
-    if (data.pokemon && data.pokemonTypes) {
-      const allGroup = document.createElement("optgroup");
-      allGroup.label = "All Pokémon";
-      for (const p of data.pokemon) {
-        if (raidBossNames.has(p.pokemon_name)) continue;
-        const types = data.pokemonTypes[p.pokemon_name];
-        if (types?.length) {
-          const o = document.createElement("option");
-          o.value = types.join(",");
-          o.textContent = `${pokeName(data, p.pokemon_name)} (${types.join("/")})`;
-          allGroup.appendChild(o);
-        }
-      }
-      if (allGroup.children.length) raidSel.appendChild(allGroup);
-    }
-    targetBlock.appendChild(raidSel);
-
-    // Pokémon name input (fallback)
-    const orPokeSpan = document.createElement("span");
-    orPokeSpan.className = "level-label"; orPokeSpan.textContent = "or Pokémon:";
-    targetBlock.appendChild(orPokeSpan);
-
-    const dl = getPokeDatalist(data);
-    const targetPokeInput = document.createElement("input");
-    targetPokeInput.type = "text";
-    targetPokeInput.className = "search-input";
-    targetPokeInput.placeholder = "Pokémon name (e.g. Machamp)";
-    targetPokeInput.setAttribute("list", dl.id);
-    targetPokeInput.setAttribute("autocomplete", "off");
-    targetBlock.appendChild(targetPokeInput);
-
-    // Manual type dropdowns
     const allTypes = Object.keys(TYPE_COLORS).sort();
     const makeTypeSel = (placeholder: string) => {
       const sel = document.createElement("select");
@@ -387,64 +307,81 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       allTypes.forEach((t) => { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); });
       return sel;
     };
-
-    const orSpan = document.createElement("span");
-    orSpan.className = "level-label"; orSpan.textContent = "or types:";
     const type1Sel = makeTypeSel("Type 1");
     const type2Sel = makeTypeSel("Type 2");
-    targetBlock.appendChild(orSpan);
-    targetBlock.appendChild(type1Sel);
-    targetBlock.appendChild(type2Sel);
 
-    const activeTypesRow = document.createElement("div");
-    activeTypesRow.style.cssText = "display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;width:100%;min-height:1.5rem;";
-    targetBlock.appendChild(activeTypesRow);
+    // Manual-types badge row; the picker preview covers the selected case.
+    const manualTypesRow = document.createElement("div");
+    manualTypesRow.style.cssText = "display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;width:100%;";
+    manualTypesRow.hidden = true;
 
-    function updateTarget() {
-      const pokeName = targetPokeInput.value.trim();
-      const pokeTypes = pokeName ? typesForTarget(data, pokeName) : [];
-      if (pokeTypes.length) {
-        targetTypes = pokeTypes;
-        raidSel.value = "";
-        type1Sel.value = targetTypes[0] ?? "";
-        type2Sel.value = targetTypes[1] ?? "";
-      } else if (raidSel.value) {
-        targetTypes = raidSel.value.split(",").filter(Boolean);
-        type1Sel.value = targetTypes[0] ?? "";
-        type2Sel.value = targetTypes[1] ?? "";
-      } else {
-        targetTypes = [type1Sel.value, type2Sel.value].filter(Boolean);
-      }
-      activeTypesRow.innerHTML = "";
-      if (targetTypes.length) {
+    function updateManualRow(show: boolean) {
+      manualTypesRow.innerHTML = "";
+      if (show && targetTypes.length) {
         const vs = document.createElement("span"); vs.className = "filter-label"; vs.textContent = "vs";
-        activeTypesRow.appendChild(vs);
-        targetTypes.forEach((t) => activeTypesRow.appendChild(typeBadge(t)));
+        manualTypesRow.appendChild(vs);
+        targetTypes.forEach((t) => manualTypesRow.appendChild(typeBadge(t)));
+        manualTypesRow.hidden = false;
+      } else {
+        manualTypesRow.hidden = true;
       }
-      renderTable();
     }
 
-    targetPokeInput.addEventListener("change", () => { raidSel.value = ""; type1Sel.value = ""; type2Sel.value = ""; updateTarget(); });
-    targetPokeInput.addEventListener("input", () => {
-      const pokeName = targetPokeInput.value.trim();
-      if (!pokeName) { updateTarget(); return; }
-      const types = typesForTarget(data, pokeName);
-      if (types.length) updateTarget();
+    const targetPicker = createPicker({
+      entries: targetEntries(data, allEntries),
+      placeholder: "Search raid boss or Pokémon...",
+      showOnFocus: true,
+      onSelect: (e) => {
+        targetTypes = e.types;
+        type1Sel.value = targetTypes[0] ?? "";
+        type2Sel.value = targetTypes[1] ?? "";
+        updateManualRow(false);
+        renderTable();
+      },
+      onClear: () => {
+        type1Sel.value = "";
+        type2Sel.value = "";
+        targetTypes = [];
+        updateManualRow(false);
+        renderTable();
+      },
     });
-    raidSel.addEventListener("change", () => { targetPokeInput.value = ""; type1Sel.value = ""; type2Sel.value = ""; updateTarget(); });
-    type1Sel.addEventListener("change", () => { targetPokeInput.value = ""; raidSel.value = ""; updateTarget(); });
-    type2Sel.addEventListener("change", () => { targetPokeInput.value = ""; raidSel.value = ""; updateTarget(); });
+    targetBlock.appendChild(targetPicker.root);
+
+    // Advanced: manual type selection for custom typings.
+    const advancedToggle = document.createElement("button");
+    advancedToggle.className = "picker-advanced-toggle";
+    advancedToggle.textContent = "Custom types";
+
+    const advancedRow = document.createElement("div");
+    advancedRow.className = "picker-advanced-row";
+    advancedRow.hidden = true;
+    advancedRow.appendChild(type1Sel);
+    advancedRow.appendChild(type2Sel);
+
+    advancedToggle.addEventListener("click", () => {
+      advancedRow.hidden = !advancedRow.hidden;
+    });
+
+    function onManualType() {
+      targetPicker.clear(false);
+      targetTypes = [type1Sel.value, type2Sel.value].filter(Boolean);
+      updateManualRow(true);
+      renderTable();
+    }
+    type1Sel.addEventListener("change", onManualType);
+    type2Sel.addEventListener("change", onManualType);
+
+    targetBlock.appendChild(advancedToggle);
+    targetBlock.appendChild(advancedRow);
+    targetBlock.appendChild(manualTypesRow);
 
     wrap.appendChild(targetBlock);
 
-    // ── Attacker builder ───────────────────────────────────────
+    // -- Attacker builder ------------------------------------------
 
     const attackerForm = document.createElement("div");
     attackerForm.className = "calc-form";
-
-    const pokeInput = document.createElement("input");
-    pokeInput.type = "text"; pokeInput.className = "search-input";
-    pokeInput.placeholder = "Pokémon name (e.g. Mewtwo)";
 
     const fastSel = buildMoveSelect(
       data.fastMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
@@ -456,22 +393,22 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     );
     const { label: cpLbl, input: cpInput } = cpWidget(data);
 
+    const attackerPicker = createPicker({
+      entries: allEntries,
+      placeholder: "Search Pokémon (e.g. Mewtwo)",
+      onSelect: (e) => {
+        const poke = e.data as PokemonStat;
+        cpInput.value = String(cpForLevel(poke, 15, 15, 15, 0.7903));
+      },
+    });
+
     const addBtn = document.createElement("button");
     addBtn.className = "btn-primary"; addBtn.textContent = "+ Add";
 
     const errText = document.createElement("p");
     errText.className = "error-text"; errText.style.display = "none";
 
-    // Auto-fill CP when Pokémon name is typed
-    pokeInput.addEventListener("change", () => {
-      const poke = pokemonByName(data, pokeInput.value.trim());
-      if (poke) {
-        const defaultCP = cpForLevel(poke, 15, 15, 15, 0.7903);
-        cpInput.value = String(defaultCP);
-      }
-    });
-
-    attackerForm.appendChild(pokeInput);
+    attackerForm.appendChild(attackerPicker.root);
     attackerForm.appendChild(fastSel);
     attackerForm.appendChild(chargedSel);
     attackerForm.appendChild(cpLbl);
@@ -479,11 +416,18 @@ function buildComparePanel(data: GameData): () => HTMLElement {
     attackerForm.appendChild(errText);
     wrap.appendChild(attackerForm);
 
-    // ── Comparison table ───────────────────────────────────────
+    // -- Comparison results (table on desktop, cards on mobile) ----
 
     const tableArea = document.createElement("div");
-    tableArea.className = "result-area";
+    tableArea.className = "result-area compare-results";
     wrap.appendChild(tableArea);
+
+    function effSpan(eff: number): HTMLElement {
+      const s = document.createElement("span");
+      s.style.cssText = `color:${eff > 1 ? "var(--green)" : "var(--red)"};font-weight:700;font-size:0.78rem;`;
+      s.textContent = ` ${eff.toFixed(2)}×`;
+      return s;
+    }
 
     function renderTable() {
       tableArea.innerHTML = "";
@@ -511,6 +455,12 @@ function buildComparePanel(data: GameData): () => HTMLElement {
         };
       }).sort((x, y) => y.dps - x.dps);
 
+      function removeAttacker(id: number) {
+        attackers = attackers.filter((x) => x.id !== id);
+        renderTable();
+      }
+
+      // Desktop table
       const tableWrap = document.createElement("div");
       tableWrap.className = "table-wrap";
 
@@ -532,35 +482,20 @@ function buildComparePanel(data: GameData): () => HTMLElement {
 
         const pokeTd = document.createElement("td");
         pokeTd.style.whiteSpace = "nowrap";
-        const pokeSpImg = document.createElement("img");
-        pokeSpImg.src = pokeSprite(a.poke.pokemon_id);
-        pokeSpImg.alt = a.poke.pokemon_name;
-        pokeSpImg.className = "poke-sprite";
-        pokeSpImg.loading = "lazy"; pokeSpImg.decoding = "async";
-        pokeTd.appendChild(pokeSpImg);
+        pokeTd.appendChild(cardSpriteImg(pokeSprite(a.poke.pokemon_id), a.poke.pokemon_name, "poke-sprite"));
         pokeTd.append(` ${pokeName(data, a.poke.pokemon_name)}`);
 
         const fastTd = document.createElement("td");
         fastTd.style.whiteSpace = "nowrap";
         fastTd.appendChild(typeBadge(a.fast.type));
         fastTd.append(` ${a.fast.name}`);
-        if (hasTarget && fEff !== 1) {
-          const s = document.createElement("span");
-          s.style.cssText = `color:${fEff > 1 ? "var(--green)" : "var(--red)"};font-weight:700;font-size:0.78rem;`;
-          s.textContent = ` ${fEff.toFixed(2)}×`;
-          fastTd.appendChild(s);
-        }
+        if (hasTarget && fEff !== 1) fastTd.appendChild(effSpan(fEff));
 
         const chargedTd = document.createElement("td");
         chargedTd.style.whiteSpace = "nowrap";
         chargedTd.appendChild(typeBadge(a.charged.type));
         chargedTd.append(` ${a.charged.name}`);
-        if (hasTarget && cEff !== 1) {
-          const s = document.createElement("span");
-          s.style.cssText = `color:${cEff > 1 ? "var(--green)" : "var(--red)"};font-weight:700;font-size:0.78rem;`;
-          s.textContent = ` ${cEff.toFixed(2)}×`;
-          chargedTd.appendChild(s);
-        }
+        if (hasTarget && cEff !== 1) chargedTd.appendChild(effSpan(cEff));
 
         const cpTd = document.createElement("td"); cpTd.textContent = a.cp.toLocaleString();
         const dpsTd = document.createElement("td"); dpsTd.textContent = dps.toFixed(2);
@@ -571,7 +506,7 @@ function buildComparePanel(data: GameData): () => HTMLElement {
         const removeBtn = document.createElement("button");
         removeBtn.textContent = "×";
         removeBtn.style.cssText = "background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.1rem;padding:0 0.3rem;line-height:1;";
-        removeBtn.addEventListener("click", () => { attackers = attackers.filter((x) => x.id !== a.id); renderTable(); });
+        removeBtn.addEventListener("click", () => removeAttacker(a.id));
         removeTd.appendChild(removeBtn);
 
         tr.append(rankTd, pokeTd, fastTd, chargedTd, cpTd, dpsTd, tdoTd, removeTd);
@@ -595,32 +530,120 @@ function buildComparePanel(data: GameData): () => HTMLElement {
       table.appendChild(tbody);
       tableWrap.appendChild(table);
       tableArea.appendChild(tableWrap);
+
+      // Mobile cards (same data; CSS swaps visibility at 768px)
+      const cards = document.createElement("div");
+      cards.className = "compare-cards";
+
+      rows.forEach(({ a, dps, tdo, fEff, cEff }, idx) => {
+        const card = document.createElement("div");
+        card.className = `attacker-card${idx === 0 ? " rank-1" : ""}`;
+
+        const head = document.createElement("div");
+        head.className = "attacker-card-head";
+
+        const rank = document.createElement("span");
+        rank.className = "attacker-card-rank";
+        rank.textContent = `#${idx + 1}`;
+        head.appendChild(rank);
+
+        head.appendChild(cardSpriteImg(pokeSprite(a.poke.pokemon_id), a.poke.pokemon_name, "attacker-card-sprite"));
+
+        const idBlock = document.createElement("div");
+        idBlock.className = "attacker-card-id";
+        const nameEl = document.createElement("span");
+        nameEl.className = "attacker-card-name";
+        nameEl.textContent = pokeName(data, a.poke.pokemon_name);
+        const cpEl = document.createElement("span");
+        cpEl.className = "attacker-card-cp";
+        cpEl.textContent = `CP ${a.cp.toLocaleString()}`;
+        idBlock.appendChild(nameEl);
+        idBlock.appendChild(cpEl);
+        head.appendChild(idBlock);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "attacker-card-remove";
+        removeBtn.textContent = "×";
+        removeBtn.setAttribute("aria-label", "Remove");
+        removeBtn.addEventListener("click", () => removeAttacker(a.id));
+        head.appendChild(removeBtn);
+
+        card.appendChild(head);
+
+        const moves = document.createElement("div");
+        moves.className = "attacker-card-moves";
+        const moveRow = (type: string, name: string, eff: number) => {
+          const row = document.createElement("div");
+          row.className = "attacker-move";
+          row.appendChild(typeBadge(type));
+          row.append(name);
+          if (hasTarget && eff !== 1) row.appendChild(effSpan(eff));
+          return row;
+        };
+        moves.appendChild(moveRow(a.fast.type, a.fast.name, fEff));
+        moves.appendChild(moveRow(a.charged.type, a.charged.name, cEff));
+        card.appendChild(moves);
+
+        const stats = document.createElement("div");
+        stats.className = "attacker-card-stats";
+        const stat = (value: string, label: string, extraCls = "") => {
+          const s = document.createElement("div");
+          s.className = "attacker-stat";
+          const v = document.createElement("span");
+          v.className = `attacker-stat-value${extraCls ? ` ${extraCls}` : ""}`;
+          v.textContent = value;
+          const l = document.createElement("span");
+          l.className = "attacker-stat-label";
+          l.textContent = label;
+          s.appendChild(v); s.appendChild(l);
+          return s;
+        };
+        stats.appendChild(stat(dps.toFixed(2), "DPS", "attacker-stat-dps"));
+        stats.appendChild(stat(tdo.toFixed(0), "TDO"));
+        card.appendChild(stats);
+
+        cards.appendChild(card);
+      });
+
+      if (attackers.length > 1) {
+        const clearBtn = document.createElement("button");
+        clearBtn.className = "compare-clear-btn";
+        clearBtn.textContent = "Clear all";
+        clearBtn.addEventListener("click", () => { attackers = []; renderTable(); });
+        cards.appendChild(clearBtn);
+      }
+
+      tableArea.appendChild(cards);
     }
 
     addBtn.addEventListener("click", () => {
       errText.style.display = "none";
-      const poke = pokemonByName(data, pokeInput.value.trim());
+      const poke = attackerPicker.getSelected()?.data as PokemonStat | undefined;
       const fast = data.fastMoves!.find((m) => m.name === fastSel.value);
       const charged = data.chargedMoves!.find((m) => m.name === chargedSel.value);
       const cp = Math.max(10, Number(cpInput.value) || 3000);
 
-      if (!poke) { errText.textContent = `Pokémon not found.`; errText.style.display = ""; return; }
+      if (!poke) { errText.textContent = "Select a Pokémon from the search list."; errText.style.display = ""; return; }
       if (!fast || !charged) { errText.textContent = "Select both moves."; errText.style.display = ""; return; }
 
       attackers.push({ id: nextId++, poke, fast, charged, cp });
       renderTable();
-      pokeInput.value = "";
-      pokeInput.focus();
+      attackerPicker.clear(false);
+      attackerPicker.focus();
     });
 
-    pokeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.click(); });
+    attackerPicker.input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !attackerPicker.isDropdownOpen() && attackerPicker.getSelected()) {
+        addBtn.click();
+      }
+    });
 
     renderTable();
     return wrap;
   };
 }
 
-// ── Init ──────────────────────────────────────────────────────
+// == Init ======================================================
 
 async function init() {
   try {
@@ -632,9 +655,11 @@ async function init() {
       return;
     }
 
+    const allEntries = pokemonEntries(data);
+
     const tabs = buildTabs([
-      { id: "calc",    label: "⚡ Calculator", render: buildCalcPanel(data) },
-      { id: "compare", label: "📊 Compare",    render: buildComparePanel(data) },
+      { id: "calc",    label: "⚡ Calculator", render: buildCalcPanel(data, allEntries) },
+      { id: "compare", label: "📊 Compare",    render: buildComparePanel(data, allEntries) },
     ]);
     app.appendChild(tabs);
   } catch (err) {
