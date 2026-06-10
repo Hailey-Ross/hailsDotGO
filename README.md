@@ -151,6 +151,37 @@ $env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
 go build -ldflags="-s -w" -o hailsDotGO-linux .
 ```
 
+### .gitignore
+
+This repository does not ship a `.gitignore`. If you fork it or track your own changes, create one in the project root so build output and secrets never get committed:
+
+```gitignore
+# Go binaries
+hailsDotGO
+hailsDotGO-linux
+hailsDotGO.exe
+
+# esbuild output (rebuilt from ts/ on every build)
+static/js/
+
+# Node
+node_modules/
+
+# Secrets and local config
+.env
+*.env
+app.env
+
+# OS
+.DS_Store
+
+# Deploy manifest (local deploy state)
+deploy-manifest.json
+
+# Runtime data cache (fetched game data and scraped event pages)
+cache/
+```
+
 ---
 
 ## Deployment
