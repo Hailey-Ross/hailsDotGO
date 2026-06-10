@@ -2,10 +2,11 @@
 
 A fan-made Pokémon GO companion web app built in Go.
 
-- Raid boss listings with counter recommendations
+- Raid boss and Max Battle listings with tier tabs and counter recommendations
 - DPS calculator and bulk moveset comparison
 - PvP IV ranker (GL / UL / ML)
-- Shiny availability tracker with normal vs shiny sprite comparison
+- Events page: current and upcoming Pokémon GO events with full details (bonuses, featured Pokémon, shinies, raid bosses, research, GO Pass ranks), sourced from LeekDuck via ScrapedDuck
+- Shiny Dex: every available shiny Pokémon, how to find it, and normal vs shiny sprite comparison
 - Personal shiny collection tracker
 - Trainer Directory with searchable profiles
 - Raid Finder: post and join remote raids with queue, lobby, and post-raid rating system
@@ -17,6 +18,8 @@ A fan-made Pokémon GO companion web app built in Go.
 - Custom tag requests: supporters submit a tag name and color (staff-reviewed); weekly submission cooldown and color change rate limit enforced
 - Account suspension with optional staff-entered reason shown to the user on login
 - Admin Users tab: mini-card grid with click-to-open modal detail view and full controls
+- Public JSON API with per-IP request rate limits and aggregate bandwidth throttling, plus an unthrottled private API for trusted consumers
+- Automatic cache busting: static asset URLs carry a content hash so every deploy invalidates browser caches
 - Multi-language: English, Spanish, French, German
 
 ---
@@ -50,12 +53,15 @@ A fan-made Pokémon GO companion web app built in Go.
 On startup, the server fetches Pokémon stats, moves, shinies, type effectiveness, and CP multipliers from [PoGoAPI](https://pogoapi.net) and caches them in memory. Data refreshes every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data so the app can still serve requests.
 
 ### 2. Raid Data
-Live raid bosses are fetched from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (sourced from LeekDuck), cached to disk, and refreshed every 4 hours starting at midnight Mountain Time (12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM). A stale cache is used if the upstream fetch fails.
+Live raid bosses and Max Battles are fetched from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api) (sourced from LeekDuck and snacknap), cached to disk, and refreshed every 4 hours starting at midnight Mountain Time (12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM). A stale cache is used if the upstream fetch fails.
 
-### 3. Database
+### 3. Event Data
+The events feed is pulled from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (LeekDuck data) every 30 minutes. For each active event, the server also scrapes the matching [LeekDuck](https://leekduck.com) event page (sequential requests spaced 1.5 seconds apart with a descriptive User-Agent), sanitizes the content server side, and caches it to disk. Scraped pages refresh every 12 hours, ended events are evicted, and the last good copy is kept if a fetch fails. The full details are served from `/api/events/{id}` so visitors never need to leave the site.
+
+### 4. Database
 All persistent data lives in MySQL: accounts, sessions, shiny collections, trainer profiles, raid posts, tags, store purchases, and site settings.
 
-### 4. Frontend
+### 5. Frontend
 All calculations (DPS, TDO, type effectiveness, CP math, IV stat products) run client-side. TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
 
 ---
@@ -190,6 +196,7 @@ The store is disabled by default. To enable:
 | `VPS_HOST` | Deploy only | | VPS hostname or IP |
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
 | `VPS_PASS` | No | | For manual reference only; not used by `deploy.ps1` |
+| `CACHE_DIR` | No | `cache` | Directory for fetched game data and scraped event pages |
 
 ---
 
@@ -207,12 +214,31 @@ Staff (mod and above) cannot be raid-banned or hidden from the directory.
 
 ---
 
+## API
+
+The public API serves game data as JSON. Full documentation, including rate limits, lives on the live site's [Credits page](https://pogo.hails.live/credits).
+
+| Endpoint | Description | Limit |
+|---|---|---|
+| `GET /api/data` | All game data in one payload | 10 / 2 min per IP |
+| `GET /api/raids` | Current raid bosses by tier | 10 / 2 min per IP |
+| `GET /api/maxbattles` | Current Max Battle bosses by tier | 10 / 2 min per IP |
+| `GET /api/events` | Current and upcoming events feed | 10 / 2 min per IP |
+| `GET /api/events/{id}` | Full sanitized detail for one event | 30 / 2 min per IP |
+| `GET /api/pokemon` | Pokémon base stats | 10 / 2 min per IP |
+| `GET /api/moves` | Fast and charged move data | 10 / 2 min per IP |
+
+An aggregate bandwidth cap of 15 MB per 5 minutes per IP applies across all public endpoints. Logged-in users on the site itself use the session endpoint `GET /api/app/data` with no rate limit. Every public endpoint also has an unthrottled `/api/private/...` mirror that requires an account with API access granted by the superadmin.
+
+---
+
 ## Data Sources
 
 | Source | What it provides |
 |---|---|
 | [PoGoAPI](https://pogoapi.net) | Pokémon stats, moves, shinies, type effectiveness, CP multipliers |
-| [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Live raid boss data (sourced from LeekDuck) |
+| [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api) | Live raid boss and Max Battle data (sourced from LeekDuck and snacknap) |
+| [LeekDuck](https://leekduck.com) via [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Events feed, full event details, and event images |
 | [PokéAPI](https://pokeapi.co) | Sprites, Pokédex text, genus, legendary/mythical flags, cries |
 | [Open-Meteo](https://open-meteo.com) | Weather data for Pokémon GO weather boost detection (no API key required) |
 | [Pokémon Showdown](https://pokemonshowdown.com) | Trainer class sprites for avatars |

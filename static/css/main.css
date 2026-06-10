@@ -219,6 +219,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .dps-card:hover    { border-color: var(--green); box-shadow: 0 0 20px rgba(0,214,143,0.18); }
 .pvp-card:hover    { border-color: var(--blue);  box-shadow: 0 0 20px rgba(91,156,246,0.18); }
 .events-card:hover { border-color: var(--gold);  box-shadow: 0 0 20px rgba(255,179,64,0.18); }
+.shinydex-card:hover { border-color: #e879f9; box-shadow: 0 0 20px rgba(232,121,249,0.18); }
 
 /* ── Page headers ───────────────────────────────────────────── */
 .page-header { margin-bottom: 1.75rem; }
@@ -385,7 +386,12 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .tier-6 { color: #ff9500; }
 .tier-5 { color: var(--red); }
 .tier-3 { color: var(--gold); }
+.tier-2 { color: #4aa3ff; }
 .tier-1 { color: var(--green); }
+
+/* ── Max Battles section ────────────────────────────────────── */
+.max-battles-section { margin-top: 2.25rem; padding-top: 1.75rem; border-top: 1px solid var(--border); }
+.section-heading { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 1.25rem; }
 
 .boss-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .boss-btn {
@@ -532,6 +538,23 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   background: color-mix(in srgb, var(--type-color, #888) 20%, transparent);
   color: var(--text);
 }
+
+/* ── Raid tier tabs (single-select) ──────────────────────────── */
+.raid-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.max-battles-section .raid-tabs { margin-bottom: 1.1rem; }
+.raid-tab {
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  color: var(--text-2); border-radius: var(--r-pill);
+  padding: 0.4rem 1.1rem; font-size: 0.82rem; font-weight: 700;
+  cursor: pointer; font-family: var(--font);
+  transition: all var(--trans);
+}
+.raid-tab:hover { color: var(--text); }
+.raid-tab.tier-6.active { border-color: #ff9500;     color: #ff9500;     background: rgba(255,149,0,0.18); }
+.raid-tab.tier-5.active { border-color: var(--red);   color: var(--red);   background: rgba(229,57,53,0.18); }
+.raid-tab.tier-3.active { border-color: var(--gold);  color: var(--gold);  background: rgba(255,179,64,0.18); }
+.raid-tab.tier-2.active { border-color: #4aa3ff;      color: #4aa3ff;      background: rgba(74,163,255,0.18); }
+.raid-tab.tier-1.active { border-color: var(--green); color: var(--green); background: rgba(0,214,143,0.18); }
 
 /* ── Raid boss grid ──────────────────────────────────────────── */
 .raid-boss-grid {
@@ -698,6 +721,198 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .tier-block { margin-bottom: 1.5rem; }
 .tier-block:last-child { margin-bottom: 0; }
 .empty-state { color: var(--text-2); font-size: 0.9rem; padding: 1rem 0; }
+
+/* Event cards (events page) */
+.event-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.85rem;
+}
+.event-card {
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; cursor: pointer;
+  display: flex; flex-direction: column;
+  transition: background var(--trans), border-color var(--trans), transform var(--trans);
+}
+.event-card:hover { background: rgba(255,255,255,0.07); border-color: var(--border-h); transform: translateY(-2px); }
+.event-card-img { width: 100%; height: 120px; object-fit: cover; display: block; }
+.event-card-body {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem;
+  padding: 0.85rem 0.95rem 1rem;
+}
+.event-card-name { font-size: 0.95rem; font-weight: 700; line-height: 1.3; }
+.event-badge {
+  background: rgba(91,156,246,0.15); border: 1px solid var(--blue); color: var(--text);
+  border-radius: var(--r-pill); padding: 0.12rem 0.6rem;
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+}
+.event-times { color: var(--text-2); font-size: 0.78rem; line-height: 1.5; }
+.event-countdown {
+  background: rgba(255,179,64,0.14); border: 1px solid var(--gold); color: var(--text);
+  border-radius: var(--r-pill); padding: 0.15rem 0.65rem;
+  font-size: 0.74rem; font-weight: 700;
+}
+
+/* Event detail modal (shares the .shiny-modal overlay) */
+.event-modal-inner {
+  background: rgba(0,0,0,0.85); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 0 0 1.5rem;
+  width: min(680px, 92vw); max-height: 85vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 0.9rem;
+}
+.event-modal-img { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+.event-modal-head { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; padding: 0 1.5rem; }
+.event-modal-name { font-size: 1.25rem; font-weight: 800; line-height: 1.25; }
+.event-modal-times { padding: 0 1.5rem; font-size: 0.85rem; }
+.event-detail-section { padding: 0 1.5rem; }
+.event-detail-section h3 {
+  font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-2); margin-bottom: 0.55rem;
+}
+.event-poke-grid { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.event-poke {
+  display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.45rem 0.55rem; min-width: 72px; text-align: center;
+}
+.event-poke img { width: 48px; height: 48px; object-fit: contain; }
+.event-poke span { font-size: 0.68rem; line-height: 1.25; color: var(--text); word-break: break-word; }
+.event-bonus {
+  display: flex; align-items: center; gap: 0.55rem;
+  font-size: 0.84rem; color: var(--text); padding: 0.22rem 0;
+}
+.event-bonus img { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.event-research-step { margin-bottom: 0.4rem; }
+.event-research-step summary {
+  cursor: pointer; font-size: 0.84rem; font-weight: 700; padding: 0.25rem 0;
+}
+.event-disclaimer { padding: 0 1.5rem; color: var(--text-2); font-size: 0.72rem; line-height: 1.5; }
+.event-modal-link { padding: 0 1.5rem; }
+.event-modal-link a { font-size: 0.85rem; font-weight: 700; color: var(--blue); }
+.event-detail-loading { padding: 0 1.5rem; color: var(--text-2); font-size: 0.85rem; }
+
+/* Scraped LeekDuck event content, restyled to the site theme.
+   Class names below come from leekduck.com event pages. */
+.event-detail-html { padding: 0 1.5rem; font-size: 0.88rem; line-height: 1.6; }
+.event-detail-html img { max-width: 100%; height: auto; }
+.event-detail-html a { color: var(--blue); }
+.event-detail-html p { margin: 0.55rem 0; color: var(--text); }
+.event-detail-html ul { margin: 0.55rem 0 0.55rem 1.2rem; }
+.event-detail-html li { margin: 0.25rem 0; }
+.event-detail-html hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+.event-detail-html h2, .event-detail-html h3 {
+  font-size: 0.95rem; font-weight: 800; margin: 1.1rem 0 0.5rem;
+}
+.event-detail-html h2.event-section-header {
+  font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-2); border-bottom: 1px solid var(--border); padding-bottom: 0.35rem;
+  margin: 1.3rem 0 0.6rem;
+}
+.event-detail-html .event-description p:first-child { margin-top: 0; }
+
+/* Bonus rows */
+.event-detail-html .bonus-list { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.5rem 0; }
+.event-detail-html .bonus-item { display: flex; align-items: center; gap: 0.6rem; }
+.event-detail-html .item-circle {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.event-detail-html .item-circle img { width: 26px; height: 26px; object-fit: contain; }
+.event-detail-html .bonus-text { font-size: 0.85rem; }
+
+/* Pokemon grids (spawns, raids, shinies, eggs) */
+.event-detail-html ul.pkmn-list-flex {
+  display: flex; flex-wrap: wrap; gap: 0.45rem; list-style: none; margin: 0.5rem 0; padding: 0;
+}
+.event-detail-html li.pkmn-list-item {
+  display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.45rem 0.55rem; min-width: 76px; max-width: 110px; text-align: center;
+  position: relative; margin: 0;
+}
+.event-detail-html .pkmn-list-img img { width: 56px; height: 56px; object-fit: contain; }
+.event-detail-html img.shiny-icon {
+  position: absolute; top: 4px; right: 4px; width: 14px; height: 14px;
+}
+.event-detail-html .pkmn-name { font-size: 0.68rem; line-height: 1.25; word-break: break-word; }
+
+/* Field research */
+.event-detail-html ul.event-field-research-list { list-style: none; margin: 0.5rem 0; padding: 0; }
+.event-detail-html ul.event-field-research-list > li {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.5rem 0.7rem; margin: 0.35rem 0; background: rgba(255,255,255,0.03);
+}
+.event-detail-html span.task { font-weight: 700; font-size: 0.82rem; }
+.event-detail-html .reward-list { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.event-detail-html .reward {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  font-size: 0.7rem; text-align: center;
+}
+.event-detail-html .reward-bubble {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center; position: relative;
+}
+.event-detail-html img.reward-image { width: 24px; height: 24px; object-fit: contain; }
+.event-detail-html .quantity { font-size: 0.62rem; font-weight: 700; }
+.event-detail-html .reward-label { font-size: 0.66rem; color: var(--text-2); }
+.event-detail-html .cp-values { font-size: 0.6rem; color: var(--text-2); }
+.event-detail-html .reward.plus-more-rewards { display: none; }
+.event-detail-html .reward.hide-reward-overflow { display: inline-flex; }
+
+/* Paid special research */
+.event-detail-html .special-research-header { margin-top: 1.2rem; }
+.event-detail-html .special-research-subtitle { color: var(--text-2); font-size: 0.78rem; }
+.event-detail-html .special-research-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.5rem 0; }
+.event-detail-html .step-item {
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.03);
+}
+.event-detail-html .step-name { font-weight: 800; font-size: 0.84rem; margin-bottom: 0.35rem; }
+.event-detail-html .task-reward {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  font-size: 0.8rem; padding: 0.2rem 0;
+}
+.event-detail-html .page-reward-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+.event-detail-html .page-reward { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; }
+
+/* Season day cards and GO Pass ranks */
+.event-detail-html .day-card {
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.6rem 0.8rem; margin: 0.4rem 0; background: rgba(255,255,255,0.03);
+}
+.event-detail-html .day-title { font-weight: 800; font-size: 0.84rem; margin-bottom: 0.3rem; }
+.event-detail-html .rank-item {
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.5rem 0.7rem; margin: 0.35rem 0; background: rgba(255,255,255,0.03);
+  display: flex; align-items: center; gap: 0.7rem;
+}
+.event-detail-html .rank-label {
+  display: flex; flex-direction: column; align-items: center;
+  flex-shrink: 0; min-width: 2.4rem;
+}
+.event-detail-html .rank-text { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-2); }
+.event-detail-html .rank-number { font-size: 1rem; font-weight: 800; }
+.event-detail-html .rank-paths { display: flex; gap: 0.6rem; flex: 1; min-width: 0; }
+.event-detail-html .rank-rewards { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; flex: 1; }
+.event-detail-html .battle-pass-paths { display: flex; gap: 0.6rem; margin-top: 0.5rem; padding-left: calc(2.4rem + 0.7rem + 0.7rem); }
+.event-detail-html .path-column { flex: 1; }
+.event-detail-html .path-header { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-2); }
+.event-detail-html .reward-item { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; }
+.event-detail-html .reward-info { font-size: 0.7rem; color: var(--text-2); }
+
+/* GO Pass reward icons come div-wrapped (div.reward-image > img) unlike field
+   research where the class sits on the img itself; cap them to chip scale. */
+.event-detail-html div.reward-image {
+  position: relative; flex-shrink: 0;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+}
+.event-detail-html div.reward-image img { width: 100%; height: 100%; object-fit: contain; }
+.event-detail-html .resource-info { position: absolute; bottom: -3px; right: -3px; }
+.event-detail-html .resource-info img { width: 14px; height: 14px; }
 
 /* ── Pokémon sprites ────────────────────────────────────────── */
 .poke-sprite {

@@ -1,0 +1,19 @@
+{{define "title"}}{{T "shinydex.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{T "shinydex.title"}}</h1>
+  <p>{{T "shinydex.subtitle"}}</p>
+</div>
+
+<div id="shinydex-app">
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>{{T "shinydex.loading"}}</p>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/shinydex.js?v={{.AssetVersion}}"></script>
+{{end}}

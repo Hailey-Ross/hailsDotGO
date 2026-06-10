@@ -245,6 +245,7 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 		"section_trainer_directory_enabled",
 		"section_raid_finder_enabled",
 		"page_shinies_enabled",
+		"page_shinydex_enabled",
 	}
 
 	saveErr := false

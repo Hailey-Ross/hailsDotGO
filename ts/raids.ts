@@ -81,30 +81,32 @@ function buildRaidsView(data: GameData): HTMLElement {
     tiers.flatMap(([, bosses]) => bosses.flatMap((b) => b.types ?? []))
   )].sort();
 
-  const activeTiers = new Set(tiers.map(([t]) => t));
+  // Single-select tier tabs: only one tier is shown at a time. tiers is sorted highest
+  // first, so the highest tier is the default active tab.
+  let activeTier = tiers.length ? tiers[0][0] : "";
   const activeTypes = new Set(uniqueTypes);
 
   // ── Filter bar ─────────────────────────────────────────────
   const filterBar = document.createElement("div");
   filterBar.className = "raid-filter-bar";
 
+  // Tier tabs (single-select), ordered highest tier to lowest.
   const tierRow = document.createElement("div");
-  tierRow.className = "filter-row";
-  const tierLbl = document.createElement("span");
-  tierLbl.className = "filter-label";
-  tierLbl.textContent = "Tiers";
-  tierRow.appendChild(tierLbl);
+  tierRow.className = "raid-tabs";
 
+  const tierTabs: HTMLButtonElement[] = [];
   for (const [tier] of tiers) {
-    const chip = document.createElement("button");
-    chip.className = `filter-chip tier-chip tier-${tier} active`;
-    chip.textContent = tier === "6" ? "Mega" : `T${tier}`;
-    chip.addEventListener("click", () => {
-      if (activeTiers.has(tier)) { activeTiers.delete(tier); chip.classList.remove("active"); }
-      else { activeTiers.add(tier); chip.classList.add("active"); }
+    const tab = document.createElement("button");
+    tab.className = `raid-tab tier-${tier}${tier === activeTier ? " active" : ""}`;
+    tab.textContent = tier === "6" ? "Mega" : `Tier ${tier}`;
+    tab.dataset.tier = tier;
+    tab.addEventListener("click", () => {
+      activeTier = tier;
+      for (const t of tierTabs) t.classList.toggle("active", t.dataset.tier === tier);
       updateVisibility();
     });
-    tierRow.appendChild(chip);
+    tierTabs.push(tab);
+    tierRow.appendChild(tab);
   }
   filterBar.appendChild(tierRow);
 
@@ -525,11 +527,6 @@ function buildRaidsView(data: GameData): HTMLElement {
     section.className = "tier-block fade-up";
     section.dataset.tier = tier;
 
-    const label = document.createElement("div");
-    label.className = `tier-label tier-${tier}`;
-    label.textContent = tier === "6" ? "Mega / Primal" : `Tier ${tier}`;
-    section.appendChild(label);
-
     const grid = document.createElement("div");
     grid.className = "raid-boss-grid";
 
@@ -594,7 +591,7 @@ function buildRaidsView(data: GameData): HTMLElement {
 
   function updateVisibility() {
     for (const [tier, section] of tierSections) {
-      if (!activeTiers.has(tier)) {
+      if (tier !== activeTier) {
         section.style.display = "none";
         continue;
       }
@@ -607,6 +604,116 @@ function buildRaidsView(data: GameData): HTMLElement {
     }
   }
 
+  updateVisibility(); // show only the default (highest) tier initially
+
+  return wrap;
+}
+
+// buildMaxBattlesSection renders Max Battle (Dynamax) bosses as their own block below the
+// raids, with single-select tier tabs ordered highest tier to lowest, reusing the same boss
+// cards and on-click counter panel.
+function buildMaxBattlesSection(data: GameData): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "max-battles-section";
+
+  const heading = document.createElement("h2");
+  heading.className = "section-heading";
+  heading.textContent = "Max Battles";
+  wrap.appendChild(heading);
+
+  const counterPanel = document.createElement("div");
+  counterPanel.style.display = "none";
+  let activeCard: HTMLElement | null = null;
+
+  // Highest tier first.
+  const tiers = Object.entries(data.maxBattles!).filter(([, b]) => b.length).sort(([a], [b]) => Number(b) - Number(a));
+  let activeTier = tiers.length ? tiers[0][0] : "";
+  const tierSections = new Map<string, HTMLElement>();
+
+  const tabRow = document.createElement("div");
+  tabRow.className = "raid-tabs";
+  const tierTabs: HTMLButtonElement[] = [];
+  for (const [tier] of tiers) {
+    const tab = document.createElement("button");
+    tab.className = `raid-tab tier-${tier}${tier === activeTier ? " active" : ""}`;
+    tab.textContent = `Tier ${tier}`;
+    tab.dataset.tier = tier;
+    tab.addEventListener("click", () => {
+      activeTier = tier;
+      for (const t of tierTabs) t.classList.toggle("active", t.dataset.tier === tier);
+      for (const [tk, sec] of tierSections) sec.style.display = tk === activeTier ? "" : "none";
+    });
+    tierTabs.push(tab);
+    tabRow.appendChild(tab);
+  }
+  wrap.appendChild(tabRow);
+
+  for (const [tier, bosses] of tiers) {
+    if (!bosses.length) continue;
+
+    const section = document.createElement("div");
+    section.className = "tier-block fade-up";
+    section.style.display = tier === activeTier ? "" : "none";
+
+    const grid = document.createElement("div");
+    grid.className = "raid-boss-grid";
+
+    for (const boss of bosses) {
+      const card = createBossCard(boss, data);
+      card.style.cursor = "pointer";
+
+      card.addEventListener("click", () => {
+        if (activeCard === card) {
+          card.classList.remove("active");
+          activeCard = null;
+          counterPanel.style.display = "none";
+          counterPanel.innerHTML = "";
+          return;
+        }
+
+        if (activeCard) activeCard.classList.remove("active");
+        activeCard = card;
+        card.classList.add("active");
+
+        counterPanel.innerHTML = "";
+        counterPanel.style.display = "";
+
+        const flavorP = document.createElement("p");
+        flavorP.className = "poke-flavor";
+        flavorP.style.display = "none";
+        counterPanel.appendChild(flavorP);
+
+        const genusEl = document.createElement("span");
+        genusEl.className = "poke-genus";
+        counterPanel.appendChild(genusEl);
+
+        const badgeEl = document.createElement("span");
+        badgeEl.style.display = "none";
+        counterPanel.appendChild(badgeEl);
+
+        fetchSpeciesData(boss.pokemon_name).then(d => {
+          if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
+          if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+          if (d.isLegendary || d.isMythical) {
+            badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+            badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+            badgeEl.style.display = "";
+          }
+        });
+
+        counterPanel.appendChild(renderCounterTable(boss, calcCounters(data, boss)));
+        counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+
+      grid.appendChild(card);
+    }
+
+    section.appendChild(grid);
+    tierSections.set(tier, section);
+    wrap.appendChild(section);
+  }
+
+  wrap.appendChild(counterPanel);
   return wrap;
 }
 
@@ -621,6 +728,10 @@ async function init() {
     }
 
     app.appendChild(buildRaidsView(data));
+
+    if (data.maxBattles && Object.keys(data.maxBattles).length > 0) {
+      app.appendChild(buildMaxBattlesSection(data));
+    }
   } catch (err) {
     app.innerHTML = `<div class="error-state">Failed to load data. Please try again later.</div>`;
     console.error(err);

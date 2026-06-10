@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/main.css?v=17">
+  <link rel="stylesheet" href="/static/css/main.css?v={{.AssetVersion}}">
   <meta name="csrf-token" content="{{.CSRFToken}}">
 </head>
 <body>
@@ -28,7 +28,8 @@
     {{if .Maintenance.RaidsEnabled}}<a href="/raids">{{T "nav.raids"}}</a>{{end}}
     {{if .Maintenance.DPSEnabled}}<a href="/dps">{{T "nav.dps"}}</a>{{end}}
     {{if .Maintenance.PVPEnabled}}<a href="/pvp">{{T "nav.pvp"}}</a>{{end}}
-    {{if .Maintenance.EventsEnabled}}<a href="/events">{{T "nav.shinies"}}</a>{{end}}
+    {{if .Maintenance.EventsEnabled}}<a href="/events">{{T "nav.events"}}</a>{{end}}
+    {{if .Maintenance.ShinyDexEnabled}}<a href="/shinydex">{{T "nav.shinydex"}}</a>{{end}}
     {{if .Maintenance.TrainersEnabled}}<a href="/trainers">{{T "nav.trainers"}}</a>{{end}}
     {{if .StoreEnabled}}<a href="/store">{{T "nav.store"}}</a>{{end}}
     {{if .User}}
