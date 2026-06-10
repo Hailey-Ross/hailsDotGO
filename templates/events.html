@@ -15,5 +15,26 @@
 {{end}}
 
 {{define "scripts"}}
-<script src="/static/js/events.js"></script>
+<script>
+const EV = {
+  current:    {{T "events.current"}},
+  upcoming:   {{T "events.upcoming"}},
+  none:       {{T "events.none"}},
+  startsIn:   {{T "events.starts_in"}},
+  endsIn:     {{T "events.ends_in"}},
+  starts:     {{T "events.starts"}},
+  ends:       {{T "events.ends"}},
+  bonuses:    {{T "events.modal.bonuses"}},
+  spawns:     {{T "events.modal.spawns"}},
+  shinies:    {{T "events.modal.shinies"}},
+  bosses:     {{T "events.modal.bosses"}},
+  spotlight:  {{T "events.modal.spotlight"}},
+  research:   {{T "events.modal.research"}},
+  leekduck:   {{T "events.modal.leekduck"}},
+  canBeShiny: {{T "events.modal.can_be_shiny"}},
+  loadingDetails: {{T "events.modal.loading_details"}},
+  error:      {{T "events.error"}}
+};
+</script>
+<script src="/static/js/events.js?v={{.AssetVersion}}"></script>
 {{end}}

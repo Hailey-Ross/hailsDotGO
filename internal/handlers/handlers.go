@@ -1,14 +1,21 @@
 package handlers
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/csrf"
 	"pogo.hails.cc/internal/auth"
 	"pogo.hails.cc/internal/i18n"
@@ -16,10 +23,11 @@ import (
 )
 
 type Handlers struct {
-	store     *pogodata.Store
-	tmpl      map[string]*template.Template
-	db        *sql.DB
-	startTime time.Time
+	store        *pogodata.Store
+	tmpl         map[string]*template.Template
+	db           *sql.DB
+	startTime    time.Time
+	assetVersion string
 }
 
 // PageMaintenance holds the enabled/disabled state for each page and section.
@@ -32,6 +40,7 @@ type PageMaintenance struct {
 	TrainerDirectoryEnabled bool
 	RaidFinderEnabled       bool
 	ShiniesEnabled          bool
+	ShinyDexEnabled         bool
 }
 
 // PageData is the root template data passed to every page.
@@ -43,12 +52,41 @@ type PageData struct {
 	StoreEnabled bool
 	Maintenance  PageMaintenance
 	Lang         string
+	AssetVersion string
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
-	h := &Handlers{store: store, db: db, startTime: time.Now()}
+	h := &Handlers{store: store, db: db, startTime: time.Now(), assetVersion: computeAssetVersion()}
 	h.loadTemplates()
 	return h
+}
+
+// computeAssetVersion hashes the contents of the static JS/CSS bundles so the value changes
+// only when a bundle changes. It is appended to every /static asset URL as ?v=... to bust
+// browser caches on each deploy. Falls back to a timestamp if no asset files can be read.
+func computeAssetVersion() string {
+	hasher := sha256.New()
+	count := 0
+	for _, dir := range []string{"static/css", "static/js"} {
+		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info == nil || info.IsDir() {
+				return nil
+			}
+			f, err := os.Open(path)
+			if err != nil {
+				return nil
+			}
+			defer f.Close()
+			if _, err := io.Copy(hasher, f); err == nil {
+				count++
+			}
+			return nil
+		})
+	}
+	if count == 0 {
+		return strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	return hex.EncodeToString(hasher.Sum(nil))[:8]
 }
 
 var tmplFuncs = template.FuncMap{
@@ -59,7 +97,7 @@ var tmplFuncs = template.FuncMap{
 func (h *Handlers) loadTemplates() {
 	h.tmpl = make(map[string]*template.Template)
 	pages := []string{
-		"home", "raids", "dps", "pvp", "events", "credits", "maintenance",
+		"home", "raids", "dps", "pvp", "events", "shinydex", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 	}
 	for _, page := range pages {
@@ -112,7 +150,8 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	clone.Funcs(template.FuncMap{"T": i18n.TFunc(lang)})
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang}
+	w.Header().Set("Cache-Control", "no-cache")
+	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, AssetVersion: h.assetVersion}
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)
 	}
@@ -140,6 +179,10 @@ func (h *Handlers) Events(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "events", nil)
 }
 
+func (h *Handlers) ShinyDex(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "shinydex", nil)
+}
+
 func (h *Handlers) Credits(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "credits", nil)
 }
@@ -152,6 +195,34 @@ func (h *Handlers) APIData(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) APIRaids(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.store.Raids())
+}
+
+func (h *Handlers) APIMaxBattles(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, h.store.MaxBattles())
+}
+
+func (h *Handlers) APIEvents(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, h.store.Events())
+}
+
+var eventIDPattern = regexp.MustCompile(`^[a-z0-9-]{1,128}$`)
+
+func (h *Handlers) APIEventDetail(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !eventIDPattern.MatchString(id) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error":"invalid event id"}`))
+		return
+	}
+	detail, ok := h.store.EventDetail(id)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"not found"}`))
+		return
+	}
+	writeJSON(w, detail)
 }
 
 func (h *Handlers) APIPokemon(w http.ResponseWriter, r *http.Request) {
@@ -203,12 +274,13 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 		TrainerDirectoryEnabled: true,
 		RaidFinderEnabled:       true,
 		ShiniesEnabled:          true,
+		ShinyDexEnabled:         true,
 	}
 	rows, err := h.db.Query(`SELECT setting_key, setting_value FROM site_settings
 		WHERE setting_key IN (
 			'page_raids_enabled','page_dps_enabled','page_pvp_enabled','page_events_enabled',
 			'page_trainers_enabled','section_trainer_directory_enabled',
-			'section_raid_finder_enabled','page_shinies_enabled'
+			'section_raid_finder_enabled','page_shinies_enabled','page_shinydex_enabled'
 		)`)
 	if err != nil {
 		return m
@@ -237,6 +309,8 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 			m.RaidFinderEnabled = enabled
 		case "page_shinies_enabled":
 			m.ShiniesEnabled = enabled
+		case "page_shinydex_enabled":
+			m.ShinyDexEnabled = enabled
 		}
 	}
 	return m
@@ -256,6 +330,8 @@ func pageEnabled(page string, m PageMaintenance) bool {
 		return m.TrainersEnabled
 	case "shinies":
 		return m.ShiniesEnabled
+	case "shinydex":
+		return m.ShinyDexEnabled
 	}
 	return true
 }
@@ -282,8 +358,10 @@ func (h *Handlers) serveMaintenance(w http.ResponseWriter, r *http.Request, page
 		StoreEnabled: h.storeEnabled(),
 		Maintenance:  m,
 		Lang:         lang,
+		AssetVersion: h.assetVersion,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("serveMaintenance %q: %v", page, err)

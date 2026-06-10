@@ -1,265 +1,391 @@
-import { loadGameData, pokeName } from "./shared/gamedata";
-import { typeBadge } from "./shared/typecolors";
-import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
-import type { GameData, ShinyPokemon } from "./shared/types";
+// Events page: current and upcoming Pokemon GO events from /api/events
+// (ScrapedDuck feed, LeekDuck data). Cards grouped Current/Upcoming with a
+// click-to-open detail modal.
+
+declare var EV: Record<string, string>;
+declare var SITE_LANG: string;
 
 const app = document.getElementById("events-app")!;
 
-// ── Shinies panel ─────────────────────────────────────────────
-
-interface ShinyGroup {
-  id: string;
-  label: string;
-  icon: string;
-  flag: keyof ShinyPokemon;
-  tooltip: string;
+interface NamedMon {
+  name: string;
+  image: string;
+  canBeShiny?: boolean;
 }
 
-const SHINY_GROUPS: ShinyGroup[] = [
-  { id: "wild",      label: "Wild",       icon: "🌿", flag: "found_wild",      tooltip: "Encountered randomly in the overworld" },
-  { id: "raid",      label: "Raids",      icon: "⚔️", flag: "found_raid",      tooltip: "Rare reward after defeating a raid boss" },
-  { id: "egg",       label: "Eggs",       icon: "🥚", flag: "found_egg",       tooltip: "Hatched from 2km, 5km, 7km, or 12km eggs" },
-  { id: "research",  label: "Research",   icon: "📋", flag: "found_research",  tooltip: "Reward encounter from field research tasks" },
-  { id: "evolution", label: "Evolution",  icon: "⬆️", flag: "found_evolution", tooltip: "Evolve the base form: cannot be caught directly" },
-  { id: "photobomb", label: "Photobomb",  icon: "📸", flag: "found_photobomb", tooltip: "Appears by surprise when taking a GO Snapshot" },
-];
+interface TextImage {
+  text: string;
+  image: string;
+}
 
-let cryVolume = 0.3;
+interface ResearchStep {
+  name: string;
+  step: number;
+  tasks: { text: string; reward: TextImage }[];
+  rewards: TextImage[];
+}
 
-function buildShiniesPanel(data: GameData): () => HTMLElement {
-  return () => {
-    const wrap = document.createElement("div");
-
-    if (!data.shinies || Object.keys(data.shinies).length === 0) {
-      wrap.innerHTML = `<div class="error-state">Shiny data unavailable. Check back later.</div>`;
-      return wrap;
-    }
-
-    const allShinies = Object.values(data.shinies);
-    const groups = SHINY_GROUPS.map((g) => ({
-      ...g,
-      items: allShinies.filter((s) => s[g.flag] === true),
-    })).filter((g) => g.items.length > 0);
-
-    // Shared lightbox modal (one per panel render)
-    const modal = document.createElement("div");
-    modal.className = "shiny-modal";
-    modal.innerHTML = `<div class="shiny-modal-inner">
-      <div class="shiny-compare" id="shiny-compare-wrap">
-        <div class="shiny-compare-side">
-          <img class="shiny-compare-img" id="shiny-modal-normal" alt="" />
-          <span>Normal</span>
-        </div>
-        <div class="shiny-compare-side">
-          <img class="shiny-compare-img" id="shiny-modal-shiny" alt="" />
-          <span>✨ Shiny</span>
-        </div>
-      </div>
-      <div class="shiny-modal-name-row">
-        <span class="shiny-modal-name"></span>
-      </div>
-      <span class="poke-genus" id="shiny-modal-genus"></span>
-      <span class="poke-legend-badge" id="shiny-modal-badge" style="display:none"></span>
-      <div class="poke-cry-controls" id="shiny-cry-controls" style="display:none">
-        <button class="poke-cry-btn" id="shiny-modal-cry" title="Play cry">🔊</button>
-        <input type="range" class="poke-volume-slider" id="shiny-modal-volume" min="0" max="100" value="100" title="Volume">
-        <span class="poke-volume-label" id="shiny-modal-vlabel">100%</span>
-      </div>
-      <p class="poke-flavor" id="shiny-modal-flavor" style="display:none"></p>
-      <div class="shiny-modal-methods"></div>
-    </div>`;
-    document.body.appendChild(modal);
-    // Only close when clicking the backdrop, not inner content
-    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("open"); });
-    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") modal.classList.remove("open"); };
-    document.addEventListener("keydown", onEsc);
-
-    // Search input
-    const searchInput = document.createElement("input");
-    searchInput.type = "text";
-    searchInput.className = "search-input";
-    searchInput.placeholder = `Search ${allShinies.length} Pokémon…`;
-    searchInput.style.width = "100%";
-    searchInput.style.marginBottom = "1rem";
-    wrap.appendChild(searchInput);
-
-    // Method tabs
-    const methodTabs = document.createElement("div");
-    methodTabs.className = "shiny-method-tabs";
-
-    const allBtn = document.createElement("button");
-    allBtn.className = "method-tab active";
-    allBtn.dataset.group = "all";
-    allBtn.textContent = `All (${allShinies.length})`;
-    methodTabs.appendChild(allBtn);
-
-    for (const g of groups) {
-      const btn = document.createElement("button");
-      btn.className = "method-tab";
-      btn.dataset.group = g.id;
-      btn.dataset.tooltip = g.tooltip;
-      btn.textContent = `${g.icon} ${g.label} (${g.items.length})`;
-      methodTabs.appendChild(btn);
-    }
-    wrap.appendChild(methodTabs);
-
-    const grid = document.createElement("div");
-    grid.className = "shiny-grid";
-    wrap.appendChild(grid);
-
-    let activeGroup = "all";
-
-    function renderGrid() {
-      grid.innerHTML = "";
-      const filter = searchInput.value.trim().toLowerCase();
-      const source = activeGroup === "all"
-        ? allShinies
-        : groups.find((g) => g.id === activeGroup)?.items ?? allShinies;
-
-      const filtered = filter
-        ? source.filter((s) => s.name.toLowerCase().includes(filter))
-        : source;
-
-      if (!filtered.length) {
-        grid.innerHTML = `<p class="empty-state">No results.</p>`;
-        return;
-      }
-
-      for (const s of [...filtered].sort((a, b) => a.id - b.id)) {
-        const card = document.createElement("div");
-        card.className = "shiny-tag";
-
-        const img = document.createElement("img");
-        img.src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${s.id}.png`;
-        img.alt = s.name;
-        img.className = "shiny-img";
-        img.loading = "lazy";
-        img.decoding = "async";
-        img.onerror = () => { img.style.display = "none"; };
-
-        const label = document.createElement("span");
-        label.className = "shiny-label";
-        label.textContent = pokeName(data, s.name);
-
-        card.appendChild(img);
-        card.appendChild(label);
-
-        card.addEventListener("click", () => {
-          (document.getElementById("shiny-modal-normal") as HTMLImageElement).src =
-            `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${s.id}.png`;
-          (document.getElementById("shiny-modal-shiny") as HTMLImageElement).src =
-            `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${s.id}.png`;
-          (modal.querySelector(".shiny-modal-name") as HTMLElement).textContent =
-            pokeName(data, s.name);
-
-          const flavorEl   = document.getElementById("shiny-modal-flavor")   as HTMLElement;
-          const genusEl    = document.getElementById("shiny-modal-genus")    as HTMLElement;
-          const badgeEl    = document.getElementById("shiny-modal-badge")    as HTMLElement;
-          const cryPanel   = document.getElementById("shiny-cry-controls")   as HTMLElement;
-          const cryBtn     = document.getElementById("shiny-modal-cry")      as HTMLButtonElement;
-          const volSlider  = document.getElementById("shiny-modal-volume")   as HTMLInputElement;
-          const volLabel   = document.getElementById("shiny-modal-vlabel")   as HTMLElement;
-          const compareWrap = document.getElementById("shiny-compare-wrap")  as HTMLElement;
-          flavorEl.textContent = ""; flavorEl.style.display = "none";
-          genusEl.textContent  = "";
-          badgeEl.textContent  = ""; badgeEl.style.display = "none";
-          cryPanel.style.display = "none"; cryBtn.onclick = null;
-          // Remove any primal panels from a previous open
-          compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
-
-          // Keep slider in sync with shared volume
-          volSlider.value = String(Math.round((cryVolume / 0.3) * 100));
-          volLabel.textContent = `${volSlider.value}%`;
-          volSlider.oninput = () => {
-            cryVolume = (Number(volSlider.value) / 100) * 0.3;
-            volLabel.textContent = `${volSlider.value}%`;
-          };
-
-          fetchSpeciesData(s.id).then(d => {
-            if (d.flavor) { flavorEl.textContent = d.flavor; flavorEl.style.display = ""; }
-            if (d.genus)  { genusEl.textContent  = `The ${d.genus}`; }
-            if (d.isLegendary || d.isMythical) {
-              badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
-              badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
-              badgeEl.style.display = "";
-            }
-            for (const variety of d.varieties.filter(v => v.includes("primal"))) {
-              fetchFormSprites(variety).then(sprites => {
-                if (!sprites.normal && !sprites.shiny) return;
-                if (sprites.normal) {
-                  const side = document.createElement("div");
-                  side.className = "shiny-compare-side shiny-compare-side--extra";
-                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="Primal"><span>🌋 Primal</span>`;
-                  compareWrap.appendChild(side);
-                }
-                if (sprites.shiny) {
-                  const side = document.createElement("div");
-                  side.className = "shiny-compare-side shiny-compare-side--extra";
-                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="Primal Shiny"><span>✨ Primal Shiny</span>`;
-                  compareWrap.appendChild(side);
-                }
-              });
-            }
-          });
-          fetchCryUrl(s.id).then(url => {
-            if (!url) return;
-            cryPanel.style.display = "";
-            cryBtn.onclick = (e) => {
-              e.stopPropagation();
-              const a = new Audio(url);
-              a.volume = cryVolume;
-              a.play();
-            };
-          });
-
-          const methodsEl = modal.querySelector(".shiny-modal-methods") as HTMLElement;
-          methodsEl.innerHTML = "";
-          const obtainMethods = SHINY_GROUPS.filter((g) => s[g.flag] === true);
-          if (obtainMethods.length) {
-            const lbl = document.createElement("span");
-            lbl.className = "shiny-modal-methods-label";
-            lbl.textContent = "How to find:";
-            methodsEl.appendChild(lbl);
-            for (const g of obtainMethods) {
-              const chip = document.createElement("span");
-              chip.className = "shiny-method-chip";
-              chip.textContent = `${g.icon} ${g.label}`;
-              methodsEl.appendChild(chip);
-            }
-          }
-
-          modal.classList.add("open");
-        });
-
-        grid.appendChild(card);
-      }
-    }
-
-    methodTabs.addEventListener("click", (e) => {
-      const btn = (e.target as HTMLElement).closest(".method-tab") as HTMLButtonElement | null;
-      if (!btn) return;
-      methodTabs.querySelectorAll(".method-tab").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      activeGroup = btn.dataset.group ?? "all";
-      renderGrid();
-    });
-
-    searchInput.addEventListener("input", renderGrid);
-    renderGrid();
-
-    return wrap;
+interface EventExtra {
+  generic?: { hasSpawns: boolean; hasFieldResearchTasks: boolean };
+  spotlight?: { name: string; canBeShiny: boolean; image: string; bonus: string };
+  breakthrough?: { name: string; canBeShiny: boolean; image: string };
+  raidbattles?: { bosses: NamedMon[]; shinies: NamedMon[] };
+  communityday?: {
+    spawns: NamedMon[];
+    bonuses: TextImage[];
+    bonusDisclaimers: string[];
+    shinies: NamedMon[];
+    specialresearch: ResearchStep[];
   };
 }
 
-// ── Init ──────────────────────────────────────────────────────
+interface PogoEvent {
+  eventID: string;
+  name: string;
+  eventType: string;
+  heading: string;
+  link: string;
+  image: string;
+  start: string | null;
+  end: string | null;
+  extraData: EventExtra | null;
+}
+
+// ScrapedDuck timestamps are timezone-less ISO strings ("2026-06-20T14:00:00.000").
+// JS parses those as local time, which matches the local-time semantics of most events.
+function parseLocal(s: string | null): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+const dateFmt = new Intl.DateTimeFormat(typeof SITE_LANG !== "undefined" ? SITE_LANG : "en", {
+  weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+});
+
+function relTime(ms: number): string {
+  const totalMin = Math.max(1, Math.floor(ms / 60000));
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// Detail modal (one shared overlay, shiny-modal backdrop pattern)
+
+const modal = el("div", "shiny-modal");
+const modalInner = el("div", "event-modal-inner");
+modal.appendChild(modalInner);
+document.body.appendChild(modal);
+modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("open"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.remove("open"); });
+
+function monChip(mon: NamedMon): HTMLElement {
+  const chip = el("div", "event-poke");
+  const img = el("img");
+  img.src = mon.image;
+  img.alt = mon.name;
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.onerror = () => { img.style.display = "none"; };
+  chip.appendChild(img);
+  const label = el("span", undefined, mon.canBeShiny ? `${mon.name} ✨` : mon.name);
+  if (mon.canBeShiny) label.title = EV.canBeShiny;
+  chip.appendChild(label);
+  return chip;
+}
+
+function detailSection(title: string): HTMLElement {
+  const sec = el("div", "event-detail-section");
+  sec.appendChild(el("h3", undefined, title));
+  return sec;
+}
+
+function monSection(title: string, mons: NamedMon[]): HTMLElement | null {
+  if (!mons || !mons.length) return null;
+  const sec = detailSection(title);
+  const grid = el("div", "event-poke-grid");
+  for (const mon of mons) grid.appendChild(monChip(mon));
+  sec.appendChild(grid);
+  return sec;
+}
+
+// Full event details: sanitized LeekDuck page HTML, lazy-loaded per event and
+// cached for the session. Empty string in the cache means "use extraData fallback".
+const detailCache = new Map<string, string>();
+
+function fillDetail(container: HTMLElement, html: string) {
+  container.innerHTML = html; // sanitized server-side with bluemonday
+  container.querySelectorAll("img").forEach((img) => {
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.onerror = () => { img.style.display = "none"; };
+  });
+}
+
+async function loadDetail(ev: PogoEvent, container: HTMLElement) {
+  const cached = detailCache.get(ev.eventID);
+  if (cached !== undefined) {
+    if (cached) fillDetail(container, cached);
+    else renderExtraData(container, ev);
+    return;
+  }
+  container.appendChild(el("p", "event-detail-loading", EV.loadingDetails));
+  try {
+    const res = await fetch("/api/events/" + encodeURIComponent(ev.eventID));
+    if (!res.ok) throw new Error(`detail fetch failed: ${res.status}`);
+    const data = (await res.json()) as { html?: string } | null;
+    const html = data && typeof data.html === "string" ? data.html : "";
+    detailCache.set(ev.eventID, html);
+    if (!html) throw new Error("empty detail");
+    fillDetail(container, html);
+  } catch {
+    if (!detailCache.has(ev.eventID)) detailCache.set(ev.eventID, "");
+    container.innerHTML = "";
+    renderExtraData(container, ev);
+  }
+}
+
+function renderExtraData(container: HTMLElement, ev: PogoEvent) {
+  container.className = ""; // drop scraped-content padding; sections pad themselves
+  const x = ev.extraData;
+  if (x) {
+    if (x.communityday) {
+      const cd = x.communityday;
+      if (cd.bonuses && cd.bonuses.length) {
+        const sec = detailSection(EV.bonuses);
+        for (const b of cd.bonuses) {
+          const row = el("div", "event-bonus");
+          if (b.image) {
+            const img = el("img");
+            img.src = b.image;
+            img.alt = "";
+            img.loading = "lazy";
+            img.onerror = () => { img.style.display = "none"; };
+            row.appendChild(img);
+          }
+          row.appendChild(el("span", undefined, b.text));
+          sec.appendChild(row);
+        }
+        container.appendChild(sec);
+      }
+      const spawns = monSection(EV.spawns, cd.spawns);
+      if (spawns) container.appendChild(spawns);
+      const shinies = monSection(EV.shinies, cd.shinies);
+      if (shinies) container.appendChild(shinies);
+      if (cd.specialresearch && cd.specialresearch.length) {
+        const sec = detailSection(EV.research);
+        for (const step of cd.specialresearch) {
+          const det = el("details", "event-research-step");
+          det.appendChild(el("summary", undefined, step.name));
+          for (const task of step.tasks || []) {
+            const row = el("div", "event-bonus");
+            row.appendChild(el("span", undefined, `${task.text}: ${task.reward?.text ?? ""}`));
+            det.appendChild(row);
+          }
+          for (const reward of step.rewards || []) {
+            const row = el("div", "event-bonus");
+            if (reward.image) {
+              const img = el("img");
+              img.src = reward.image;
+              img.alt = "";
+              img.loading = "lazy";
+              img.onerror = () => { img.style.display = "none"; };
+              row.appendChild(img);
+            }
+            row.appendChild(el("span", undefined, reward.text));
+            det.appendChild(row);
+          }
+          sec.appendChild(det);
+        }
+        container.appendChild(sec);
+      }
+      if (cd.bonusDisclaimers && cd.bonusDisclaimers.length) {
+        for (const text of cd.bonusDisclaimers) {
+          container.appendChild(el("p", "event-disclaimer", text));
+        }
+      }
+    }
+    if (x.raidbattles) {
+      const bosses = monSection(EV.bosses, x.raidbattles.bosses);
+      if (bosses) container.appendChild(bosses);
+      const shinies = monSection(EV.shinies, x.raidbattles.shinies);
+      if (shinies) container.appendChild(shinies);
+    }
+    if (x.spotlight) {
+      const sec = detailSection(EV.spotlight);
+      const grid = el("div", "event-poke-grid");
+      grid.appendChild(monChip({ name: x.spotlight.name, image: x.spotlight.image, canBeShiny: x.spotlight.canBeShiny }));
+      sec.appendChild(grid);
+      if (x.spotlight.bonus) sec.appendChild(el("p", undefined, x.spotlight.bonus));
+      container.appendChild(sec);
+    }
+    if (x.breakthrough) {
+      const sec = monSection(EV.spawns, [x.breakthrough]);
+      if (sec) container.appendChild(sec);
+    }
+  }
+}
+
+function openModal(ev: PogoEvent) {
+  modalInner.innerHTML = "";
+
+  if (ev.image) {
+    const img = el("img", "event-modal-img");
+    img.src = ev.image;
+    img.alt = ev.name;
+    img.onerror = () => { img.style.display = "none"; };
+    modalInner.appendChild(img);
+  }
+
+  const head = el("div", "event-modal-head");
+  head.appendChild(el("span", "event-badge", ev.heading || ev.eventType));
+  head.appendChild(el("h2", "event-modal-name", ev.name));
+  modalInner.appendChild(head);
+
+  const start = parseLocal(ev.start);
+  const end = parseLocal(ev.end);
+  const times = el("div", "event-times event-modal-times");
+  if (start) times.appendChild(el("div", undefined, `${EV.starts}: ${dateFmt.format(start)}`));
+  if (end) times.appendChild(el("div", undefined, `${EV.ends}: ${dateFmt.format(end)}`));
+  modalInner.appendChild(times);
+
+  // Full details: scraped LeekDuck content when available, extraData fallback otherwise.
+  const body = el("div", "event-detail-html");
+  modalInner.appendChild(body);
+  loadDetail(ev, body);
+
+  if (ev.link) {
+    const linkWrap = el("div", "event-modal-link");
+    const a = el("a", undefined, EV.leekduck + " ↗");
+    a.href = ev.link;
+    a.target = "_blank";
+    a.rel = "noopener";
+    linkWrap.appendChild(a);
+    modalInner.appendChild(linkWrap);
+  }
+
+  modal.classList.add("open");
+}
+
+// Cards
+
+function buildCard(ev: PogoEvent, now: number): HTMLElement {
+  const card = el("div", "event-card");
+
+  if (ev.image) {
+    const img = el("img", "event-card-img");
+    img.src = ev.image;
+    img.alt = ev.name;
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.onerror = () => { img.style.display = "none"; };
+    card.appendChild(img);
+  }
+
+  const body = el("div", "event-card-body");
+  body.appendChild(el("span", "event-badge", ev.heading || ev.eventType));
+  body.appendChild(el("h3", "event-card-name", ev.name));
+
+  const start = parseLocal(ev.start);
+  const end = parseLocal(ev.end);
+  const times = el("div", "event-times");
+  if (start) times.appendChild(el("div", undefined, `${EV.starts}: ${dateFmt.format(start)}`));
+  if (end) times.appendChild(el("div", undefined, `${EV.ends}: ${dateFmt.format(end)}`));
+  body.appendChild(times);
+
+  // Countdown chip: "starts in" for upcoming, "ends in" for current.
+  const upcoming = start !== null && start.getTime() > now;
+  const target = upcoming ? start : end;
+  if (target) {
+    const chip = el("span", "event-countdown");
+    chip.dataset.target = String(target.getTime());
+    chip.dataset.prefix = upcoming ? EV.startsIn : EV.endsIn;
+    chip.textContent = `${chip.dataset.prefix} ${relTime(target.getTime() - now)}`;
+    body.appendChild(chip);
+  }
+
+  card.appendChild(body);
+  card.addEventListener("click", () => openModal(ev));
+  return card;
+}
+
+function renderSection(title: string, events: PogoEvent[], now: number): HTMLElement {
+  const sec = el("div", "events-section");
+  sec.appendChild(el("h2", undefined, title));
+  if (!events.length) {
+    sec.appendChild(el("p", "empty-state", EV.none));
+    return sec;
+  }
+  const grid = el("div", "event-grid");
+  for (const ev of events) grid.appendChild(buildCard(ev, now));
+  sec.appendChild(grid);
+  return sec;
+}
+
+function tickCountdowns() {
+  const now = Date.now();
+  app.querySelectorAll<HTMLElement>(".event-countdown").forEach((chip) => {
+    const target = Number(chip.dataset.target);
+    if (!target) return;
+    const ms = target - now;
+    if (ms <= 0) {
+      chip.style.display = "none";
+      return;
+    }
+    chip.textContent = `${chip.dataset.prefix} ${relTime(ms)}`;
+  });
+}
+
+// Init
 
 async function init() {
   try {
-    const data = await loadGameData();
+    const res = await fetch("/api/events");
+    if (!res.ok) throw new Error(`events fetch failed: ${res.status}`);
+    const events = (await res.json()) as PogoEvent[] | null;
+    if (!Array.isArray(events)) {
+      app.innerHTML = `<div class="error-state">${EV.error}</div>`;
+      return;
+    }
+
+    const now = Date.now();
+    const current: PogoEvent[] = [];
+    const upcoming: PogoEvent[] = [];
+    for (const ev of events) {
+      const start = parseLocal(ev.start);
+      const end = parseLocal(ev.end);
+      if (end && end.getTime() < now) continue; // past
+      if (start && start.getTime() > now) {
+        upcoming.push(ev);
+      } else {
+        current.push(ev);
+      }
+    }
+    // Current: ending soonest first (no end time sorts last).
+    current.sort((a, b) => {
+      const ea = parseLocal(a.end)?.getTime() ?? Infinity;
+      const eb = parseLocal(b.end)?.getTime() ?? Infinity;
+      return ea - eb;
+    });
+    // Upcoming: starting soonest first.
+    upcoming.sort((a, b) => (parseLocal(a.start)?.getTime() ?? 0) - (parseLocal(b.start)?.getTime() ?? 0));
+
     app.innerHTML = "";
-    app.appendChild(buildShiniesPanel(data)());
+    app.appendChild(renderSection(EV.current, current, now));
+    app.appendChild(renderSection(EV.upcoming, upcoming, now));
+    setInterval(tickCountdowns, 60000);
   } catch (err) {
-    app.innerHTML = `<div class="error-state">Failed to load data. Please try again later.</div>`;
+    app.innerHTML = `<div class="error-state">${EV.error}</div>`;
     console.error(err);
   }
 }

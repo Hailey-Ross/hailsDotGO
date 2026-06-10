@@ -22,7 +22,8 @@
     <h2>{{T "credits.about.sources_title"}}</h2>
     <ul class="credits-list">
       <li><a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a>: {{T "credits.about.source_pogoapi"}}</li>
-      <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>: {{T "credits.about.source_leekduck"}}</li>
+      <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> &amp; <a href="https://www.snacknap.com/max-battles" target="_blank" rel="noopener">snacknap</a> via <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">pokemon-go-api</a>: {{T "credits.about.source_leekduck"}}</li>
+      <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>: {{T "credits.about.source_scrapedduck"}}</li>
       <li><a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>: {{T "credits.about.source_pokeapi"}}</li>
       <li><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>: {{T "credits.about.source_openmeteo"}}</li>
       <li><a href="https://pokemonshowdown.com" target="_blank" rel="noopener">Pokémon Showdown</a>: {{T "credits.about.source_showdown"}}</li>
@@ -49,6 +50,9 @@
       <tbody>
         <tr><td><code>GET /api/data</code></td><td>{{T "credits.api.data_desc"}}</td><td>{{T "credits.api.data_limit"}}</td></tr>
         <tr><td><code>GET /api/raids</code></td><td>{{T "credits.api.raids_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+        <tr><td><code>GET /api/maxbattles</code></td><td>{{T "credits.api.maxbattles_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+        <tr><td><code>GET /api/events</code></td><td>{{T "credits.api.events_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+        <tr><td><code>GET /api/events/{id}</code></td><td>{{T "credits.api.event_detail_desc"}}</td><td>{{T "credits.api.event_detail_limit"}}</td></tr>
         <tr><td><code>GET /api/pokemon</code></td><td>{{T "credits.api.pokemon_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
         <tr><td><code>GET /api/moves</code></td><td>{{T "credits.api.moves_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
       </tbody>
@@ -65,6 +69,9 @@
       <tbody>
         <tr><td><code>GET /api/private/data</code></td><td>{{T "credits.api.private_data_desc"}}</td></tr>
         <tr><td><code>GET /api/private/raids</code></td><td>{{T "credits.api.private_raids_desc"}}</td></tr>
+        <tr><td><code>GET /api/private/maxbattles</code></td><td>{{T "credits.api.private_maxbattles_desc"}}</td></tr>
+        <tr><td><code>GET /api/private/events</code></td><td>{{T "credits.api.private_events_desc"}}</td></tr>
+        <tr><td><code>GET /api/private/events/{id}</code></td><td>{{T "credits.api.private_event_detail_desc"}}</td></tr>
         <tr><td><code>GET /api/private/pokemon</code></td><td>{{T "credits.api.private_pokemon_desc"}}</td></tr>
         <tr><td><code>GET /api/private/moves</code></td><td>{{T "credits.api.private_moves_desc"}}</td></tr>
       </tbody>
@@ -89,6 +96,72 @@
   </div>
 
   <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (51)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Documentation refresh</h2>
+        <ul class="cl-list">
+          <li>README brought up to date with the Events feature, Shiny Dex, Max Battles, the full public and private API set, and the CACHE_DIR environment variable</li>
+          <li>Credits private API table now lists all available endpoints, including Max Battles and both event endpoints</li>
+          <li>Data source descriptions updated to mention event images served from the LeekDuck CDN</li>
+          <li>Runtime cache directory excluded from the repository</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (50)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Event details now shown in full on site</h2>
+        <ul class="cl-list">
+          <li>Event detail views now include the complete event write-up: descriptions, bonuses, featured spawns, shinies, raid bosses, eggs, field and special research, GBL schedules, and GO Pass ranks</li>
+          <li>Details are fetched server side from each LeekDuck event page, sanitized, restyled to match the site, and cached to disk; pages refresh every 12 hours with polite request spacing</li>
+          <li>New /api/events/{id} endpoint (public and private) serving the sanitized detail for one event</li>
+          <li>If a page has not been scraped yet, the detail view falls back to the summary data from the feed</li>
+          <li>GO Pass reward icons (Candy, XL Candy, Raid Passes and similar items) are now sized to match the Pokémon icons, with aligned rank rows and Basic/Deluxe columns</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (49)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Real Events page added; shiny gallery moved to its own Shiny Dex page</h2>
+        <ul class="cl-list">
+          <li>The Events page now shows actual Pokémon GO events: current and upcoming events with images, category badges, start and end times, and live countdowns</li>
+          <li>Clicking an event opens a detail view with bonuses, featured Pokémon, shinies, raid bosses, spotlight details, special research steps, and a link to the LeekDuck event page</li>
+          <li>Event data is sourced from LeekDuck via ScrapedDuck, refreshed every 30 minutes server side and cached to disk</li>
+          <li>New /api/events endpoint (public and private) serving the raw events feed</li>
+          <li>The public shiny gallery that previously lived at /events moved to its own page at /shinydex, with its own nav link, home card, and admin maintenance toggle</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (48)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid tier tabs and automatic cache-busting</h2>
+        <ul class="cl-list">
+          <li>The Raids page now uses tier tabs (ordered highest to lowest) instead of one long stacked list; Max Battles got the same treatment, so only one tier is shown at a time</li>
+          <li>Static assets (JS and CSS) now carry an automatic version stamp derived from their contents, so every deploy busts the browser cache and you always get the latest page without a hard refresh</li>
+          <li>HTML pages are served with no-cache and versioned assets get a long cache, removing the need to bump version numbers by hand</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (47)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raids moved to pokemon-go-api and Max Battles added</h2>
+        <ul class="cl-list">
+          <li>Current Raids now sources from pokemon-go-api instead of ScrapedDuck, which provides richer data (shadow raids, multi tier CP and boosted CP)</li>
+          <li>Added a Max Battles section to the Raids page showing current Dynamax bosses by tier, with the same boss cards, type filtering, and counter lookups</li>
+          <li>New /api/maxbattles endpoint (public and private), and max battles are included in the combined game data API</li>
+          <li>Both raids and Max Battles refresh on the same schedule and are cached to disk</li>
+        </ul>
+      </div>
+    </div>
 
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (46)</div>

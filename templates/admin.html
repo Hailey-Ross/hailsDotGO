@@ -281,6 +281,17 @@
           </label>
         </div>
 
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.shinydex"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_shinydex_enabled" value="1"
+                   {{if .Data.Maintenance.ShinyDexEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.ShinyDexEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
       </div>
       <button type="submit" class="btn-primary">{{T "admin.pages.save"}}</button>
     </form>

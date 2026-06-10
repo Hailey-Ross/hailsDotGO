@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -169,62 +170,46 @@ var dreamstoneTrainerClasses = []TrainerClass{
 	{Slug: "ds-youngster",            Label: "Youngster (DS)",            SpriteURL: "/static/sprites/dreamstone/youngster.png"},
 }
 
-// ScrapedDuck (github.com/bigfoott/ScrapedDuck) scrapes LeekDuck and
-// publishes clean JSON on every game event update.
-type scrapedTypeEntry struct {
-	Type  string `json:"type"`
-	Name  string `json:"name"`
+// pokemon-go-api (github.com/pokemon-go-api/pokemon-go-api) aggregates LeekDuck raid
+// bosses and snacknap Max Battles into clean JSON, refreshed regularly. Both the
+// raidboss and maxbattles endpoints share this entry shape under "currentList".
+type pgapiList struct {
+	CurrentList map[string]json.RawMessage `json:"currentList"`
 }
 
-type scrapedCPRange struct {
-	Min int `json:"min"`
-	Max int `json:"max"`
+type pgapiBoss struct {
+	Names struct {
+		English string `json:"English"`
+	} `json:"names"`
+	Assets struct {
+		Image string `json:"image"`
+	} `json:"assets"`
+	Shiny        bool     `json:"shiny"`
+	Types        []string `json:"types"`
+	CPRange      []int    `json:"cpRange"`
+	CPRangeBoost []int    `json:"cpRangeBoost"`
 }
 
-type scrapedBoss struct {
-	Name        string          `json:"name"`
-	Image       string          `json:"image"`
-	Types       json.RawMessage `json:"types"`
-	Tier        string          `json:"tier"`
-	CanBeShiny  bool            `json:"canBeShiny"`
-	CombatPower struct {
-		Normal  scrapedCPRange `json:"normal"`
-		Boosted scrapedCPRange `json:"boosted"`
-	} `json:"combatPower"`
-}
-
-func capitalize(s string) string {
-	if s == "" {
-		return s
+// bossFromPGAPI maps a pokemon-go-api entry onto our raidBoss shape. Shadow tiers carry
+// the plain species name, so prefix "Shadow " to preserve the prior display behavior.
+func bossFromPGAPI(b pgapiBoss, shadow bool) raidBoss {
+	name := b.Names.English
+	if shadow {
+		name = "Shadow " + name
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-// parseTypes handles []string, [{"type":"Fire"}], and [{"name":"fire","image":"..."}]
-func parseTypes(raw json.RawMessage) []string {
-	if len(raw) == 0 {
-		return nil
+	rb := raidBoss{
+		PokemonName: name,
+		ImageURL:    b.Assets.Image,
+		Types:       b.Types,
+		CanBeShiny:  b.Shiny,
 	}
-	var strs []string
-	if json.Unmarshal(raw, &strs) == nil {
-		for i, s := range strs {
-			strs[i] = capitalize(s)
-		}
-		return strs
+	if len(b.CPRange) == 2 {
+		rb.CP, rb.CPMax = b.CPRange[0], b.CPRange[1]
 	}
-	var objs []scrapedTypeEntry
-	if json.Unmarshal(raw, &objs) == nil {
-		out := make([]string, 0, len(objs))
-		for _, o := range objs {
-			if o.Name != "" {
-				out = append(out, capitalize(o.Name))
-			} else if o.Type != "" {
-				out = append(out, capitalize(o.Type))
-			}
-		}
-		return out
+	if len(b.CPRangeBoost) == 2 {
+		rb.CPBoostedMin, rb.CPBoostedMax = b.CPRangeBoost[0], b.CPRangeBoost[1]
 	}
-	return nil
+	return rb
 }
 
 type raidBoss struct {
@@ -236,22 +221,6 @@ type raidBoss struct {
 	ImageURL      string   `json:"image_url,omitempty"`
 	Types         []string `json:"types,omitempty"`
 	CanBeShiny    bool     `json:"can_be_shiny,omitempty"`
-}
-
-func tierKey(t string) string {
-	lower := strings.ToLower(t)
-	switch {
-	case strings.Contains(lower, "mega") || strings.Contains(lower, "primal"):
-		return "6"
-	case strings.Contains(lower, "legendary") || strings.Contains(lower, "5"):
-		return "5"
-	case strings.Contains(lower, "3"):
-		return "3"
-	case strings.Contains(lower, "1"):
-		return "1"
-	default:
-		return "5"
-	}
 }
 
 // ── Store ─────────────────────────────────────────────────────
@@ -278,6 +247,10 @@ var langIDToCode = map[int]string{
 type Store struct {
 	mu                sync.RWMutex
 	raids             json.RawMessage
+	maxBattles        json.RawMessage
+	events            json.RawMessage
+	eventDetails      map[string]eventDetail
+	detailsRunning    atomic.Bool
 	pokemon           json.RawMessage
 	pokemonMoves      json.RawMessage
 	fastMoves         json.RawMessage
@@ -313,6 +286,7 @@ func New() *Store {
 		client:         &http.Client{Timeout: 15 * time.Second},
 		trainerClasses: classes,
 		cacheDir:       cacheDir,
+		eventDetails:   make(map[string]eventDetail),
 	}
 }
 
@@ -329,7 +303,7 @@ func (s *Store) cachedFetch(key, url string) (json.RawMessage, error) {
 // loadFromCache reads any previously saved JSON blobs from disk into the store.
 // Fast and synchronous — called before the HTTP server starts listening.
 func (s *Store) loadFromCache() {
-	keys := []string{"raids", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_names"}
+	keys := []string{"raids", "max_battles", "events", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_names"}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, key := range keys {
@@ -340,6 +314,7 @@ func (s *Store) loadFromCache() {
 		log.Printf("pogodata: %s: loaded from disk cache", key)
 		s.applyResult(key, json.RawMessage(data))
 	}
+	s.loadEventDetailsFromDisk()
 }
 
 // applyResult writes a single data blob into the in-memory store. Caller must hold s.mu.
@@ -347,6 +322,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 	switch key {
 	case "raids":
 		s.raids = data
+	case "max_battles":
+		s.maxBattles = data
+	case "events":
+		s.events = data
 	case "pokemon":
 		s.pokemon = data
 		var arr []struct {
@@ -519,14 +498,22 @@ func (s *Store) loadFallback() {
 func (s *Store) Start() {
 	s.loadFallback()    // always works: data is compiled into the binary
 	s.loadFromCache()   // overlay with anything fresher saved to disk
-	go s.refresh()      // try PoGoAPI in background
-	go s.refreshRaids() // try ScrapedDuck raids in background
+	go s.refresh()          // try PoGoAPI in background
+	go s.refreshRaids()     // try pokemon-go-api raids in background
+	go s.refreshMaxBattles() // try pokemon-go-api max battles in background
+	go s.refreshEvents()     // try ScrapedDuck events in background
 	go func() {
 		for range time.NewTicker(6 * time.Hour).C {
 			s.refresh()
 		}
 	}()
-	go s.scheduleRaidRefresh() // daily refresh at noon Mountain Time
+	go func() {
+		// ScrapedDuck asks for at least 5 minutes between fetches; 30 is plenty.
+		for range time.NewTicker(30 * time.Minute).C {
+			s.refreshEvents()
+		}
+	}()
+	go s.scheduleRaidRefresh() // raids + max battles refresh on Mountain Time schedule
 }
 
 func (s *Store) refresh() {
@@ -578,9 +565,9 @@ func (s *Store) refresh() {
 	log.Println("pogodata: refresh complete")
 }
 
-// refreshRaids fetches current raid bosses from ScrapedDuck and writes to disk cache.
+// refreshRaids fetches current raid bosses from pokemon-go-api and writes to disk cache.
 func (s *Store) refreshRaids() {
-	data, err := s.fetchScrapedDuckRaids()
+	data, err := s.fetchPGAPIRaids()
 	if err != nil {
 		log.Printf("pogodata: raids refresh: %v", err)
 		return
@@ -589,6 +576,35 @@ func (s *Store) refreshRaids() {
 	s.mu.Lock()
 	s.applyResult("raids", data)
 	s.mu.Unlock()
+}
+
+// refreshMaxBattles fetches current Max Battle bosses from pokemon-go-api and writes to
+// disk cache.
+func (s *Store) refreshMaxBattles() {
+	data, err := s.fetchMaxBattles()
+	if err != nil {
+		log.Printf("pogodata: max battles refresh: %v", err)
+		return
+	}
+	os.WriteFile(filepath.Join(s.cacheDir, "max_battles.json"), data, 0644)
+	s.mu.Lock()
+	s.applyResult("max_battles", data)
+	s.mu.Unlock()
+}
+
+// refreshEvents fetches current and upcoming events from ScrapedDuck (LeekDuck data)
+// and writes to disk cache. On failure the last good payload is kept.
+func (s *Store) refreshEvents() {
+	data, err := s.cachedFetch("events", "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json")
+	if err != nil {
+		log.Printf("pogodata: events refresh: %v", err)
+		return
+	}
+	s.mu.Lock()
+	s.applyResult("events", data)
+	s.mu.Unlock()
+	log.Println("pogodata: events refresh complete")
+	s.refreshEventDetails(data)
 }
 
 // scheduleRaidRefresh loops forever, sleeping until the next scheduled refresh
@@ -619,57 +635,101 @@ func (s *Store) scheduleRaidRefresh() {
 		log.Printf("pogodata: raids: next scheduled refresh at %s", next.Format("2006-01-02 15:04 MST"))
 		time.Sleep(time.Until(next))
 		s.refreshRaids()
+		s.refreshMaxBattles()
 	}
 }
 
-func (s *Store) fetchScrapedDuckRaids() (json.RawMessage, error) {
-	urls := []string{
-		"https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/raids.json",
-		"https://raw.githubusercontent.com/bigfoott/ScrapedDuck/main/data/raids.json",
-		"https://raw.githubusercontent.com/bigfoott/ScrapedDuck/refs/heads/data/raids.json",
-		"https://raw.githubusercontent.com/bigfoott/ScrapedDuck/master/data/raids.json",
+// fetchPGAPIRaids fetches current raid bosses from pokemon-go-api and groups them by our
+// numeric tier key (6=Mega, 5/3/1). Shadow tiers fold into their numeric tier with a
+// "Shadow " name prefix.
+func (s *Store) fetchPGAPIRaids() (json.RawMessage, error) {
+	const url = "https://pokemon-go-api.github.io/pokemon-go-api/api/raidboss.json"
+	tierMap := []struct {
+		src    string
+		dst    string
+		shadow bool
+	}{
+		{"mega", "6", false},
+		{"lvl5", "5", false},
+		{"lvl3", "3", false},
+		{"lvl1", "1", false},
+		{"shadow_lvl5", "5", true},
+		{"shadow_lvl3", "3", true},
+		{"shadow_lvl1", "1", true},
 	}
+	grouped, total, err := s.fetchPGAPIGrouped(url, tierMap)
+	if err != nil {
+		return nil, err
+	}
+	out, err := json.Marshal(grouped)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("pogodata: raids: fetched %d bosses from pokemon-go-api", total)
+	return out, nil
+}
 
-	for _, url := range urls {
-		raw, err := s.fetch(url)
-		if err != nil {
-			log.Printf("pogodata: raids @ %s: %v", url, err)
+// fetchMaxBattles fetches current Max Battle (Dynamax) bosses from pokemon-go-api, grouped
+// by Max Battle tier (1/2/3).
+func (s *Store) fetchMaxBattles() (json.RawMessage, error) {
+	const url = "https://pokemon-go-api.github.io/pokemon-go-api/api/maxbattles.json"
+	tierMap := []struct {
+		src    string
+		dst    string
+		shadow bool
+	}{
+		{"tier_1", "1", false},
+		{"tier_2", "2", false},
+		{"tier_3", "3", false},
+	}
+	grouped, total, err := s.fetchPGAPIGrouped(url, tierMap)
+	if err != nil {
+		return nil, err
+	}
+	out, err := json.Marshal(grouped)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("pogodata: max battles: fetched %d bosses from pokemon-go-api", total)
+	return out, nil
+}
+
+// fetchPGAPIGrouped fetches a pokemon-go-api "currentList" endpoint and maps the named
+// source tiers onto our destination tier keys, returning the grouped bosses and a count.
+func (s *Store) fetchPGAPIGrouped(url string, tierMap []struct {
+	src    string
+	dst    string
+	shadow bool
+}) (map[string][]raidBoss, int, error) {
+	raw, err := s.fetch(url)
+	if err != nil {
+		return nil, 0, err
+	}
+	var resp pgapiList
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, 0, err
+	}
+	grouped := make(map[string][]raidBoss)
+	total := 0
+	for _, m := range tierMap {
+		blob, ok := resp.CurrentList[m.src]
+		if !ok {
 			continue
 		}
-
-		var bosses []scrapedBoss
-		if err := json.Unmarshal(raw, &bosses); err != nil {
-			log.Printf("pogodata: raids parse @ %s: %v", url, err)
+		var bosses []pgapiBoss
+		if err := json.Unmarshal(blob, &bosses); err != nil {
+			log.Printf("pogodata: %s parse @ %s: %v", m.src, url, err)
 			continue
 		}
-		if len(bosses) == 0 {
-			continue
-		}
-
-		grouped := make(map[string][]raidBoss)
 		for _, b := range bosses {
-			key := tierKey(b.Tier)
-			grouped[key] = append(grouped[key], raidBoss{
-				PokemonName:  b.Name,
-				CP:           b.CombatPower.Normal.Min,
-				CPMax:        b.CombatPower.Normal.Max,
-				CPBoostedMin: b.CombatPower.Boosted.Min,
-				CPBoostedMax: b.CombatPower.Boosted.Max,
-				ImageURL:     b.Image,
-				Types:        parseTypes(b.Types),
-				CanBeShiny:   b.CanBeShiny,
-			})
+			grouped[m.dst] = append(grouped[m.dst], bossFromPGAPI(b, m.shadow))
+			total++
 		}
-
-		out, err := json.Marshal(grouped)
-		if err != nil {
-			return nil, err
-		}
-		log.Printf("pogodata: raids: fetched %d bosses from ScrapedDuck", len(bosses))
-		return out, nil
 	}
-
-	return nil, fmt.Errorf("all ScrapedDuck URLs failed")
+	if total == 0 {
+		return nil, 0, fmt.Errorf("no bosses parsed from %s", url)
+	}
+	return grouped, total, nil
 }
 
 func (s *Store) fetch(url string) (json.RawMessage, error) {
@@ -696,6 +756,12 @@ func (s *Store) Refresh() { go s.refresh() }
 
 func (s *Store) Raids() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.raids
+}
+func (s *Store) MaxBattles() json.RawMessage {
+	s.mu.RLock(); defer s.mu.RUnlock(); return s.maxBattles
+}
+func (s *Store) Events() json.RawMessage {
+	s.mu.RLock(); defer s.mu.RUnlock(); return s.events
 }
 func (s *Store) Pokemon() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.pokemon
@@ -754,6 +820,7 @@ func (s *Store) AllData() json.RawMessage {
 		FastMoves     json.RawMessage            `json:"fastMoves"`
 		ChargedMoves  json.RawMessage            `json:"chargedMoves"`
 		Raids         json.RawMessage            `json:"raids"`
+		MaxBattles    json.RawMessage            `json:"maxBattles"`
 		Shinies       json.RawMessage            `json:"shinies"`
 		ShadowPokemon json.RawMessage            `json:"shadowPokemon"`
 		TypeChart     json.RawMessage            `json:"typeChart"`
@@ -777,6 +844,7 @@ func (s *Store) AllData() json.RawMessage {
 		FastMoves:     s.fastMoves,
 		ChargedMoves:  s.chargedMoves,
 		Raids:         s.raids,
+		MaxBattles:    s.maxBattles,
 		Shinies:       s.shinies,
 		ShadowPokemon: s.shadowPokemon,
 		TypeChart:     s.typeChart,

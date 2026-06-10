@@ -2,6 +2,7 @@ package server
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -39,12 +40,29 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// CSRF-exempt: PayPal sends server-to-server POSTs without browser CSRF tokens.
 	r.Post("/api/store/webhook", h.StoreWebhook)
 
-	// Static files are GET-only; no CSRF needed.
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Static files are GET-only; no CSRF needed. Asset URLs carry a content-derived ?v=
+	// query (see handlers.computeAssetVersion), so a long cache is safe: changed files get
+	// a new URL and are refetched, unchanged files stay cached.
+	staticFS := http.StripPrefix("/static/", http.FileServer(http.Dir("static")))
+	r.Handle("/static/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000")
+		staticFS.ServeHTTP(w, req)
+	}))
 
 	// All remaining routes get CSRF protection via a group.
+	csrfDebug := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, cookieErr := r.Cookie("_gorilla_csrf")
+		log.Printf("CSRF FAIL: method=%s path=%s reason=%v token=%q cookie_present=%v",
+			r.Method, r.URL.Path,
+			csrf.FailureReason(r),
+			r.Header.Get("X-CSRF-Token"),
+			cookieErr == nil,
+		)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	})
+
 	r.Group(func(r chi.Router) {
-		r.Use(csrf.Protect(csrfKey, csrf.Secure(true), csrf.SameSite(csrf.SameSiteStrictMode)))
+		r.Use(csrf.Protect(csrfKey, csrf.Secure(true), csrf.SameSite(csrf.SameSiteStrictMode), csrf.ErrorHandler(csrfDebug)))
 
 		// Public pages
 		r.Get("/", h.Home)
@@ -52,6 +70,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/dps", h.DPS)
 		r.Get("/pvp", h.PVP)
 		r.Get("/events", h.Events)
+		r.Get("/shinydex", h.ShinyDex)
 		r.Get("/credits", h.Credits)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
@@ -149,6 +168,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// Public game data API
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/maxbattles", h.APIMaxBattles)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/events", h.APIEvents)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/events/{id}", h.APIEventDetail)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
 
@@ -161,6 +183,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// Private game data API — requires API access, no rate limit
 		r.Get("/api/private/data", h.RequireAPIAccess(h.APIData))
 		r.Get("/api/private/raids", h.RequireAPIAccess(h.APIRaids))
+		r.Get("/api/private/maxbattles", h.RequireAPIAccess(h.APIMaxBattles))
+		r.Get("/api/private/events", h.RequireAPIAccess(h.APIEvents))
+		r.Get("/api/private/events/{id}", h.RequireAPIAccess(h.APIEventDetail))
 		r.Get("/api/private/pokemon", h.RequireAPIAccess(h.APIPokemon))
 		r.Get("/api/private/moves", h.RequireAPIAccess(h.APIMoves))
 
