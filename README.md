@@ -3,7 +3,7 @@
 A fan-made Pokémon GO companion web app built in Go.
 
 - Raid boss and Max Battle listings with tier tabs and counter recommendations
-- DPS calculator and bulk moveset comparison
+- DPS calculator and bulk moveset comparison, with sprite-based Pokémon search and a card layout on mobile
 - PvP IV ranker (GL / UL / ML)
 - Events page: current and upcoming Pokémon GO events with full details (bonuses, featured Pokémon, shinies, raid bosses, research, GO Pass ranks), sourced from LeekDuck via ScrapedDuck
 - Shiny Dex: every available shiny Pokémon, how to find it, and normal vs shiny sprite comparison
@@ -53,7 +53,7 @@ A fan-made Pokémon GO companion web app built in Go.
 On startup, the server fetches Pokémon stats, moves, shinies, type effectiveness, and CP multipliers from [PoGoAPI](https://pogoapi.net) and caches them in memory. Data refreshes every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data so the app can still serve requests.
 
 ### 2. Raid Data
-Live raid bosses and Max Battles are fetched from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api) (sourced from LeekDuck and snacknap), cached to disk, and refreshed every 4 hours starting at midnight Mountain Time (12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM). A stale cache is used if the upstream fetch fails.
+Live raid bosses (sourced from LeekDuck) and Max Battles (sourced from snacknap) are fetched from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api), cached to disk, and refreshed every 4 hours starting at midnight Mountain Time (12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM). A stale cache is used if the upstream fetch fails.
 
 ### 3. Event Data
 The events feed is pulled from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (LeekDuck data) every 30 minutes. For each active event, the server also scrapes the matching [LeekDuck](https://leekduck.com) event page (sequential requests spaced 1.5 seconds apart with a descriptive User-Agent), sanitizes the content server side, and caches it to disk. Scraped pages refresh every 12 hours, ended events are evicted, and the last good copy is kept if a fetch fails. The full details are served from `/api/events/{id}` so visitors never need to leave the site.
@@ -153,33 +153,10 @@ go build -ldflags="-s -w" -o hailsDotGO-linux .
 
 ### .gitignore
 
-This repository does not ship a `.gitignore`. If you fork it or track your own changes, create one in the project root so build output and secrets never get committed:
+This repository does not ship a `.gitignore`. If you fork it or track your own changes, copy the provided template so build output and secrets never get committed:
 
-```gitignore
-# Go binaries
-hailsDotGO
-hailsDotGO-linux
-hailsDotGO.exe
-
-# esbuild output (rebuilt from ts/ on every build)
-static/js/
-
-# Node
-node_modules/
-
-# Secrets and local config
-.env
-*.env
-app.env
-
-# OS
-.DS_Store
-
-# Deploy manifest (local deploy state)
-deploy-manifest.json
-
-# Runtime data cache (fetched game data and scraped event pages)
-cache/
+```bash
+cp .gitignore.example .gitignore
 ```
 
 ---
@@ -268,7 +245,7 @@ An aggregate bandwidth cap of 15 MB per 5 minutes per IP applies across all publ
 | Source | What it provides |
 |---|---|
 | [PoGoAPI](https://pogoapi.net) | Pokémon stats, moves, shinies, type effectiveness, CP multipliers |
-| [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api) | Live raid boss and Max Battle data (sourced from LeekDuck and snacknap) |
+| [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api) | Current raid bosses (via LeekDuck) and Max Battles (via snacknap) |
 | [LeekDuck](https://leekduck.com) via [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Events feed, full event details, and event images |
 | [PokéAPI](https://pokeapi.co) | Sprites, Pokédex text, genus, legendary/mythical flags, cries |
 | [Open-Meteo](https://open-meteo.com) | Weather data for Pokémon GO weather boost detection (no API key required) |
