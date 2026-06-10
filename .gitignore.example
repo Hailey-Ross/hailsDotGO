@@ -1,0 +1,24 @@
+# Go binaries
+hailsDotGO
+hailsDotGO-linux
+hailsDotGO.exe
+
+# esbuild output (rebuilt from ts/ on every build)
+static/js/
+
+# Node
+node_modules/
+
+# Secrets and local config
+.env
+*.env
+app.env
+
+# OS
+.DS_Store
+
+# Deploy manifest (local deploy state)
+deploy-manifest.json
+
+# Runtime data cache (fetched game data and scraped event pages)
+cache/
