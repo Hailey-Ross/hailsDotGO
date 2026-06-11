@@ -3,12 +3,16 @@ import { buildTabs } from "./shared/tabs";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, PokemonStat, CPMultiplier } from "./shared/types";
 
+// Server-injected strings: JSC from templates/base.html, PV from templates/pvp.html.
+declare const JSC: Record<string, string>;
+declare const PV: Record<string, string>;
+
 const app = document.getElementById("pvp-app")!;
 
 const LEAGUES = [
-  { id: "great",  name: "Great League",  cap: 1500 },
-  { id: "ultra",  name: "Ultra League",  cap: 2500 },
-  { id: "master", name: "Master League", cap: Infinity },
+  { id: "great",  name: PV.leagueGreat,  cap: 1500 },
+  { id: "ultra",  name: PV.leagueUltra,  cap: 2500 },
+  { id: "master", name: PV.leagueMaster, cap: Infinity },
 ];
 
 function calcCP(
@@ -66,11 +70,11 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
     const input = document.createElement("input");
     input.type = "text";
     input.className = "search-input";
-    input.placeholder = "Pokémon name (e.g. Azumarill)";
+    input.placeholder = PV.namePh;
 
     const btn = document.createElement("button");
     btn.className = "btn-primary";
-    btn.textContent = "Show IV Rankings";
+    btn.textContent = PV.showRankings;
 
     form.appendChild(input);
     form.appendChild(btn);
@@ -81,7 +85,11 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
     btn.addEventListener("click", () => {
       const poke = pokemonByName(data, input.value.trim());
       if (!poke) {
-        resultArea.innerHTML = `<p class="error-text">Pokémon "${input.value.trim()}" not found.</p>`;
+        resultArea.innerHTML = "";
+        const errP = document.createElement("p");
+        errP.className = "error-text";
+        errP.textContent = PV.notFound.replace("{name}", input.value.trim());
+        resultArea.appendChild(errP);
         return;
       }
       const league = LEAGUES.find((l) => l.cap === cap)!;
@@ -117,9 +125,9 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
       resultArea.appendChild(flavorP);
 
       fetchSpeciesData(poke.pokemon_name).then(d => {
-        if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+        if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
         if (d.isLegendary || d.isMythical) {
-          badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+          badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
           badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
           badgeEl.style.display = "";
         }
@@ -128,7 +136,7 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
 
       const note = document.createElement("p");
       note.className = "league-note";
-      note.textContent = `Ranked by stat product. Showing top 25 of ${ranks.length.toLocaleString()} IV combinations.`;
+      note.textContent = PV.rankedNote.replace("{n}", ranks.length.toLocaleString());
       resultArea.appendChild(note);
 
       const tableWrap = document.createElement("div");
@@ -137,8 +145,8 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
       const table = document.createElement("table");
       table.className = "iv-table";
       table.innerHTML = `<thead><tr>
-        <th>Rank</th><th>Atk IV</th><th>Def IV</th><th>Sta IV</th>
-        <th>Level</th><th>CP</th><th>Stat Product</th>
+        <th>${PV.colRank}</th><th>${PV.colAtk}</th><th>${PV.colDef}</th><th>${PV.colSta}</th>
+        <th>${PV.colLevel}</th><th>${JSC.cp}</th><th>${PV.colSp}</th>
       </tr></thead>`;
 
       const tbody = document.createElement("tbody");
@@ -173,7 +181,7 @@ async function init() {
     app.innerHTML = "";
 
     if (!data.pokemon) {
-      app.innerHTML = `<div class="error-state">Game data unavailable. Please try again later.</div>`;
+      app.innerHTML = `<div class="error-state">${JSC.gameDataUnavailable}</div>`;
       return;
     }
 
@@ -188,7 +196,7 @@ async function init() {
 
     app.appendChild(tabs);
   } catch (err) {
-    app.innerHTML = `<div class="error-state">Failed to load data. Please try again later.</div>`;
+    app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     console.error(err);
   }
 }

@@ -2,6 +2,7 @@ package pogodata
 
 import (
 	"embed"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -237,12 +239,24 @@ type pokemonNameEntry struct {
 	Name       string `json:"name"`
 }
 
-// langIDToCode maps PoGoAPI language_id values to our supported locale codes.
+// langIDToCode maps PokeAPI local_language_id values (also used by the legacy
+// PoGoAPI payloads) to our supported locale codes.
 var langIDToCode = map[int]string{
-	5: "fr",
-	6: "de",
-	7: "es",
+	5:  "fr",
+	6:  "de",
+	7:  "es",
+	11: "ja",
 }
+
+// supportedLangCodes is the set of locale codes we accept in the cached
+// pokemon_names.json payload, derived from langIDToCode.
+var supportedLangCodes = func() map[string]bool {
+	m := make(map[string]bool, len(langIDToCode))
+	for _, code := range langIDToCode {
+		m[code] = true
+	}
+	return m
+}()
 
 type Store struct {
 	mu                sync.RWMutex
@@ -395,12 +409,15 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 			s.pokemonTypes = encoded
 		}
 	case "pokemon_names":
-		// PoGoAPI returns a top-level map keyed by Pokémon ID string.
-		// The per-ID value has varied across API versions; we handle all known shapes:
+		// Top-level map keyed by Pokémon ID string. The primary shape is what
+		// refreshPokemonNames writes from PokeAPI's species names CSV:
+		//   {"1":{"fr":"Bulbizarre","de":"Bisasam","es":"Bulbasaur","ja":"フシギダネ"}, ...}
+		// Legacy PoGoAPI per-ID shapes are still accepted so an old cached file parses:
 		//   A: [{"language_id":5,"name":"Bulbizarre"}, ...]          (array of structs)
 		//   B: {"5":{"language_id":5,"name":"Bulbizarre"}, ...}      (map of lang_id → struct)
 		//   C: {"5":"Bulbizarre", "6":"Bisasam", ...}                (map of lang_id → string)
 		//   D: {"language_id":5,"name":"Bulbizarre"}                 (single struct)
+		// The primary shape and C share Go types; numeric inner keys mean C.
 		var rawTop map[string]json.RawMessage
 		if err := json.Unmarshal(data, &rawTop); err != nil {
 			log.Printf("pogodata: pokemon_names: parse error: %v", err)
@@ -433,15 +450,17 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 						}
 					}
 				} else {
-					// Format C: map of lang_id_str → name string
+					// Primary shape (lang code keys) or format C (numeric lang id keys).
 					var mStr map[string]string
 					if json.Unmarshal(inner, &mStr) == nil {
-						if !loggedFormat { log.Printf("pogodata: pokemon_names: format=C (map of strings)"); loggedFormat = true }
-						for langIDStr, name := range mStr {
-							var langID int
-							fmt.Sscanf(langIDStr, "%d", &langID)
-							if code, ok := langIDToCode[langID]; ok {
-								langs[code] = name
+						if !loggedFormat { log.Printf("pogodata: pokemon_names: format=map of strings (lang codes or ids)"); loggedFormat = true }
+						for k, name := range mStr {
+							if langID, err := strconv.Atoi(k); err == nil {
+								if code, ok := langIDToCode[langID]; ok {
+									langs[code] = name
+								}
+							} else if supportedLangCodes[k] {
+								langs[k] = name
 							}
 						}
 					} else {
@@ -463,6 +482,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 		}
 		if !loggedFormat {
 			log.Printf("pogodata: pokemon_names: unknown format, sample: %s", string(data[:min(200, len(data))]))
+		}
+		if len(nameMap) == 0 && len(s.pokemonNamesById) > 0 {
+			log.Printf("pogodata: pokemon_names: empty result, keeping existing %d entries", len(s.pokemonNamesById))
+			break
 		}
 		s.pokemonNamesById = nameMap
 	}
@@ -502,9 +525,11 @@ func (s *Store) Start() {
 	go s.refreshRaids()     // try pokemon-go-api raids in background
 	go s.refreshMaxBattles() // try pokemon-go-api max battles in background
 	go s.refreshEvents()     // try ScrapedDuck events in background
+	go s.refreshPokemonNames() // try PokeAPI localized names in background
 	go func() {
 		for range time.NewTicker(6 * time.Hour).C {
 			s.refresh()
+			s.refreshPokemonNames()
 		}
 	}()
 	go func() {
@@ -531,7 +556,6 @@ func (s *Store) refresh() {
 		{"type_chart",    []string{"https://pogoapi.net/api/v1/type_effectiveness.json"}},
 		{"cp_multipliers", []string{"https://pogoapi.net/api/v1/cp_multiplier.json"}},
 		{"pokemon_types",  []string{"https://pogoapi.net/api/v1/pokemon_types.json"}},
-		{"pokemon_names",  []string{"https://pogoapi.net/api/v1/pokemon_names.json"}},
 	}
 
 	results := make(map[string]json.RawMessage, len(endpoints))
@@ -605,6 +629,84 @@ func (s *Store) refreshEvents() {
 	s.mu.Unlock()
 	log.Println("pogodata: events refresh complete")
 	s.refreshEventDetails(data)
+}
+
+// refreshPokemonNames fetches localized species names from PokeAPI's CSV dataset,
+// converts them to the JSON shape {"1":{"fr":"Bulbizarre",...},...}, and writes
+// to disk cache. PoGoAPI's pokemon_names.json no longer carries language data,
+// so this is the sole source of translated Pokémon names. On failure the last
+// good payload is kept.
+func (s *Store) refreshPokemonNames() {
+	const url = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species_names.csv"
+	resp, err := s.client.Get(url)
+	if err != nil {
+		log.Printf("pogodata: pokemon names refresh: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("pogodata: pokemon names refresh: HTTP %d", resp.StatusCode)
+		return
+	}
+	names, err := parsePokemonNamesCSV(resp.Body)
+	if err != nil {
+		log.Printf("pogodata: pokemon names refresh: parse: %v", err)
+		return
+	}
+	if len(names) == 0 {
+		log.Printf("pogodata: pokemon names refresh: no names parsed")
+		return
+	}
+	keyed := make(map[string]map[string]string, len(names))
+	for id, langs := range names {
+		keyed[strconv.Itoa(id)] = langs
+	}
+	data, err := json.Marshal(keyed)
+	if err != nil {
+		log.Printf("pogodata: pokemon names refresh: marshal: %v", err)
+		return
+	}
+	os.WriteFile(filepath.Join(s.cacheDir, "pokemon_names.json"), data, 0644)
+	s.mu.Lock()
+	s.applyResult("pokemon_names", json.RawMessage(data))
+	s.mu.Unlock()
+	log.Printf("pogodata: pokemon names: fetched %d species from PokeAPI", len(names))
+}
+
+// parsePokemonNamesCSV parses PokeAPI's pokemon_species_names.csv
+// (pokemon_species_id,local_language_id,name,genus) into a map of dex ID to
+// {lang_code: name} for the languages in langIDToCode. The header row and any
+// row with a malformed id are skipped.
+func parsePokemonNamesCSV(r io.Reader) (map[int]map[string]string, error) {
+	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = -1
+	out := make(map[int]map[string]string)
+	for {
+		rec, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(rec) < 3 {
+			continue
+		}
+		id, errID := strconv.Atoi(rec[0])
+		langID, errLang := strconv.Atoi(rec[1])
+		if errID != nil || errLang != nil || id <= 0 || rec[2] == "" {
+			continue
+		}
+		code, ok := langIDToCode[langID]
+		if !ok {
+			continue
+		}
+		if out[id] == nil {
+			out[id] = make(map[string]string, len(langIDToCode))
+		}
+		out[id][code] = rec[2]
+	}
+	return out, nil
 }
 
 // scheduleRaidRefresh loops forever, sleeping until the next scheduled refresh
@@ -750,7 +852,10 @@ func (s *Store) fetch(url string) (json.RawMessage, error) {
 }
 
 // Refresh triggers an immediate data re-fetch outside the normal 6h schedule.
-func (s *Store) Refresh() { go s.refresh() }
+func (s *Store) Refresh() {
+	go s.refresh()
+	go s.refreshPokemonNames()
+}
 
 // ── Accessors ─────────────────────────────────────────────────
 

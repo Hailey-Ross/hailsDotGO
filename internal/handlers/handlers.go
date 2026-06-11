@@ -34,6 +34,10 @@ type Handlers struct {
 
 	langMu       sync.RWMutex
 	enabledLangs []string // "en" first, then enabled locales rows, sorted
+
+	// raidMu serializes queue matching and raid timer processing so the
+	// matcher never double-assigns a queue slot (single-instance app).
+	raidMu sync.Mutex
 }
 
 // PageMaintenance holds the enabled/disabled state for each page and section.
@@ -214,7 +218,7 @@ func (h *Handlers) detectLang(r *http.Request) string {
 func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, data any) {
 	t, ok := h.tmpl[page]
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 
@@ -240,7 +244,7 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	clone, err := t.Clone()
 	if err != nil {
 		log.Printf("render clone %q: %v", page, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, h.t(r, "error.server"), http.StatusInternalServerError)
 		return
 	}
 	clone.Funcs(template.FuncMap{"T": i18n.TFuncWithOverrides(lang, overrides)})
@@ -435,13 +439,13 @@ func pageEnabled(page string, m PageMaintenance) bool {
 func (h *Handlers) serveMaintenance(w http.ResponseWriter, r *http.Request, page string, m PageMaintenance) {
 	t, ok := h.tmpl["maintenance"]
 	if !ok {
-		http.Error(w, "under maintenance", http.StatusServiceUnavailable)
+		http.Error(w, h.t(r, "error.maintenance"), http.StatusServiceUnavailable)
 		return
 	}
 	lang := h.detectLang(r)
 	clone, err := t.Clone()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, h.t(r, "error.server"), http.StatusInternalServerError)
 		return
 	}
 	clone.Funcs(template.FuncMap{"T": i18n.TFunc(lang)})

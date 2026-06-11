@@ -34,7 +34,7 @@ func (h *Handlers) LoginPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	username := strings.TrimSpace(r.FormValue("username"))
@@ -127,7 +127,7 @@ func (h *Handlers) RegisterPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	usingInvite := inviteToken != "" && h.validInvite(inviteToken)
 
 	if !usingInvite && !h.registrationOpen() {
-		http.Error(w, "registration is currently closed", http.StatusForbidden)
+		http.Error(w, h.t(r, "error.reg_closed"), http.StatusForbidden)
 		return
 	}
 

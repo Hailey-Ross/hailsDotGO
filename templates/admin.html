@@ -14,6 +14,7 @@
 <div class="tabs" id="admin-tabs">
   {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">{{T "admin.tab.settings"}}</button>{{end}}
   <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
+  <button class="tab-btn" data-tab="raidsv2">{{T "admin.tab.raids"}}</button>
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tag-requests">{{T "admin.tab.tag_requests"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translations">{{T "admin.tab.translations"}}</button>{{end}}
@@ -79,11 +80,11 @@
       <div class="admin-invite-row">
         <span class="admin-invite-link-cell">{{.Link}}</span>
         <span class="admin-invite-expires">
-          {{if eq .GrantedRole "moderator"}}<span class="um-role-badge um-role-mod" style="font-size:0.7rem">Mod</span>
-          {{else if eq .GrantedRole "admin"}}<span class="um-role-badge um-role-admin" style="font-size:0.7rem">Admin</span>
-          {{else if eq .GrantedRole "tester"}}<span class="um-role-badge um-role-tester" style="font-size:0.7rem">Tester</span>
+          {{if eq .GrantedRole "moderator"}}<span class="um-role-badge um-role-mod" style="font-size:0.7rem">{{T "admin.invite.badge_mod"}}</span>
+          {{else if eq .GrantedRole "admin"}}<span class="um-role-badge um-role-admin" style="font-size:0.7rem">{{T "admin.js.role_admin"}}</span>
+          {{else if eq .GrantedRole "tester"}}<span class="um-role-badge um-role-tester" style="font-size:0.7rem">{{T "admin.js.role_tester"}}</span>
           {{end}}
-          {{if gt .MaxUses 1}}{{.UseCount}}/{{.MaxUses}} uses &middot; {{end}}exp. {{.ExpiresAt.Format "Jan 2"}}
+          {{if gt .MaxUses 1}}{{.UseCount}}/{{.MaxUses}} {{T "admin.invite.uses"}} &middot; {{end}}{{T "admin.invite.expires_abbr"}} {{.ExpiresAt.Format "Jan 2"}}
         </span>
         <form method="POST" action="/admin/invite/{{.Token}}/cancel" style="margin:0;flex-shrink:0">
           <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
@@ -126,7 +127,7 @@
     </div>
     <p class="admin-desc">{{T "admin.store_items.desc"}}</p>
     <div id="store-items-container">
-      <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
     </div>
   </div>
 
@@ -346,6 +347,56 @@
     </div>
   </div>
 </div>
+
+<div id="tab-raidsv2" class="tab-panel">
+
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2>{{T "admin.lobbies.title"}}</h2>
+      <button class="um-btn" onclick="loadAdminLobbies()">{{T "admin.lobbies.refresh"}}</button>
+    </div>
+    <p class="admin-desc">{{T "admin.lobbies.desc"}}</p>
+    <div id="admin-lobbies-container">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
+    </div>
+  </div>
+
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2>{{T "admin.awards.title"}}</h2>
+      <button class="um-btn" onclick="loadAdminAwards()">{{T "admin.awards.refresh"}}</button>
+    </div>
+    <p class="admin-desc">{{T "admin.awards.desc"}}</p>
+    {{if .User.IsAdmin}}
+    <form id="award-create-form" class="admin-form" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
+      <input type="text" id="award-name-input" placeholder="{{T "admin.awards.name_ph"}}" maxlength="64" required class="auth-input" style="flex:1;min-width:130px">
+      <input type="text" id="award-icon-input" placeholder="🏆" maxlength="8" class="auth-input" style="width:64px">
+      <input type="text" id="award-desc-input" placeholder="{{T "admin.awards.desc_ph"}}" maxlength="255" class="auth-input" style="flex:2;min-width:160px">
+      <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:var(--text-2)">
+        {{T "admin.awards.color_label"}} <input type="color" id="award-color-input" value="#f0b429" style="width:36px;height:28px;padding:2px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer">
+      </label>
+      <button type="submit" class="btn-primary">{{T "admin.awards.create"}}</button>
+      <span id="award-create-status" style="font-size:0.8rem"></span>
+    </form>
+    {{end}}
+    <div id="admin-awards-container">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
+    </div>
+
+    <h3 style="margin-top:1.5rem;font-size:0.95rem">{{T "admin.awards.grant_title"}}</h3>
+    <form id="award-grant-form" class="admin-form" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem">
+      <select id="award-grant-select" class="move-select" style="min-width:160px"></select>
+      <input type="text" id="award-grant-user" placeholder="{{T "admin.awards.user_ph"}}" maxlength="32" required class="auth-input" style="width:160px">
+      <input type="text" id="award-grant-note" placeholder="{{T "admin.awards.note_ph"}}" maxlength="160" class="auth-input" style="flex:1;min-width:160px">
+      <button type="submit" class="btn-primary">{{T "admin.awards.grant_btn"}}</button>
+      <span id="award-grant-status" style="font-size:0.8rem"></span>
+    </form>
+
+    <h3 style="margin-top:1.5rem;font-size:0.95rem">{{T "admin.awards.recent_title"}}</h3>
+    <div id="admin-grants-container" style="margin-top:0.5rem"></div>
+  </div>
+
+</div>
 {{end}}
 
 {{define "scripts"}}
@@ -405,6 +456,26 @@ const STRINGS = {
   saved:            {{T "admin.js.saved"}},
   btnClearRatings:  {{T "admin.js.btn_clear_ratings"}},
   btnResetDecay:    {{T "admin.js.btn_reset_decay"}},
+  trustScore:       {{T "admin.js.trust_score"}},
+  trustEffective:   {{T "admin.js.trust_effective"}},
+  trustAdjustPh:    {{T "admin.js.trust_adjust_ph"}},
+  trustNotePh:      {{T "admin.js.trust_note_ph"}},
+  btnAdjust:        {{T "admin.js.btn_adjust"}},
+  btnRecompute:     {{T "admin.js.btn_recompute"}},
+  btnTrustLog:      {{T "admin.js.btn_trust_log"}},
+  specialNone:      {{T "admin.js.special_none"}},
+  specialTrusted:   {{T "rank.trusted"}},
+  specialCC:        {{T "rank.content_creator"}},
+  noLobbies:        {{T "admin.js.no_lobbies"}},
+  confirmDeleteLobby: {{T "admin.js.confirm_delete_lobby"}},
+  noAwards:         {{T "admin.js.no_awards"}},
+  noGrants:         {{T "admin.js.no_grants"}},
+  btnRevoke:        {{T "admin.js.btn_revoke"}},
+  btnDelete:        {{T "admin.js.btn_delete"}},
+  btnDeactivate:    {{T "admin.js.btn_deactivate"}},
+  btnActivate:      {{T "admin.js.btn_activate"}},
+  confirmDeleteAward: {{T "admin.js.confirm_delete_award"}},
+  awardGranted:     {{T "admin.js.award_granted"}},
   roleSuperadmin:   {{T "admin.js.role_superadmin"}},
   roleUser:         {{T "admin.js.role_user"}},
   roleTester:       {{T "admin.js.role_tester"}},
@@ -479,6 +550,20 @@ const STRINGS = {
   syncNone:             {{T "admin.js.sync_none"}},
   syncRunning:          {{T "admin.js.sync_running"}},
   syncViewPr:           {{T "admin.js.sync_view_pr"}},
+  error:                {{T "error.generic"}},
+  errorChangeRole:      {{T "admin.js.error_change_role"}},
+  usernameRule:         {{T "register.username_rule"}},
+  issuedBy:             {{T "admin.js.strike_issued_by"}},
+  issuedOn:             {{T "admin.js.strike_on"}},
+  statsSystem:          {{T "admin.js.stats_system"}},
+  statsSystemDesc:      {{T "admin.js.stats_system_desc"}},
+  statsDb:              {{T "admin.js.stats_db"}},
+  statsDbDesc:          {{T "admin.js.stats_db_desc"}},
+  statsApp:             {{T "admin.js.stats_app"}},
+  statsAppDesc:         {{T "admin.js.stats_app_desc"}},
+  statWaitEvents:       {{T "admin.js.stat_wait_events"}},
+  statNone:             {{T "admin.js.stat_none"}},
+  customBadge:          {{T "raidlobby.custom_badge"}},
 };
 </script>
 <script>
@@ -651,6 +736,13 @@ function renderUserDetail(u) {
       <option value="admin"     ${u.role==='admin'     ? 'selected':''}>` + STRINGS.roleAdmin + `</option>
     </select>` : '';
 
+  const specialSelect = IS_ADMIN && !isSuperAdmin ? `
+    <select class="um-role-select move-select" onchange="setSpecialRank(${u.id}, this)">
+      <option value="" ${!u.special_rank ? 'selected':''}>${STRINGS.specialNone}</option>
+      <option value="trusted" ${u.special_rank==='trusted' ? 'selected':''}>✅ ${STRINGS.specialTrusted}</option>
+      <option value="content_creator" ${u.special_rank==='content_creator' ? 'selected':''}>🎬 ${STRINGS.specialCC}</option>
+    </select>` : '';
+
   const disableBtn = canDisable ? (u.disabled
     ? `<button class="um-btn um-btn-ok" onclick="toggleDisable(${u.id}, false)">${STRINGS.btnEnable}</button>`
     : `<button class="um-btn um-btn-danger" onclick="toggleExpand(${u.id}, 'disable')">${STRINGS.btnDisable}</button>`
@@ -682,6 +774,9 @@ function renderUserDetail(u) {
       <div class="um-badges">
         <span class="um-role-badge ${roleBadgeClass(u)}">${esc(roleBadgeLabel(u))}</span>
         <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? STRINGS.disabled : STRINGS.active}</span>
+        <span class="um-status-badge" title="${STRINGS.trustScore}">${STRINGS.trustScore}: ${(u.trust_score ?? 0).toFixed(1)}</span>
+        ${u.special_rank === 'trusted' ? `<span class="um-status-badge um-status-api">✅ ${STRINGS.specialTrusted}</span>` : ''}
+        ${u.special_rank === 'content_creator' ? `<span class="um-status-badge um-status-api">🎬 ${STRINGS.specialCC}</span>` : ''}
         ${dirBadge}${raidBanBadge}${strikeBadge}${apiBadge}${translatorBadge}${pendingBadge}
       </div>
     </div>
@@ -689,7 +784,7 @@ function renderUserDetail(u) {
       ${canSetPw ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'password')">${STRINGS.btnSetPassword}</button>` : ''}
       ${canRename ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'username')">${STRINGS.btnRename}</button>` : ''}
       <button class="um-btn" onclick="toggleExpand(${u.id}, 'strikes')">${STRINGS.btnStrikes}</button>
-      ${raidStatsBtn}${tagManageBtn}${confirmRoleBtn}${disableBtn}${dirHideBtn}${raidBanBtn}${apiAccessBtn}${translatorBtn}${roleSelect}
+      ${raidStatsBtn}${tagManageBtn}${confirmRoleBtn}${disableBtn}${dirHideBtn}${raidBanBtn}${apiAccessBtn}${translatorBtn}${roleSelect}${specialSelect}
     </div>
     <div class="um-expand" id="um-expand-${u.id}"></div>`;
 }
@@ -762,7 +857,7 @@ function toggleExpand(id, type) {
     el.innerHTML = `<form class="um-form" onsubmit="submitUsername(event,${id})">
       <input type="text" name="un" value="${esc(u.username)}"
              minlength="2" maxlength="32" required class="auth-input um-form-input"
-             pattern="[A-Za-z0-9_\\-]+" title="Letters, numbers, _ and - only">
+             pattern="[A-Za-z0-9_\\-]+" title="${esc(STRINGS.usernameRule)}">
       <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnSave}</button>
       <span class="um-form-status" id="um-status-${id}"></span>
     </form>`;
@@ -807,7 +902,7 @@ async function submitPassword(e, id) {
     setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; }, 1200);
   } else {
     const d = await res.json();
-    setStatus(id, d.error || 'Error', false);
+    setStatus(id, d.error || STRINGS.error, false);
     btn.disabled = false;
   }
 }
@@ -829,7 +924,7 @@ async function submitUsername(e, id) {
     setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; renderUsers(); }, 1200);
   } else {
     const d = await res.json();
-    setStatus(id, d.error || 'Error', false);
+    setStatus(id, d.error || STRINGS.error, false);
     btn.disabled = false;
   }
 }
@@ -848,7 +943,7 @@ async function confirmDisable(id) {
     renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -877,7 +972,7 @@ async function toggleRaidBan(id, ban) {
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   } else {
     const data = await res.json().catch(() => ({}));
-    alert(data.error || 'Action failed.');
+    alert(data.error || STRINGS.actionFailed);
   }
 }
 
@@ -905,9 +1000,9 @@ async function loadStrikes(id, el) {
         <div class="um-strike-row" id="um-strike-${s.id}">
           <div class="um-strike-info">
             <span class="um-strike-reason">${esc(s.reason)}</span>
-            <span class="um-strike-meta">Issued by ${esc(s.issued_by_name)} on ${esc(s.created_at)}</span>
+            <span class="um-strike-meta">${STRINGS.issuedBy} ${esc(s.issued_by_name)} ${STRINGS.issuedOn} ${esc(s.created_at)}</span>
           </div>
-          <button class="um-btn um-btn-danger" onclick="removeStrike(${id}, ${s.id})">${STRINGS.btnRemove || 'Remove'}</button>
+          <button class="um-btn um-btn-danger" onclick="removeStrike(${id}, ${s.id})">${STRINGS.btnRemove}</button>
         </div>`).join('')
     : `<p class="um-strikes-empty">${STRINGS.noStrikes}</p>`;
 
@@ -944,7 +1039,7 @@ async function addStrike(e, id) {
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
     btn.disabled = false;
   }
 }
@@ -974,7 +1069,7 @@ async function changeRole(id, select) {
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   } else {
     const d = await res.json();
-    alert(d.error || 'Error changing role');
+    alert(d.error || STRINGS.errorChangeRole);
     select.value = prev;
   }
 }
@@ -1078,10 +1173,10 @@ function renderStats(s) {
   c.innerHTML = `
     <div class="admin-card">
       <div class="admin-card-header">
-        <h2>System</h2>
+        <h2>${STRINGS.statsSystem}</h2>
         <button class="um-btn" onclick="loadStats()">${STRINGS.loading}</button>
       </div>
-      <p class="admin-desc">Runtime and memory stats for the running process.</p>
+      <p class="admin-desc">${STRINGS.statsSystemDesc}</p>
       <div class="stat-grid">
         ${stat(STRINGS.statUptime, s.uptime)}
         ${stat(STRINGS.statGoroutines, s.goroutines)}
@@ -1090,17 +1185,17 @@ function renderStats(s) {
       </div>
     </div>
     <div class="admin-card">
-      <h2>Database</h2>
-      <p class="admin-desc">Connection pool state and round-trip latency to the MySQL server.</p>
+      <h2>${STRINGS.statsDb}</h2>
+      <p class="admin-desc">${STRINGS.statsDbDesc}</p>
       <div class="stat-grid">
         ${stat(STRINGS.statDbPing, s.db_ping_ms + ' ms')}
         ${stat(STRINGS.statDbConns, s.db_open, s.db_in_use + ' ' + STRINGS.statDbInUse + ' / ' + s.db_idle + ' ' + STRINGS.statDbIdle)}
-        ${stat('Wait Events', s.db_waits, s.db_waits > 0 ? s.db_wait_ms + ' ' + STRINGS.statDbWait : 'none')}
+        ${stat(STRINGS.statWaitEvents, s.db_waits, s.db_waits > 0 ? s.db_wait_ms + ' ' + STRINGS.statDbWait : STRINGS.statNone)}
       </div>
     </div>
     <div class="admin-card">
-      <h2>App</h2>
-      <p class="admin-desc">Live counts from the database.</p>
+      <h2>${STRINGS.statsApp}</h2>
+      <p class="admin-desc">${STRINGS.statsAppDesc}</p>
       <div class="stat-grid">
         ${stat(STRINGS.statUsers, s.user_count)}
         ${stat(STRINGS.statRaids, s.active_raids)}
@@ -1193,7 +1288,7 @@ async function saveTag(id) {
     renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
   } else {
     const d = await res.json().catch(() => ({}));
-    if (status) { status.textContent = d.error || 'Error'; status.style.color = '#fc8181'; }
+    if (status) { status.textContent = d.error || STRINGS.error; status.style.color = '#fc8181'; }
   }
 }
 
@@ -1232,7 +1327,7 @@ if (IS_SUPERADMIN) {
         if (status) { status.textContent = STRINGS.tagCreated; status.style.color = 'var(--green)'; }
       } else {
         const d = await res.json().catch(() => ({}));
-        if (status) { status.textContent = d.error || 'Error'; status.style.color = '#fc8181'; }
+        if (status) { status.textContent = d.error || STRINGS.error; status.style.color = '#fc8181'; }
       }
       btn.disabled = false;
     });
@@ -1279,7 +1374,7 @@ async function addUserTag(uid) {
     if (el) await renderTagExpand(uid, el);
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1322,6 +1417,20 @@ function renderRaidStatsExpand(id, el) {
           </form>
         </div>
       </div>
+      <div style="margin-bottom:0.75rem">
+        <div style="font-size:0.78rem;color:var(--text-2);margin-bottom:0.3rem">${STRINGS.trustScore}: <strong>${(u.trust_score ?? 0).toFixed(2)}</strong></div>
+        <form class="um-form" onsubmit="adjustTrust(event,${id})">
+          <input type="number" name="delta" placeholder="${STRINGS.trustAdjustPh}" min="-100" max="100" step="0.5" required
+                 class="auth-input um-form-input" style="width:110px">
+          <input type="text" name="note" placeholder="${STRINGS.trustNotePh}" maxlength="255"
+                 class="auth-input um-form-input" style="width:200px">
+          <button type="submit" class="btn-primary um-form-btn">${STRINGS.btnAdjust}</button>
+          <button type="button" class="um-btn" onclick="recomputeTrust(${id})">${STRINGS.btnRecompute}</button>
+          <button type="button" class="um-btn" onclick="loadTrustLog(${id})">${STRINGS.btnTrustLog}</button>
+          <span class="um-form-status" id="um-trust-status-${id}"></span>
+        </form>
+        <div id="um-trustlog-${id}" style="margin-top:0.6rem"></div>
+      </div>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
         <button class="um-btn um-btn-warn" onclick="clearRatings(${id})">${STRINGS.btnClearRatings}</button>
         <button class="um-btn um-btn-ok" onclick="refreshActivity(${id})">${STRINGS.btnResetDecay}</button>
@@ -1329,6 +1438,236 @@ function renderRaidStatsExpand(id, el) {
       </div>
     </div>`;
 }
+
+async function setSpecialRank(id, select) {
+  const res = await csrfFetch('/admin/users/' + id + '/special-rank', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({rank: select.value}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.special_rank = select.value;
+    renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert(d.error || STRINGS.actionFailed);
+  }
+}
+
+async function adjustTrust(e, id) {
+  e.preventDefault();
+  const delta = parseFloat(e.target.delta.value);
+  const note  = e.target.note.value.trim();
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  const res = await csrfFetch('/admin/users/' + id + '/trust-adjust', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({delta: delta, note: note}),
+  });
+  const statusEl = document.getElementById('um-trust-status-' + id);
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.trust_score = (u.trust_score ?? 0) + delta;
+    if (statusEl) { statusEl.textContent = STRINGS.saved; statusEl.style.color = 'var(--green)'; }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+  }
+  btn.disabled = false;
+}
+
+async function recomputeTrust(id) {
+  const res = await csrfFetch('/admin/users/' + id + '/trust-recompute', { method: 'POST' });
+  const statusEl = document.getElementById('um-trust-status-' + id);
+  if (res.ok) {
+    const d = await res.json().catch(() => ({}));
+    const u = users.find(u => u.id === id);
+    if (u && typeof d.trust_score === 'number') u.trust_score = d.trust_score;
+    if (statusEl) { statusEl.textContent = STRINGS.saved; statusEl.style.color = 'var(--green)'; }
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+  }
+}
+
+async function loadTrustLog(id) {
+  const el = document.getElementById('um-trustlog-' + id);
+  if (!el) return;
+  el.innerHTML = `<div class="loading-state"><div class="spinner"></div></div>`;
+  const res = await fetch('/api/admin/trust/' + id);
+  if (!res.ok) { el.innerHTML = `<p style="font-size:0.8rem;color:#fc8181">${STRINGS.actionFailed}</p>`; return; }
+  const d = await res.json();
+  const rows = (d.events || []).map(ev => `
+    <div style="display:flex;gap:0.6rem;align-items:center;font-size:0.78rem;padding:0.25rem 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <span style="color:var(--text-2);min-width:120px">${esc(ev.created_at)}</span>
+      <span style="font-weight:700">${esc(ev.event_type)}</span>
+      <span style="color:${ev.applied_delta >= 0 ? 'var(--green)' : '#fc8181'}">${ev.applied_delta >= 0 ? '+' : ''}${ev.applied_delta}</span>
+      <span style="color:var(--text-2)">w ${ev.weight}</span>
+      <span style="color:var(--text-2)">${esc(ev.actor)}${ev.lobby_id ? ' · #' + ev.lobby_id : ''}</span>
+      ${ev.note ? `<span style="color:var(--text-2);font-style:italic">${esc(ev.note)}</span>` : ''}
+    </div>`).join('');
+  el.innerHTML = `
+    <div style="font-size:0.78rem;color:var(--text-2);margin-bottom:0.4rem">
+      ${STRINGS.trustScore}: <strong>${d.trust_score}</strong> · ${STRINGS.trustEffective}: <strong>${d.effective}</strong> (${esc(d.tier)})
+    </div>
+    <div style="max-height:260px;overflow-y:auto">${rows || `<p style="font-size:0.8rem;color:var(--text-2)">${STRINGS.noGrants}</p>`}</div>`;
+}
+
+// ── Raid lobby moderation ──────────────────────────────────────
+
+async function loadAdminLobbies() {
+  const container = document.getElementById('admin-lobbies-container');
+  if (!container) return;
+  const res = await fetch('/api/admin/raid-lobbies');
+  if (!res.ok) { container.innerHTML = `<p class="empty-state">${STRINGS.failLoad}</p>`; return; }
+  const lobbies = await res.json();
+  if (!lobbies.length) {
+    container.innerHTML = `<p class="empty-state">${STRINGS.noLobbies}</p>`;
+    return;
+  }
+  container.innerHTML = lobbies.map(l => `
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;padding:0.45rem 0;border-bottom:1px solid var(--border);font-size:0.85rem">
+      <strong>#${l.id}</strong>
+      <span>${esc(l.boss_name)}${l.is_custom ? ' <span class="raid-custom-badge">' + esc(STRINGS.customBadge) + '</span>' : ''}</span>
+      <span class="um-status-badge">${esc(l.state)}</span>
+      <span style="color:var(--text-2)">${l.members}/${l.max_members}</span>
+      <span style="color:var(--text-2)">${esc(l.host)}</span>
+      <button class="um-btn um-btn-danger" style="margin-left:auto" onclick="deleteAdminLobby(${l.id})">${STRINGS.btnRemove}</button>
+    </div>`).join('');
+}
+
+async function deleteAdminLobby(id) {
+  if (!confirm(STRINGS.confirmDeleteLobby)) return;
+  const res = await csrfFetch('/api/admin/raid-lobbies/' + id, { method: 'DELETE' });
+  if (res.ok) loadAdminLobbies();
+}
+
+// ── Awards management ──────────────────────────────────────────
+
+let adminAwards = [];
+
+async function loadAdminAwards() {
+  const container = document.getElementById('admin-awards-container');
+  const grantsEl  = document.getElementById('admin-grants-container');
+  if (!container) return;
+  const res = await fetch('/api/admin/awards');
+  if (!res.ok) { container.innerHTML = `<p class="empty-state">${STRINGS.failLoad}</p>`; return; }
+  const d = await res.json();
+  adminAwards = d.awards || [];
+
+  if (!adminAwards.length) {
+    container.innerHTML = `<p class="empty-state">${STRINGS.noAwards}</p>`;
+  } else {
+    container.innerHTML = adminAwards.map(a => `
+      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;padding:0.45rem 0;border-bottom:1px solid var(--border);font-size:0.85rem;${a.active ? '' : 'opacity:0.45'}">
+        <span style="font-size:1.1rem">${esc(a.icon)}</span>
+        <strong style="color:${esc(a.color)}">${esc(a.name)}</strong>
+        <span style="color:var(--text-2)">${esc(a.description)}</span>
+        ${IS_ADMIN ? `
+        <span style="margin-left:auto;display:flex;gap:0.4rem">
+          <button class="um-btn ${a.active ? 'um-btn-warn' : 'um-btn-ok'}" onclick="toggleAwardActive(${a.id})">${a.active ? STRINGS.btnDeactivate : STRINGS.btnActivate}</button>
+          <button class="um-btn um-btn-danger" onclick="deleteAward(${a.id})">${STRINGS.btnDelete}</button>
+        </span>` : ''}
+      </div>`).join('');
+  }
+
+  const sel = document.getElementById('award-grant-select');
+  if (sel) {
+    sel.innerHTML = adminAwards.filter(a => a.active).map(a => `<option value="${a.id}">${esc(a.icon)} ${esc(a.name)}</option>`).join('');
+  }
+
+  if (grantsEl) {
+    const grants = d.grants || [];
+    grantsEl.innerHTML = grants.length ? grants.map(g => `
+      <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;padding:0.35rem 0;border-bottom:1px solid var(--border);font-size:0.82rem">
+        <span>${esc(g.icon)}</span>
+        <strong>${esc(g.award_name)}</strong>
+        <span>→ ${esc(g.recipient)}</span>
+        <span style="color:var(--text-2)">${esc(g.granter)}</span>
+        ${g.note ? `<span style="color:var(--text-2);font-style:italic">${esc(g.note)}</span>` : ''}
+        <span style="color:var(--text-2)">${esc(g.created_at)}</span>
+        <button class="um-btn um-btn-danger" style="margin-left:auto" onclick="revokeGrant(${g.id})">${STRINGS.btnRevoke}</button>
+      </div>`).join('') : `<p style="font-size:0.85rem;color:var(--text-2)">${STRINGS.noGrants}</p>`;
+  }
+}
+
+async function toggleAwardActive(id) {
+  const a = adminAwards.find(a => a.id === id);
+  if (!a) return;
+  const res = await csrfFetch('/api/admin/awards/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name: a.name, description: a.description, icon: a.icon, color: a.color, active: !a.active, sort_order: a.sort_order}),
+  });
+  if (res.ok) loadAdminAwards();
+}
+
+async function deleteAward(id) {
+  if (!confirm(STRINGS.confirmDeleteAward)) return;
+  const res = await csrfFetch('/api/admin/awards/' + id, { method: 'DELETE' });
+  if (res.ok) loadAdminAwards();
+}
+
+async function revokeGrant(id) {
+  const res = await csrfFetch('/api/admin/award-grants/' + id, { method: 'DELETE' });
+  if (res.ok) loadAdminAwards();
+}
+
+(function() {
+  const createForm = document.getElementById('award-create-form');
+  if (createForm) {
+    createForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const status = document.getElementById('award-create-status');
+      const res = await csrfFetch('/api/admin/awards', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          name: document.getElementById('award-name-input').value.trim(),
+          icon: document.getElementById('award-icon-input').value.trim(),
+          description: document.getElementById('award-desc-input').value.trim(),
+          color: document.getElementById('award-color-input').value,
+        }),
+      });
+      if (res.ok) {
+        document.getElementById('award-name-input').value = '';
+        document.getElementById('award-desc-input').value = '';
+        if (status) { status.textContent = STRINGS.saved; status.style.color = 'var(--green)'; }
+        loadAdminAwards();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        if (status) { status.textContent = d.error || STRINGS.error; status.style.color = '#fc8181'; }
+      }
+    });
+  }
+  const grantForm = document.getElementById('award-grant-form');
+  if (grantForm) {
+    grantForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const status = document.getElementById('award-grant-status');
+      const awardId = parseInt(document.getElementById('award-grant-select').value);
+      if (!awardId) return;
+      const res = await csrfFetch('/api/awards/' + awardId + '/grant', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          username: document.getElementById('award-grant-user').value.trim(),
+          note: document.getElementById('award-grant-note').value.trim(),
+        }),
+      });
+      if (res.ok) {
+        document.getElementById('award-grant-user').value = '';
+        document.getElementById('award-grant-note').value = '';
+        if (status) { status.textContent = STRINGS.awardGranted; status.style.color = 'var(--green)'; }
+        loadAdminAwards();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        if (status) { status.textContent = d.error || STRINGS.error; status.style.color = '#fc8181'; }
+      }
+    });
+  }
+})();
 
 async function setRaidXP(e, id) {
   e.preventDefault();
@@ -1348,7 +1687,7 @@ async function setRaidXP(e, id) {
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
   btn.disabled = false;
 }
@@ -1371,7 +1710,7 @@ async function setRaterWeight(e, id) {
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
   btn.disabled = false;
 }
@@ -1385,7 +1724,7 @@ async function clearRatings(id) {
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2500);
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1397,7 +1736,7 @@ async function refreshActivity(id) {
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2500);
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1468,7 +1807,7 @@ async function approveTagRequest(id) {
     renderTagRequests();
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1486,7 +1825,7 @@ async function rejectTagRequest(id) {
     renderTagRequests();
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1505,7 +1844,7 @@ async function denyTagRequest(id) {
     renderTagRequests();
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1523,7 +1862,7 @@ async function revisionTagRequest(id) {
     renderTagRequests();
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1584,7 +1923,7 @@ async function approveTranslation(id) {
     renderTranslations();
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1605,7 +1944,7 @@ async function rejectTranslation(id) {
     renderTranslations();
   } else {
     const d = await res.json().catch(() => ({}));
-    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
   }
 }
 
@@ -1683,7 +2022,7 @@ async function syncTranslations() {
   const d = await res.json().catch(() => ({}));
   if (!res.ok) {
     statusEl.style.color = '#fc8181';
-    statusEl.textContent = d.error || 'Error';
+    statusEl.textContent = d.error || STRINGS.error;
     return;
   }
   if (!d.files || !d.files.length) {
@@ -1743,6 +2082,7 @@ if (origTabClick) {
     if (btn.dataset.tab === 'tag-requests') loadTagRequests();
     if (btn.dataset.tab === 'translations') { loadTranslations(); loadAdminLocales(); }
     if (btn.dataset.tab === 'donations') loadStoreItems();
+    if (btn.dataset.tab === 'raidsv2') { loadAdminLobbies(); loadAdminAwards(); }
   }, true);
 }
 </script>

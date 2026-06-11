@@ -44,7 +44,7 @@ func (h *Handlers) RequireMod(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !u.IsMod() {
-			http.Error(w, "403 forbidden", http.StatusForbidden)
+			http.Error(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 			return
 		}
 		next(w, r)
@@ -59,7 +59,7 @@ func (h *Handlers) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !u.IsAdmin() {
-			http.Error(w, "403 forbidden", http.StatusForbidden)
+			http.Error(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 			return
 		}
 		next(w, r)
@@ -74,7 +74,7 @@ func (h *Handlers) RequireSuperAdmin(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !u.IsSuperAdmin() {
-			http.Error(w, "403 forbidden", http.StatusForbidden)
+			http.Error(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 			return
 		}
 		next(w, r)
@@ -89,7 +89,7 @@ func (h *Handlers) RequireTranslator(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !u.IsTranslator() {
-			http.Error(w, "403 forbidden", http.StatusForbidden)
+			http.Error(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 			return
 		}
 		next(w, r)

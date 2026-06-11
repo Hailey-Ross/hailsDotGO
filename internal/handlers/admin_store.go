@@ -27,7 +27,7 @@ func (h *Handlers) AdminTagRequestsList(w http.ResponseWriter, r *http.Request) 
 		FROM custom_tag_requests ctr JOIN users u ON u.id = ctr.user_id
 		ORDER BY FIELD(ctr.status,'pending','approved','rejected'), ctr.created_at ASC`)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -47,12 +47,12 @@ func (h *Handlers) AdminTagRequestsList(w http.ResponseWriter, r *http.Request) 
 func (h *Handlers) AdminTagRequestApprove(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	actor := h.currentUser(r)
 	if actor == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -61,20 +61,20 @@ func (h *Handlers) AdminTagRequestApprove(w http.ResponseWriter, r *http.Request
 	if err := h.db.QueryRow(
 		`SELECT user_id, name, color, status FROM custom_tag_requests WHERE id = ?`, id,
 	).Scan(&userID, &name, &color, &status); err != nil {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	if status != "pending" {
-		writeJSONError(w, "request is not pending", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.sadm_not_pending"), http.StatusBadRequest)
 		return
 	}
 	if !h.hasActivePurchase(userID, "supporter") {
-		writeJSONError(w, "user no longer has an active Supporter Pack", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.sadm_no_supporter"), http.StatusForbidden)
 		return
 	}
 
 	if _, err = h.db.Exec(`INSERT INTO tags (name, color) VALUES (?, ?) ON DUPLICATE KEY UPDATE color = VALUES(color)`, name, color); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	var tagID int64
@@ -93,12 +93,12 @@ func (h *Handlers) AdminTagRequestApprove(w http.ResponseWriter, r *http.Request
 func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	actor := h.currentUser(r)
 	if actor == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -116,11 +116,11 @@ func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request)
 	if err := h.db.QueryRow(
 		`SELECT user_id, COALESCE(name,''), status FROM custom_tag_requests WHERE id = ?`, id,
 	).Scan(&userID, &tagName, &currentStatus); err != nil {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	if currentStatus != "pending" && currentStatus != "approved" {
-		writeJSONError(w, "request is not pending or approved", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.sadm_not_pending_approved"), http.StatusBadRequest)
 		return
 	}
 
@@ -130,11 +130,11 @@ func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request)
 		reason, actor.ID, id,
 	)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found or already processed", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.sadm_already_processed"), http.StatusNotFound)
 		return
 	}
 
@@ -152,12 +152,12 @@ func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request)
 func (h *Handlers) AdminTagRequestRevision(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	actor := h.currentUser(r)
 	if actor == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -175,11 +175,11 @@ func (h *Handlers) AdminTagRequestRevision(w http.ResponseWriter, r *http.Reques
 	if err := h.db.QueryRow(
 		`SELECT user_id, COALESCE(name,''), status FROM custom_tag_requests WHERE id = ?`, id,
 	).Scan(&userID, &tagName, &currentStatus); err != nil {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	if currentStatus != "pending" && currentStatus != "approved" {
-		writeJSONError(w, "request is not pending or approved", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.sadm_not_pending_approved"), http.StatusBadRequest)
 		return
 	}
 
@@ -189,11 +189,11 @@ func (h *Handlers) AdminTagRequestRevision(w http.ResponseWriter, r *http.Reques
 		notes, actor.ID, id,
 	)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found or already processed", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.sadm_already_processed"), http.StatusNotFound)
 		return
 	}
 
@@ -221,7 +221,7 @@ type storeItemAdmin struct {
 func (h *Handlers) AdminStoreItemsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`SELECT id, name, slug, price_cents, type, active, sort_order FROM store_items ORDER BY sort_order`)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -239,12 +239,12 @@ func (h *Handlers) AdminStoreItemsList(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminToggleStoreItem(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var active bool
 	if err := h.db.QueryRow(`SELECT active FROM store_items WHERE id = ?`, id).Scan(&active); err != nil {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	h.db.Exec(`UPDATE store_items SET active = ? WHERE id = ?`, !active, id)

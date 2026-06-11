@@ -33,7 +33,7 @@
           <label class="settings-label" for="trainer_name">{{T "settings.trainer_name.label"}}</label>
           <p class="settings-field-hint">{{T "settings.trainer_name.hint"}}</p>
           <input class="auth-input" type="text" id="trainer_name" name="trainer_name"
-                 maxlength="16" placeholder="e.g. AshKetchum"
+                 maxlength="16" placeholder="{{T "settings.trainer_name.placeholder"}}"
                  value="{{.Data.TrainerName}}">
         </div>
 
@@ -42,21 +42,21 @@
           <p class="settings-field-hint">{{T "settings.pronouns.hint"}}</p>
           <select id="pr-sel" name="pronouns_choice" class="auth-input">
             <option value="">{{T "settings.pronouns.prefer_not"}}</option>
-            <option value="he/him">He/Him</option>
-            <option value="she/her">She/Her</option>
-            <option value="they/them">They/Them</option>
-            <option value="any/all">Any/All</option>
+            <option value="he/him">{{T "settings.pronouns.he"}}</option>
+            <option value="she/her">{{T "settings.pronouns.she"}}</option>
+            <option value="they/them">{{T "settings.pronouns.they"}}</option>
+            <option value="any/all">{{T "settings.pronouns.any"}}</option>
             <option value="custom">{{T "settings.pronouns.custom"}}</option>
           </select>
           <input type="text" name="pronouns_custom" id="pr-custom-input" maxlength="32"
-                 placeholder="e.g. xe/xem" class="auth-input" style="margin-top:0.4rem;display:none">
+                 placeholder="{{T "settings.pronouns.custom_placeholder"}}" class="auth-input" style="margin-top:0.4rem;display:none">
         </div>
 
         <div class="settings-field">
           <label class="settings-label" for="trainer_code">{{T "settings.trainer_code.label"}}</label>
           <p class="settings-field-hint">{{T "settings.trainer_code.hint"}}</p>
           <input class="auth-input" type="text" id="trainer_code" name="trainer_code"
-                 maxlength="14" placeholder="e.g. 1234 5678 9012"
+                 maxlength="14" placeholder="{{T "settings.trainer_code.placeholder"}}"
                  value="{{.Data.TrainerCode}}"
                  autocomplete="off">
         </div>
@@ -81,7 +81,7 @@
             <span id="avatar-preview-default" class="trainer-avatar-sm avatar--default">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
             </span>
-            <img id="avatar-preview-img" class="trainer-avatar-sprite" alt="trainer avatar" style="display:none">
+            <img id="avatar-preview-img" class="trainer-avatar-sprite" alt="{{T "settings.avatar.alt"}}" style="display:none">
           </div>
         </div>
 
@@ -93,7 +93,7 @@
           </datalist>
           <input class="auth-input" id="fav-pokemon-input" type="text"
                  name="fav_pokemon" list="pokemon-names-list" autocomplete="off"
-                 placeholder="e.g. Gengar"
+                 placeholder="{{T "settings.fav.placeholder"}}"
                  value="{{.Data.FavPokemon}}">
           <div class="fav-form-wrap">
             <select name="fav_pokemon_form" id="fav-pokemon-form" class="auth-input">
@@ -121,7 +121,7 @@
           <label class="settings-label" for="city">{{T "settings.city.label"}}</label>
           <p class="settings-field-hint">{{T "settings.city.hint"}}</p>
           <input class="auth-input" type="text" id="city" name="city"
-                 maxlength="100" placeholder="e.g. London"
+                 maxlength="100" placeholder="{{T "settings.city.placeholder"}}"
                  value="{{.Data.City}}">
         </div>
 
@@ -129,7 +129,7 @@
           <label class="settings-label" for="region">{{T "settings.region.label"}}</label>
           <p class="settings-field-hint">{{T "settings.region.hint"}}</p>
           <input class="auth-input" type="text" id="region" name="region"
-                 maxlength="100" placeholder="e.g. California"
+                 maxlength="100" placeholder="{{T "settings.region.placeholder"}}"
                  value="{{.Data.Region}}">
         </div>
 
@@ -137,7 +137,7 @@
           <label class="settings-label" for="country">{{T "settings.country.label"}}</label>
           <p class="settings-field-hint">{{T "settings.country.hint"}}</p>
           <input class="auth-input" type="text" id="country" name="country"
-                 maxlength="100" placeholder="e.g. USA"
+                 maxlength="100" placeholder="{{T "settings.country.placeholder"}}"
                  value="{{.Data.Country}}">
         </div>
 
@@ -373,7 +373,7 @@
         tagColorStatus.style.color = 'var(--green)';
       } else {
         var d = await res.json().catch(function() { return {}; });
-        tagColorStatus.textContent = d.error || 'Error';
+        tagColorStatus.textContent = d.error || {{T "error.generic"}};
         tagColorStatus.style.color = '#fc8181';
       }
       tagColorSubmit.disabled = false;
@@ -401,7 +401,7 @@
         tagSubmitBtn.disabled = true;
       } else {
         var d = await res.json().catch(function() { return {}; });
-        statusEl.textContent = d.error || 'Error';
+        statusEl.textContent = d.error || {{T "error.generic"}};
         statusEl.style.color = '#fc8181';
         tagSubmitBtn.disabled = false;
       }

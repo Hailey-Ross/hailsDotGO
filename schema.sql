@@ -358,6 +358,144 @@ CREATE TABLE IF NOT EXISTS invites (
 --     CONSTRAINT fk_te_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
 --   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Migration: Raid Finder v2 lobby matchmaking + trust + awards (2026-06-10).
+-- Replaces the browse-and-join raid post board with per-boss matchmaking
+-- queues, host lobbies with server-enforced timers, a behavioral trust
+-- system (replaces 1-5 star ratings), and a community awards system.
+-- Old tables (raid_posts, raid_joins, raid_ratings) stay for history; v2
+-- stops writing to them. raid_leave_log and raid_join_cooldowns are REUSED.
+-- users.rater_weight is repurposed as trust report reliability (same range).
+-- users.raid_xp / last_raid_at are unchanged (rank ladder stays).
+--
+--   CREATE TABLE IF NOT EXISTS raid_lobbies (
+--     id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     host_id         INT UNSIGNED NOT NULL,
+--     boss_name       VARCHAR(64)  NOT NULL,
+--     boss_tier       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+--     is_custom       TINYINT(1)   NOT NULL DEFAULT 0,
+--     note            VARCHAR(160) NOT NULL DEFAULT '',
+--     weather_boosted TINYINT(1)   NOT NULL DEFAULT 0,
+--     max_members     TINYINT UNSIGNED NOT NULL DEFAULT 5,
+--     state           ENUM('open','full','raiding','reported','cancelled','expired') NOT NULL DEFAULT 'open',
+--     invite_deadline DATETIME NULL,
+--     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     expires_at      DATETIME NOT NULL,
+--     closed_at       DATETIME NULL,
+--     PRIMARY KEY (id),
+--     KEY idx_lobby_state_boss (state, boss_name, created_at),
+--     KEY idx_lobby_expires (expires_at),
+--     CONSTRAINT fk_lobby_host FOREIGN KEY (host_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   CREATE TABLE IF NOT EXISTS raid_lobby_members (
+--     id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     lobby_id         INT UNSIGNED NOT NULL,
+--     user_id          INT UNSIGNED NOT NULL,
+--     state            ENUM('matched','confirmed','timed_out','left','removed','requeued') NOT NULL DEFAULT 'matched',
+--     priority         TINYINT(1) NOT NULL DEFAULT 0,
+--     matched_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     confirm_deadline DATETIME NOT NULL,
+--     confirmed_at     DATETIME NULL,
+--     attended         TINYINT(1) NULL,
+--     left_early       TINYINT(1) NOT NULL DEFAULT 0,
+--     raid_success     TINYINT(1) NULL,
+--     host_vote        ENUM('none','commend','dislike') NOT NULL DEFAULT 'none',
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_lobby_member (lobby_id, user_id),
+--     KEY idx_member_user (user_id, state),
+--     CONSTRAINT fk_lm_lobby FOREIGN KEY (lobby_id) REFERENCES raid_lobbies (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_lm_user  FOREIGN KEY (user_id)  REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   -- One queue slot per user. enqueued_at is millisecond precision and is
+--   -- PRESERVED when members are returned to the queue, so they re-enter at
+--   -- the front. last_seen_at is the poll heartbeat; stale rows are evicted.
+--   CREATE TABLE IF NOT EXISTS raid_queue (
+--     user_id      INT UNSIGNED NOT NULL,
+--     boss_name    VARCHAR(64)  NOT NULL,
+--     boss_tier    TINYINT UNSIGNED NOT NULL DEFAULT 0,
+--     priority     TINYINT(1)   NOT NULL DEFAULT 0,
+--     enqueued_at  DATETIME(3)  NOT NULL,
+--     last_seen_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (user_id),
+--     KEY idx_queue_boss (boss_name, priority, enqueued_at),
+--     CONSTRAINT fk_rq_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   -- Source of truth for trust. users.trust_score caches SUM(applied_delta).
+--   -- actor_id NULL means a system event (timeouts, window expiry).
+--   -- uk_te_vote makes commend/dislike idempotent per lobby per pair.
+--   CREATE TABLE IF NOT EXISTS trust_events (
+--     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id       INT UNSIGNED NOT NULL,
+--     actor_id      INT UNSIGNED NULL,
+--     lobby_id      INT UNSIGNED NULL,
+--     event_type    ENUM('commend','dislike','confirm_timeout','invite_window_fail','left_early','raid_success','staff_adjust') NOT NULL,
+--     raw_delta     DECIMAL(6,2) NOT NULL,
+--     weight        DECIMAL(4,3) NOT NULL DEFAULT 1.000,
+--     applied_delta DECIMAL(6,2) NOT NULL,
+--     note          VARCHAR(255) NOT NULL DEFAULT '',
+--     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     KEY idx_te_user (user_id, created_at),
+--     KEY idx_te_actor (actor_id, event_type, created_at),
+--     UNIQUE KEY uk_te_vote (lobby_id, actor_id, user_id, event_type),
+--     CONSTRAINT fk_tev_user  FOREIGN KEY (user_id)  REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_tev_actor FOREIGN KEY (actor_id) REFERENCES users (id) ON DELETE SET NULL
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   ALTER TABLE users ADD COLUMN trust_score DECIMAL(7,2) NOT NULL DEFAULT 0.00 AFTER rater_weight;
+--   ALTER TABLE users ADD COLUMN special_rank ENUM('','trusted','content_creator') NOT NULL DEFAULT '' AFTER trust_score;
+--
+--   CREATE TABLE IF NOT EXISTS awards (
+--     id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     slug        VARCHAR(32)  NOT NULL,
+--     name        VARCHAR(64)  NOT NULL,
+--     description VARCHAR(255) NOT NULL DEFAULT '',
+--     icon        VARCHAR(16)  NOT NULL DEFAULT '🏆',
+--     color       VARCHAR(7)   NOT NULL DEFAULT '#f0b429',
+--     active      TINYINT(1)   NOT NULL DEFAULT 1,
+--     sort_order  TINYINT UNSIGNED NOT NULL DEFAULT 0,
+--     created_by  INT UNSIGNED NULL,
+--     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_award_slug (slug),
+--     CONSTRAINT fk_award_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   -- Same award from different granters stacks; one granter can't repeat it.
+--   CREATE TABLE IF NOT EXISTS award_grants (
+--     id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     award_id     INT UNSIGNED NOT NULL,
+--     recipient_id INT UNSIGNED NOT NULL,
+--     granter_id   INT UNSIGNED NULL,
+--     note         VARCHAR(160) NOT NULL DEFAULT '',
+--     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     UNIQUE KEY uk_grant_once (award_id, recipient_id, granter_id),
+--     KEY idx_grant_recipient (recipient_id),
+--     CONSTRAINT fk_ag_award     FOREIGN KEY (award_id)     REFERENCES awards (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_ag_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_ag_granter   FOREIGN KEY (granter_id)   REFERENCES users (id) ON DELETE SET NULL
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES
+--     ('awards_community_grants_enabled', '0'),
+--     ('awards_grant_min_trust', '50'),
+--     ('raid_custom_lobby_min_trust', '50');
+--
+--   INSERT IGNORE INTO awards (slug, name, description, icon, color, sort_order) VALUES
+--     ('helping-hand', 'Helping Hand', 'Goes out of their way to help other trainers', '🤝', '#4caf50', 1),
+--     ('friend-ball',  'Friend Ball',  'Welcoming and friendly to everyone in lobbies', '💚', '#7bd389', 2),
+--     ('professors-aide', 'Professor''s Aide', 'Great teacher: explains counters, mechanics, and strategy', '📚', '#5b9cf6', 3),
+--     ('ace-trainer', 'Ace Trainer', 'A role model for the community', '⭐', '#f0b429', 4),
+--     ('joyful-spirit', 'Joyful Spirit', 'Keeps raids fun and positive', '🎉', '#e91e63', 5);
+--
+-- After v2 has been stable for a release, retire the legacy tables manually:
+--   DROP TABLE raid_ratings;   -- replaced by trust_events
+--   DROP TABLE raid_joins;     -- replaced by raid_lobby_members
+--   DROP TABLE raid_posts;     -- replaced by raid_lobbies
+
 -- Migration: runtime locale registry (2026-06-10).
 -- Translators can create new locales from /translate; they stay hidden from
 -- the public language switcher until an admin enables them. en is implicit

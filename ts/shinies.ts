@@ -2,6 +2,11 @@ import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
+// Server-injected strings: JSC and SITE_LANG from templates/base.html, SH from templates/shinies.html.
+declare const JSC: Record<string, string>;
+declare const SH: Record<string, string>;
+declare const SITE_LANG: string;
+
 const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 
 let cryVolume = 0.3;
@@ -15,29 +20,25 @@ interface UserShiny {
 }
 
 const FORMS = [
-  { value: "", label: "Normal" },
-  { value: "shadow", label: "Shadow" },
-  { value: "purified", label: "Purified" },
+  { value: "", label: JSC.formNormal },
+  { value: "shadow", label: JSC.formShadow },
+  { value: "purified", label: JSC.formPurified },
 ];
 
 const METHODS = [
-  { value: "", label: "Any method" },
-  { value: "wild", label: "Wild" },
-  { value: "egg", label: "Egg" },
-  { value: "raid", label: "Raid" },
-  { value: "research", label: "Research" },
-  { value: "evolution", label: "Evolution" },
-  { value: "photobomb", label: "Photobomb" },
-  { value: "trade", label: "Trade" },
-  { value: "go_tour", label: "GO Tour" },
+  { value: "", label: SH.methodAny },
+  { value: "wild", label: SH.methodWild },
+  { value: "egg", label: SH.methodEgg },
+  { value: "raid", label: SH.methodRaid },
+  { value: "research", label: SH.methodResearch },
+  { value: "evolution", label: SH.methodEvolution },
+  { value: "photobomb", label: SH.methodPhotobomb },
+  { value: "trade", label: SH.methodTrade },
+  { value: "go_tour", label: SH.methodGoTour },
 ];
 
 function spriteUrl(id: number) {
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`;
-}
-
-function formLabel(val: string) {
-  return FORMS.find((f) => f.value === val)?.label ?? "Normal";
 }
 
 async function fetchUserShinies(): Promise<UserShiny[]> {
@@ -106,12 +107,12 @@ async function init() {
   try {
     [gameData, userShinies] = await Promise.all([loadGameData(), fetchUserShinies()]);
   } catch {
-    app.innerHTML = `<div class="error-state">Failed to load data. Please try again.</div>`;
+    app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     return;
   }
 
   if (!gameData.shinies || Object.keys(gameData.shinies).length === 0) {
-    app.innerHTML = `<div class="error-state">Shiny data unavailable.</div>`;
+    app.innerHTML = `<div class="error-state">${SH.unavailable}</div>`;
     return;
   }
 
@@ -123,17 +124,17 @@ async function init() {
 
   app.innerHTML = `
     <div class="page-header">
-      <h1>My Shiny Collection</h1>
+      <h1>${SH.heading}</h1>
       <p id="sc-counter" class="page-header-sub"></p>
     </div>
     <div class="tabs" id="sc-tabs">
-      <button class="tab-btn active" data-tab="all">All Shinies</button>
-      <button class="tab-btn" data-tab="caught">Caught</button>
-      <button class="tab-btn" data-tab="missing">Missing</button>
+      <button class="tab-btn active" data-tab="all">${SH.tabAll}</button>
+      <button class="tab-btn" data-tab="caught">${SH.tabCaught}</button>
+      <button class="tab-btn" data-tab="missing">${SH.tabMissing}</button>
     </div>
     <input id="sc-search" type="text" class="search-input"
            style="width:100%;margin-bottom:1rem;display:block"
-           placeholder="Search…">
+           placeholder="${JSC.search}">
     <div id="sc-content"></div>
   `;
 
@@ -152,27 +153,27 @@ async function init() {
       <div class="shiny-compare" id="sc-compare-wrap">
         <div class="shiny-compare-side">
           <img class="shiny-compare-img" id="sc-modal-normal" alt="">
-          <span>Normal</span>
+          <span>${JSC.formNormal}</span>
         </div>
         <div class="shiny-compare-side">
           <img class="shiny-compare-img sc-modal-img" id="sc-modal-shiny" alt="">
-          <span>✨ Shiny</span>
+          <span>✨ ${JSC.shiny}</span>
         </div>
       </div>
       <div class="shiny-modal-name-row">
         <div class="sc-modal-name"></div>
       </div>
       <div class="poke-cry-controls" id="sc-cry-controls" style="display:none">
-        <button class="poke-cry-btn" id="sc-modal-cry" title="Play cry">🔊</button>
-        <input type="range" class="poke-volume-slider" id="sc-modal-volume" min="0" max="100" value="100" title="Volume">
+        <button class="poke-cry-btn" id="sc-modal-cry" title="${JSC.playCry}">🔊</button>
+        <input type="range" class="poke-volume-slider" id="sc-modal-volume" min="0" max="100" value="100" title="${JSC.volume}">
         <span class="poke-volume-label" id="sc-modal-vlabel">100%</span>
       </div>
       <span class="poke-genus" id="sc-modal-genus"></span>
       <span class="poke-legend-badge" id="sc-modal-badge" style="display:none"></span>
       <p class="poke-flavor" id="sc-modal-flavor" style="display:none"></p>
-      <div class="sc-add-title">Add to collection</div>
+      <div class="sc-add-title">${SH.addToCollection}</div>
       <div id="sc-modal-fields" style="width:100%;display:flex;flex-direction:column;gap:0.5rem"></div>
-      <button class="btn-primary" id="sc-modal-add" style="width:100%;margin-top:0.25rem">Add</button>
+      <button class="btn-primary" id="sc-modal-add" style="width:100%;margin-top:0.25rem">${SH.add}</button>
       <div id="sc-modal-status" class="sc-status"></div>
     </div>
   `;
@@ -224,9 +225,9 @@ async function init() {
 
     fetchSpeciesData(s.id).then(d => {
       if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
-      if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+      if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
       if (d.isLegendary || d.isMythical) {
-        badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+        badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
         badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
         badgeEl.style.display = "";
       }
@@ -236,13 +237,13 @@ async function init() {
           if (sprites.normal) {
             const side = document.createElement("div");
             side.className = "shiny-compare-side shiny-compare-side--extra";
-            side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="Primal"><span>🌋 Primal</span>`;
+            side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="${JSC.formPrimal}"><span>🌋 ${JSC.formPrimal}</span>`;
             compareWrap.appendChild(side);
           }
           if (sprites.shiny) {
             const side = document.createElement("div");
             side.className = "shiny-compare-side shiny-compare-side--extra";
-            side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="Primal Shiny"><span>✨ Primal Shiny</span>`;
+            side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="${JSC.primalShiny}"><span>✨ ${JSC.primalShiny}</span>`;
             compareWrap.appendChild(side);
           }
         });
@@ -259,7 +260,7 @@ async function init() {
       };
     });
     modalAddBtn.disabled = false;
-    modalAddBtn.textContent = "Add";
+    modalAddBtn.textContent = SH.add;
 
     // Disable forms already caught
     const caughtForms = FORMS.filter((f) => caughtIndex.has(`${s.name}:${f.value}`)).map((f) => f.value);
@@ -282,12 +283,12 @@ async function init() {
     const method = modalMethodSel.value;
 
     if (caughtIndex.has(`${modalTarget.name}:${form}`)) {
-      modalStatus.textContent = "Already in your collection.";
+      modalStatus.textContent = SH.alreadyOwned;
       return;
     }
 
     modalAddBtn.disabled = true;
-    modalAddBtn.textContent = "Adding…";
+    modalAddBtn.textContent = SH.adding;
     modalStatus.textContent = "";
 
     const ok = await apiAdd(modalTarget.name, form, method);
@@ -298,9 +299,9 @@ async function init() {
       renderTab();
       closeModal();
     } else {
-      modalStatus.textContent = "Something went wrong.";
+      modalStatus.textContent = JSC.somethingWrong;
       modalAddBtn.disabled = false;
-      modalAddBtn.textContent = "Add";
+      modalAddBtn.textContent = SH.add;
     }
   });
 
@@ -310,11 +311,12 @@ async function init() {
     const d    = new Date(dateStr);
     const diff = Date.now() - d.getTime();
     const days = Math.floor(diff / 86400000);
-    if (days === 0) return "today";
-    if (days === 1) return "yesterday";
-    if (days < 30)  return `${days} days ago`;
-    if (days < 365) return d.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
-    return d.toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" });
+    const locale = typeof SITE_LANG !== "undefined" ? SITE_LANG : "en-GB";
+    if (days === 0) return SH.today;
+    if (days === 1) return SH.yesterday;
+    if (days < 30)  return SH.daysAgo.replace("{n}", String(days));
+    if (days < 365) return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
+    return d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
   }
 
   // ── Counter / Stats bar ──────────────────────────────────────
@@ -337,11 +339,15 @@ async function init() {
       .sort(([, a], [, b]) => b - a)
       .map(([m, n]) => {
         const icon = METHOD_ICONS[m] ?? "";
-        return `<span class="sc-stat-chip">${icon} ${m.replace(/_/g, " ")} (${n})</span>`;
+        const label = METHODS.find((o) => o.value === m)?.label ?? m.replace(/_/g, " ");
+        return `<span class="sc-stat-chip">${icon} ${label} (${n})</span>`;
       }).join("");
 
+    const counts = SH.counts
+      .replace("{unique}", String(unique))
+      .replace("{total}", String(total));
     counterEl.innerHTML =
-      `<span class="sc-stat-counts">${unique} unique / ${total} total</span>` +
+      `<span class="sc-stat-counts">${counts}</span>` +
       (chipsHtml ? `<span class="sc-stat-chips">${chipsHtml}</span>` : "");
   }
 
@@ -352,7 +358,7 @@ async function init() {
     const filtered = q ? source.filter((s) => s.name.toLowerCase().includes(q)) : source;
 
     if (!filtered.length) {
-      contentEl.innerHTML = `<p class="empty-state">No results.</p>`;
+      contentEl.innerHTML = `<p class="empty-state">${JSC.noResults}</p>`;
       return;
     }
 
@@ -405,8 +411,8 @@ async function init() {
 
     if (!entries.length) {
       contentEl.innerHTML = q
-        ? `<p class="empty-state">No results.</p>`
-        : `<p class="empty-state">Nothing caught yet. Use All Shinies to add some.</p>`;
+        ? `<p class="empty-state">${JSC.noResults}</p>`
+        : `<p class="empty-state">${SH.nothingCaught}</p>`;
       return;
     }
 
@@ -462,19 +468,19 @@ async function init() {
           rec.form   = newForm;
           rec.method = newMethod;
           caughtIndex.set(`${rec.pokemon_id}:${rec.form}`, rec);
-          statusEl.textContent = "Saved";
+          statusEl.textContent = SH.saved;
           clearTimeout(saveTimer);
           saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);
         } else if (res.status === 409) {
           formSel.value   = rec.form;
           methodSel.value = rec.method;
-          statusEl.textContent = "Already caught!";
+          statusEl.textContent = SH.alreadyCaught;
           clearTimeout(saveTimer);
           saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 2000);
         } else {
           formSel.value   = rec.form;
           methodSel.value = rec.method;
-          statusEl.textContent = "Error";
+          statusEl.textContent = JSC.error;
         }
       }
 
@@ -484,7 +490,7 @@ async function init() {
       // Remove button
       const removeBtn = document.createElement("button");
       removeBtn.className = "sc-remove-btn";
-      removeBtn.textContent = "Remove";
+      removeBtn.textContent = JSC.remove;
       removeBtn.addEventListener("click", async () => {
         removeBtn.disabled = true;
         removeBtn.textContent = "…";
@@ -496,7 +502,7 @@ async function init() {
           renderCaughtList();
         } else {
           removeBtn.disabled = false;
-          removeBtn.textContent = "Remove";
+          removeBtn.textContent = JSC.remove;
         }
       });
 
@@ -518,13 +524,13 @@ async function init() {
 
   function renderTab() {
     if (activeTab === "caught") {
-      searchEl.placeholder = "Filter caught…";
+      searchEl.placeholder = SH.filterCaught;
       renderCaughtList();
     } else {
       const source = activeTab === "missing"
         ? allShinies.filter((s) => !anyFormCaught(s.name, caughtIndex))
         : allShinies;
-      searchEl.placeholder = `Search ${source.length} Pokémon…`;
+      searchEl.placeholder = JSC.searchNPokemon.replace("{n}", String(source.length));
       renderGrid(source);
     }
   }

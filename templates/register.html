@@ -21,7 +21,7 @@
       <input class="auth-input" type="text" id="username" name="username"
              autocomplete="username" required minlength="2" maxlength="32"
              pattern="[A-Za-z0-9_\-]+"
-             title="Letters, numbers, _ and - only"
+             title="{{T "register.username_rule"}}"
              value="{{if .Data.Form}}{{index .Data.Form "username"}}{{end}}">
 
       <label class="auth-label" for="email">{{T "register.email"}}</label>

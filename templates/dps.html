@@ -15,5 +15,32 @@
 {{end}}
 
 {{define "scripts"}}
+<script>
+const DP = {
+  selectFast:         {{T "dps.js.select_fast"}},
+  selectCharged:      {{T "dps.js.select_charged"}},
+  searchPokemonEg:    {{T "dps.js.search_pokemon_eg"}},
+  targetPokemonEg:    {{T "dps.js.target_pokemon_eg"}},
+  searchBoss:         {{T "dps.js.search_boss"}},
+  calculate:          {{T "dps.js.calculate"}},
+  vsTargetOptional:   {{T "dps.js.vs_target_optional"}},
+  targetOptional:     {{T "dps.js.target_optional"}},
+  vsName:             {{T "dps.js.vs_name"}},
+  type1:              {{T "dps.js.type1"}},
+  type2:              {{T "dps.js.type2"}},
+  customTypes:        {{T "dps.js.custom_types"}},
+  add:                {{T "dps.js.add"}},
+  addHint:            {{T "dps.js.add_hint"}},
+  clearAll:           {{T "dps.js.clear_all"}},
+  errSelectPokemon:   {{T "dps.js.err_select_pokemon"}},
+  errSelectMovesLong: {{T "dps.js.err_select_moves_long"}},
+  errSelectMoves:     {{T "dps.js.err_select_moves"}},
+  cycleDps:           {{T "dps.js.cycle_dps"}},
+  fastDps:            {{T "dps.js.fast_dps"}},
+  fastEps:            {{T "dps.js.fast_eps"}},
+  tabCalc:            {{T "dps.js.tab_calc"}},
+  tabCompare:         {{T "dps.js.tab_compare"}}
+};
+</script>
 <script src="/static/js/dps.js?v={{.AssetVersion}}"></script>
 {{end}}

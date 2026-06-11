@@ -58,7 +58,7 @@ func (h *Handlers) AdminRefreshData(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -108,12 +108,12 @@ func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminGenerateInvite(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -152,7 +152,7 @@ func (h *Handlers) AdminGenerateInvite(w http.ResponseWriter, r *http.Request) {
 
 	token, err := generateInviteToken()
 	if err != nil {
-		http.Error(w, "could not generate token", http.StatusInternalServerError)
+		http.Error(w, h.t(r, "error.invite_generate"), http.StatusInternalServerError)
 		return
 	}
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
@@ -232,7 +232,7 @@ func (h *Handlers) AdminCancelInvite(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -309,6 +309,8 @@ type adminUserRecord struct {
 	Tags            []adminTagEntry `json:"tags"`
 	RaidXP          int             `json:"raid_xp"`
 	RaterWeight     float64         `json:"rater_weight"`
+	TrustScore      float64         `json:"trust_score"`
+	SpecialRank     string          `json:"special_rank"`
 }
 
 func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
@@ -316,13 +318,14 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 		SELECT u.id, u.username, u.email, u.role, COALESCE(u.pending_role, ''),
 		       u.disabled, COALESCE(u.disabled_reason, ''), u.directory_hidden, u.raid_banned,
 		       COUNT(s.id) AS strike_count, u.created_at, u.api_access, u.translator,
-		       COALESCE(u.raid_xp, 0), COALESCE(u.rater_weight, 1.000)
+		       COALESCE(u.raid_xp, 0), COALESCE(u.rater_weight, 1.000),
+		       COALESCE(u.trust_score, 0), COALESCE(u.special_rank, '')
 		FROM users u
 		LEFT JOIN user_strikes s ON s.user_id = u.id
 		GROUP BY u.id
 		ORDER BY u.created_at ASC`)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -334,7 +337,7 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.PendingRole,
 			&u.Disabled, &u.DisabledReason, &u.DirectoryHidden, &u.RaidBanned, &u.StrikeCount, &createdAt, &u.APIAccess,
-			&u.Translator, &u.RaidXP, &u.RaterWeight); err != nil {
+			&u.Translator, &u.RaidXP, &u.RaterWeight, &u.TrustScore, &u.SpecialRank); err != nil {
 			continue
 		}
 		u.CreatedAt = createdAt.Format("2006-01-02")
@@ -376,27 +379,27 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminToggleDirectoryHide(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var targetUsername, targetRole string
 	if err := h.db.QueryRow(`SELECT username, role FROM users WHERE id = ?`, id).Scan(&targetUsername, &targetRole); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if (auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser) || targetRole == "moderator" || targetRole == "admin" {
-		writeJSONError(w, "cannot hide a staff member from the directory", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_hide_staff"), http.StatusForbidden)
 		return
 	}
 	var body struct {
 		Hidden bool `json:"hidden"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if _, err := h.db.Exec(`UPDATE users SET directory_hidden = ? WHERE id = ?`, body.Hidden, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -406,7 +409,7 @@ func (h *Handlers) AdminToggleDirectoryHide(w http.ResponseWriter, r *http.Reque
 func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -414,37 +417,37 @@ func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"new_password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if len(body.NewPassword) < 8 {
-		writeJSONError(w, "password must be at least 8 characters", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.password_length"), http.StatusBadRequest)
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.NewPassword), bcryptCost)
 	if err != nil {
-		writeJSONError(w, "could not hash password", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.server"), http.StatusInternalServerError)
 		return
 	}
 
 	var targetUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "cannot reset superadmin password", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_reset_superadmin"), http.StatusForbidden)
 		return
 	}
 
 	result, err := h.db.Exec(`UPDATE users SET password = ? WHERE id = ?`, string(hash), id)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 
@@ -455,7 +458,7 @@ func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminChangeUsername(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -463,29 +466,29 @@ func (h *Handlers) AdminChangeUsername(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
 	username := strings.TrimSpace(body.Username)
 	if len(username) < 2 || len(username) > 32 {
-		writeJSONError(w, "username must be 2-32 characters", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.username_length"), http.StatusBadRequest)
 		return
 	}
 	for _, c := range username {
 		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '_' && c != '-' {
-			writeJSONError(w, "username may only contain letters, numbers, _ and -", http.StatusBadRequest)
+			writeJSONError(w, h.t(r, "error.username_chars"), http.StatusBadRequest)
 			return
 		}
 	}
 
 	var currentUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&currentUsername); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if currentUsername == auth.SuperadminUser {
-		writeJSONError(w, "cannot rename the superadmin account", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_rename_superadmin"), http.StatusForbidden)
 		return
 	}
 
@@ -493,10 +496,10 @@ func (h *Handlers) AdminChangeUsername(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-			writeJSONError(w, "username already taken", http.StatusConflict)
+			writeJSONError(w, h.t(r, "error.username_taken"), http.StatusConflict)
 			return
 		}
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -509,7 +512,7 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -518,22 +521,22 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 		Reason   string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
 	if actor != nil && uint64(actor.ID) == id {
-		writeJSONError(w, "cannot disable your own account", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_disable_self"), http.StatusForbidden)
 		return
 	}
 
 	var targetUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "cannot disable the superadmin account", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_disable_superadmin"), http.StatusForbidden)
 		return
 	}
 
@@ -542,7 +545,7 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 		reason = ""
 	}
 	if _, err := h.db.Exec(`UPDATE users SET disabled = ?, disabled_reason = ? WHERE id = ?`, body.Disabled, reason, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -557,27 +560,68 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminToggleRaidBan(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var targetUsername, targetRole string
 	if err := h.db.QueryRow(`SELECT username, role FROM users WHERE id = ?`, id).Scan(&targetUsername, &targetRole); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if (auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser) || targetRole == "moderator" || targetRole == "admin" {
-		writeJSONError(w, "cannot raid-ban a staff member", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_raidban_staff"), http.StatusForbidden)
 		return
 	}
 	var body struct {
 		Banned bool `json:"banned"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if _, err := h.db.Exec(`UPDATE users SET raid_banned = ? WHERE id = ?`, body.Banned, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	if body.Banned {
+		// Pull the user out of any live matchmaking immediately.
+		h.db.Exec(`DELETE FROM raid_queue WHERE user_id = ?`, id)
+		h.db.Exec(`UPDATE raid_lobby_members SET state = 'removed' WHERE user_id = ? AND state IN ('matched','confirmed')`, id)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+// AdminSetSpecialRank grants or clears the Trusted / Content Creator special
+// rank (admin+ only). Holders can create custom raid lobbies and get a badge.
+func (h *Handlers) AdminSetSpecialRank(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
+		return
+	}
+	var targetUsername string
+	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+		return
+	}
+	if auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser {
+		writeJSONError(w, h.t(r, "error.adm_modify_superadmin"), http.StatusForbidden)
+		return
+	}
+	var body struct {
+		Rank string `json:"rank"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
+	if body.Rank != "" && body.Rank != "trusted" && body.Rank != "content_creator" {
+		writeJSONError(w, h.t(r, "error.adm_invalid_rank"), http.StatusBadRequest)
+		return
+	}
+	if _, err := h.db.Exec(`UPDATE users SET special_rank = ? WHERE id = ?`, body.Rank, id); err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -596,13 +640,13 @@ type strikeRecord struct {
 func (h *Handlers) AdminStrikesGet(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	rows, err := h.db.Query(
 		`SELECT id, reason, issued_by_name, created_at FROM user_strikes WHERE user_id = ? ORDER BY created_at DESC`, id)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -623,24 +667,24 @@ func (h *Handlers) AdminStrikesGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminStrikesAdd(w http.ResponseWriter, r *http.Request) {
 	actor := h.currentUser(r)
 	if actor == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var body struct {
 		Reason string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	body.Reason = strings.TrimSpace(body.Reason)
 	if len(body.Reason) == 0 {
-		writeJSONError(w, "reason is required", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_reason_required"), http.StatusBadRequest)
 		return
 	}
 	if len(body.Reason) > 255 {
@@ -648,7 +692,7 @@ func (h *Handlers) AdminStrikesAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	var targetExists bool
 	if err := h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)`, id).Scan(&targetExists); err != nil || !targetExists {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	result, err := h.db.Exec(
@@ -656,7 +700,7 @@ func (h *Handlers) AdminStrikesAdd(w http.ResponseWriter, r *http.Request) {
 		id, body.Reason, actor.ID, actor.Username,
 	)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	newID, _ := result.LastInsertId()
@@ -667,16 +711,16 @@ func (h *Handlers) AdminStrikesAdd(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminStrikesDelete(w http.ResponseWriter, r *http.Request) {
 	strikeID, err := strconv.ParseUint(chi.URLParam(r, "strikeId"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid strike id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	result, err := h.db.Exec(`DELETE FROM user_strikes WHERE id = ?`, strikeID)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "strike not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -686,7 +730,7 @@ func (h *Handlers) AdminStrikesDelete(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminChangeRole(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -694,28 +738,28 @@ func (h *Handlers) AdminChangeRole(w http.ResponseWriter, r *http.Request) {
 		Role string `json:"role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
 	validRoles := map[string]bool{"user": true, "tester": true, "moderator": true, "admin": true}
 	if !validRoles[body.Role] {
-		writeJSONError(w, "invalid role", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_invalid_role"), http.StatusBadRequest)
 		return
 	}
 
 	var targetUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "cannot change role of superadmin", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_role_superadmin"), http.StatusForbidden)
 		return
 	}
 
 	if _, err := h.db.Exec(`UPDATE users SET role = ? WHERE id = ?`, body.Role, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -733,7 +777,7 @@ func (h *Handlers) AdminChangeRole(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminToggleAPIAccess(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -741,26 +785,26 @@ func (h *Handlers) AdminToggleAPIAccess(w http.ResponseWriter, r *http.Request) 
 		APIAccess bool `json:"api_access"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
 	var targetUsername, targetRole string
 	if err := h.db.QueryRow(`SELECT username, role FROM users WHERE id = ?`, id).Scan(&targetUsername, &targetRole); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "superadmin always has API access", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_superadmin_api"), http.StatusBadRequest)
 		return
 	}
 	if targetRole != "admin" {
-		writeJSONError(w, "API access can only be granted to admin users", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_api_admin_only"), http.StatusBadRequest)
 		return
 	}
 
 	if _, err := h.db.Exec(`UPDATE users SET api_access = ? WHERE id = ?`, body.APIAccess, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -773,27 +817,27 @@ func (h *Handlers) AdminToggleAPIAccess(w http.ResponseWriter, r *http.Request) 
 func (h *Handlers) AdminConfirmRole(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
 	var targetUsername, pendingRole string
 	if err := h.db.QueryRow(`SELECT username, COALESCE(pending_role, '') FROM users WHERE id = ?`, id).
 		Scan(&targetUsername, &pendingRole); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "cannot modify superadmin", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_modify_superadmin"), http.StatusForbidden)
 		return
 	}
 	if pendingRole == "" {
-		writeJSONError(w, "user has no pending role", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_no_pending_role"), http.StatusBadRequest)
 		return
 	}
 
 	if _, err := h.db.Exec(`UPDATE users SET role = ?, pending_role = NULL WHERE id = ?`, pendingRole, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -804,22 +848,22 @@ func (h *Handlers) AdminConfirmRole(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminRejectRole(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
 	var targetUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "cannot modify superadmin", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_modify_superadmin"), http.StatusForbidden)
 		return
 	}
 
 	if _, err := h.db.Exec(`UPDATE users SET pending_role = NULL WHERE id = ?`, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -832,7 +876,7 @@ func (h *Handlers) AdminRejectRole(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminTagsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`SELECT id, name, color FROM tags ORDER BY name`)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -850,7 +894,7 @@ func (h *Handlers) AdminTagsList(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminTagCreate(w http.ResponseWriter, r *http.Request) {
 	caller := h.currentUser(r)
 	if caller == nil || !caller.IsSuperAdmin() {
-		writeJSONError(w, "forbidden", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 		return
 	}
 	var body struct {
@@ -858,12 +902,12 @@ func (h *Handlers) AdminTagCreate(w http.ResponseWriter, r *http.Request) {
 		Color string `json:"color"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	body.Name = strings.TrimSpace(body.Name)
 	if len(body.Name) == 0 || len(body.Name) > 32 {
-		writeJSONError(w, "name must be 1-32 characters", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_tag_name_length"), http.StatusBadRequest)
 		return
 	}
 	if body.Color == "" {
@@ -871,7 +915,7 @@ func (h *Handlers) AdminTagCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.db.Exec(`INSERT INTO tags (name, color) VALUES (?, ?)`, body.Name, body.Color)
 	if err != nil {
-		writeJSONError(w, "tag name already exists", http.StatusConflict)
+		writeJSONError(w, h.t(r, "error.adm_tag_exists"), http.StatusConflict)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -882,12 +926,12 @@ func (h *Handlers) AdminTagCreate(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminTagDelete(w http.ResponseWriter, r *http.Request) {
 	caller := h.currentUser(r)
 	if caller == nil || !caller.IsSuperAdmin() {
-		writeJSONError(w, "forbidden", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 		return
 	}
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	h.db.Exec(`DELETE FROM tags WHERE id = ?`, id)
@@ -898,12 +942,12 @@ func (h *Handlers) AdminTagDelete(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminTagUpdate(w http.ResponseWriter, r *http.Request) {
 	caller := h.currentUser(r)
 	if caller == nil || !caller.IsSuperAdmin() {
-		writeJSONError(w, "forbidden", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
 		return
 	}
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var body struct {
@@ -911,12 +955,12 @@ func (h *Handlers) AdminTagUpdate(w http.ResponseWriter, r *http.Request) {
 		Color string `json:"color"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	body.Name = strings.TrimSpace(body.Name)
 	if len(body.Name) == 0 || len(body.Name) > 32 {
-		writeJSONError(w, "name must be 1-32 characters", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_tag_name_length"), http.StatusBadRequest)
 		return
 	}
 	if body.Color == "" {
@@ -924,7 +968,7 @@ func (h *Handlers) AdminTagUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = h.db.Exec(`UPDATE tags SET name = ?, color = ? WHERE id = ?`, body.Name, body.Color, id)
 	if err != nil {
-		writeJSONError(w, "tag name already exists", http.StatusConflict)
+		writeJSONError(w, h.t(r, "error.adm_tag_exists"), http.StatusConflict)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -934,19 +978,19 @@ func (h *Handlers) AdminTagUpdate(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminUserTagAdd(w http.ResponseWriter, r *http.Request) {
 	uid, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var exists bool
 	if err := h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)`, uid).Scan(&exists); err != nil || !exists {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	var body struct {
 		TagID uint `json:"tag_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	h.db.Exec(`INSERT IGNORE INTO user_tags (user_id, tag_id) VALUES (?, ?)`, uid, body.TagID)
@@ -957,12 +1001,12 @@ func (h *Handlers) AdminUserTagAdd(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminUserTagRemove(w http.ResponseWriter, r *http.Request) {
 	uid, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	tagID, err := strconv.ParseUint(chi.URLParam(r, "tagId"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid tag id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var isCustom int
@@ -972,7 +1016,7 @@ func (h *Handlers) AdminUserTagRemove(w http.ResponseWriter, r *http.Request) {
 		WHERE t.id = ? AND ctr.user_id = ? AND ctr.status = 'approved'`,
 		tagID, uid).Scan(&isCustom)
 	if isCustom > 0 {
-		writeJSONError(w, "custom tags must be managed from Tag Requests", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.adm_custom_tag_managed"), http.StatusForbidden)
 		return
 	}
 	h.db.Exec(`DELETE FROM user_tags WHERE user_id = ? AND tag_id = ?`, uid, tagID)
@@ -985,22 +1029,22 @@ func (h *Handlers) AdminUserTagRemove(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminSetRaidXP(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var body struct {
 		RaidXP int `json:"raid_xp"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if body.RaidXP < 0 || body.RaidXP > 9999999 {
-		writeJSONError(w, "raid_xp must be 0–9999999", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_raid_xp_range"), http.StatusBadRequest)
 		return
 	}
 	if _, err := h.db.Exec(`UPDATE users SET raid_xp = ? WHERE id = ?`, body.RaidXP, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -1010,22 +1054,22 @@ func (h *Handlers) AdminSetRaidXP(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminSetRaterWeight(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	var body struct {
 		RaterWeight float64 `json:"rater_weight"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if body.RaterWeight < 0.1 || body.RaterWeight > 1.5 {
-		writeJSONError(w, "rater_weight must be 0.1–1.5", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.adm_rater_weight_range"), http.StatusBadRequest)
 		return
 	}
 	if _, err := h.db.Exec(`UPDATE users SET rater_weight = ? WHERE id = ?`, body.RaterWeight, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -1035,11 +1079,11 @@ func (h *Handlers) AdminSetRaterWeight(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminClearRatings(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	if _, err := h.db.Exec(`DELETE FROM raid_ratings WHERE rated_id = ?`, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -1049,11 +1093,11 @@ func (h *Handlers) AdminClearRatings(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminRefreshActivity(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	if _, err := h.db.Exec(`UPDATE users SET last_raid_at = NOW() WHERE id = ?`, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

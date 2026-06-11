@@ -190,7 +190,7 @@ func (h *Handlers) getCityWeather(city, region, country string) string {
 func (h *Handlers) APIWeather(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 

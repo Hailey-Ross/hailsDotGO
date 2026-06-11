@@ -154,12 +154,6 @@ $trackedFiles = @(
     @{ src = "hailsDotGO-linux";           dst = "/opt/hailsdotgo/hailsDotGO";            binary = $true  },
     @{ src = "static\css\main.css";        dst = "/opt/hailsdotgo/static/css/";           binary = $false },
     @{ src = "static\maintenance.html";    dst = "/opt/hailsdotgo/static/";               binary = $false },
-    @{ src = "static\js\raids.js";         dst = "/opt/hailsdotgo/static/js/";            binary = $false },
-    @{ src = "static\js\dps.js";           dst = "/opt/hailsdotgo/static/js/";            binary = $false },
-    @{ src = "static\js\pvp.js";           dst = "/opt/hailsdotgo/static/js/";            binary = $false },
-    @{ src = "static\js\events.js";        dst = "/opt/hailsdotgo/static/js/";            binary = $false },
-    @{ src = "static\js\shinies.js";       dst = "/opt/hailsdotgo/static/js/";            binary = $false },
-    @{ src = "static\js\shinydex.js";      dst = "/opt/hailsdotgo/static/js/";            binary = $false },
     @{ src = "templates\base.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\home.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\raids.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
@@ -179,6 +173,12 @@ $trackedFiles = @(
     @{ src = "templates\translate.html";   dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "hailsdotgo.service";         dst = "/opt/hailsdotgo/hailsdotgo.service";    binary = $false }
 )
+
+# Track every built JS bundle dynamically so a new esbuild entry point can
+# never be silently skipped (raidfinder.js was missed by the old hardcoded list).
+Get-ChildItem (Join-Path $root "static\js") -Filter *.js -File | Sort-Object Name | ForEach-Object {
+    $trackedFiles += @{ src = "static\js\$($_.Name)"; dst = "/opt/hailsdotgo/static/js/"; binary = $false }
+}
 
 $trackedDirs = @(
     @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" }

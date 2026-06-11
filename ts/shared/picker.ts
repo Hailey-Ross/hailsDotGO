@@ -2,6 +2,9 @@ import { pokeSprite, pokeName } from "./gamedata";
 import { typeBadge } from "./typecolors";
 import type { GameData } from "./types";
 
+// Server-injected common UI strings, defined in templates/base.html.
+declare const JSC: Record<string, string>;
+
 export interface PickerEntry {
   key: string;            // unique, e.g. pokemon_name or "raid:MEWTWO"
   name: string;           // english pokemon_name, used for search matching
@@ -66,7 +69,7 @@ export function createPicker(opts: PickerOptions): Picker {
   clearBtn.className = "picker-clear-btn";
   clearBtn.textContent = "×";
   clearBtn.hidden = true;
-  clearBtn.setAttribute("aria-label", "Clear selection");
+  clearBtn.setAttribute("aria-label", JSC.clearSelection);
 
   searchRow.appendChild(input);
   searchRow.appendChild(clearBtn);
@@ -150,7 +153,7 @@ export function createPicker(opts: PickerOptions): Picker {
     if (!matches.length) {
       const none = document.createElement("button");
       none.className = "picker-option no-match";
-      none.textContent = "No Pokémon found";
+      none.textContent = JSC.noPokemonFound;
       none.disabled = true;
       dropdown.appendChild(none);
     } else {

@@ -15,5 +15,23 @@
 {{end}}
 
 {{define "scripts"}}
+<script>
+const RD = {
+  shinyBadge:  {{T "raids.js.shiny_badge"}},
+  tierN:       {{T "raids.js.tier_n"}},
+  mega:        {{T "raids.js.mega"}},
+  types:       {{T "raids.js.types"}},
+  checkYour:   {{T "raids.js.check_your"}},
+  form:        {{T "raids.js.form"}},
+  atkIv:       {{T "raids.js.atk_iv"}},
+  defIv:       {{T "raids.js.def_iv"}},
+  staIv:       {{T "raids.js.sta_iv"}},
+  vsAll:       {{T "raids.js.vs_all"}},
+  colBoss:     {{T "raids.js.col_boss"}},
+  colTier:     {{T "raids.js.col_tier"}},
+  maxBattles:  {{T "raids.js.max_battles"}},
+  unavailable: {{T "raids.js.unavailable"}}
+};
+</script>
 <script src="/static/js/raids.js?v={{.AssetVersion}}"></script>
 {{end}}

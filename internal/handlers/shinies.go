@@ -27,7 +27,7 @@ func (h *Handlers) ShiniesPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -37,7 +37,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 		u.ID,
 	)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -58,7 +58,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -68,12 +68,12 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 		Method    string `json:"method"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	body.PokemonID = strings.TrimSpace(body.PokemonID)
 	if body.PokemonID == "" {
-		writeJSONError(w, "pokemon_id required", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.shiny_pokemon_required"), http.StatusBadRequest)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 		u.ID, body.PokemonID, body.Form, body.Method,
 	)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -96,13 +96,13 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 		Method string `json:"method"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -122,10 +122,10 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-			writeJSONError(w, "already caught that form", http.StatusConflict)
+			writeJSONError(w, h.t(r, "error.shiny_form_duplicate"), http.StatusConflict)
 			return
 		}
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
@@ -136,13 +136,13 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -150,11 +150,11 @@ func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
 		`DELETE FROM user_shinies WHERE id = ? AND user_id = ?`, id, u.ID,
 	)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 

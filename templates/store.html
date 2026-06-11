@@ -28,6 +28,19 @@
       <span class="store-card-price">${{printf "%.2f" (divf .PriceCents 100)}}</span>
     </div>
     <p class="store-card-desc">{{.Description}}</p>
+    {{if eq .Benefit "queue_priority"}}
+    <ul class="store-perk-bullets">
+      <li>{{T "store.perks.priority_queue"}}</li>
+      <li>{{T "store.perks.trust_boost"}}</li>
+    </ul>
+    {{else if eq .Benefit "super_donator"}}
+    <ul class="store-perk-bullets">
+      <li>{{T "store.perks.priority_queue"}}</li>
+      <li>{{T "store.perks.prequeue"}}</li>
+      <li>{{T "store.perks.donator_badge"}}</li>
+      <li>{{T "store.perks.trust_boost"}}</li>
+    </ul>
+    {{end}}
     {{if $.User}}
       {{$benefit := .Benefit}}
       {{$slug := .Slug}}
@@ -39,7 +52,7 @@
         <form method="POST" action="/store/checkout">
           <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
           <input type="hidden" name="item" value="{{$slug}}">
-          <button type="submit" class="btn-primary store-buy-btn">Buy &mdash; ${{printf "%.2f" (divf .PriceCents 100)}}</button>
+          <button type="submit" class="btn-primary store-buy-btn">{{T "store.buy"}} &middot; ${{printf "%.2f" (divf .PriceCents 100)}}</button>
         </form>
       {{else}}
         <button class="btn-primary store-buy-btn" disabled>{{T "store.unavailable"}}</button>
@@ -63,7 +76,7 @@
     <div class="store-perk-row">
       <span class="store-perk-name">{{.ItemName}}</span>
       {{if .ExpiresAt}}
-      <span class="store-perk-expires">Expires {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
+      <span class="store-perk-expires">{{T "store.perks.expires"}} {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
       {{else}}
       <span class="store-perk-expires">{{T "store.perks.permanent"}}</span>
       {{end}}
@@ -147,6 +160,7 @@
   const CSRF       = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const PREVIEW_DEFAULT = {{T "store.tag.form.preview"}};
   const MSG_SUBMITTED   = {{T "store.tag.submitted"}};
+  const MSG_ERROR       = {{T "store.tag.error"}};
 
   if (nameInput && preview) {
     nameInput.addEventListener('input', function() {
@@ -175,7 +189,7 @@
       form.style.display = 'none';
     } else {
       const d = await res.json().catch(() => ({}));
-      statusEl.textContent = d.error || 'Error submitting request.';
+      statusEl.textContent = d.error || MSG_ERROR;
       statusEl.style.color = '#fc8181';
       btn.disabled = false;
     }

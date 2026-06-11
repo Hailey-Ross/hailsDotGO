@@ -2222,6 +2222,12 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .store-card-name   { font-size: 1.05rem; font-weight: 700; margin: 0; }
 .store-card-price  { font-size: 1.05rem; font-weight: 800; color: var(--gold); white-space: nowrap; }
 .store-card-desc   { font-size: 0.875rem; color: var(--text-2); line-height: 1.6; margin: 0; flex: 1; }
+.store-perk-bullets {
+  margin: 0; padding-left: 1.1rem;
+  font-size: 0.84rem; color: var(--text-2); line-height: 1.55;
+  display: flex; flex-direction: column; gap: 0.3rem;
+}
+.store-perk-bullets li::marker { color: var(--gold); }
 .store-buy-btn     { width: 100%; margin-top: auto; }
 .store-section        { margin-bottom: 1.5rem; }
 .store-section-title  { font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; }
@@ -2309,3 +2315,126 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   margin-left: 0.2rem;
   -webkit-text-fill-color: #fff;
 }
+
+/* ── Raid Finder v2: queue, lobbies, trust badges ───────────── */
+
+.pokeball-spinner {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.25rem;
+  animation: spin 2s linear infinite;
+}
+.pokeball-spinner svg { width: 100%; height: 100%; }
+.pokeball-spinner .ball-top { animation: pokeball-rainbow 2s linear infinite; }
+@keyframes pokeball-rainbow {
+  0%   { fill: #ff0000; }
+  17%  { fill: #ff8800; }
+  33%  { fill: #ffff00; }
+  50%  { fill: #00cc00; }
+  67%  { fill: #0066ff; }
+  83%  { fill: #8800ff; }
+  100% { fill: #ff0000; }
+}
+
+.raid-wait-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  backdrop-filter: var(--blur);
+}
+.raid-wait-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.75rem; }
+.raid-wait-boss { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.5rem; }
+.raid-wait-pos { color: var(--text-2); font-size: 0.9rem; margin-bottom: 1.25rem; }
+.raid-priority-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--r-pill);
+  background: rgba(255,179,64,0.15);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.raid-countdown-row {
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+  color: var(--text-2);
+}
+.raid-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--blue);
+}
+.raid-countdown--low { color: var(--red); }
+
+.raid-joiner-row--gray { opacity: 0.45; }
+.raid-joiner-row--gray .raid-joiner-name { filter: grayscale(0.8); }
+
+.raid-overview-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 0.7rem 1rem;
+}
+.raid-overview-counts { color: var(--text-2); font-size: 0.85rem; margin-left: auto; }
+.raid-overview-row--custom { border-color: rgba(255,179,64,0.35); }
+.raid-custom-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--r-pill);
+  background: rgba(255,179,64,0.15);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+.raid-form-hint { color: var(--text-2); font-size: 0.85rem; margin: -0.5rem 0 0.9rem; }
+.raid-report-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-2);
+  margin-left: 0.75rem;
+  cursor: pointer;
+}
+.raid-feedback-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+
+.trust-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: var(--r-pill);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+}
+.trust-badge--trusted { background: rgba(0,214,143,0.12); border: 1px solid var(--green); color: var(--green); }
+.trust-badge--neutral { background: rgba(136,136,184,0.12); border: 1px solid var(--text-2); color: var(--text-2); }
+.trust-badge--caution { background: rgba(229,57,53,0.12); border: 1px solid var(--red); color: var(--red); }
+
+.special-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: var(--r-pill);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+}
+.special-badge--trusted { background: rgba(0,214,143,0.12); border: 1px solid var(--green); color: var(--green); }
+.special-badge--cc { background: rgba(91,156,246,0.12); border: 1px solid var(--blue); color: var(--blue); }

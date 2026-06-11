@@ -5,6 +5,10 @@ import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, RaidBoss, PokemonStat } from "./shared/types";
 
+// Server-injected strings: JSC from templates/base.html, RD from templates/raids.html.
+declare const JSC: Record<string, string>;
+declare const RD: Record<string, string>;
+
 const app = document.getElementById("raids-app")!;
 
 function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
@@ -65,7 +69,7 @@ function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
   if (boss.can_be_shiny) {
     const badge = document.createElement("div");
     badge.className = "shiny-badge";
-    badge.textContent = "SHINY";
+    badge.textContent = RD.shinyBadge;
     card.appendChild(badge);
   }
 
@@ -98,7 +102,7 @@ function buildRaidsView(data: GameData): HTMLElement {
   for (const [tier] of tiers) {
     const tab = document.createElement("button");
     tab.className = `raid-tab tier-${tier}${tier === activeTier ? " active" : ""}`;
-    tab.textContent = tier === "6" ? "Mega" : `Tier ${tier}`;
+    tab.textContent = tier === "6" ? RD.mega : RD.tierN.replace("{tier}", tier);
     tab.dataset.tier = tier;
     tab.addEventListener("click", () => {
       activeTier = tier;
@@ -115,7 +119,7 @@ function buildRaidsView(data: GameData): HTMLElement {
     typeRow.className = "filter-row";
     const typeLbl = document.createElement("span");
     typeLbl.className = "filter-label";
-    typeLbl.textContent = "Types";
+    typeLbl.textContent = RD.types;
     typeRow.appendChild(typeLbl);
 
     for (const type of uniqueTypes) {
@@ -150,7 +154,7 @@ function buildRaidsView(data: GameData): HTMLElement {
 
   const pickerLabel = document.createElement("div");
   pickerLabel.className = "picker-label";
-  pickerLabel.textContent = "Check your Pokémon";
+  pickerLabel.textContent = RD.checkYour;
   picker.appendChild(pickerLabel);
 
   const searchRow = document.createElement("div");
@@ -159,14 +163,14 @@ function buildRaidsView(data: GameData): HTMLElement {
   const searchInput = document.createElement("input");
   searchInput.type = "text";
   searchInput.className = "search-input";
-  searchInput.placeholder = "Search Pokémon...";
+  searchInput.placeholder = JSC.searchPokemon;
   searchInput.setAttribute("autocomplete", "off");
 
   const clearBtn = document.createElement("button");
   clearBtn.className = "picker-clear-btn";
   clearBtn.textContent = "×";
   clearBtn.hidden = true;
-  clearBtn.setAttribute("aria-label", "Clear selection");
+  clearBtn.setAttribute("aria-label", JSC.clearSelection);
 
   searchRow.appendChild(searchInput);
   searchRow.appendChild(clearBtn);
@@ -214,10 +218,10 @@ function buildRaidsView(data: GameData): HTMLElement {
 
     // Shadow/Purified apply to all Pokemon; Primal only to Groudon and Kyogre
     const forms: { value: PokemonForm; label: string }[] = [
-      { value: "normal", label: "Normal" },
-      { value: "shadow" as PokemonForm, label: "Shadow" },
-      { value: "purified" as PokemonForm, label: "Purified" },
-      ...(hasPrimal ? [{ value: "primal" as PokemonForm, label: "Primal" }] : []),
+      { value: "normal", label: JSC.formNormal },
+      { value: "shadow" as PokemonForm, label: JSC.formShadow },
+      { value: "purified" as PokemonForm, label: JSC.formPurified },
+      ...(hasPrimal ? [{ value: "primal" as PokemonForm, label: JSC.formPrimal }] : []),
     ];
 
     if (!forms.some((f) => f.value === config.form)) config.form = "normal";
@@ -226,7 +230,7 @@ function buildRaidsView(data: GameData): HTMLElement {
     modRow.className = "config-row config-mods";
     const modLbl = document.createElement("span");
     modLbl.className = "config-label";
-    modLbl.textContent = "Form";
+    modLbl.textContent = RD.form;
     modRow.appendChild(modLbl);
 
     for (const f of forms) {
@@ -283,7 +287,7 @@ function buildRaidsView(data: GameData): HTMLElement {
     cpGroup.className = "config-group";
     const cpLbl = document.createElement("label");
     cpLbl.className = "config-label";
-    cpLbl.textContent = "CP";
+    cpLbl.textContent = JSC.cp;
     const cpInp = document.createElement("input");
     cpInp.type = "number";
     cpInp.className = "config-input config-input-cp";
@@ -301,9 +305,9 @@ function buildRaidsView(data: GameData): HTMLElement {
     cpGroup.appendChild(cpInp);
     statsRow.appendChild(cpGroup);
 
-    statsRow.appendChild(makeStatInput("ATK IV", config.atkIV, 0, 15, (v) => { config.atkIV = clampIV(v); }));
-    statsRow.appendChild(makeStatInput("DEF IV", config.defIV, 0, 15, (v) => { config.defIV = clampIV(v); }));
-    statsRow.appendChild(makeStatInput("STA IV", config.staIV, 0, 15, (v) => { config.staIV = clampIV(v); }));
+    statsRow.appendChild(makeStatInput(RD.atkIv, config.atkIV, 0, 15, (v) => { config.atkIV = clampIV(v); }));
+    statsRow.appendChild(makeStatInput(RD.defIv, config.defIV, 0, 15, (v) => { config.defIV = clampIV(v); }));
+    statsRow.appendChild(makeStatInput(RD.staIv, config.staIV, 0, 15, (v) => { config.staIV = clampIV(v); }));
 
     configPanel.appendChild(statsRow);
     configPanel.hidden = false;
@@ -335,7 +339,7 @@ function buildRaidsView(data: GameData): HTMLElement {
 
     const heading = document.createElement("h3");
     heading.className = "picker-results-heading";
-    heading.textContent = `${currentName.replace(/_/g, " ")} vs all current raids`;
+    heading.textContent = RD.vsAll.replace("{name}", pokeName(data, currentName));
     headingWrap.appendChild(heading);
     resultsPanel.appendChild(headingWrap);
 
@@ -347,10 +351,10 @@ function buildRaidsView(data: GameData): HTMLElement {
     table.innerHTML = `
       <thead>
         <tr>
-          <th>Boss</th>
-          <th>Tier</th>
-          <th>Fast Move</th>
-          <th>Charged Move</th>
+          <th>${RD.colBoss}</th>
+          <th>${RD.colTier}</th>
+          <th>${JSC.fastMove}</th>
+          <th>${JSC.chargedMove}</th>
           <th>DPS</th>
           <th>TDO</th>
         </tr>
@@ -371,10 +375,10 @@ function buildRaidsView(data: GameData): HTMLElement {
         img.loading = "lazy"; img.decoding = "async";
         bossTd.appendChild(img);
       }
-      bossTd.append(` ${boss.pokemon_name.replace(/_/g, " ")}`);
+      bossTd.append(` ${pokeName(data, boss.pokemon_name)}`);
 
       const tierTd = document.createElement("td");
-      tierTd.textContent = tier === "6" ? "Mega" : `T${tier}`;
+      tierTd.textContent = tier === "6" ? RD.mega : `T${tier}`;
 
       tr.appendChild(bossTd);
       tr.appendChild(tierTd);
@@ -399,7 +403,7 @@ function buildRaidsView(data: GameData): HTMLElement {
         const emptyTd = document.createElement("td");
         emptyTd.colSpan = 4;
         emptyTd.className = "text-dim";
-        emptyTd.textContent = "n/a";
+        emptyTd.textContent = JSC.na;
         tr.appendChild(emptyTd);
       }
 
@@ -457,7 +461,7 @@ function buildRaidsView(data: GameData): HTMLElement {
     if (!matches.length) {
       const none = document.createElement("button");
       none.className = "picker-option no-match";
-      none.textContent = "No Pokémon found";
+      none.textContent = JSC.noPokemonFound;
       none.disabled = true;
       dropdown.appendChild(none);
     } else {
@@ -565,15 +569,15 @@ function buildRaidsView(data: GameData): HTMLElement {
 
         fetchSpeciesData(boss.pokemon_name).then(d => {
           if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
-          if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+          if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
           if (d.isLegendary || d.isMythical) {
-            badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+            badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
             badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
             badgeEl.style.display = "";
           }
         });
 
-        counterPanel.appendChild(renderCounterTable(boss, calcCounters(data, boss)));
+        counterPanel.appendChild(renderCounterTable(data, boss, calcCounters(data, boss)));
         counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
 
@@ -618,7 +622,7 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
 
   const heading = document.createElement("h2");
   heading.className = "section-heading";
-  heading.textContent = "Max Battles";
+  heading.textContent = RD.maxBattles;
   wrap.appendChild(heading);
 
   const counterPanel = document.createElement("div");
@@ -636,7 +640,7 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
   for (const [tier] of tiers) {
     const tab = document.createElement("button");
     tab.className = `raid-tab tier-${tier}${tier === activeTier ? " active" : ""}`;
-    tab.textContent = `Tier ${tier}`;
+    tab.textContent = RD.tierN.replace("{tier}", tier);
     tab.dataset.tier = tier;
     tab.addEventListener("click", () => {
       activeTier = tier;
@@ -693,15 +697,15 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
 
         fetchSpeciesData(boss.pokemon_name).then(d => {
           if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
-          if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+          if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
           if (d.isLegendary || d.isMythical) {
-            badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+            badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
             badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
             badgeEl.style.display = "";
           }
         });
 
-        counterPanel.appendChild(renderCounterTable(boss, calcCounters(data, boss)));
+        counterPanel.appendChild(renderCounterTable(data, boss, calcCounters(data, boss)));
         counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
 
@@ -723,7 +727,7 @@ async function init() {
     app.innerHTML = "";
 
     if (!data.raids || Object.keys(data.raids).length === 0) {
-      app.innerHTML = `<div class="error-state">Raid data is temporarily unavailable. Check back later.</div>`;
+      app.innerHTML = `<div class="error-state">${RD.unavailable}</div>`;
       return;
     }
 
@@ -733,7 +737,7 @@ async function init() {
       app.appendChild(buildMaxBattlesSection(data));
     }
   } catch (err) {
-    app.innerHTML = `<div class="error-state">Failed to load data. Please try again later.</div>`;
+    app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     console.error(err);
   }
 }
