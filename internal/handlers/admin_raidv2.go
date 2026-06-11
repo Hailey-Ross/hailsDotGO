@@ -12,9 +12,6 @@ import (
 // Admin tooling for Raid Finder v2: awards catalog management, trust
 // inspection and adjustment, and live lobby moderation.
 
-// ── Awards management ─────────────────────────────────────────
-
-// AdminAwardsList returns the full catalog (including inactive) plus recent grants.
 func (h *Handlers) AdminAwardsList(w http.ResponseWriter, r *http.Request) {
 	awards := []awardEntry{}
 	rows, err := h.db.Query(`SELECT id, slug, name, description, icon, color, active, sort_order FROM awards ORDER BY sort_order, name`)
@@ -182,10 +179,6 @@ func (h *Handlers) AdminAwardGrantDelete(w http.ResponseWriter, r *http.Request)
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// ── Trust inspection / adjustment ─────────────────────────────
-
-// AdminTrustEvents returns a user's recent trust event log with the
-// computed totals, for the drilldown panel.
 func (h *Handlers) AdminTrustEvents(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -288,8 +281,6 @@ func (h *Handlers) AdminTrustRecompute(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "trust_score": score})
 }
-
-// ── Lobby moderation ──────────────────────────────────────────
 
 func (h *Handlers) AdminRaidLobbiesList(w http.ResponseWriter, r *http.Request) {
 	type lobbyRow struct {

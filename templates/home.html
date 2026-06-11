@@ -54,5 +54,18 @@
     <p>{{T "home.shinies.desc"}}</p>
   </a>
   {{end}}
+
+  {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}
+  <a href="/translate" class="tool-card translator-card">
+    <div class="tool-icon">🌐</div>
+    {{if and .User .User.IsTranslator}}
+    <h2>{{T "home.translate.workspace_title"}}</h2>
+    <p>{{T "home.translate.workspace_desc"}}</p>
+    {{else}}
+    <h2>{{T "home.translate.title"}}</h2>
+    <p>{{T "home.translate.desc"}}</p>
+    {{end}}
+  </a>
+  {{end}}
 </div>
 {{end}}

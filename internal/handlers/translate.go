@@ -17,24 +17,48 @@ import (
 
 const translateMaxLen = 2000
 
-// editableLang reports whether translators may submit edits for lang.
 func editableLang(lang string) bool {
 	return lang != "en" && i18n.IsSupported(lang)
 }
 
-// ── Translator workspace ──────────────────────────────────────
-
 func (h *Handlers) TranslatePage(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "translate", nil)
+	u := h.currentUser(r)
+	if u == nil {
+		h.render(w, r, "translate", translatePageData{State: "landing"})
+		return
+	}
+	if u.IsTranslator() {
+		h.render(w, r, "translate", translatePageData{State: "workspace"})
+		return
+	}
+	app, err := h.loadTranslatorApplication(u.ID)
+	if err != nil {
+		log.Printf("TranslatePage: %v", err)
+		http.Error(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	if app != nil {
+		h.render(w, r, "translate", translatePageData{State: "status", Application: app})
+		return
+	}
+	if !h.maintenanceSettings().TranslatorAppsEnabled {
+		h.render(w, r, "translate", translatePageData{State: "closed"})
+		return
+	}
+	h.render(w, r, "translate", translatePageData{State: "form"})
+}
+
+type pendingEdit struct {
+	ID   uint   `json:"id"`
+	Text string `json:"text"`
 }
 
 type translateKeyRecord struct {
-	Key          string `json:"key"`
-	En           string `json:"en"`
-	Current      string `json:"current"`
-	PendingID    uint   `json:"pending_id,omitempty"`
-	PendingText  string `json:"pending_text,omitempty"`
-	RejectReason string `json:"reject_reason,omitempty"`
+	Key          string        `json:"key"`
+	En           string        `json:"en"`
+	Current      string        `json:"current"`
+	PendingEdits []pendingEdit `json:"pending_edits,omitempty"`
+	RejectReason string        `json:"reject_reason,omitempty"`
 }
 
 func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
@@ -48,17 +72,13 @@ func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
 	en := i18n.EnglishBundle()
 	current := i18n.Bundle(lang)
 
-	type pendingRow struct {
-		id   uint
-		text string
-	}
-	pending := map[string]pendingRow{}
+	pending := map[string][]pendingEdit{}
 	rejected := map[string]string{}
 	rows, err := h.db.Query(`
 		SELECT id, t_key, new_text, status, reject_reason
 		FROM translation_edits
 		WHERE user_id = ? AND lang = ? AND status IN ('pending','rejected')
-		ORDER BY updated_at ASC`,
+		ORDER BY created_at ASC`,
 		u.ID, lang)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -72,7 +92,7 @@ func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if status == "pending" {
-			pending[key] = pendingRow{id, text}
+			pending[key] = append(pending[key], pendingEdit{id, text})
 		} else {
 			rejected[key] = reason // ASC order leaves the most recent rejection
 		}
@@ -81,9 +101,8 @@ func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
 	out := make([]translateKeyRecord, 0, len(en))
 	for key, enText := range en {
 		rec := translateKeyRecord{Key: key, En: enText, Current: current[key]}
-		if p, ok := pending[key]; ok {
-			rec.PendingID = p.id
-			rec.PendingText = p.text
+		if edits, ok := pending[key]; ok {
+			rec.PendingEdits = edits
 		} else if reason, ok := rejected[key]; ok {
 			rec.RejectReason = reason
 		}
@@ -126,32 +145,15 @@ func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 
 	old := i18n.Bundle(body.Lang)[body.Key]
 
-	// One pending row per (user, lang, key): update in place, insert if absent.
-	res, err := h.db.Exec(`
-		UPDATE translation_edits SET new_text = ?, old_text = ?
-		WHERE user_id = ? AND lang = ? AND t_key = ? AND status = 'pending'`,
-		text, old, u.ID, body.Lang, body.Key)
+	ins, err := h.db.Exec(`
+		INSERT INTO translation_edits (user_id, lang, t_key, old_text, new_text)
+		VALUES (?, ?, ?, ?, ?)`,
+		u.ID, body.Lang, body.Key, old, text)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
-	var id int64
-	if n, _ := res.RowsAffected(); n == 0 {
-		ins, err := h.db.Exec(`
-			INSERT INTO translation_edits (user_id, lang, t_key, old_text, new_text)
-			VALUES (?, ?, ?, ?, ?)`,
-			u.ID, body.Lang, body.Key, old, text)
-		if err != nil {
-			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
-			return
-		}
-		id, _ = ins.LastInsertId()
-	} else {
-		h.db.QueryRow(`
-			SELECT id FROM translation_edits
-			WHERE user_id = ? AND lang = ? AND t_key = ? AND status = 'pending'`,
-			u.ID, body.Lang, body.Key).Scan(&id)
-	}
+	id, _ := ins.LastInsertId()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "id": id})
@@ -179,8 +181,6 @@ func (h *Handlers) APITranslateWithdraw(w http.ResponseWriter, r *http.Request) 
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// ── Locale management ─────────────────────────────────────────
-
 var localeCodeRe = regexp.MustCompile(`^[a-z]{2}$`)
 
 type localeRecord struct {
@@ -191,8 +191,6 @@ type localeRecord struct {
 	Total      int    `json:"total"`
 }
 
-// APITranslateLocales lists every supported locale except en, including
-// disabled ones, for the translate page buttons and the admin Locales panel.
 func (h *Handlers) APITranslateLocales(w http.ResponseWriter, r *http.Request) {
 	total := len(i18n.EnglishBundle())
 
@@ -268,7 +266,6 @@ func (h *Handlers) APITranslateLocaleCreate(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "code": code})
 }
 
-// AdminLocaleEnable toggles a locale's visibility in the public switcher.
 func (h *Handlers) AdminLocaleEnable(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "en" || !i18n.IsSupported(code) {
@@ -344,8 +341,6 @@ func (h *Handlers) AdminLocaleDelete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
-
-// ── Admin review ──────────────────────────────────────────────
 
 type translationEditRecord struct {
 	ID           uint   `json:"id"`
@@ -495,8 +490,6 @@ func (h *Handlers) AdminTranslationReject(w http.ResponseWriter, r *http.Request
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// AdminTranslationsExport serves the merged (embedded + approved overrides)
-// locale file so the repo copies can be synced before the next build.
 func (h *Handlers) AdminTranslationsExport(w http.ResponseWriter, r *http.Request) {
 	lang := chi.URLParam(r, "lang")
 	if !i18n.IsSupported(lang) {
@@ -512,8 +505,6 @@ func (h *Handlers) AdminTranslationsExport(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Disposition", `attachment; filename="`+lang+`.json"`)
 	w.Write(data)
 }
-
-// ── Translator permission toggle (superadmin only) ────────────
 
 func (h *Handlers) AdminToggleTranslator(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)

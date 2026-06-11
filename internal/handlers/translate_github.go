@@ -93,7 +93,6 @@ func (h *Handlers) AdminTranslationsSync(w http.ResponseWriter, r *http.Request)
 		writeJSONError(w, h.t(r, "error.tl_gh_sync_failed")+" ("+step+")", http.StatusBadGateway)
 	}
 
-	// Base branch head.
 	status, body, err := ghRequest(token, "GET", "/repos/"+repo+"/git/ref/heads/"+ghBaseBranch, nil)
 	if err != nil || status != http.StatusOK {
 		fail("read base branch", status, body, err)
@@ -110,7 +109,6 @@ func (h *Handlers) AdminTranslationsSync(w http.ResponseWriter, r *http.Request)
 	}
 	baseSHA := ref.Object.SHA
 
-	// Existing open sync PR, if any.
 	status, body, err = ghRequest(token, "GET",
 		"/repos/"+repo+"/pulls?state=open&head="+owner+":"+ghSyncBranch, nil)
 	if err != nil || status != http.StatusOK {
@@ -155,8 +153,6 @@ func (h *Handlers) AdminTranslationsSync(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Commit each locale that has approved overrides, skipping files whose
-	// content on the branch already matches.
 	changed := []string{}
 	for _, lang := range i18n.OverlayLangs() {
 		data, err := json.MarshalIndent(i18n.Bundle(lang), "", "  ")

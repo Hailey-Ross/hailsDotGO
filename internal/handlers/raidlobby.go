@@ -44,11 +44,6 @@ func init() {
 	}
 }
 
-// ── Shared guards and helpers ─────────────────────────────────
-
-// raidGuard checks the common preconditions for mutating raid endpoints:
-// section enabled, logged in, trainer profile set, not raid-banned.
-// Writes the error response and returns nil when any check fails.
 func (h *Handlers) raidGuard(w http.ResponseWriter, r *http.Request) *auth.User {
 	if !h.maintenanceSettings().RaidFinderEnabled {
 		writeJSONError(w, h.t(r, "error.lobby_maintenance"), http.StatusServiceUnavailable)
@@ -74,7 +69,6 @@ func (h *Handlers) raidGuard(w http.ResponseWriter, r *http.Request) *auth.User 
 	return u
 }
 
-// currentBossTiers maps current raid boss names to their tier.
 func (h *Handlers) currentBossTiers() map[string]uint8 {
 	var tiers map[string][]struct {
 		PokemonName string `json:"pokemon_name"`
@@ -120,14 +114,12 @@ func (h *Handlers) canPreQueue(u *auth.User) bool {
 	return u.IsMod() || h.hasActivePurchase(u.ID, "super_donator")
 }
 
-// hostingLobbyID returns the user's active lobby id, or 0.
 func (h *Handlers) hostingLobbyID(userID uint) uint64 {
 	var id uint64
 	h.db.QueryRow(`SELECT id FROM raid_lobbies WHERE host_id = ? AND state IN ('open','full','raiding') AND expires_at > NOW() LIMIT 1`, userID).Scan(&id)
 	return id
 }
 
-// memberLobbyID returns the lobby the user is actively matched/confirmed in, or 0.
 func (h *Handlers) memberLobbyID(userID uint) uint64 {
 	var id uint64
 	h.db.QueryRow(`
@@ -172,8 +164,6 @@ func (h *Handlers) requeueAtFront(lobbyID uint64, bossName string, bossTier uint
 		h.db.Exec(`UPDATE raid_lobby_members SET state = 'requeued' WHERE lobby_id = ? AND user_id = ?`, lobbyID, m.userID)
 	}
 }
-
-// ── Matching ──────────────────────────────────────────────────
 
 func (h *Handlers) matchQueue(bossName string) {
 	h.raidMu.Lock()
@@ -255,8 +245,6 @@ func (h *Handlers) matchQueueLocked(bossName string) {
 	}
 }
 
-// ── Timer enforcement ─────────────────────────────────────────
-
 // StartRaidSweeper launches the background goroutine that enforces lobby and
 // queue timers for clients that stopped polling. Call once from server.New.
 func (h *Handlers) StartRaidSweeper() {
@@ -325,17 +313,35 @@ func (h *Handlers) processRaidTimers() {
 	}
 
 	// 3. Hard TTL: open lobbies expire (matched members dropped, no penalty);
-	// raiding lobbies that never got a report also close out quietly.
+	// raiding lobbies that never got a report also close out quietly. Hosts
+	// who let too many open lobbies die unstarted take a minor trust hit, so
+	// capture them before the expiry UPDATE makes the rows unmatchable.
+	type deadLobby struct {
+		id     uint64
+		hostID uint
+	}
+	var dead []deadLobby
+	orows, err := h.db.Query(`SELECT id, host_id FROM raid_lobbies WHERE state = 'open' AND expires_at < NOW()`)
+	if err == nil {
+		for orows.Next() {
+			var d deadLobby
+			if orows.Scan(&d.id, &d.hostID) == nil {
+				dead = append(dead, d)
+			}
+		}
+		orows.Close()
+	}
 	h.db.Exec(`
 		UPDATE raid_lobby_members lm JOIN raid_lobbies l ON l.id = lm.lobby_id
 		SET lm.state = 'removed'
 		WHERE l.state = 'open' AND l.expires_at < NOW() AND lm.state IN ('matched','confirmed')`)
 	h.db.Exec(`UPDATE raid_lobbies SET state = 'expired', closed_at = NOW() WHERE state IN ('open','raiding') AND expires_at < NOW()`)
+	for _, d := range dead {
+		h.logHostUnfulfilled(d.hostID, d.id)
+	}
 
-	// 4. Queue heartbeat eviction: closing the tab silently leaves the queue.
 	h.db.Exec(`DELETE FROM raid_queue WHERE last_seen_at < DATE_SUB(NOW(), INTERVAL ? SECOND)`, int(queueHeartbeatTTL.Seconds()))
 
-	// 5. Re-match every boss that has both waiting users and an open lobby.
 	brows, err := h.db.Query(`
 		SELECT DISTINCT q.boss_name FROM raid_queue q
 		JOIN raid_lobbies l ON l.boss_name = q.boss_name AND l.state = 'open' AND l.expires_at > NOW()`)
@@ -370,8 +376,6 @@ func (h *Handlers) lazyExpireFor(userID uint) {
 		h.processRaidTimers()
 	}
 }
-
-// ── Overview (public, slow poll) ──────────────────────────────
 
 func (h *Handlers) APIRaidOverview(w http.ResponseWriter, r *http.Request) {
 	type bossOverview struct {
@@ -444,8 +448,6 @@ func (h *Handlers) APIRaidOverview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"bosses": bosses, "custom_lobbies": customs})
 }
-
-// ── State (auth, fast poll) ───────────────────────────────────
 
 type raidLobbyMember struct {
 	UserID          uint       `json:"user_id"`
@@ -669,8 +671,6 @@ func badgeRole(username, role string) string {
 	return role
 }
 
-// ── Queue join/leave ──────────────────────────────────────────
-
 func (h *Handlers) APIRaidQueueJoin(w http.ResponseWriter, r *http.Request) {
 	u := h.raidGuard(w, r)
 	if u == nil {
@@ -707,7 +707,6 @@ func (h *Handlers) APIRaidQueueJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Boss must be a current raid boss, or have an open custom lobby.
 	tier, isCurrent := h.currentBossTiers()[bossName]
 	if isCurrent && !h.canPreQueue(u) {
 		var openLobbies int
@@ -762,8 +761,6 @@ func (h *Handlers) APIRaidQueueLeave(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
-
-// ── Lobby create/cancel ───────────────────────────────────────
 
 func (h *Handlers) APIRaidLobbyCreate(w http.ResponseWriter, r *http.Request) {
 	u := h.raidGuard(w, r)
@@ -821,7 +818,6 @@ func (h *Handlers) APIRaidLobbyCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.lobby_member_already"), http.StatusConflict)
 		return
 	}
-	// Hosting supersedes any queue slot.
 	h.db.Exec(`DELETE FROM raid_queue WHERE user_id = ?`, u.ID)
 
 	isCustomInt := 0
@@ -877,20 +873,20 @@ func (h *Handlers) APIRaidLobbyCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Members go back to the front of the queue with no penalty.
+	// Members go back to the front of the queue with no penalty. A host
+	// cancelling before the raid started counts toward their unfulfilled
+	// lobby tally; staff cancellations and mid-raid cancels do not.
 	h.requeueAtFront(id, bossName, bossTier)
 	h.db.Exec(`UPDATE raid_lobbies SET state = 'cancelled', closed_at = NOW() WHERE id = ?`, id)
+	if hostID == u.ID && state != "raiding" {
+		h.logHostUnfulfilled(hostID, id)
+	}
 	h.matchQueue(bossName)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// ── Member actions ────────────────────────────────────────────
-
-// APIRaidLobbyConfirm is the member's "I've added the host" within the
-// 2-minute confirm window. Filling the last slot starts the host's
-// 4-minute invite countdown.
 func (h *Handlers) APIRaidLobbyConfirm(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -1027,10 +1023,6 @@ func (h *Handlers) reopenIfSlotFreed(lobbyID uint64) {
 	}
 }
 
-// ── Host raid completion ──────────────────────────────────────
-
-// APIRaidLobbyInvited is the host confirming all in-game invites were sent
-// before the 4-minute window lapsed.
 func (h *Handlers) APIRaidLobbyInvited(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -1060,8 +1052,6 @@ func (h *Handlers) APIRaidLobbyInvited(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// APIRaidLobbyReport is the host's post-raid attendance report: who actually
-// joined and whether anyone left early. Awards XP and writes trust events.
 func (h *Handlers) APIRaidLobbyReport(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -1124,10 +1114,6 @@ func (h *Handlers) APIRaidLobbyReport(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// ── Member post-raid feedback ─────────────────────────────────
-
-// APIRaidLobbyFeedback records the member's view: was the raid successful,
-// and a commend or dislike for the host. Once per lobby, within 24h.
 func (h *Handlers) APIRaidLobbyFeedback(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {

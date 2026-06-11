@@ -9,6 +9,9 @@
   {{if .User}}
   <a href="/settings" class="btn-secondary">{{T "trainers.edit_profile"}}</a>
   {{end}}
+  {{if .Data.CanGrantAwards}}
+  <button class="btn-secondary" id="open-grant-award-btn">{{T "trainers.grant_award_btn"}}</button>
+  {{end}}
 </div>
 
 <div class="tabs" id="trainers-tabs">
@@ -119,6 +122,36 @@
   </div>
 
 </div>
+
+<!-- ── Grant Award modal ─────────────────────────────────────── -->
+{{if .Data.CanGrantAwards}}
+<div id="grant-award-overlay" class="trainer-modal-overlay" style="display:none" aria-modal="true" role="dialog">
+  <div class="trainer-modal" id="grant-award-modal" style="max-width:420px">
+    <button class="trainer-modal-close" id="grant-award-close" aria-label="{{T "trainers.modal_close"}}">&times;</button>
+    <div class="trainer-modal-header" style="padding-bottom:0.75rem">
+      <div id="grant-award-identity">
+        <div style="font-size:1.1rem;font-weight:700;margin-bottom:0.25rem">{{T "trainers.grant_award_title"}}</div>
+        <div style="font-size:0.82rem;color:var(--text-muted)">{{T "trainers.grant_award_subtitle"}}</div>
+      </div>
+    </div>
+    <div class="trainer-modal-body" style="padding-top:0.75rem">
+      <form id="trainer-grant-form" style="display:flex;flex-direction:column;gap:0.6rem">
+        <select id="trainer-grant-select" class="move-select" style="width:100%"></select>
+        <div style="position:relative">
+          <input type="text" id="trainer-grant-user" class="auth-input" style="width:100%;box-sizing:border-box"
+                 placeholder="{{T "admin.awards.user_ph"}}" maxlength="64" required autocomplete="off"
+                 list="trainer-grant-suggestions">
+          <datalist id="trainer-grant-suggestions"></datalist>
+        </div>
+        <input type="text" id="trainer-grant-note" class="auth-input" style="width:100%;box-sizing:border-box"
+               placeholder="{{T "admin.awards.note_ph"}}" maxlength="160" autocomplete="off">
+        <button type="submit" class="btn-primary" style="width:100%">{{T "admin.awards.grant_btn"}}</button>
+        <span id="trainer-grant-status" style="font-size:0.82rem;text-align:center"></span>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}
 
 <!-- ── Trainer profile modal ─────────────────────────────────── -->
 <div id="trainer-modal-overlay" class="trainer-modal-overlay" style="display:none" aria-modal="true" role="dialog">
@@ -473,6 +506,97 @@ const RAID_CTX = {
       openTrainerModal(card.dataset);
     });
   });
+
+  // ── Grant Award modal ─────────────────────────────────────────
+  (function() {
+    var openBtn    = document.getElementById('open-grant-award-btn');
+    var overlay    = document.getElementById('grant-award-overlay');
+    var closeBtn   = document.getElementById('grant-award-close');
+    var grantForm  = document.getElementById('trainer-grant-form');
+    if (!openBtn || !overlay || !grantForm) return;
+
+    var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var awardsLoaded = false;
+
+    function openGrantModal() {
+      overlay.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      if (!awardsLoaded) {
+        awardsLoaded = true;
+        fetch('/api/awards').then(function(r) { return r.ok ? r.json() : []; }).then(function(list) {
+          var sel = document.getElementById('trainer-grant-select');
+          sel.innerHTML = '';
+          (list || []).forEach(function(a) {
+            var opt = document.createElement('option');
+            opt.value = a.id;
+            opt.textContent = a.icon + ' ' + a.name;
+            sel.appendChild(opt);
+          });
+        }).catch(function() {});
+      }
+    }
+
+    function closeGrantModal() {
+      overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    openBtn.addEventListener('click', openGrantModal);
+    closeBtn.addEventListener('click', closeGrantModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeGrantModal(); });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && overlay.style.display !== 'none') closeGrantModal();
+    });
+
+    var userInput = document.getElementById('trainer-grant-user');
+    var suggestions = document.getElementById('trainer-grant-suggestions');
+    var searchTimer;
+    userInput.addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      var q = userInput.value.trim();
+      if (q.length < 2) { suggestions.innerHTML = ''; return; }
+      searchTimer = setTimeout(function() {
+        fetch('/api/users/search?q=' + encodeURIComponent(q)).then(function(r) { return r.ok ? r.json() : []; }).then(function(users) {
+          suggestions.innerHTML = '';
+          (users || []).forEach(function(u) {
+            var opt = document.createElement('option');
+            opt.value = u.username;
+            opt.label = u.trainer_name ? u.trainer_name + ' (' + u.username + ')' : u.username;
+            suggestions.appendChild(opt);
+          });
+        }).catch(function() {});
+      }, 250);
+    });
+
+    grantForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var status  = document.getElementById('trainer-grant-status');
+      var awardId = parseInt(document.getElementById('trainer-grant-select').value, 10);
+      if (!awardId) return;
+      status.textContent = '';
+      fetch('/api/awards/' + awardId + '/grant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+        body: JSON.stringify({
+          username: userInput.value.trim(),
+          note: document.getElementById('trainer-grant-note').value.trim(),
+        }),
+      }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, d: d }; });
+      }).then(function(res) {
+        if (res.ok) {
+          userInput.value = '';
+          document.getElementById('trainer-grant-note').value = '';
+          suggestions.innerHTML = '';
+          status.textContent = '✓ Award granted!';
+          status.style.color = 'var(--green)';
+        } else {
+          status.textContent = (res.d && res.d.error) || 'Error';
+          status.style.color = '#fc8181';
+        }
+      }).catch(function() { status.textContent = 'Error'; status.style.color = '#fc8181'; });
+    });
+  })();
 
   // ── Tab switching ────────────────────────────────────────────
   document.getElementById('trainers-tabs').addEventListener('click', function(e) {

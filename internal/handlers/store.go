@@ -135,7 +135,6 @@ func (h *Handlers) StorePurchaseCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only cancel subscriptions the user actually owns and that are still active.
 	result, err := h.db.Exec(`
 		UPDATE purchases p
 		JOIN store_items i ON i.id = p.item_id

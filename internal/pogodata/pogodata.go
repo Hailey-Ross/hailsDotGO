@@ -31,7 +31,6 @@ type TrainerClass struct {
 
 const showdownBase = "https://play.pokemonshowdown.com/sprites/trainers/"
 
-// showdownSources maps slug → Showdown URL for the sprite proxy to fetch from.
 var showdownSources = map[string]string{}
 
 func init() {
@@ -225,9 +224,6 @@ type raidBoss struct {
 	CanBeShiny    bool     `json:"can_be_shiny,omitempty"`
 }
 
-// ── Store ─────────────────────────────────────────────────────
-
-// PokemonEntry holds a Pokémon's name and national Pokédex ID for sprite resolution.
 type PokemonEntry struct {
 	Name string
 	ID   int
@@ -304,7 +300,6 @@ func New() *Store {
 	}
 }
 
-// cachedFetch fetches a URL and writes the result to disk cache on success.
 func (s *Store) cachedFetch(key, url string) (json.RawMessage, error) {
 	data, err := s.fetch(url)
 	if err != nil {
@@ -856,8 +851,6 @@ func (s *Store) Refresh() {
 	go s.refresh()
 	go s.refreshPokemonNames()
 }
-
-// ── Accessors ─────────────────────────────────────────────────
 
 func (s *Store) Raids() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.raids

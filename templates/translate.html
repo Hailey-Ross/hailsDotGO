@@ -1,6 +1,228 @@
 {{define "title"}}{{T "translate.title"}}{{end}}
 
 {{define "content"}}
+
+{{if eq .Data.State "landing"}}
+<div class="page-header">
+  <h1>{{T "translate.landing.title"}}</h1>
+</div>
+<div class="admin-card" style="max-width:640px;margin:0 auto;text-align:center;padding:2.5rem 2rem">
+  <div style="font-size:2.5rem;margin-bottom:1rem">🌐</div>
+  <p style="font-size:1rem;line-height:1.7;color:var(--text-2);margin-bottom:1.75rem">{{T "translate.landing.desc"}}</p>
+  <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+    <a href="/login?next=/translate" class="btn-primary" style="display:inline-block;padding:0.6rem 1.4rem;border-radius:var(--r-sm);font-weight:600;text-decoration:none">{{T "translate.landing.cta_login"}}</a>
+    <a href="/register" class="btn-secondary" style="display:inline-block;padding:0.6rem 1.4rem">{{T "translate.landing.cta_register"}}</a>
+  </div>
+</div>
+{{end}}
+
+{{if eq .Data.State "closed"}}
+<div class="page-header">
+  <h1>{{T "translate.landing.title"}}</h1>
+</div>
+<div class="admin-card" style="max-width:520px;margin:0 auto;text-align:center;padding:2rem 1.5rem">
+  <div style="font-size:2rem;margin-bottom:0.75rem">🔒</div>
+  <p style="color:var(--text-2)">{{T "translate.closed.msg"}}</p>
+</div>
+{{end}}
+
+{{if eq .Data.State "form"}}
+<div class="page-header">
+  <h1>{{T "translate.apply.title"}}</h1>
+  <p>{{T "translate.apply.subtitle"}}</p>
+</div>
+{{if .Data.Error}}<div class="error-state" style="margin-bottom:1rem">{{.Data.Error}}</div>{{end}}
+<form method="POST" action="/translate/apply">
+  <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+  <div class="admin-card" style="margin-bottom:1rem">
+    <h2 style="margin-bottom:0.75rem">{{T "translate.apply.languages"}}</h2>
+    <p class="tl-req-note">{{T "translate.apply.lang_requirement"}}</p>
+    <div class="tl-lang-grid">
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_de" class="tl-lang-check" value="1">
+        German (Deutsch)
+        <select name="level_de" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_es" class="tl-lang-check" value="1">
+        Spanish (Español)
+        <select name="level_es" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_fr" class="tl-lang-check" value="1">
+        French (Français)
+        <select name="level_fr" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_ja" class="tl-lang-check" value="1">
+        Japanese (日本語)
+        <select name="level_ja" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_pt" class="tl-lang-check" value="1">
+        Portuguese (Português)
+        <select name="level_pt" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_it" class="tl-lang-check" value="1">
+        Italian (Italiano)
+        <select name="level_it" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_nl" class="tl-lang-check" value="1">
+        Dutch (Nederlands)
+        <select name="level_nl" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_ko" class="tl-lang-check" value="1">
+        Korean (한국어)
+        <select name="level_ko" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_zh" class="tl-lang-check" value="1">
+        Chinese (中文)
+        <select name="level_zh" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_pl" class="tl-lang-check" value="1">
+        Polish (Polski)
+        <select name="level_pl" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_ru" class="tl-lang-check" value="1">
+        Russian (Русский)
+        <select name="level_ru" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_tr" class="tl-lang-check" value="1">
+        Turkish (Türkçe)
+        <select name="level_tr" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label">
+        <input type="checkbox" name="lang_ar" class="tl-lang-check" value="1">
+        Arabic (العربية)
+        <select name="level_ar" class="tl-lang-proficiency move-select" style="font-size:0.8rem">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+      <label class="tl-lang-label" style="grid-column:1/-1">
+        <input type="checkbox" class="tl-lang-check" id="lang-other-check">
+        {{T "translate.apply.other_lang"}}:
+        <input type="text" name="lang_other_text" class="auth-input" maxlength="50" style="font-size:0.82rem;padding:0.25rem 0.5rem;display:none;width:130px" id="lang-other-input" autocomplete="off">
+        <select name="level_other" class="move-select" style="font-size:0.8rem;display:none" id="lang-other-level">
+          <option value="intermediate">{{T "translate.apply.level_intermediate"}}</option>
+          <option value="fluent">{{T "translate.apply.level_fluent"}}</option>
+          <option value="native">{{T "translate.apply.level_native"}}</option>
+        </select>
+      </label>
+    </div>
+  </div>
+  <div class="admin-card" style="margin-bottom:1rem">
+    <div class="tl-apply-field">
+      <label for="ta-motivation">{{T "translate.apply.motivation"}} <span style="color:#fc8181">*</span></label>
+      <textarea id="ta-motivation" name="motivation" class="auth-input" rows="5" minlength="20" maxlength="2000" required placeholder="{{T "translate.apply.motivation_ph"}}">{{if .Data.Application}}{{.Data.Application.Motivation}}{{end}}</textarea>
+    </div>
+    <div class="tl-apply-field">
+      <label for="ta-experience">{{T "translate.apply.experience"}}</label>
+      <textarea id="ta-experience" name="experience" class="auth-input" rows="3" maxlength="2000" placeholder="{{T "translate.apply.experience_ph"}}">{{if .Data.Application}}{{.Data.Application.Experience}}{{end}}</textarea>
+    </div>
+    <div class="tl-apply-field">
+      <label for="ta-country">{{T "translate.apply.country"}}</label>
+      <input type="text" id="ta-country" name="country" class="auth-input" maxlength="100" placeholder="{{T "translate.apply.country_ph"}}" value="{{if .Data.Application}}{{.Data.Application.Country}}{{end}}">
+    </div>
+  </div>
+  <button type="submit" class="btn-primary" style="padding:0.65rem 1.75rem">{{T "translate.apply.submit"}}</button>
+</form>
+<script>
+const otherCheck = document.getElementById('lang-other-check');
+const otherInput = document.getElementById('lang-other-input');
+const otherLevel = document.getElementById('lang-other-level');
+otherCheck.addEventListener('change', function() {
+  otherInput.style.display = this.checked ? 'inline-block' : 'none';
+  otherLevel.style.display = this.checked ? 'inline-block' : 'none';
+  if (this.checked) otherInput.focus();
+});
+</script>
+{{end}}
+
+{{if eq .Data.State "status"}}
+<div class="page-header">
+  <h1>{{T "translate.status.title"}}</h1>
+</div>
+<div class="admin-card tl-status-card" style="max-width:520px;margin:0 auto">
+  <div class="tl-status-badge-wrap">
+    <span class="tl-badge tl-badge-{{.Data.Application.Status}}" style="font-size:1rem;padding:0.35rem 1rem">
+      {{if eq .Data.Application.Status "pending"}}{{T "translate.application.status.pending"}}
+      {{else if eq .Data.Application.Status "reviewing"}}{{T "translate.application.status.reviewing"}}
+      {{else if eq .Data.Application.Status "accepted"}}{{T "translate.application.status.accepted"}}
+      {{else if eq .Data.Application.Status "rejected"}}{{T "translate.application.status.rejected"}}
+      {{end}}
+    </span>
+  </div>
+  <p style="font-size:0.82rem;color:var(--text-2)">{{T "translate.status.submitted"}} {{.Data.Application.CreatedAt.Format "2006-01-02"}}</p>
+  {{if eq .Data.Application.Status "pending"}}
+  <p class="tl-status-msg">{{T "translate.status.pending_msg"}}</p>
+  {{else if eq .Data.Application.Status "reviewing"}}
+  <p class="tl-status-msg">{{T "translate.status.reviewing_msg"}}</p>
+  {{else if eq .Data.Application.Status "rejected"}}
+  {{if .Data.Application.RejectReason}}
+  <p class="tl-status-msg"><strong>{{T "translate.status.rejection_reason"}}</strong> {{.Data.Application.RejectReason}}</p>
+  {{end}}
+  {{end}}
+</div>
+{{end}}
+
+{{if eq .Data.State "workspace"}}
 <div class="page-header">
   <h1>{{T "translate.title"}}</h1>
 </div>
@@ -29,6 +251,9 @@
 .tl-row-edit textarea { width: 100%; min-height: 56px; resize: vertical; font-size: 0.85rem; }
 .tl-row-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .tl-row-status { font-size: 0.78rem; }
+.tl-pending-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.tl-pending-item { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.tl-pending-text { font-size: 0.82rem; color: var(--text-2); flex: 1; min-width: 0; word-break: break-word; }
 @media (max-width: 760px) {
   .tl-row { grid-template-columns: 1fr; }
   #tl-frame { height: 40vh; }
@@ -67,7 +292,10 @@
 </div>
 {{end}}
 
+{{end}}
+
 {{define "scripts"}}
+{{if eq .Data.State "workspace"}}
 <script>
 const TL_STRINGS = {
   save:        {{T "translate.save"}},
@@ -170,14 +398,14 @@ async function loadKeys() {
 }
 
 function rowMatches(k, search, filter) {
-  if (filter === 'pending' && !k.pending_id) return false;
+  if (filter === 'pending' && !(k.pending_edits && k.pending_edits.length)) return false;
   if (filter === 'untranslated' && k.current) return false;
   if (filter === 'rejected' && !k.reject_reason) return false;
   if (!search) return true;
   return k.key.toLowerCase().includes(search)
     || (k.en || '').toLowerCase().includes(search)
     || (k.current || '').toLowerCase().includes(search)
-    || (k.pending_text || '').toLowerCase().includes(search);
+    || (k.pending_edits || []).some(e => e.text.toLowerCase().includes(search));
 }
 
 function renderKeys() {
@@ -185,26 +413,28 @@ function renderKeys() {
   const search = document.getElementById('tl-search').value.trim().toLowerCase();
   const filter = document.getElementById('tl-filter').value;
   const rows = tlKeys.filter(k => rowMatches(k, search, filter)).map(k => {
-    const badge = k.pending_id
-      ? `<span class="tl-badge tl-badge-pending">${TL_STRINGS.pending}</span>`
+    const pendingHtml = (k.pending_edits && k.pending_edits.length)
+      ? `<div class="tl-pending-list">${k.pending_edits.map(e =>
+          `<div class="tl-pending-item">
+            <span class="tl-badge tl-badge-pending">${TL_STRINGS.pending}</span>
+            <span class="tl-pending-text">${esc(e.text)}</span>
+            <button class="um-btn um-btn-danger" onclick="withdrawEdit('${esc(k.key)}', ${e.id})">${TL_STRINGS.withdraw}</button>
+          </div>`
+        ).join('')}</div>`
       : k.reject_reason
         ? `<span class="tl-badge tl-badge-rejected" title="${esc(k.reject_reason)}">${TL_STRINGS.rejected}: ${esc(k.reject_reason)}</span>`
         : '';
-    const withdrawBtn = k.pending_id
-      ? `<button class="um-btn um-btn-danger" onclick="withdrawKey('${esc(k.key)}')">${TL_STRINGS.withdraw}</button>`
-      : '';
     return `<div class="tl-row" data-key="${esc(k.key)}">
       <div class="tl-row-info">
         <span class="tl-key">${esc(k.key)}</span>
         <span class="tl-en"><strong>${TL_STRINGS.english}</strong>${esc(k.en)}</span>
         <span class="tl-current"><strong>${TL_STRINGS.current}</strong>${esc(k.current) || '&mdash;'}</span>
-        ${badge}
+        ${pendingHtml}
       </div>
       <div class="tl-row-edit">
-        <textarea id="tl-text-${cssId(k.key)}" class="auth-input">${esc(k.pending_text || k.current)}</textarea>
+        <textarea id="tl-text-${cssId(k.key)}" class="auth-input">${esc(k.current)}</textarea>
         <div class="tl-row-actions">
           <button class="um-btn um-btn-ok" onclick="saveKey('${esc(k.key)}')">${TL_STRINGS.save}</button>
-          ${withdrawBtn}
           <span class="tl-row-status" id="tl-status-${cssId(k.key)}"></span>
         </div>
       </div>
@@ -235,7 +465,10 @@ async function saveKey(key) {
   if (res.ok) {
     const d = await res.json();
     const k = tlKeys.find(k => k.key === key);
-    if (k) { k.pending_id = d.id; k.pending_text = textarea.value.trim(); k.reject_reason = ''; }
+    if (k) {
+      k.pending_edits = [...(k.pending_edits || []), {id: d.id, text: textarea.value.trim()}];
+      k.reject_reason = '';
+    }
     renderKeys();
     setRowStatus(key, TL_STRINGS.saved, true);
     reloadFrame();
@@ -245,13 +478,12 @@ async function saveKey(key) {
   }
 }
 
-async function withdrawKey(key) {
+async function withdrawEdit(key, editId) {
   const k = tlKeys.find(k => k.key === key);
-  if (!k || !k.pending_id) return;
-  const res = await csrfFetch('/api/translate/edits/' + k.pending_id, { method: 'DELETE' });
+  if (!k) return;
+  const res = await csrfFetch('/api/translate/edits/' + editId, { method: 'DELETE' });
   if (res.ok) {
-    k.pending_id = 0;
-    k.pending_text = '';
+    k.pending_edits = (k.pending_edits || []).filter(e => e.id !== editId);
     renderKeys();
     reloadFrame();
   } else {
@@ -265,4 +497,5 @@ document.getElementById('tl-filter').addEventListener('change', renderKeys);
 document.getElementById('tl-new-code').addEventListener('keydown', e => { if (e.key === 'Enter') addLocale(); });
 loadLocales();
 </script>
+{{end}}
 {{end}}

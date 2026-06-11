@@ -53,7 +53,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		staticFS.ServeHTTP(w, req)
 	}))
 
-	// All remaining routes get CSRF protection via a group.
 	csrfDebug := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, cookieErr := r.Cookie("_gorilla_csrf")
 		log.Printf("CSRF FAIL: method=%s path=%s reason=%v token=%q cookie_present=%v",
@@ -68,7 +67,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	r.Group(func(r chi.Router) {
 		r.Use(csrf.Protect(csrfKey, csrf.Secure(true), csrf.SameSite(csrf.SameSiteStrictMode), csrf.ErrorHandler(csrfDebug)))
 
-		// Public pages
 		r.Get("/", h.Home)
 		r.Get("/raids", h.Raids)
 		r.Get("/dps", h.DPS)
@@ -80,7 +78,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
 		})
 
-		// Auth (rate-limited)
 		r.Get("/login", h.LoginPage)
 		r.With(httprate.LimitByIP(10, time.Minute)).Post("/login", h.Login)
 		r.Get("/register", h.RegisterPage)
@@ -88,10 +85,8 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/logout", h.Logout)
 		r.Post("/lang", h.SetLang)
 
-		// Public community pages
 		r.Get("/trainers", h.TrainersPage)
 
-		// Store / Donations
 		r.Get("/store", h.StorePage)
 		r.Post("/store/checkout", h.RequireAuth(h.StoreCheckout))
 		r.Get("/store/return", h.StoreReturn)
@@ -100,7 +95,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/store/tag-color", h.RequireAuth(h.StoreTagColorUpdate))
 		r.Post("/api/store/purchases/cancel", h.RequireAuth(h.StorePurchaseCancel))
 
-		// Protected pages
 		r.Get("/settings", h.RequireAuth(h.SettingsPage))
 		r.Post("/settings", h.RequireAuth(h.SettingsUpdate))
 		r.Get("/shinies", h.RequireAuth(h.ShiniesPage))
@@ -110,18 +104,19 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/admin/invite", h.RequireAdmin(h.AdminGenerateInvite))
 		r.Post("/admin/invite/{token}/cancel", h.RequireAdmin(h.AdminCancelInvite))
 
-		// Admin stats (admin only)
 		r.Get("/api/admin/stats", h.RequireAdmin(h.AdminStatsAPI))
 
-		// Translator workspace (translator permission or superadmin)
-		r.Get("/translate", h.RequireTranslator(h.TranslatePage))
+		r.Get("/translate", h.TranslatePage)
+		r.With(httprate.LimitByIP(3, 5*time.Minute)).Post("/translate/apply", h.RequireAuth(h.TranslatorApply))
 		r.Get("/api/translate/keys", h.RequireTranslator(h.APITranslateKeys))
 		r.Post("/api/translate/edits", h.RequireTranslator(h.APITranslateSubmit))
 		r.Delete("/api/translate/edits/{id}", h.RequireTranslator(h.APITranslateWithdraw))
 		r.Get("/api/translate/locales", h.RequireTranslator(h.APITranslateLocales))
 		r.Post("/api/translate/locales", h.RequireTranslator(h.APITranslateLocaleCreate))
 
-		// Translation review (admin+)
+		r.Get("/api/admin/translator-applications", h.RequireAdmin(h.AdminTranslatorAppsList))
+		r.Post("/api/admin/translator-applications/{id}/status", h.RequireAdmin(h.AdminTranslatorAppSetStatus))
+
 		r.Get("/api/admin/translations", h.RequireAdmin(h.AdminTranslationsList))
 		r.Post("/api/admin/translations/{id}/approve", h.RequireAdmin(h.AdminTranslationApprove))
 		r.Post("/api/admin/translations/{id}/reject", h.RequireAdmin(h.AdminTranslationReject))
@@ -131,17 +126,14 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/admin/locales/{code}/enable", h.RequireAdmin(h.AdminLocaleEnable))
 		r.Delete("/api/admin/locales/{code}", h.RequireAdmin(h.AdminLocaleDelete))
 
-		// Custom tag requests (mod+)
 		r.Get("/api/admin/tag-requests", h.RequireMod(h.AdminTagRequestsList))
 		r.Post("/api/admin/tag-requests/{id}/approve", h.RequireMod(h.AdminTagRequestApprove))
 		r.Post("/api/admin/tag-requests/{id}/reject", h.RequireMod(h.AdminTagRequestReject))
 		r.Post("/api/admin/tag-requests/{id}/revision", h.RequireMod(h.AdminTagRequestRevision))
 
-		// Store item management (admin+)
 		r.Get("/api/admin/store-items", h.RequireAdmin(h.AdminStoreItemsList))
 		r.Post("/api/admin/store-items/{id}/toggle", h.RequireAdmin(h.AdminToggleStoreItem))
 
-		// Tag management (list/assign/remove: mod+; create/delete: superadmin)
 		r.Get("/api/admin/tags", h.RequireMod(h.AdminTagsList))
 		r.Post("/api/admin/tags", h.RequireSuperAdmin(h.AdminTagCreate))
 		r.Patch("/api/admin/tags/{id}", h.RequireSuperAdmin(h.AdminTagUpdate))
@@ -149,7 +141,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/admin/users/{id}/tags", h.RequireMod(h.AdminUserTagAdd))
 		r.Delete("/api/admin/users/{id}/tags/{tagId}", h.RequireMod(h.AdminUserTagRemove))
 
-		// User management (mod+)
 		r.Get("/admin/users", h.RequireMod(h.AdminUsersAPI))
 		r.Post("/admin/users/{id}/password", h.RequireMod(h.AdminResetPassword))
 		r.Post("/admin/users/{id}/username", h.RequireMod(h.AdminChangeUsername))
@@ -170,7 +161,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/admin/users/{id}/strikes", h.RequireMod(h.AdminStrikesAdd))
 		r.Delete("/admin/users/{id}/strikes/{strikeId}", h.RequireMod(h.AdminStrikesDelete))
 
-		// Raid Finder v2: matchmaking queue + lobbies (overview is public)
 		r.Get("/api/raid/overview", h.APIRaidOverview)
 		r.Get("/api/raid/state", h.RequireAuth(h.APIRaidState))
 		r.Post("/api/raid/queue", h.RequireAuth(h.APIRaidQueueJoin))
@@ -184,37 +174,30 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/raid/lobbies/{id}/report", h.RequireAuth(h.APIRaidLobbyReport))
 		r.Post("/api/raid/lobbies/{id}/feedback", h.RequireAuth(h.APIRaidLobbyFeedback))
 
-		// Special ranks (admin+): Trusted / Content Creator badges + custom raids
 		r.Post("/admin/users/{id}/special-rank", h.RequireAdmin(h.AdminSetSpecialRank))
 
-		// Awards: catalog + grants (granting: staff always; community behind flag)
 		r.Get("/api/awards", h.APIAwardsList)
 		r.Get("/api/awards/of/{username}", h.APIAwardsOf)
+		r.Get("/api/users/search", h.RequireAuth(h.APIUsersSearch))
 		r.Post("/api/awards/{id}/grant", h.RequireAuth(h.APIAwardGrant))
 
-		// Awards management (mod+ list/grant revoke, admin+ catalog edits)
 		r.Get("/api/admin/awards", h.RequireMod(h.AdminAwardsList))
 		r.Post("/api/admin/awards", h.RequireAdmin(h.AdminAwardCreate))
 		r.Patch("/api/admin/awards/{id}", h.RequireAdmin(h.AdminAwardUpdate))
 		r.Delete("/api/admin/awards/{id}", h.RequireAdmin(h.AdminAwardDelete))
 		r.Delete("/api/admin/award-grants/{id}", h.RequireMod(h.AdminAwardGrantDelete))
 
-		// Trust inspection / adjustment (events: mod+, adjust: admin+)
 		r.Get("/api/admin/trust/{id}", h.RequireMod(h.AdminTrustEvents))
 		r.Post("/admin/users/{id}/trust-adjust", h.RequireAdmin(h.AdminTrustAdjust))
 		r.Post("/admin/users/{id}/trust-recompute", h.RequireAdmin(h.AdminTrustRecompute))
 
-		// Lobby moderation (mod+; delete reuses the host-cancel handler)
 		r.Get("/api/admin/raid-lobbies", h.RequireMod(h.AdminRaidLobbiesList))
 		r.Delete("/api/admin/raid-lobbies/{id}", h.RequireMod(h.APIRaidLobbyCancel))
 
-		// Trainer sprite proxy (cached, public)
 		r.Get("/api/trainer-sprite/{slug}", h.APITrainerSprite)
 
-		// Weather (auth required; uses stored city, cached per city)
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))
 
-		// Public game data API
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/maxbattles", h.APIMaxBattles)
@@ -223,13 +206,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
 
-		// Session-auth game data (site frontend — no rate limit for logged-in users)
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
 
-		// Refresh — requires API access; globally rate-limited
 		r.With(httprate.LimitAll(2, 10*time.Minute)).Post("/api/refresh", h.RequireAPIAccess(h.APIRefresh))
 
-		// Private game data API — requires API access, no rate limit
 		r.Get("/api/private/data", h.RequireAPIAccess(h.APIData))
 		r.Get("/api/private/raids", h.RequireAPIAccess(h.APIRaids))
 		r.Get("/api/private/maxbattles", h.RequireAPIAccess(h.APIMaxBattles))
@@ -238,7 +218,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/api/private/pokemon", h.RequireAPIAccess(h.APIPokemon))
 		r.Get("/api/private/moves", h.RequireAPIAccess(h.APIMoves))
 
-		// Protected user API
 		r.Get("/api/shinies", h.RequireAuth(h.APIShiniesGet))
 		r.Post("/api/shinies", h.RequireAuth(h.APIShiniesAdd))
 		r.Put("/api/shinies/{id}", h.RequireAuth(h.APIShiniesUpdate))

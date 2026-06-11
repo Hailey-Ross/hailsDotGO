@@ -38,14 +38,13 @@ type trainerEntry struct {
 	Tags            []tagEntry
 }
 
-// trainersPageData wraps the directory list with raid finder page context.
 type trainersPageData struct {
-	Trainers       []trainerEntry
-	CanCustomLobby bool
-	CanPreQueue    bool
+	Trainers        []trainerEntry
+	CanCustomLobby  bool
+	CanPreQueue     bool
+	CanGrantAwards  bool
 }
 
-// staffSortRank returns a staff sort priority (lower = higher rank); 99 = not staff.
 func staffSortRank(badge string) int {
 	switch badge {
 	case "superadmin":
@@ -108,9 +107,15 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 
 	canCustom := false
 	canPreQueue := false
+	canGrant := false
 	if u := h.currentUser(r); u != nil {
 		canCustom = h.canCustomLobby(u)
 		canPreQueue = h.canPreQueue(u)
+		if u.IsMod() {
+			canGrant = true
+		} else if h.settingBool("awards_community_grants_enabled") {
+			canGrant = h.effectiveTrust(u.ID) >= h.settingFloat("awards_grant_min_trust", 50)
+		}
 	}
 
 	rows, err := h.db.Query(`
@@ -123,7 +128,7 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		WHERE directory_hidden = 0 AND disabled = 0
 		ORDER BY username ASC`)
 	if err != nil {
-		h.render(w, r, "trainers", trainersPageData{Trainers: []trainerEntry{}, CanCustomLobby: canCustom, CanPreQueue: canPreQueue})
+		h.render(w, r, "trainers", trainersPageData{Trainers: []trainerEntry{}, CanCustomLobby: canCustom, CanPreQueue: canPreQueue, CanGrantAwards: canGrant})
 		return
 	}
 	defer rows.Close()
@@ -196,5 +201,5 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		return nameA < nameB
 	})
 
-	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, CanCustomLobby: canCustom, CanPreQueue: canPreQueue})
+	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, CanCustomLobby: canCustom, CanPreQueue: canPreQueue, CanGrantAwards: canGrant})
 }

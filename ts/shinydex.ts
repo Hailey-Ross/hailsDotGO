@@ -2,13 +2,10 @@ import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
-// Server-injected strings: JSC from templates/base.html, SD from templates/shinydex.html.
 declare const JSC: Record<string, string>;
 declare const SD: Record<string, string>;
 
 const app = document.getElementById("shinydex-app")!;
-
-// Shinies panel
 
 interface ShinyGroup {
   id: string;
@@ -44,7 +41,6 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
       items: allShinies.filter((s) => s[g.flag] === true),
     })).filter((g) => g.items.length > 0);
 
-    // Shared lightbox modal (one per panel render)
     const modal = document.createElement("div");
     modal.className = "shiny-modal";
     modal.innerHTML = `<div class="shiny-modal-inner">
@@ -167,7 +163,6 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
           genusEl.textContent  = "";
           badgeEl.textContent  = ""; badgeEl.style.display = "none";
           cryPanel.style.display = "none"; cryBtn.onclick = null;
-          // Remove any primal panels from a previous open
           compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
 
           // Keep slider in sync with shared volume
@@ -253,8 +248,6 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
     return wrap;
   };
 }
-
-// Init
 
 async function init() {
   try {

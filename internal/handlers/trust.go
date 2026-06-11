@@ -19,6 +19,7 @@ const (
 	trustDeltaDislike          = -4.0
 	trustDeltaConfirmTimeout   = -2.0
 	trustDeltaInviteWindowFail = -1.0
+	trustDeltaHostUnfulfilled  = -1.0
 	trustDeltaLeftEarly        = -3.0
 	trustDeltaRaidSuccess      = 1.0
 
@@ -44,6 +45,13 @@ const (
 
 	// Confirm timeouts are logged but free this many times per rolling 24h.
 	trustTimeoutFreePer24h = 2
+
+	// Host lobbies that end without the raid ever starting (expired while
+	// open, or cancelled by the host before raiding) are logged but free this
+	// many times per rolling window; past that, each further one applies the
+	// minor delta.
+	trustHostUnfulfilledFreeCount   = 6
+	trustHostUnfulfilledWindowHours = 4
 
 	// Reliability recompute window and minimum sample size.
 	trustReliabilityWindowDays = 90
@@ -185,8 +193,28 @@ func (h *Handlers) logConfirmTimeout(userID uint, lobbyID uint64) {
 	h.insertTrustEvent(userID, 0, lobbyID, "confirm_timeout", trustDeltaConfirmTimeout, weight, note)
 }
 
-// peerReportWeight computes the weight of a commend/dislike/raid_success
-// report from actor about subjectID. Staff weight is fixed and heavy.
+// logHostUnfulfilled records a host lobby that ended without the raid ever
+// starting. Lobbies that simply never fill are normal, so the first
+// trustHostUnfulfilledFreeCount in any rolling window are logged with zero
+// weight (audit trail, no penalty); a host churning through more than that
+// takes the minor delta on each further one. Invite-window failures are not
+// routed here: they already carry their own per-event penalty.
+func (h *Handlers) logHostUnfulfilled(hostID uint, lobbyID uint64) {
+	var recent int
+	h.db.QueryRow(`
+		SELECT COUNT(*) FROM trust_events
+		WHERE user_id = ? AND event_type = 'host_unfulfilled'
+		  AND created_at > DATE_SUB(NOW(), INTERVAL ? HOUR)`,
+		hostID, trustHostUnfulfilledWindowHours).Scan(&recent)
+	weight := 1.0
+	note := "lobby ended without raid starting (repeated)"
+	if recent < trustHostUnfulfilledFreeCount {
+		weight = 0
+		note = "lobby ended without raid starting (free pass)"
+	}
+	h.insertTrustEvent(hostID, 0, lobbyID, "host_unfulfilled", trustDeltaHostUnfulfilled, weight, note)
+}
+
 func (h *Handlers) peerReportWeight(actor *auth.User, subjectID uint) float64 {
 	if actor.IsMod() {
 		return trustStaffWeight
@@ -274,10 +302,6 @@ func (h *Handlers) recomputeTrustScore(userID uint) {
 		WHERE id = ?`, userID, userID)
 }
 
-// ── Effective trust and tiers ─────────────────────────────────
-
-// hasAnyActivePurchase reports whether the user has any completed, unexpired
-// store purchase (used for the flat read-time trust bonus).
 func (h *Handlers) hasAnyActivePurchase(userID uint) bool {
 	var count int
 	h.db.QueryRow(`

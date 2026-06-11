@@ -2,7 +2,6 @@ import { pokeSprite, pokeName } from "./gamedata";
 import { typeBadge } from "./typecolors";
 import type { GameData } from "./types";
 
-// Server-injected common UI strings, defined in templates/base.html.
 declare const JSC: Record<string, string>;
 
 export interface PickerEntry {
@@ -238,7 +237,6 @@ export function createPicker(opts: PickerOptions): Picker {
   };
 }
 
-// Standard entry list covering every Pokemon in the game data, deduped by name.
 export function pokemonEntries(data: GameData): PickerEntry[] {
   const out: PickerEntry[] = [];
   const seen = new Set<string>();

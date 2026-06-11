@@ -80,6 +80,19 @@
     <p style="margin-top:1rem">{{T "credits.api.private_auth"}}</p>
   </div>
 
+  {{if .User}}{{if .User.HasAPIAccess}}
+  <div class="credits-card" style="border-left:3px solid var(--accent)">
+    <h2>{{T "credits.api.your_access_title"}}</h2>
+    <p>{{T "credits.api.your_access_body"}}</p>
+    <p style="margin-top:0.75rem"><strong>{{T "credits.api.your_access_how_title"}}</strong></p>
+    <p>{{T "credits.api.your_access_cookie_note"}}</p>
+    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>Cookie: hgo_session=&lt;your-token&gt;</code></pre>
+    <p>{{T "credits.api.your_access_example_label"}}</p>
+    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>curl -H "Cookie: hgo_session=&lt;your-token&gt;" https://pogo.hails.live/api/private/data</code></pre>
+    <p style="margin-top:0.5rem;color:var(--text-2);font-size:0.82rem">{{T "credits.api.your_access_warning"}}</p>
+  </div>
+  {{end}}{{end}}
+
   <div class="credits-card">
     <h2>{{T "credits.api.notes_title"}}</h2>
     <ul class="credits-list">
@@ -97,6 +110,56 @@
   </div>
 
   <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (66)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Code quality and database setup improvements</h2>
+        <ul class="cl-list">
+          <li>Removed superfluous comments from Go and TypeScript source files; only comments explaining non-obvious behavior remain</li>
+          <li>Database setup files reorganized to better support fresh installs and version upgrades</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (65)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">API access for any user; admin panel modal polish</h2>
+        <ul class="cl-list">
+          <li>The superadmin can now grant private API access to any user account, not just those with the admin role; the Admin Panel Users tab shows the Grant/Revoke API button for all users</li>
+          <li>Users granted API access now see a personalized card on the Credits API tab explaining how to authenticate with their session cookie and example curl commands</li>
+          <li>Role changes no longer automatically revoke API access -- the permission is now independent of role</li>
+          <li>User detail modal in the Admin Panel now uses the same frosted dark card background as the rest of the site</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (64)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Translator application flow</h2>
+        <ul class="cl-list">
+          <li>Any user (logged in or out) can now reach <code>/translate</code> -- logged-out visitors see a program overview with login/register CTAs, logged-in users see an application form</li>
+          <li>Application form collects target languages with proficiency levels, motivation, optional experience, and optional country of residence; applicants must be proficient in English as the source language</li>
+          <li>After submitting, users see a live status badge: Pending, Being Reviewed, Accepted, or Rejected (with rejection reason if provided)</li>
+          <li>Accepted translators continue to see the workspace as normal; admin panel gains a new Translator Apps tab with Pending/Reviewing/All filter and accept/reject actions</li>
+          <li>Admin Pages tab gains a "Translator Applications" toggle; when disabled, logged-in users without an application see a "applications are currently closed" message instead of the form</li>
+          <li>Homepage now shows a purple-bordered Translator card; sidebar Translate link is visible to all users</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (63)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder: host reliability tracking</h2>
+        <ul class="cl-list">
+          <li>Hosts whose lobbies repeatedly end without the raid ever starting (expiring unfilled, or cancelled before the raid begins) now take a minor trust penalty; occasional unstarted lobbies in a short period carry no penalty</li>
+          <li>Every unstarted lobby is logged to the trust event audit trail either way, and staff cancellations never count against the host</li>
+        </ul>
+      </div>
+    </div>
 
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-11 (62)</div>
@@ -166,7 +229,7 @@
           <li>Matched trainers get the host's Trainer Name and Code with a copy button and 2 minutes to send the friend request; hosts see matched names gray out and light up as each member confirms</li>
           <li>When a lobby fills, the host gets a 4 minute window to send all in-game invites; if it lapses, everyone returns to the front of the queue with no penalty</li>
           <li>After each raid, hosts confirm who joined and flag early leavers, and members report whether the raid succeeded and can commend or dislike the host</li>
-          <li>New trust system replaces 5-star ratings: behavior (timeouts, early leaves, commends, dislikes) feeds a score shown publicly as a Trusted / Neutral / Caution badge; staff reports always carry heavy weight, and mass-dislikers lose report weight without their own standing being attacked</li>
+          <li>New trust system replaces 5-star ratings: behavior (timeouts, early leaves, commends, dislikes) feeds a score shown publicly as a Trusted / Neutral / Caution badge; staff reports always carry heavy weight, and the system includes protections against coordinated reputation attacks</li>
           <li>New admin-granted special ranks with badges: ✅ Trusted and 🎬 Content Creator; holders (plus staff and top-trust users) can host custom raids for any boss</li>
           <li>New community awards: Pokémon-themed recognitions like Helping Hand and Professor's Aide, granted by staff (community granting can be enabled later for top-trust users) and shown on trainer profiles</li>
           <li>New admin Raids tab: live lobby moderation, awards management, per-user trust logs and adjustments</li>
@@ -306,10 +369,9 @@
       <div class="cl-body">
         <h2 class="cl-title">Per-IP bandwidth throttling added to public API</h2>
         <ul class="cl-list">
-          <li>Public API endpoints now track cumulative bytes sent per IP across a 5-minute rolling window</li>
-          <li>An IP that downloads more than 15 MB in 5 minutes is blocked for 30 minutes regardless of per-endpoint request counts</li>
-          <li>Bandwidth is counted in aggregate across all four endpoints for the same IP, so spreading requests across endpoints does not bypass the limit</li>
-          <li>Logged-in users using the session API (/api/app/data) are unaffected</li>
+          <li>Public API endpoints now enforce a rolling bandwidth limit per IP in addition to per-request rate limiting</li>
+          <li>IPs that exceed the limit are temporarily blocked regardless of which endpoints they used</li>
+          <li>Logged-in users are unaffected</li>
         </ul>
       </div>
     </div>
@@ -328,12 +390,11 @@
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-06 (44)</div>
       <div class="cl-body">
-        <h2 class="cl-title">Site frontend excluded from public API rate limit via session-authenticated endpoint</h2>
+        <h2 class="cl-title">Site frontend excluded from public API rate limit</h2>
         <ul class="cl-list">
-          <li>Added /api/app/data: same game data as /api/data but requires a valid session and carries no rate limit</li>
-          <li>The TypeScript game data loader now tries /api/app/data first; falls back to the public /api/data endpoint for unauthenticated visitors</li>
-          <li>Logged-in users will never hit the 5 req/30 min public limit regardless of how many pages they visit</li>
-          <li>External scrapers and unauthenticated callers still hit the restricted public endpoint</li>
+          <li>Logged-in users now fetch game data through an authenticated session channel, completely separate from the public API rate limit</li>
+          <li>Logged-in users will never hit the public rate limit regardless of how many pages they visit</li>
+          <li>External and unauthenticated callers still use the public endpoint with its standard rate limit</li>
         </ul>
       </div>
     </div>
@@ -358,7 +419,7 @@
           <li>Users are now displayed as a compact mini-card grid showing username, role, status, and tags at a glance</li>
           <li>Clicking any user card opens a modal overlay with the full detail view and all action controls</li>
           <li>Modal closes on click-outside or Escape; after any action the mini grid and modal both refresh automatically</li>
-          <li>All existing controls (password, username, strikes, tags, role, suspend, hide, raid ban, API access) work inside the modal</li>
+          <li>All existing user management controls work inside the modal</li>
         </ul>
       </div>
     </div>
@@ -425,8 +486,8 @@
       <div class="cl-body">
         <h2 class="cl-title">Raid data now refreshes six times daily</h2>
         <ul class="cl-list">
-          <li>Raid boss data previously refreshed once daily at noon Mountain Time; it now refreshes at 12:01 AM, 4:00 AM, 8:00 AM, 12:01 PM, 4:00 PM, and 8:00 PM Mountain Time</li>
-          <li>Schedule is DST-aware via the America/Denver timezone</li>
+          <li>Raid boss data previously refreshed once daily; it now refreshes multiple times throughout the day</li>
+          <li>Schedule is DST-aware</li>
         </ul>
       </div>
     </div>
@@ -497,7 +558,7 @@
           <li>Disabled pages return HTTP 503 and show a styled maintenance screen with a "Back to Home" button; the nav link for that page is hidden while it is disabled</li>
           <li>The Trainers page supports section-level control: Trainer Directory and Raid Finder can each be disabled independently while the other section remains live</li>
           <li>All eight controllable pages covered: Raids, DPS Calculator, PvP IV Ranker, Events, Trainers (with sub-sections), and Shiny Collection</li>
-          <li>All settings default to enabled and are stored in site_settings; safe-fail-open if the database is unreachable</li>
+          <li>All settings default to enabled so pages remain accessible if not yet configured</li>
         </ul>
       </div>
     </div>
@@ -534,9 +595,8 @@
         <h2 class="cl-title">i18n audit: translation completeness verified, JS double-quoting bug fixed, and pokemon_names parser updated</h2>
         <ul class="cl-list">
           <li>All ES, FR, and DE locale files audited and confirmed complete against the English master (no missing keys)</li>
-          <li>Fixed a bug where translated strings embedded in JavaScript objects were double-quoted due to <code>printf "%q"</code> combined with html/template's automatic JS encoding; replaced with direct template calls across admin panel, Raid Finder, and store templates</li>
+          <li>Fixed a bug where translated strings embedded in JavaScript were double-encoded; affected strings now render correctly across all templates</li>
           <li>Fixed <code>&lt;html lang="en"&gt;</code> being hardcoded; the page language attribute now reflects the active locale</li>
-          <li>Fixed <code>SITE_LANG</code> and <code>SUPERADMIN</code> JS constants using the same double-encoding pattern</li>
           <li>Fixed pokemon_names parser to handle the updated PoGoAPI response format (object-of-objects instead of array)</li>
         </ul>
       </div>
@@ -616,10 +676,10 @@
       <div class="cl-body">
         <h2 class="cl-title">Admin: Raid Stats panel for adjusting rank and ratings</h2>
         <ul class="cl-list">
-          <li>Each user card in the Admin Panel now has a "Raid Stats" section (admin-only) that shows the user's current raid XP and rater weight</li>
-          <li>Admins can set a user's XP directly to any value — rank updates immediately based on the new total</li>
-          <li>Admins can adjust a user's rater weight (0.1–1.5) to increase or decrease how much influence their ratings carry in consensus calculations</li>
-          <li>Two action buttons: "Clear Received Ratings" permanently deletes all ratings given to the user (resetting their host score), and "Reset Rating Decay" marks the user as recently active so their displayed rating stops decaying</li>
+          <li>Each user card in the Admin Panel now has a "Raid Stats" section (admin-only) showing the user's current raid XP and rating metrics</li>
+          <li>Admins can set a user's XP directly to any value; rank updates immediately based on the new total</li>
+          <li>Admins can adjust how much influence a user's ratings carry in consensus calculations</li>
+          <li>Tools to reset a user's received ratings or reactivate their host score are available to admins</li>
         </ul>
       </div>
     </div>
@@ -680,7 +740,7 @@
         <ul class="cl-list">
           <li>Admins can be assigned coloured tag pills (e.g. <strong>Dev</strong>) visible on their Trainer Directory card and profile modal</li>
           <li>Tags are created and deleted by the superadmin from a new Tags tab in the Admin Panel; assignment and removal is available to all admins</li>
-          <li>Tags are stored in two new database tables (<code>tags</code>, <code>user_tags</code>) with full cascade-delete support</li>
+          <li>Tags are stored in the database with full cascade-delete support</li>
         </ul>
       </div>
     </div>
@@ -729,7 +789,6 @@
         <h2 class="cl-title">Tester rank</h2>
         <ul class="cl-list">
           <li>New Tester role (below Moderator): shows a 🧪 badge in the navbar, Trainer Directory cards, and Raid Finder posts and joiners list</li>
-          <li>Tester ratings carry slightly more weight than regular users when computing host scores</li>
           <li>Assignable from the Admin panel role selector</li>
         </ul>
       </div>
@@ -742,7 +801,7 @@
         <ul class="cl-list">
           <li>Trainer profiles and raid posts now show a Pokémon-themed raid rank earned by participating in raids: Youngster, Trainer, Gym Leader, Elite Four, Champion, and League Master, each with five roman numeral tiers (I-V)</li>
           <li>XP is awarded for each completed raid (as a joiner or as a host); rank advances automatically as XP accumulates</li>
-          <li>Host ratings are weighted by how closely each rater's scores align with the group consensus, reducing the impact of outlier votes</li>
+          <li>Host ratings use a weighted system that reduces the impact of outlier votes</li>
           <li>A host's displayed rating is dimmed if they have not participated in a raid recently, signalling potentially stale data</li>
           <li>Accepted joiners can now see each other in a lobby panel before entering the raid, so you know who you are playing with</li>
           <li>Trainer Directory cards and modals show whether a trainer is currently online and the date they joined</li>
@@ -862,7 +921,7 @@
           <li>Host's trainer code is revealed to joiners upon joining so they can add the host in-game</li>
           <li>Joiners confirm they have sent a friend request; host is notified and can mark the invite as sent</li>
           <li>After the raid, joiners can rate the host (1-5 stars); host can rate confirmed joiners</li>
-          <li>Anti-churn cooldown: leaving 4 raids within an hour triggers a 10-minute join block</li>
+          <li>Anti-churn cooldown: repeatedly leaving raids in quick succession triggers a temporary join block</li>
           <li>Trainer Directory now shows trainer name only (not site username) for privacy</li>
           <li>Trainers can pick a colour avatar theme from Settings; shown on their directory card</li>
         </ul>
