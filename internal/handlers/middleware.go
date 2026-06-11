@@ -81,6 +81,21 @@ func (h *Handlers) RequireSuperAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (h *Handlers) RequireTranslator(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := h.currentUser(r)
+		if u == nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if !u.IsTranslator() {
+			http.Error(w, "403 forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func (h *Handlers) RequireAPIAccess(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := h.currentUser(r)

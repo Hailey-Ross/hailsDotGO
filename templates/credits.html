@@ -99,6 +99,44 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (56)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">New community locales and GitHub translation sync</h2>
+        <ul class="cl-list">
+          <li>Translators can now create entirely new languages from the Translate page; new locales fall back to English until translated and stay hidden from the public language switcher until an admin publishes them</li>
+          <li>New Locales panel in the admin Translations tab: enable or disable any language for the public switcher and see translation progress per locale</li>
+          <li>The public language switcher is now dynamic, so newly published languages appear for everyone without a redeploy</li>
+          <li>New Sync to GitHub button commits approved translations to the repository on a dedicated branch and opens a pull request, replacing the manual download-and-overwrite step</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (55)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Translator workspace and translation review</h2>
+        <ul class="cl-list">
+          <li>New Translator permission, granted per user by the site owner from the admin panel</li>
+          <li>Translators get a Translate page: a live site preview in the chosen language (ES/FR/DE) on top, and a searchable editor for every translation string below; saved suggestions appear in the preview immediately</li>
+          <li>Admins review suggestions in a new Translations tab with old/new comparison; approving applies the change to the live site instantly, rejecting requires a reason the translator can see</li>
+          <li>Approved changes are written to locale override files on the server, with the previous version backed up automatically so changes can be reverted</li>
+          <li>Merged locale files can be downloaded from the admin panel to sync translations back into the codebase</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (54)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Home page respects page toggles + Shiny Collection card</h2>
+        <ul class="cl-list">
+          <li>Tool cards on the home page now hide automatically when staff disable the corresponding page in Admin Settings, matching the existing navbar behavior</li>
+          <li>Logged-in trainers now see a gold-bordered Shiny Collection card on the home page linking to their personal collection</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-10 (53)</div>
       <div class="cl-body">
         <h2 class="cl-title">DPS Calculator redesign</h2>

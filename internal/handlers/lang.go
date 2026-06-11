@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"net/http"
-
-	"pogo.hails.cc/internal/i18n"
 )
 
 func (h *Handlers) SetLang(w http.ResponseWriter, r *http.Request) {
@@ -12,7 +10,7 @@ func (h *Handlers) SetLang(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := r.FormValue("code")
-	if !i18n.Supported[code] {
+	if !h.langEnabled(code) {
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}

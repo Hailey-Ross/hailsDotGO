@@ -7,34 +7,52 @@
 </div>
 
 <div class="tool-grid">
+  {{if .Maintenance.RaidsEnabled}}
   <a href="/raids" class="tool-card raids-card">
     <div class="tool-icon">⚔️</div>
     <h2>{{T "home.raids.title"}}</h2>
     <p>{{T "home.raids.desc"}}</p>
   </a>
+  {{end}}
 
+  {{if .Maintenance.DPSEnabled}}
   <a href="/dps" class="tool-card dps-card">
     <div class="tool-icon">📊</div>
     <h2>{{T "home.dps.title"}}</h2>
     <p>{{T "home.dps.desc"}}</p>
   </a>
+  {{end}}
 
+  {{if .Maintenance.PVPEnabled}}
   <a href="/pvp" class="tool-card pvp-card">
     <div class="tool-icon">🏆</div>
     <h2>{{T "home.pvp.title"}}</h2>
     <p>{{T "home.pvp.desc"}}</p>
   </a>
+  {{end}}
 
+  {{if .Maintenance.EventsEnabled}}
   <a href="/events" class="tool-card events-card">
     <div class="tool-icon">📅</div>
     <h2>{{T "home.events.title"}}</h2>
     <p>{{T "home.events.desc"}}</p>
   </a>
+  {{end}}
 
+  {{if .Maintenance.ShinyDexEnabled}}
   <a href="/shinydex" class="tool-card shinydex-card">
     <div class="tool-icon">✨</div>
     <h2>{{T "home.shinydex.title"}}</h2>
     <p>{{T "home.shinydex.desc"}}</p>
   </a>
+  {{end}}
+
+  {{if and .User .Maintenance.ShiniesEnabled}}
+  <a href="/shinies" class="tool-card shinies-card">
+    <div class="tool-icon">🌟</div>
+    <h2>{{T "home.shinies.title"}}</h2>
+    <p>{{T "home.shinies.desc"}}</p>
+  </a>
+  {{end}}
 </div>
 {{end}}

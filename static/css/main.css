@@ -220,6 +220,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .pvp-card:hover    { border-color: var(--blue);  box-shadow: 0 0 20px rgba(91,156,246,0.18); }
 .events-card:hover { border-color: var(--gold);  box-shadow: 0 0 20px rgba(255,179,64,0.18); }
 .shinydex-card:hover { border-color: #e879f9; box-shadow: 0 0 20px rgba(232,121,249,0.18); }
+.shinies-card { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,179,64,0.12); }
+.shinies-card:hover { border-color: var(--gold); box-shadow: 0 0 20px rgba(255,179,64,0.25); }
 
 /* ── Page headers ───────────────────────────────────────────── */
 .page-header { margin-bottom: 1.75rem; }

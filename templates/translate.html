@@ -1,0 +1,268 @@
+{{define "title"}}{{T "translate.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{T "translate.title"}}</h1>
+</div>
+
+<style>
+.tl-preview-card { padding: 0.75rem; }
+.tl-preview-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.tl-preview-bar .tl-label { font-size: 0.85rem; color: var(--text-2); }
+.tl-lang-btn.active { background: var(--accent, #ec4899); color: #fff; }
+.tl-lang-btn.tl-lang-hidden { opacity: 0.65; }
+#tl-lang-btns { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+.tl-code-input { width: 3.4rem; text-transform: lowercase; text-align: center; }
+#tl-frame { width: 100%; height: 48vh; border: 1px solid var(--border); border-radius: 8px; background: #0b0b14; }
+.tl-editor-bar { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.75rem; }
+.tl-editor-bar input[type="search"] { flex: 1; min-width: 200px; }
+#tl-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+.tl-row { border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.8rem; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.2fr); gap: 0.75rem; }
+.tl-row-info { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.tl-key { font-family: monospace; font-size: 0.78rem; color: var(--gold, #f0c050); word-break: break-all; }
+.tl-en, .tl-current { font-size: 0.84rem; word-break: break-word; }
+.tl-en strong, .tl-current strong { color: var(--text-2); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 0.35rem; }
+.tl-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; width: fit-content; }
+.tl-badge-pending { background: rgba(240, 192, 80, 0.15); color: var(--gold, #f0c050); }
+.tl-badge-rejected { background: rgba(252, 129, 129, 0.15); color: #fc8181; }
+.tl-row-edit { display: flex; flex-direction: column; gap: 0.4rem; }
+.tl-row-edit textarea { width: 100%; min-height: 56px; resize: vertical; font-size: 0.85rem; }
+.tl-row-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.tl-row-status { font-size: 0.78rem; }
+@media (max-width: 760px) {
+  .tl-row { grid-template-columns: 1fr; }
+  #tl-frame { height: 40vh; }
+}
+</style>
+
+<div class="admin-card tl-preview-card">
+  <div class="tl-preview-bar">
+    <span class="tl-label">{{T "translate.locale"}}</span>
+    <span id="tl-lang-btns"></span>
+    <input type="text" id="tl-new-code" class="auth-input tl-code-input" maxlength="2" placeholder="{{T "translate.locale.code"}}" autocomplete="off">
+    <button class="um-btn" onclick="addLocale()">{{T "translate.locale.add"}}</button>
+    <span class="tl-row-status" id="tl-locale-status"></span>
+    <button class="um-btn" style="margin-left:auto" onclick="reloadFrame()">{{T "translate.reload"}}</button>
+  </div>
+  <iframe id="tl-frame" title="{{T "translate.preview"}}"></iframe>
+</div>
+
+<div class="admin-card">
+  <div class="admin-card-header">
+    <h2>{{T "translate.editor"}}</h2>
+  </div>
+  <p class="admin-desc">{{T "translate.desc"}}</p>
+  <div class="tl-editor-bar">
+    <input type="search" id="tl-search" class="auth-input" placeholder="{{T "translate.search"}}">
+    <select id="tl-filter" class="move-select">
+      <option value="all">{{T "translate.filter.all"}}</option>
+      <option value="pending">{{T "translate.filter.pending"}}</option>
+      <option value="untranslated">{{T "translate.filter.untranslated"}}</option>
+      <option value="rejected">{{T "translate.filter.rejected"}}</option>
+    </select>
+  </div>
+  <div id="tl-list">
+    <div class="loading-state"><div class="spinner"></div><span>{{T "translate.loading"}}</span></div>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const TL_STRINGS = {
+  save:        {{T "translate.save"}},
+  withdraw:    {{T "translate.withdraw"}},
+  pending:     {{T "translate.status.pending"}},
+  rejected:    {{T "translate.status.rejected"}},
+  english:     {{T "translate.col.english"}},
+  current:     {{T "translate.col.current"}},
+  saved:       {{T "translate.saved"}},
+  empty:       {{T "translate.empty"}},
+  error:       {{T "translate.error"}},
+  hiddenHint:  {{T "translate.locale.hidden"}},
+  localeAdded: {{T "translate.locale.added"}},
+};
+
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+function csrfFetch(url, options = {}) {
+  const headers = {...(options.headers || {}), 'X-CSRF-Token': CSRF_TOKEN};
+  return fetch(url, {...options, headers});
+}
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let tlLang = '';
+let tlKeys = [];
+let tlLocales = [];
+
+async function loadLocales(selectLang) {
+  const res = await fetch('/api/translate/locales');
+  if (!res.ok) return;
+  tlLocales = await res.json();
+  renderLocaleButtons();
+  if (selectLang && tlLocales.some(l => l.code === selectLang)) {
+    setLocale(selectLang);
+  } else if (!tlLang && tlLocales.length) {
+    setLocale(tlLocales[0].code);
+  } else {
+    renderLocaleButtons();
+  }
+}
+
+function renderLocaleButtons() {
+  const wrap = document.getElementById('tl-lang-btns');
+  wrap.innerHTML = tlLocales.map(l => {
+    const hidden = l.enabled ? '' : ' tl-lang-hidden';
+    const title = l.enabled ? '' : ` title="${esc(TL_STRINGS.hiddenHint)}"`;
+    const active = l.code === tlLang ? ' active' : '';
+    return `<button class="um-btn tl-lang-btn${hidden}${active}" data-lang="${esc(l.code)}"${title}
+      onclick="setLocale('${esc(l.code)}')">${esc(l.code.toUpperCase())}${l.enabled ? '' : ' *'}</button>`;
+  }).join('');
+}
+
+function setLocaleStatus(msg, ok) {
+  const el = document.getElementById('tl-locale-status');
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : '#fc8181';
+  if (ok) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2500);
+}
+
+async function addLocale() {
+  const input = document.getElementById('tl-new-code');
+  const code = input.value.trim().toLowerCase();
+  const res = await csrfFetch('/api/translate/locales', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({code: code}),
+  });
+  if (res.ok) {
+    input.value = '';
+    setLocaleStatus(TL_STRINGS.localeAdded, true);
+    await loadLocales(code);
+  } else {
+    const d = await res.json().catch(() => ({}));
+    setLocaleStatus(d.error || TL_STRINGS.error, false);
+  }
+}
+
+function setLocale(lang) {
+  tlLang = lang;
+  // The cookie keeps the preview locale across in-iframe navigation; the
+  // server only honors it for iframe requests from translator accounts.
+  document.cookie = 'tl_preview=' + lang + '; path=/; SameSite=Lax';
+  renderLocaleButtons();
+  document.getElementById('tl-frame').src = '/?tl_preview=' + lang;
+  loadKeys();
+}
+
+function reloadFrame() {
+  const frame = document.getElementById('tl-frame');
+  try { frame.contentWindow.location.reload(); } catch (e) { frame.src = '/?tl_preview=' + tlLang; }
+}
+
+async function loadKeys() {
+  const list = document.getElementById('tl-list');
+  const res = await fetch('/api/translate/keys?lang=' + tlLang);
+  if (!res.ok) { list.innerHTML = `<div class="error-state">${TL_STRINGS.error}</div>`; return; }
+  tlKeys = await res.json();
+  renderKeys();
+}
+
+function rowMatches(k, search, filter) {
+  if (filter === 'pending' && !k.pending_id) return false;
+  if (filter === 'untranslated' && k.current) return false;
+  if (filter === 'rejected' && !k.reject_reason) return false;
+  if (!search) return true;
+  return k.key.toLowerCase().includes(search)
+    || (k.en || '').toLowerCase().includes(search)
+    || (k.current || '').toLowerCase().includes(search)
+    || (k.pending_text || '').toLowerCase().includes(search);
+}
+
+function renderKeys() {
+  const list = document.getElementById('tl-list');
+  const search = document.getElementById('tl-search').value.trim().toLowerCase();
+  const filter = document.getElementById('tl-filter').value;
+  const rows = tlKeys.filter(k => rowMatches(k, search, filter)).map(k => {
+    const badge = k.pending_id
+      ? `<span class="tl-badge tl-badge-pending">${TL_STRINGS.pending}</span>`
+      : k.reject_reason
+        ? `<span class="tl-badge tl-badge-rejected" title="${esc(k.reject_reason)}">${TL_STRINGS.rejected}: ${esc(k.reject_reason)}</span>`
+        : '';
+    const withdrawBtn = k.pending_id
+      ? `<button class="um-btn um-btn-danger" onclick="withdrawKey('${esc(k.key)}')">${TL_STRINGS.withdraw}</button>`
+      : '';
+    return `<div class="tl-row" data-key="${esc(k.key)}">
+      <div class="tl-row-info">
+        <span class="tl-key">${esc(k.key)}</span>
+        <span class="tl-en"><strong>${TL_STRINGS.english}</strong>${esc(k.en)}</span>
+        <span class="tl-current"><strong>${TL_STRINGS.current}</strong>${esc(k.current) || '&mdash;'}</span>
+        ${badge}
+      </div>
+      <div class="tl-row-edit">
+        <textarea id="tl-text-${cssId(k.key)}" class="auth-input">${esc(k.pending_text || k.current)}</textarea>
+        <div class="tl-row-actions">
+          <button class="um-btn um-btn-ok" onclick="saveKey('${esc(k.key)}')">${TL_STRINGS.save}</button>
+          ${withdrawBtn}
+          <span class="tl-row-status" id="tl-status-${cssId(k.key)}"></span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  list.innerHTML = rows || `<p class="empty-state">${TL_STRINGS.empty}</p>`;
+}
+
+// Locale keys contain dots, which are invalid in element id selectors.
+function cssId(key) { return key.replace(/[^a-zA-Z0-9_-]/g, '_'); }
+
+function setRowStatus(key, msg, ok) {
+  const el = document.getElementById('tl-status-' + cssId(key));
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : '#fc8181';
+  if (ok) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2500);
+}
+
+async function saveKey(key) {
+  const textarea = document.getElementById('tl-text-' + cssId(key));
+  if (!textarea) return;
+  const res = await csrfFetch('/api/translate/edits', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({lang: tlLang, key: key, new_text: textarea.value}),
+  });
+  if (res.ok) {
+    const d = await res.json();
+    const k = tlKeys.find(k => k.key === key);
+    if (k) { k.pending_id = d.id; k.pending_text = textarea.value.trim(); k.reject_reason = ''; }
+    renderKeys();
+    setRowStatus(key, TL_STRINGS.saved, true);
+    reloadFrame();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    setRowStatus(key, d.error || TL_STRINGS.error, false);
+  }
+}
+
+async function withdrawKey(key) {
+  const k = tlKeys.find(k => k.key === key);
+  if (!k || !k.pending_id) return;
+  const res = await csrfFetch('/api/translate/edits/' + k.pending_id, { method: 'DELETE' });
+  if (res.ok) {
+    k.pending_id = 0;
+    k.pending_text = '';
+    renderKeys();
+    reloadFrame();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    setRowStatus(key, d.error || TL_STRINGS.error, false);
+  }
+}
+
+document.getElementById('tl-search').addEventListener('input', renderKeys);
+document.getElementById('tl-filter').addEventListener('change', renderKeys);
+document.getElementById('tl-new-code').addEventListener('keydown', e => { if (e.key === 'Enter') addLocale(); });
+loadLocales();
+</script>
+{{end}}

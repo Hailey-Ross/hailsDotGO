@@ -16,7 +16,10 @@ import (
 
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Frame-Options", "DENY")
+		// SAMEORIGIN (not DENY) so the translator preview iframe can embed
+		// site pages; foreign-origin framing stays blocked.
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'self'")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -109,6 +112,24 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// Admin stats (admin only)
 		r.Get("/api/admin/stats", h.RequireAdmin(h.AdminStatsAPI))
 
+		// Translator workspace (translator permission or superadmin)
+		r.Get("/translate", h.RequireTranslator(h.TranslatePage))
+		r.Get("/api/translate/keys", h.RequireTranslator(h.APITranslateKeys))
+		r.Post("/api/translate/edits", h.RequireTranslator(h.APITranslateSubmit))
+		r.Delete("/api/translate/edits/{id}", h.RequireTranslator(h.APITranslateWithdraw))
+		r.Get("/api/translate/locales", h.RequireTranslator(h.APITranslateLocales))
+		r.Post("/api/translate/locales", h.RequireTranslator(h.APITranslateLocaleCreate))
+
+		// Translation review (admin+)
+		r.Get("/api/admin/translations", h.RequireAdmin(h.AdminTranslationsList))
+		r.Post("/api/admin/translations/{id}/approve", h.RequireAdmin(h.AdminTranslationApprove))
+		r.Post("/api/admin/translations/{id}/reject", h.RequireAdmin(h.AdminTranslationReject))
+		r.Get("/api/admin/translations/export/{lang}", h.RequireAdmin(h.AdminTranslationsExport))
+		r.Post("/api/admin/translations/sync", h.RequireAdmin(h.AdminTranslationsSync))
+		r.Get("/api/admin/locales", h.RequireAdmin(h.APITranslateLocales))
+		r.Post("/api/admin/locales/{code}/enable", h.RequireAdmin(h.AdminLocaleEnable))
+		r.Delete("/api/admin/locales/{code}", h.RequireAdmin(h.AdminLocaleDelete))
+
 		// Custom tag requests (mod+)
 		r.Get("/api/admin/tag-requests", h.RequireMod(h.AdminTagRequestsList))
 		r.Post("/api/admin/tag-requests/{id}/approve", h.RequireMod(h.AdminTagRequestApprove))
@@ -134,6 +155,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/admin/users/{id}/disable", h.RequireMod(h.AdminToggleDisable))
 		r.Post("/admin/users/{id}/role", h.RequireAdmin(h.AdminChangeRole))
 		r.Post("/admin/users/{id}/api-access", h.RequireSuperAdmin(h.AdminToggleAPIAccess))
+		r.Post("/admin/users/{id}/translator", h.RequireSuperAdmin(h.AdminToggleTranslator))
 		r.Post("/admin/refresh-data", h.RequireSuperAdmin(h.AdminRefreshData))
 		r.Post("/admin/users/{id}/confirm-role", h.RequireAdmin(h.AdminConfirmRole))
 		r.Post("/admin/users/{id}/reject-role", h.RequireAdmin(h.AdminRejectRole))

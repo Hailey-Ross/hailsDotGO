@@ -35,6 +35,7 @@
     {{if .User}}
     {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-link-highlight">{{T "nav.collection"}}</a>{{end}}
     <a href="/settings">{{T "nav.settings"}}</a>
+    {{if .User.IsTranslator}}<a href="/translate">{{T "nav.translate"}}</a>{{end}}
     {{if .User.IsMod}}<a href="/admin">{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
     <form method="POST" action="/logout" style="display:block;margin:0">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
@@ -46,10 +47,7 @@
     {{end}}
     <form method="POST" action="/lang" class="lang-switcher">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-      <button name="code" value="en" class="lang-btn{{if eq .Lang "en"}} active{{end}}">EN</button>
-      <button name="code" value="es" class="lang-btn{{if eq .Lang "es"}} active{{end}}">ES</button>
-      <button name="code" value="fr" class="lang-btn{{if eq .Lang "fr"}} active{{end}}">FR</button>
-      <button name="code" value="de" class="lang-btn{{if eq .Lang "de"}} active{{end}}">DE</button>
+      {{range .Langs}}<button name="code" value="{{.}}" class="lang-btn{{if eq $.Lang .}} active{{end}}">{{upper .}}</button>{{end}}
     </form>
   </div>
 </div>

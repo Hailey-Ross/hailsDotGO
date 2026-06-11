@@ -34,6 +34,8 @@ Get-Content $envPath | ForEach-Object {
     if ($_ -match "^PAYPAL_CLIENT_SECRET=(.+)$") { $script:ppSecret    = $matches[1].Trim() }
     if ($_ -match "^PAYPAL_MODE=(.+)$")          { $script:ppMode      = $matches[1].Trim() }
     if ($_ -match "^PAYPAL_WEBHOOK_ID=(.+)$")    { $script:ppWebhookID = $matches[1].Trim() }
+    if ($_ -match "^GITHUB_TOKEN=(.+)$")         { $script:ghToken     = $matches[1].Trim() }
+    if ($_ -match "^GITHUB_REPO=(.+)$")          { $script:ghRepo      = $matches[1].Trim() }
 }
 if (-not $script:vpsHost)        { throw ".env missing VPS_HOST" }
 if (-not $script:vpsUser)        { throw ".env missing VPS_USER" }
@@ -123,7 +125,7 @@ Write-Host "    Go binary      $binSize  $([int]((Get-Date) - $goStart).TotalSec
 
 # -- Write app.env ---------------------------------------------------
 $appEnvPath    = Join-Path $root "app.env"
-$appEnvContent = "DB_HOST=$($script:dbHost)`nDB_USER=$($script:dbUser)`nDB_PASS=$($script:dbPass)`nDB_NAME=$($script:dbName)`nSUPERADMIN_USER=$($script:superadminUser)`nCSRF_KEY=$($script:csrfKey)`nPAYPAL_CLIENT_ID=$($script:ppClientID)`nPAYPAL_CLIENT_SECRET=$($script:ppSecret)`nPAYPAL_MODE=$($script:ppMode)`nPAYPAL_WEBHOOK_ID=$($script:ppWebhookID)`n"
+$appEnvContent = "DB_HOST=$($script:dbHost)`nDB_USER=$($script:dbUser)`nDB_PASS=$($script:dbPass)`nDB_NAME=$($script:dbName)`nSUPERADMIN_USER=$($script:superadminUser)`nCSRF_KEY=$($script:csrfKey)`nPAYPAL_CLIENT_ID=$($script:ppClientID)`nPAYPAL_CLIENT_SECRET=$($script:ppSecret)`nPAYPAL_MODE=$($script:ppMode)`nPAYPAL_WEBHOOK_ID=$($script:ppWebhookID)`nGITHUB_TOKEN=$($script:ghToken)`nGITHUB_REPO=$($script:ghRepo)`n"
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($appEnvPath, $appEnvContent, $utf8NoBom)
 
@@ -174,6 +176,7 @@ $trackedFiles = @(
     @{ src = "templates\settings.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\trainers.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\store.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\translate.html";   dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "hailsdotgo.service";         dst = "/opt/hailsdotgo/hailsdotgo.service";    binary = $false }
 )
 
