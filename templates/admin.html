@@ -16,6 +16,7 @@
   <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tag-requests">{{T "admin.tab.tag_requests"}}</button>{{end}}
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translations">{{T "admin.tab.translations"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="pages">{{T "admin.tab.pages"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
   <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
@@ -178,6 +179,36 @@
     </div>
     <p class="admin-desc">{{T "admin.tag_requests.desc"}}</p>
     <div id="tag-requests-container">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{if .User.IsAdmin}}
+<div id="tab-translations" class="tab-panel">
+  <div class="admin-card" id="locales-card">
+    <div class="admin-card-header">
+      <h2>{{T "admin.locales.title"}}</h2>
+    </div>
+    <p class="admin-desc">{{T "admin.locales.desc"}}</p>
+    <div id="locales-container">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
+    </div>
+  </div>
+  <div class="admin-card" id="translations-card">
+    <div class="admin-card-header">
+      <h2>{{T "admin.translations.title"}}</h2>
+      <button class="um-btn" onclick="loadTranslations()">{{T "admin.translations.refresh"}}</button>
+    </div>
+    <p class="admin-desc">{{T "admin.translations.desc"}}</p>
+    <p class="admin-desc" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
+      <span>{{T "admin.translations.export"}}</span>
+      <span id="translations-exports" style="display:inline-flex;gap:0.5rem;flex-wrap:wrap"></span>
+      <button class="um-btn" id="tl-sync-btn" onclick="syncTranslations()">{{T "admin.translations.sync"}}</button>
+      <span id="tl-sync-status" style="font-size:0.8rem"></span>
+    </p>
+    <div id="translations-container">
       <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
     </div>
   </div>
@@ -428,6 +459,26 @@ const STRINGS = {
   itemDisable:      {{T "admin.js.item_disable"}},
   refreshOk:        {{T "admin.js.refresh_ok"}},
   refreshFail:      {{T "admin.js.refresh_fail"}},
+  translator:           {{T "admin.js.translator"}},
+  btnGrantTranslator:   {{T "admin.js.btn_grant_translator"}},
+  btnRevokeTranslator:  {{T "admin.js.btn_revoke_translator"}},
+  tlEnglish:            {{T "admin.js.tl_english"}},
+  tlOld:                {{T "admin.js.tl_old"}},
+  tlNew:                {{T "admin.js.tl_new"}},
+  tlCurrent:            {{T "admin.js.tl_current"}},
+  tlNoEdits:            {{T "admin.js.tl_no_edits"}},
+  tlReasonRequired:     {{T "admin.js.tl_reason_required"}},
+  locEnabled:           {{T "admin.js.loc_enabled"}},
+  locHidden:            {{T "admin.js.loc_hidden"}},
+  locEnable:            {{T "admin.js.loc_enable"}},
+  locDisable:           {{T "admin.js.loc_disable"}},
+  locDelete:            {{T "admin.js.loc_delete"}},
+  locConfirmDelete:     {{T "admin.js.loc_confirm_delete"}},
+  locTranslated:        {{T "admin.js.loc_translated"}},
+  syncDone:             {{T "admin.js.sync_done"}},
+  syncNone:             {{T "admin.js.sync_none"}},
+  syncRunning:          {{T "admin.js.sync_running"}},
+  syncViewPr:           {{T "admin.js.sync_view_pr"}},
 };
 </script>
 <script>
@@ -589,6 +640,7 @@ function renderUserDetail(u) {
   const strikeBadge = u.strike_count > 0 ? `<span class="um-status-badge um-status-strike">${u.strike_count} ${u.strike_count > 1 ? STRINGS.strikeP : STRINGS.strikeS}</span>` : '';
   const hasAPIAccess= u.username === SUPERADMIN || (u.role === 'admin' && u.api_access);
   const apiBadge    = hasAPIAccess ? `<span class="um-status-badge um-status-api">${STRINGS.apiAccess}</span>` : '';
+  const translatorBadge = u.translator ? `<span class="um-status-badge um-status-api">${STRINGS.translator}</span>` : '';
   const pendingBadge= u.pending_role ? `<span class="um-status-badge um-status-pending">${STRINGS.pending} ${esc(cap(u.pending_role))}</span>` : '';
 
   const roleSelect = IS_ADMIN && !isSuperAdmin ? `
@@ -608,6 +660,8 @@ function renderUserDetail(u) {
   const raidBanBtn    = `<button class="um-btn ${u.raid_banned ? 'um-btn-ok' : 'um-btn-danger'}" onclick="toggleRaidBan(${u.id}, ${!u.raid_banned})">${u.raid_banned ? STRINGS.btnUnbanRaids : STRINGS.btnBanRaids}</button>`;
   const apiAccessBtn  = IS_SUPERADMIN && u.role === 'admin' && u.username !== SUPERADMIN
     ? `<button class="um-btn ${u.api_access ? 'um-btn-danger' : 'um-btn-ok'}" onclick="toggleAPIAccess(${u.id}, ${!u.api_access})">${u.api_access ? STRINGS.btnRevokeApi : STRINGS.btnGrantApi}</button>` : '';
+  const translatorBtn = IS_SUPERADMIN && u.username !== SUPERADMIN
+    ? `<button class="um-btn ${u.translator ? 'um-btn-danger' : 'um-btn-ok'}" onclick="toggleTranslator(${u.id}, ${!u.translator})">${u.translator ? STRINGS.btnRevokeTranslator : STRINGS.btnGrantTranslator}</button>` : '';
   const tagManageBtn  = canManageTags ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'tags')">${STRINGS.btnManageTags}</button>` : '';
   const raidStatsBtn  = IS_ADMIN ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'raidstats')">${STRINGS.btnRaidStats}</button>` : '';
   const confirmRoleBtn= IS_ADMIN && u.pending_role && u.username !== SUPERADMIN ? `
@@ -628,14 +682,14 @@ function renderUserDetail(u) {
       <div class="um-badges">
         <span class="um-role-badge ${roleBadgeClass(u)}">${esc(roleBadgeLabel(u))}</span>
         <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? STRINGS.disabled : STRINGS.active}</span>
-        ${dirBadge}${raidBanBadge}${strikeBadge}${apiBadge}${pendingBadge}
+        ${dirBadge}${raidBanBadge}${strikeBadge}${apiBadge}${translatorBadge}${pendingBadge}
       </div>
     </div>
     <div class="um-actions">
       ${canSetPw ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'password')">${STRINGS.btnSetPassword}</button>` : ''}
       ${canRename ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'username')">${STRINGS.btnRename}</button>` : ''}
       <button class="um-btn" onclick="toggleExpand(${u.id}, 'strikes')">${STRINGS.btnStrikes}</button>
-      ${raidStatsBtn}${tagManageBtn}${confirmRoleBtn}${disableBtn}${dirHideBtn}${raidBanBtn}${apiAccessBtn}${roleSelect}
+      ${raidStatsBtn}${tagManageBtn}${confirmRoleBtn}${disableBtn}${dirHideBtn}${raidBanBtn}${apiAccessBtn}${translatorBtn}${roleSelect}
     </div>
     <div class="um-expand" id="um-expand-${u.id}"></div>`;
 }
@@ -983,6 +1037,22 @@ async function toggleAPIAccess(id, grant) {
   if (res.ok) {
     const u = users.find(u => u.id === id);
     if (u) u.api_access = grant;
+    renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
+  } else {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || STRINGS.actionFailed);
+  }
+}
+
+async function toggleTranslator(id, grant) {
+  const res = await csrfFetch('/admin/users/' + id + '/translator', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({translator: grant}),
+  });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.translator = grant;
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   } else {
     const data = await res.json().catch(() => ({}));
@@ -1457,6 +1527,175 @@ async function revisionTagRequest(id) {
   }
 }
 
+// ── Translation review ─────────────────────────────────────────
+let translationEdits = [];
+
+async function loadTranslations() {
+  const container = document.getElementById('translations-container');
+  if (!container) return;
+  const res = await fetch('/api/admin/translations');
+  if (!res.ok) { container.innerHTML = `<div class="error-state">${STRINGS.failLoad}</div>`; return; }
+  translationEdits = await res.json();
+  renderTranslations();
+}
+
+function renderTranslations() {
+  const container = document.getElementById('translations-container');
+  if (!container) return;
+  if (!translationEdits.length) {
+    container.innerHTML = `<p class="empty-state">${STRINGS.tlNoEdits}</p>`;
+    return;
+  }
+  let lastLang = '';
+  const rows = translationEdits.map(t => {
+    const header = t.lang !== lastLang
+      ? `<h3 style="margin:0.75rem 0 0.4rem;font-size:0.95rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-2)">${esc(t.lang)}</h3>`
+      : '';
+    lastLang = t.lang;
+    const currentNote = t.current !== t.old_text
+      ? `<span style="font-size:0.8rem;color:#f97316">${STRINGS.tlCurrent} ${esc(t.current)}</span>` : '';
+    return `${header}<div class="um-card" id="tl-row-${t.id}" style="margin-bottom:0.5rem">
+      <div class="um-header">
+        <div class="um-meta" style="min-width:0">
+          <span style="font-family:monospace;font-size:0.78rem;color:var(--gold)">${esc(t.key)}</span>
+          <span style="font-size:0.82rem;color:var(--text-2)">${STRINGS.tlEnglish} ${esc(t.en)}</span>
+          <span style="font-size:0.84rem"><span style="color:#fc8181">${STRINGS.tlOld}</span> ${esc(t.old_text) || '&mdash;'}</span>
+          <span style="font-size:0.84rem"><span style="color:var(--green)">${STRINGS.tlNew}</span> ${esc(t.new_text)}</span>
+          ${currentNote}
+          <span style="font-size:0.8rem;color:var(--text-2)">${esc(t.username)} &middot; ${STRINGS.submitted} ${esc(t.created_at)}</span>
+        </div>
+      </div>
+      <div class="um-actions" id="tl-actions-${t.id}">
+        <button class="um-btn um-btn-ok" onclick="approveTranslation(${t.id})">${STRINGS.btnApprove}</button>
+        <button class="um-btn um-btn-danger" onclick="rejectTranslation(${t.id})">${STRINGS.btnReject}</button>
+        <input type="text" id="tl-reason-${t.id}" placeholder="${STRINGS.rejectReason}" class="auth-input" style="flex:1;min-width:160px;font-size:0.82rem">
+        <span id="tl-status-${t.id}" style="font-size:0.8rem"></span>
+      </div>
+    </div>`;
+  }).join('');
+  container.innerHTML = rows;
+}
+
+async function approveTranslation(id) {
+  const statusEl = document.getElementById('tl-status-' + id);
+  const res = await csrfFetch('/api/admin/translations/' + id + '/approve', { method: 'POST' });
+  if (res.ok) {
+    translationEdits = translationEdits.filter(t => t.id !== id);
+    renderTranslations();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function rejectTranslation(id) {
+  const reason = (document.getElementById('tl-reason-' + id)?.value || '').trim();
+  const statusEl = document.getElementById('tl-status-' + id);
+  if (!reason) {
+    if (statusEl) { statusEl.textContent = STRINGS.tlReasonRequired; statusEl.style.color = '#fc8181'; }
+    return;
+  }
+  const res = await csrfFetch('/api/admin/translations/' + id + '/reject', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({reason}),
+  });
+  if (res.ok) {
+    translationEdits = translationEdits.filter(t => t.id !== id);
+    renderTranslations();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || 'Error'; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+// ── Locale management ──────────────────────────────────────────
+let adminLocales = [];
+
+async function loadAdminLocales() {
+  const container = document.getElementById('locales-container');
+  if (!container) return;
+  const res = await fetch('/api/admin/locales');
+  if (!res.ok) { container.innerHTML = `<div class="error-state">${STRINGS.failLoad}</div>`; return; }
+  adminLocales = await res.json();
+  renderAdminLocales();
+}
+
+function renderAdminLocales() {
+  const container = document.getElementById('locales-container');
+  if (!container) return;
+  container.innerHTML = adminLocales.map(l => {
+    const statusBadge = l.enabled
+      ? `<span style="font-size:0.8rem;font-weight:600;color:var(--green)">${STRINGS.locEnabled}</span>`
+      : `<span style="font-size:0.8rem;font-weight:600;color:#f97316">${STRINGS.locHidden}</span>`;
+    const toggleBtn = `<button class="um-btn ${l.enabled ? 'um-btn-danger' : 'um-btn-ok'}"
+      onclick="toggleLocale('${esc(l.code)}', ${!l.enabled})">${l.enabled ? STRINGS.locDisable : STRINGS.locEnable}</button>`;
+    const deleteBtn = !l.embedded && !l.enabled
+      ? `<button class="um-btn um-btn-danger" onclick="deleteLocale('${esc(l.code)}')">${STRINGS.locDelete}</button>`
+      : '';
+    return `<div class="um-card" style="margin-bottom:0.5rem">
+      <div class="um-header">
+        <div class="um-meta">
+          <span class="um-username">${esc(l.code.toUpperCase())}</span>
+          <span style="font-size:0.82rem;color:var(--text-2)">${STRINGS.locTranslated} ${l.translated} / ${l.total}</span>
+        </div>
+        <div class="um-badges" style="align-items:center;gap:0.75rem">
+          ${statusBadge}
+          ${toggleBtn}
+          ${deleteBtn}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const exports = document.getElementById('translations-exports');
+  if (exports) {
+    exports.innerHTML = adminLocales.map(l =>
+      `<a class="um-btn" href="/api/admin/translations/export/${esc(l.code)}" download>${esc(l.code)}.json</a>`
+    ).join('');
+  }
+}
+
+async function toggleLocale(code, enable) {
+  const res = await csrfFetch('/api/admin/locales/' + code + '/enable', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({enabled: enable}),
+  });
+  if (res.ok) loadAdminLocales();
+}
+
+async function deleteLocale(code) {
+  if (!confirm(STRINGS.locConfirmDelete + ' ' + code.toUpperCase())) return;
+  const res = await csrfFetch('/api/admin/locales/' + code, { method: 'DELETE' });
+  if (res.ok) loadAdminLocales();
+}
+
+// ── GitHub sync ────────────────────────────────────────────────
+async function syncTranslations() {
+  const btn = document.getElementById('tl-sync-btn');
+  const statusEl = document.getElementById('tl-sync-status');
+  btn.disabled = true;
+  statusEl.style.color = 'var(--text-2)';
+  statusEl.textContent = STRINGS.syncRunning;
+  const res = await csrfFetch('/api/admin/translations/sync', { method: 'POST' });
+  btn.disabled = false;
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    statusEl.style.color = '#fc8181';
+    statusEl.textContent = d.error || 'Error';
+    return;
+  }
+  if (!d.files || !d.files.length) {
+    statusEl.style.color = 'var(--text-2)';
+    statusEl.textContent = STRINGS.syncNone;
+    return;
+  }
+  statusEl.style.color = 'var(--green)';
+  statusEl.innerHTML = `${STRINGS.syncDone} ${d.files.map(esc).join(', ')}` +
+    (d.pr_url ? ` &middot; <a href="${esc(d.pr_url)}" target="_blank" rel="noopener">${STRINGS.syncViewPr}</a>` : '');
+}
+
 // ── Store item management ──────────────────────────────────────
 async function loadStoreItems() {
   const container = document.getElementById('store-items-container');
@@ -1502,6 +1741,7 @@ if (origTabClick) {
     const btn = e.target.closest('.tab-btn');
     if (!btn) return;
     if (btn.dataset.tab === 'tag-requests') loadTagRequests();
+    if (btn.dataset.tab === 'translations') { loadTranslations(); loadAdminLocales(); }
     if (btn.dataset.tab === 'donations') loadStoreItems();
   }, true);
 }

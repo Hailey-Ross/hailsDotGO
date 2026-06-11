@@ -328,3 +328,49 @@ CREATE TABLE IF NOT EXISTS invites (
 --
 --   ALTER TABLE users
 --     ADD COLUMN disabled_reason VARCHAR(255) NOT NULL DEFAULT '' AFTER disabled;
+
+-- Migration: translator permission + pending translation edits (2026-06-10).
+-- translator is toggled by the superadmin only; translation_edits holds pending
+-- locale changes submitted by translators and reviewed by admins. t_key is the
+-- locale string key ("key" is reserved in MySQL). old_text snapshots the merged
+-- value at submit time so reviewers can see if it changed before approval.
+--
+--   ALTER TABLE users
+--     ADD COLUMN translator TINYINT(1) NOT NULL DEFAULT 0 AFTER api_access;
+--
+--   CREATE TABLE IF NOT EXISTS translation_edits (
+--     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+--     user_id       INT UNSIGNED NOT NULL,
+--     lang          CHAR(2)      NOT NULL,
+--     t_key         VARCHAR(191) NOT NULL,
+--     old_text      TEXT         NOT NULL,
+--     new_text      TEXT         NOT NULL,
+--     status        ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+--     reviewed_by   INT UNSIGNED NULL,
+--     reviewed_at   DATETIME NULL,
+--     reject_reason VARCHAR(255) NOT NULL DEFAULT '',
+--     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     KEY idx_te_status (status),
+--     KEY idx_te_user_lang_key (user_id, lang, t_key),
+--     CONSTRAINT fk_te_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+--     CONSTRAINT fk_te_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration: runtime locale registry (2026-06-10).
+-- Translators can create new locales from /translate; they stay hidden from
+-- the public language switcher until an admin enables them. en is implicit
+-- (always enabled, never editable) and is not stored here. es/fr/de are
+-- seeded enabled to match the previously hardcoded switcher.
+--
+--   CREATE TABLE IF NOT EXISTS locales (
+--     code       CHAR(2)      NOT NULL,
+--     enabled    TINYINT(1)   NOT NULL DEFAULT 0,
+--     created_by INT UNSIGNED NULL,
+--     created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (code),
+--     CONSTRAINT fk_loc_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+--   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+--
+--   INSERT INTO locales (code, enabled) VALUES ('es', 1), ('fr', 1), ('de', 1);

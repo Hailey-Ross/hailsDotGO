@@ -22,3 +22,6 @@ deploy-manifest.json
 
 # Runtime data cache (fetched game data and scraped event pages)
 cache/
+
+# Runtime translation overrides and their backups (approved via /translate workflow)
+locales/

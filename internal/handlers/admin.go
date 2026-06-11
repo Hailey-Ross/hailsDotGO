@@ -305,6 +305,7 @@ type adminUserRecord struct {
 	StrikeCount     int             `json:"strike_count"`
 	CreatedAt       string          `json:"created_at"`
 	APIAccess       bool            `json:"api_access"`
+	Translator      bool            `json:"translator"`
 	Tags            []adminTagEntry `json:"tags"`
 	RaidXP          int             `json:"raid_xp"`
 	RaterWeight     float64         `json:"rater_weight"`
@@ -314,7 +315,7 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT u.id, u.username, u.email, u.role, COALESCE(u.pending_role, ''),
 		       u.disabled, COALESCE(u.disabled_reason, ''), u.directory_hidden, u.raid_banned,
-		       COUNT(s.id) AS strike_count, u.created_at, u.api_access,
+		       COUNT(s.id) AS strike_count, u.created_at, u.api_access, u.translator,
 		       COALESCE(u.raid_xp, 0), COALESCE(u.rater_weight, 1.000)
 		FROM users u
 		LEFT JOIN user_strikes s ON s.user_id = u.id
@@ -333,12 +334,13 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.PendingRole,
 			&u.Disabled, &u.DisabledReason, &u.DirectoryHidden, &u.RaidBanned, &u.StrikeCount, &createdAt, &u.APIAccess,
-			&u.RaidXP, &u.RaterWeight); err != nil {
+			&u.Translator, &u.RaidXP, &u.RaterWeight); err != nil {
 			continue
 		}
 		u.CreatedAt = createdAt.Format("2006-01-02")
 		if auth.SuperadminUser != "" && u.Username == auth.SuperadminUser {
 			u.APIAccess = true
+			u.Translator = true
 		}
 		u.Tags = []adminTagEntry{}
 		idxByID[u.ID] = len(users)

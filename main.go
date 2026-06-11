@@ -13,6 +13,7 @@ import (
 
 	"pogo.hails.cc/internal/auth"
 	appdb "pogo.hails.cc/internal/db"
+	"pogo.hails.cc/internal/i18n"
 	"pogo.hails.cc/internal/pogodata"
 	"pogo.hails.cc/internal/server"
 )
@@ -36,6 +37,31 @@ func main() {
 		log.Fatalf("db ping: %v", err)
 	}
 	defer db.Close()
+
+	// Register runtime locales (created through the translator workflow)
+	// before loading overlays. A missing locales table is tolerated so the
+	// app still boots before the migration is applied.
+	if rows, err := db.Query(`SELECT code FROM locales`); err != nil {
+		log.Printf("i18n: load locales table: %v (continuing with embedded locales only)", err)
+	} else {
+		for rows.Next() {
+			var code string
+			if rows.Scan(&code) != nil {
+				continue
+			}
+			if i18n.IsSupported(code) {
+				continue
+			}
+			if err := i18n.RegisterLocale(code); err != nil {
+				log.Printf("i18n: register locale %q: %v", code, err)
+			}
+		}
+		rows.Close()
+	}
+
+	// Approved translation overrides live outside the binary so they survive
+	// redeploys; defaults to ./locales under the working directory.
+	i18n.Init(os.Getenv("LOCALES_DIR"))
 
 	csrfKey, err := loadCSRFKey()
 	if err != nil {

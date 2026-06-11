@@ -20,7 +20,8 @@ A fan-made Pokémon GO companion web app built in Go.
 - Admin Users tab: mini-card grid with click-to-open modal detail view and full controls
 - Public JSON API with per-IP request rate limits and aggregate bandwidth throttling, plus an unthrottled private API for trusted consumers
 - Automatic cache busting: static asset URLs carry a content hash so every deploy invalidates browser caches
-- Multi-language: English, Spanish, French, German
+- Multi-language: English, Spanish, French, and German built in, plus community-created locales
+- Translator workspace: users with the Translator permission suggest translation changes (and whole new languages) with a live split-screen preview; admins review, hot-apply approved edits, and sync them back to GitHub as a pull request
 
 ---
 
@@ -205,6 +206,9 @@ The store is disabled by default. To enable:
 | `VPS_USER` | Deploy only | | SSH username on the VPS |
 | `VPS_PASS` | No | | For manual reference only; not used by `deploy.ps1` |
 | `CACHE_DIR` | No | `cache` | Directory for fetched game data and scraped event pages |
+| `LOCALES_DIR` | No | `locales` | Directory for approved translation override files and their backups |
+| `GITHUB_TOKEN` | Translation sync only | | Fine-grained PAT for this repo (contents and pull requests, read/write) |
+| `GITHUB_REPO` | Translation sync only | | Repository for translation sync in `owner/repo` form |
 
 ---
 
@@ -219,6 +223,16 @@ The store is disabled by default. To enable:
 | `superadmin` | Set via `SUPERADMIN_USER` env var; all admin capabilities + tag create/edit/delete; immune to admin actions |
 
 Staff (mod and above) cannot be raid-banned or hidden from the directory.
+
+In addition to roles, the superadmin can grant individual users the **Translator** permission from the admin panel. Translators get a `/translate` workspace with a live site preview in their chosen language and an editor for suggesting translation changes; suggestions are reviewed in the admin panel's Translations tab.
+
+### Translation workflow
+
+- Approving a suggestion applies it to the live site immediately: the app writes a sparse override file to `LOCALES_DIR/{lang}.json` (only the changed keys) and backs up the previous version to `LOCALES_DIR/backup/{lang}_{timestamp}.json` first. To revert a bad change, copy a backup over the override file and restart the service.
+- Override files live outside the binary and outside the deploy script's tracked files, so they survive redeploys. Embedded locale strings added in a newer build are never shadowed unless a translator explicitly changed that key.
+- **New locales:** translators can create additional languages (any unused two-letter code) from the `/translate` page. A new locale is immediately translatable and previewable there, with every untranslated key falling back to English, but it stays hidden from the public language switcher until an admin enables it in the Translations tab. Admins can disable a locale again at any time, and delete a disabled, non-compiled-in locale (its override file is archived to the backup directory).
+- **GitHub sync:** with `GITHUB_TOKEN` and `GITHUB_REPO` set, the "Sync to GitHub" button in the Translations tab commits the merged locale files to the `translations` branch and opens a pull request against `main`. Merge the PR, `git pull`, and the next build embeds the approved translations; a brand-new locale's file is embedded automatically. After deploying that build, the override files on the server can optionally be deleted; note that overrides always win, so a key edited only in the repo stays shadowed by a stale override until it is removed.
+- Without the GitHub variables, the per-locale export downloads in the Translations tab remain available for syncing the repo manually.
 
 ---
 

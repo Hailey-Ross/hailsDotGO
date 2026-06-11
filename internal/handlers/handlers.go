@@ -12,7 +12,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -28,6 +31,9 @@ type Handlers struct {
 	db           *sql.DB
 	startTime    time.Time
 	assetVersion string
+
+	langMu       sync.RWMutex
+	enabledLangs []string // "en" first, then enabled locales rows, sorted
 }
 
 // PageMaintenance holds the enabled/disabled state for each page and section.
@@ -52,13 +58,53 @@ type PageData struct {
 	StoreEnabled bool
 	Maintenance  PageMaintenance
 	Lang         string
+	Langs        []string
 	AssetVersion string
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
 	h := &Handlers{store: store, db: db, startTime: time.Now(), assetVersion: computeAssetVersion()}
 	h.loadTemplates()
+	h.reloadLangs()
 	return h
+}
+
+// reloadLangs refreshes the cached public language switcher list from the
+// locales table. Falls back to the historical es/fr/de set when the table is
+// missing or empty so a pre-migration boot keeps the switcher intact.
+func (h *Handlers) reloadLangs() {
+	langs := []string{"en"}
+	rows, err := h.db.Query(`SELECT code FROM locales WHERE enabled = 1 ORDER BY code`)
+	if err != nil {
+		// Pre-migration boot: keep the historical switcher working.
+		log.Printf("reloadLangs: %v (falling back to es/fr/de)", err)
+		langs = append(langs, "de", "es", "fr")
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var code string
+			if rows.Scan(&code) == nil && i18n.IsSupported(code) {
+				langs = append(langs, code)
+			}
+		}
+	}
+	h.langMu.Lock()
+	h.enabledLangs = langs
+	h.langMu.Unlock()
+}
+
+// publicLangs returns the locales shown in the public language switcher.
+func (h *Handlers) publicLangs() []string {
+	h.langMu.RLock()
+	defer h.langMu.RUnlock()
+	return append([]string(nil), h.enabledLangs...)
+}
+
+// langEnabled reports whether code is publicly selectable.
+func (h *Handlers) langEnabled(code string) bool {
+	h.langMu.RLock()
+	defer h.langMu.RUnlock()
+	return slices.Contains(h.enabledLangs, code)
 }
 
 // computeAssetVersion hashes the contents of the static JS/CSS bundles so the value changes
@@ -90,8 +136,9 @@ func computeAssetVersion() string {
 }
 
 var tmplFuncs = template.FuncMap{
-	"divf": func(a, b int) float64 { return float64(a) / float64(b) },
-	"T":    func(key string) string { return key }, // replaced per-request via Clone+Funcs
+	"divf":  func(a, b int) float64 { return float64(a) / float64(b) },
+	"upper": strings.ToUpper,
+	"T":     func(key string) string { return key }, // replaced per-request via Clone+Funcs
 }
 
 func (h *Handlers) loadTemplates() {
@@ -99,6 +146,7 @@ func (h *Handlers) loadTemplates() {
 	pages := []string{
 		"home", "raids", "dps", "pvp", "events", "shinydex", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
+		"translate",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(
@@ -112,11 +160,52 @@ func (h *Handlers) loadTemplates() {
 	}
 }
 
+// previewLang returns the locale a translator is previewing, or "" if no
+// preview applies. The ?tl_preview= query param is honored on any request;
+// the tl_preview cookie only when the request is rendered inside an iframe
+// (Sec-Fetch-Dest), so in-iframe navigation keeps the preview locale without
+// affecting the translator's own top-level browsing. Callers must verify the
+// user IsTranslator() before honoring the result.
+func previewLang(r *http.Request) string {
+	lang := r.URL.Query().Get("tl_preview")
+	if lang == "" && r.Header.Get("Sec-Fetch-Dest") == "iframe" {
+		if c, err := r.Cookie("tl_preview"); err == nil {
+			lang = c.Value
+		}
+	}
+	if lang == "" || lang == "en" || !i18n.IsSupported(lang) {
+		return ""
+	}
+	return lang
+}
+
+// pendingOverrides returns the user's own pending translation edits for lang,
+// keyed by locale string key, for overlaying into the preview render.
+func (h *Handlers) pendingOverrides(userID uint, lang string) map[string]string {
+	rows, err := h.db.Query(
+		`SELECT t_key, new_text FROM translation_edits WHERE user_id = ? AND lang = ? AND status = 'pending'`,
+		userID, lang,
+	)
+	if err != nil {
+		log.Printf("pendingOverrides: %v", err)
+		return nil
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err == nil {
+			out[k] = v
+		}
+	}
+	return out
+}
+
 func (h *Handlers) detectLang(r *http.Request) string {
-	if u := h.currentUser(r); u != nil && i18n.Supported[u.Lang] {
+	if u := h.currentUser(r); u != nil && h.langEnabled(u.Lang) {
 		return u.Lang
 	}
-	if c, err := r.Cookie("lang"); err == nil && i18n.Supported[c.Value] {
+	if c, err := r.Cookie("lang"); err == nil && h.langEnabled(c.Value) {
 		return c.Value
 	}
 	return "en"
@@ -141,17 +230,24 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	}
 
 	lang := h.detectLang(r)
+	var overrides map[string]string
+	if u != nil && u.IsTranslator() {
+		if pl := previewLang(r); pl != "" {
+			lang = pl
+			overrides = h.pendingOverrides(u.ID, pl)
+		}
+	}
 	clone, err := t.Clone()
 	if err != nil {
 		log.Printf("render clone %q: %v", page, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	clone.Funcs(template.FuncMap{"T": i18n.TFunc(lang)})
+	clone.Funcs(template.FuncMap{"T": i18n.TFuncWithOverrides(lang, overrides)})
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, AssetVersion: h.assetVersion}
+	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, Langs: h.publicLangs(), AssetVersion: h.assetVersion}
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)
 	}
