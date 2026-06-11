@@ -35,6 +35,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	r.Use(securityHeaders)
 
 	h := handlers.New(store, db)
+	h.StartRaidSweeper()
 
 	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
 	// Counts aggregate bytes across all four public API endpoints for the same IP.
@@ -169,17 +170,43 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/admin/users/{id}/strikes", h.RequireMod(h.AdminStrikesAdd))
 		r.Delete("/admin/users/{id}/strikes/{strikeId}", h.RequireMod(h.AdminStrikesDelete))
 
-		// Raid finder API (list is public; actions require auth)
-		r.Get("/api/raid-posts", h.APIRaidPostsList)
-		r.Post("/api/raid-posts", h.RequireAuth(h.APIRaidPostsCreate))
-		r.Delete("/api/raid-posts/{id}", h.RequireAuth(h.APIRaidPostsDelete))
-		r.Post("/api/raid-posts/{id}/join", h.RequireAuth(h.APIRaidPostsJoin))
-		r.Delete("/api/raid-posts/{id}/join", h.RequireAuth(h.APIRaidPostsLeave))
-		r.Post("/api/raid-posts/{id}/confirm", h.RequireAuth(h.APIRaidPostsConfirm))
-		r.Post("/api/raid-posts/{id}/invite", h.RequireAuth(h.APIRaidPostsMarkInvited))
-		r.Post("/api/raid-posts/{id}/accept", h.RequireAuth(h.APIRaidPostsAccept))
-		r.Post("/api/raid-posts/{id}/decline", h.RequireAuth(h.APIRaidPostsDecline))
-		r.Post("/api/raid-posts/{id}/rate", h.RequireAuth(h.APIRaidPostsRate))
+		// Raid Finder v2: matchmaking queue + lobbies (overview is public)
+		r.Get("/api/raid/overview", h.APIRaidOverview)
+		r.Get("/api/raid/state", h.RequireAuth(h.APIRaidState))
+		r.Post("/api/raid/queue", h.RequireAuth(h.APIRaidQueueJoin))
+		r.Delete("/api/raid/queue", h.RequireAuth(h.APIRaidQueueLeave))
+		r.Post("/api/raid/lobbies", h.RequireAuth(h.APIRaidLobbyCreate))
+		r.Delete("/api/raid/lobbies/{id}", h.RequireAuth(h.APIRaidLobbyCancel))
+		r.Post("/api/raid/lobbies/{id}/confirm", h.RequireAuth(h.APIRaidLobbyConfirm))
+		r.Post("/api/raid/lobbies/{id}/leave", h.RequireAuth(h.APIRaidLobbyLeave))
+		r.Post("/api/raid/lobbies/{id}/kick", h.RequireAuth(h.APIRaidLobbyKick))
+		r.Post("/api/raid/lobbies/{id}/invited", h.RequireAuth(h.APIRaidLobbyInvited))
+		r.Post("/api/raid/lobbies/{id}/report", h.RequireAuth(h.APIRaidLobbyReport))
+		r.Post("/api/raid/lobbies/{id}/feedback", h.RequireAuth(h.APIRaidLobbyFeedback))
+
+		// Special ranks (admin+): Trusted / Content Creator badges + custom raids
+		r.Post("/admin/users/{id}/special-rank", h.RequireAdmin(h.AdminSetSpecialRank))
+
+		// Awards: catalog + grants (granting: staff always; community behind flag)
+		r.Get("/api/awards", h.APIAwardsList)
+		r.Get("/api/awards/of/{username}", h.APIAwardsOf)
+		r.Post("/api/awards/{id}/grant", h.RequireAuth(h.APIAwardGrant))
+
+		// Awards management (mod+ list/grant revoke, admin+ catalog edits)
+		r.Get("/api/admin/awards", h.RequireMod(h.AdminAwardsList))
+		r.Post("/api/admin/awards", h.RequireAdmin(h.AdminAwardCreate))
+		r.Patch("/api/admin/awards/{id}", h.RequireAdmin(h.AdminAwardUpdate))
+		r.Delete("/api/admin/awards/{id}", h.RequireAdmin(h.AdminAwardDelete))
+		r.Delete("/api/admin/award-grants/{id}", h.RequireMod(h.AdminAwardGrantDelete))
+
+		// Trust inspection / adjustment (events: mod+, adjust: admin+)
+		r.Get("/api/admin/trust/{id}", h.RequireMod(h.AdminTrustEvents))
+		r.Post("/admin/users/{id}/trust-adjust", h.RequireAdmin(h.AdminTrustAdjust))
+		r.Post("/admin/users/{id}/trust-recompute", h.RequireAdmin(h.AdminTrustRecompute))
+
+		// Lobby moderation (mod+; delete reuses the host-cancel handler)
+		r.Get("/api/admin/raid-lobbies", h.RequireMod(h.AdminRaidLobbiesList))
+		r.Delete("/api/admin/raid-lobbies/{id}", h.RequireMod(h.APIRaidLobbyCancel))
 
 		// Trainer sprite proxy (cached, public)
 		r.Get("/api/trainer-sprite/{slug}", h.APITrainerSprite)

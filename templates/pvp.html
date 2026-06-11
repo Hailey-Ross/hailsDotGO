@@ -15,5 +15,22 @@
 {{end}}
 
 {{define "scripts"}}
+<script>
+const PV = {
+  namePh:       {{T "pvp.js.name_ph"}},
+  showRankings: {{T "pvp.js.show_rankings"}},
+  notFound:     {{T "pvp.js.not_found"}},
+  rankedNote:   {{T "pvp.js.ranked_note"}},
+  colRank:      {{T "pvp.js.col_rank"}},
+  colAtk:       {{T "pvp.js.col_atk"}},
+  colDef:       {{T "pvp.js.col_def"}},
+  colSta:       {{T "pvp.js.col_sta"}},
+  colLevel:     {{T "pvp.js.col_level"}},
+  colSp:        {{T "pvp.js.col_sp"}},
+  leagueGreat:  {{T "pvp.js.league_great"}},
+  leagueUltra:  {{T "pvp.js.league_ultra"}},
+  leagueMaster: {{T "pvp.js.league_master"}}
+};
+</script>
 <script src="/static/js/pvp.js?v={{.AssetVersion}}"></script>
 {{end}}

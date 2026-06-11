@@ -106,13 +106,13 @@ func (h *Handlers) StorePage(w http.ResponseWriter, r *http.Request) {
 
 		switch r.URL.Query().Get("status") {
 		case "success":
-			data.FlashMsg = "Purchase complete! Your perks are now active."
+			data.FlashMsg = h.t(r, "store.flash.success")
 			data.FlashOK = true
 		case "cancelled":
-			data.FlashMsg = "Purchase cancelled."
+			data.FlashMsg = h.t(r, "store.flash.cancelled")
 			data.FlashOK = false
 		case "error":
-			data.FlashMsg = "Something went wrong. Please try again."
+			data.FlashMsg = h.t(r, "error.server")
 			data.FlashOK = false
 		}
 	}
@@ -123,7 +123,7 @@ func (h *Handlers) StorePage(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) StorePurchaseCancel(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -131,7 +131,7 @@ func (h *Handlers) StorePurchaseCancel(w http.ResponseWriter, r *http.Request) {
 		PurchaseID uint `json:"id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PurchaseID == 0 {
-		writeJSONError(w, "invalid request", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -145,11 +145,11 @@ func (h *Handlers) StorePurchaseCancel(w http.ResponseWriter, r *http.Request) {
 		  AND (p.expires_at IS NULL OR p.expires_at > NOW())`,
 		body.PurchaseID, u.ID)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := result.RowsAffected(); n == 0 {
-		writeJSONError(w, "subscription not found or already cancelled", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.store_sub_not_found"), http.StatusNotFound)
 		return
 	}
 
@@ -159,16 +159,16 @@ func (h *Handlers) StorePurchaseCancel(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) StoreTagColorUpdate(w http.ResponseWriter, r *http.Request) {
 	if !h.storeEnabled() {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 	if !h.hasActivePurchase(u.ID, "supporter") {
-		writeJSONError(w, "Supporter Pack required", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.store_supporter_required"), http.StatusForbidden)
 		return
 	}
 
@@ -176,11 +176,11 @@ func (h *Handlers) StoreTagColorUpdate(w http.ResponseWriter, r *http.Request) {
 		Color string `json:"color"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if len(body.Color) != 7 || body.Color[0] != '#' {
-		writeJSONError(w, "invalid color format", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.store_color_format"), http.StatusBadRequest)
 		return
 	}
 
@@ -421,16 +421,16 @@ func (h *Handlers) StoreWebhook(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) StoreTagRequestSubmit(w http.ResponseWriter, r *http.Request) {
 	if !h.storeEnabled() {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	u := h.currentUser(r)
 	if u == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 	if !h.hasActivePurchase(u.ID, "supporter") {
-		writeJSONError(w, "Supporter Pack required", http.StatusForbidden)
+		writeJSONError(w, h.t(r, "error.store_supporter_required"), http.StatusForbidden)
 		return
 	}
 
@@ -439,12 +439,12 @@ func (h *Handlers) StoreTagRequestSubmit(w http.ResponseWriter, r *http.Request)
 		Color string `json:"color"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	body.Name = strings.TrimSpace(body.Name)
 	if len(body.Name) == 0 || len(body.Name) > 32 {
-		writeJSONError(w, "name must be 1-32 characters", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.store_tag_name_length"), http.StatusBadRequest)
 		return
 	}
 	if body.Color == "" {
@@ -459,14 +459,14 @@ func (h *Handlers) StoreTagRequestSubmit(w http.ResponseWriter, r *http.Request)
 
 	switch existingStatus {
 	case "pending", "approved":
-		writeJSONError(w, "you already have a pending or approved tag request", http.StatusConflict)
+		writeJSONError(w, h.t(r, "error.store_tag_pending"), http.StatusConflict)
 		return
 	case "revision":
 		if _, err := h.db.Exec(
 			`UPDATE custom_tag_requests SET name = ?, color = ?, status = 'pending', reject_reason = '', reviewed_by = NULL, reviewed_at = NULL WHERE id = ?`,
 			body.Name, body.Color, existingID,
 		); err != nil {
-			writeJSONError(w, "db error", http.StatusInternalServerError)
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 			return
 		}
 	default:
@@ -482,7 +482,7 @@ func (h *Handlers) StoreTagRequestSubmit(w http.ResponseWriter, r *http.Request)
 			`INSERT INTO custom_tag_requests (user_id, name, color) VALUES (?, ?, ?)`,
 			u.ID, body.Name, body.Color,
 		); err != nil {
-			writeJSONError(w, "db error", http.StatusInternalServerError)
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 			return
 		}
 		h.db.Exec(`UPDATE users SET tag_requested_at = NOW() WHERE id = ?`, u.ID)

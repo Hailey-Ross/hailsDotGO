@@ -19,19 +19,19 @@ export async function loadGameData(): Promise<GameData> {
 }
 
 export function pokemonByName(data: GameData, name: string) {
-  return data.pokemon.find(
+  return (data.pokemon ?? []).find(
     (p) => p.pokemon_name.toLowerCase() === name.toLowerCase()
   );
 }
 
 export function fastMoveByName(data: GameData, name: string) {
-  return data.fastMoves.find(
+  return (data.fastMoves ?? []).find(
     (m) => m.name.toLowerCase() === name.toLowerCase()
   );
 }
 
 export function chargedMoveByName(data: GameData, name: string) {
-  return data.chargedMoves.find(
+  return (data.chargedMoves ?? []).find(
     (m) => m.name.toLowerCase() === name.toLowerCase()
   );
 }
@@ -87,7 +87,7 @@ export function typeEffectiveness(
 ): number {
   let mult = 1;
   for (const defType of defenseTypes) {
-    mult *= data.typeChart[attackType]?.[defType] ?? 1;
+    mult *= data.typeChart?.[attackType]?.[defType] ?? 1;
   }
   return mult;
 }

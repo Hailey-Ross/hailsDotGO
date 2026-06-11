@@ -1,4 +1,4 @@
-﻿{{define "title"}}{{T "trainers.title"}}{{end}}
+{{define "title"}}{{T "trainers.title"}}{{end}}
 
 {{define "content"}}
 <div class="page-header trainers-page-header">
@@ -32,9 +32,9 @@
     <span class="trainers-count" id="trainers-count"></span>
   </div>
 
-  {{if .Data}}
+  {{if .Data.Trainers}}
   <div class="trainers-grid" id="trainers-grid">
-    {{range .Data}}
+    {{range .Data.Trainers}}
     {{$displayName := .Username}}{{if and .ProfilePublic .TrainerName}}{{$displayName = .TrainerName}}{{end}}
     {{$noProfile := and (eq .TrainerName "") (eq .TrainerCode "")}}
     <div class="trainer-card fade-up"
@@ -52,6 +52,7 @@
          data-fav-name="{{if .ProfilePublic}}{{.FavPokemon}}{{end}}"
          data-fav-form="{{if .ProfilePublic}}{{.FavPokemonForm}}{{end}}"
          data-badge="{{.StaffBadge}}"
+         data-special="{{.SpecialRank}}"
          data-rank="{{.RaidRank}}"
          data-rank-class="{{.RaidRankClass}}"
          data-xp="{{.RaidXP}}"
@@ -67,7 +68,7 @@
           <img class="trainer-fav-sprite{{if eq .FavPokemonForm "shadow"}} poke-shadow{{end}}" src="{{.FavSpriteURL}}" alt="{{.FavPokemon}}">
           {{end}}
           {{if .AvatarURL}}
-          <img class="trainer-avatar-sprite" src="{{.AvatarURL}}" alt="trainer">
+          <img class="trainer-avatar-sprite" src="{{.AvatarURL}}" alt="{{T "trainers.avatar_alt"}}">
           {{else}}
           <span class="trainer-avatar-sm avatar--default">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
@@ -77,10 +78,10 @@
         {{end}}
         <div class="trainer-card-namegroup">
           <div class="trainer-card-nameline">
-            <span class="trainer-card-name{{if and .ProfilePublic .SuperDonator}} rainbow-name{{end}}">{{$displayName}}</span>{{if $noProfile}}<span class="trainer-asterisk" title="{{T "trainers.asterisk_title"}}">*</span>{{end}}{{if eq .StaffBadge "superadmin"}}<span class="staff-icon" title="Owner">👑</span>{{else if eq .StaffBadge "admin"}}<span class="staff-icon" title="Admin">💎</span>{{else if eq .StaffBadge "moderator"}}<span class="staff-icon" title="Moderator">🏅</span>{{else if eq .StaffBadge "tester"}}<span class="staff-icon" title="Tester">🧪</span>{{end}}
+            <span class="trainer-card-name{{if and .ProfilePublic .SuperDonator}} rainbow-name{{end}}">{{$displayName}}</span>{{if $noProfile}}<span class="trainer-asterisk" title="{{T "trainers.asterisk_title"}}">*</span>{{end}}{{if eq .StaffBadge "superadmin"}}<span class="staff-icon" title="{{T "trainers.role_owner"}}">👑</span>{{else if eq .StaffBadge "admin"}}<span class="staff-icon" title="{{T "admin.js.role_admin"}}">💎</span>{{else if eq .StaffBadge "moderator"}}<span class="staff-icon" title="{{T "admin.js.role_mod"}}">🏅</span>{{else if eq .StaffBadge "tester"}}<span class="staff-icon" title="{{T "admin.js.role_tester"}}">🧪</span>{{end}}{{if eq .SpecialRank "trusted"}}<span class="staff-icon" title="{{T "rank.trusted"}}">✅</span>{{else if eq .SpecialRank "content_creator"}}<span class="staff-icon" title="{{T "rank.content_creator"}}">🎬</span>{{end}}
           </div>
           {{if and .ProfilePublic .Pronouns}}<span class="trainer-card-pronouns">({{.Pronouns}})</span>{{end}}
-          {{if or .RaidXP .StaffBadge .Tags .SuperDonator}}<div class="trainer-tags">{{if and .ProfilePublic .SuperDonator}}<span class="donator-badge">DONATOR</span>{{end}}{{if or .RaidXP .StaffBadge}}<span class="rank-badge rank-{{.RaidRankClass}}">{{.RaidRank}}</span>{{end}}{{range .Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}</div>{{end}}
+          {{if or .RaidXP .StaffBadge .Tags .SuperDonator}}<div class="trainer-tags">{{if and .ProfilePublic .SuperDonator}}<span class="donator-badge">{{T "trainers.donator_badge"}}</span>{{end}}{{if or .RaidXP .StaffBadge}}<span class="rank-badge rank-{{.RaidRankClass}}">{{.RaidRank}}</span>{{end}}{{range .Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}</div>{{end}}
         </div>
       </div>
       {{if and .ProfilePublic $.User .TrainerCode}}<div class="trainer-card-code">{{.TrainerCodeFormatted}}</div>{{end}}
@@ -114,7 +115,7 @@
   <div id="weather-banner-slot"{{if not .Maintenance.RaidFinderEnabled}} style="display:none"{{end}}></div>
 
   <div id="raid-finder-root"{{if not .Maintenance.RaidFinderEnabled}} style="display:none"{{end}}>
-    <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
+    <div class="loading-state"><div class="spinner"></div><span>{{T "trainers.loading"}}</span></div>
   </div>
 
 </div>
@@ -122,7 +123,7 @@
 <!-- ── Trainer profile modal ─────────────────────────────────── -->
 <div id="trainer-modal-overlay" class="trainer-modal-overlay" style="display:none" aria-modal="true" role="dialog">
   <div class="trainer-modal" id="trainer-modal">
-    <button class="trainer-modal-close" id="trainer-modal-close" aria-label="Close">&times;</button>
+    <button class="trainer-modal-close" id="trainer-modal-close" aria-label="{{T "trainers.modal_close"}}">&times;</button>
     <div class="trainer-modal-header">
       <div class="trainer-modal-sprites" id="trainer-modal-sprites"></div>
       <div id="trainer-modal-identity"></div>
@@ -137,96 +138,145 @@
 const RF = {
   trainerS:      {{T "raidfinder.trainer_s"}},
   trainerP:      {{T "raidfinder.trainer_p"}},
-  tabLabel:      {{T "raidfinder.tab_label"}},
   trainerSince:  {{T "raidfinder.trainer_since"}},
   formShadow:    {{T "raidfinder.form_shadow"}},
   formShiny:     {{T "raidfinder.form_shiny"}},
   formPrimal:    {{T "raidfinder.form_primal"}},
-  justNow:       {{T "raidfinder.just_now"}},
-  minAgo:        {{T "raidfinder.min_ago"}},
-  hrAgo:         {{T "raidfinder.hr_ago"}},
-  expired:       {{T "raidfinder.expired"}},
-  minLeft:       {{T "raidfinder.min_left"}},
-  activeRaids:   {{T "raidfinder.active_raids"}},
-  activeLbl:     {{T "raidfinder.active_lbl"}},
-  refresh:       {{T "raidfinder.refresh"}},
-  noRaids:       {{T "raidfinder.no_raids"}},
-  rateTitle:     {{T "raidfinder.rate_title"}},
-  bossSelect:    {{T "raidfinder.boss_select"}},
-  tier1:         {{T "raidfinder.tier_1"}},
-  tier3:         {{T "raidfinder.tier_3"}},
-  tier5:         {{T "raidfinder.tier_5"}},
-  tier6:         {{T "raidfinder.tier_6"}},
-  postTitle:     {{T "raidfinder.post_title"}},
-  raidBossLbl:   {{T "raidfinder.raid_boss_lbl"}},
-  weatherBoost:  {{T "raidfinder.weather_boost"}},
-  optional:      {{T "raidfinder.optional"}},
-  locationPh:    {{T "raidfinder.location_ph"}},
-  playersNeeded: {{T "raidfinder.players_needed"}},
-  any:           {{T "raidfinder.any"}},
-  btnPost:       {{T "raidfinder.btn_post"}},
-  badgeBoosted:  {{T "raidfinder.badge_boosted"}},
-  ratingS:       {{T "raidfinder.rating_s"}},
-  ratingP:       {{T "raidfinder.rating_p"}},
-  need:          {{T "raidfinder.need"}},
-  postedBy:      {{T "raidfinder.posted_by"}},
-  youRated:      {{T "raidfinder.you_rated"}},
-  starS:         {{T "raidfinder.star_s"}},
-  starP:         {{T "raidfinder.star_p"}},
-  inQueue:       {{T "raidfinder.in_queue"}},
-  badgeExpired:  {{T "raidfinder.badge_expired"}},
-  btnLoginJoin:  {{T "raidfinder.btn_login_join"}},
-  btnJoin:       {{T "raidfinder.btn_join"}},
-  btnWithdraw:   {{T "raidfinder.btn_withdraw"}},
-  btnLeave:      {{T "raidfinder.btn_leave"}},
-  btnRemove:     {{T "raidfinder.btn_remove"}},
-  pendingPos:    {{T "raidfinder.pending_pos"}},
-  pendingWait:   {{T "raidfinder.pending_wait"}},
-  pendingWait2:  {{T "raidfinder.pending_wait2"}},
-  declinedMsg:   {{T "raidfinder.declined_msg"}},
-  lobbyTitle:    {{T "raidfinder.lobby_title"}},
-  passWarning:   {{T "raidfinder.pass_warning"}},
-  prepMsg:       {{T "raidfinder.prep_msg"}},
-  prepRaids:     {{T "raidfinder.prep_raids"}},
-  prepMsg2:      {{T "raidfinder.prep_msg2"}},
-  prepMsg3:      {{T "raidfinder.prep_msg3"}},
-  addFriend:     {{T "raidfinder.add_friend"}},
-  addFriend2:    {{T "raidfinder.add_friend2"}},
-  noCode:        {{T "raidfinder.no_code"}},
-  btnSentFr:     {{T "raidfinder.btn_sent_fr"}},
-  frWaiting:     {{T "raidfinder.fr_waiting"}},
-  frWaiting2:    {{T "raidfinder.fr_waiting2"}},
-  inviteSent:    {{T "raidfinder.invite_sent"}},
-  btnAccept:     {{T "raidfinder.btn_accept"}},
-  btnDecline:    {{T "raidfinder.btn_decline"}},
-  badgeFrSent:   {{T "raidfinder.badge_fr_sent"}},
-  badgeFrAwait:  {{T "raidfinder.badge_fr_await"}},
-  btnSendInvite: {{T "raidfinder.btn_send_invite"}},
-  badgeInvSent:  {{T "raidfinder.badge_inv_sent"}},
-  badgeDeclined: {{T "raidfinder.badge_declined"}},
-  sectionQueue:  {{T "raidfinder.section_queue"}},
-  sectionAcc:    {{T "raidfinder.section_acc"}},
-  sectionDec:    {{T "raidfinder.section_dec"}},
-  rateHost:      {{T "raidfinder.rate_host"}},
-  rateJoiner:    {{T "raidfinder.rate_joiner"}},
-  errorLoad:     {{T "raidfinder.error_load"}},
-  wxSuffix:      {{T "raidfinder.weather_boost_suffix"}},
   copy:          {{T "raidfinder.copy"}},
   copied:        {{T "raidfinder.copied"}},
-  yourPostActive:{{T "raidfinder.your_post_active"}},
-  yourPostDelete:{{T "raidfinder.your_post_delete"}},
-  loginCta:      {{T "raidfinder.login_cta"}},
-  or:            {{T "raidfinder.or"}},
-  signupCta:     {{T "raidfinder.signup_cta"}},
-  loginToPost:   {{T "raidfinder.login_to_post"}},
+  rankTrusted:   {{T "rank.trusted"}},
+  rankCC:        {{T "rank.content_creator"}},
   roleSuper:     {{T "admin.js.role_superadmin"}},
   roleAdmin:     {{T "admin.js.role_admin"}},
   roleMod:       {{T "admin.js.role_mod"}},
   roleTester:    {{T "admin.js.role_tester"}},
+  avatarAlt:     {{T "trainers.avatar_alt"}},
+  online:        {{T "trainers.online"}},
+  asteriskTitle: {{T "trainers.asterisk_title"}},
+  donator:       {{T "trainers.donator_badge"}},
+  fallbackName:  {{T "trainers.trainer_fallback"}},
+};
+
+const RF2 = {
+  // shared chrome
+  refresh:        {{T "raidlobby.refresh"}},
+  errorLoad:      {{T "raidlobby.error_load"}},
+  copy:           {{T "raidfinder.copy"}},
+  copied:         {{T "raidfinder.copied"}},
+  goSettings:     {{T "raidlobby.go_settings"}},
+  loginCta:       {{T "raidfinder.login_cta"}},
+  or:             {{T "raidfinder.or"}},
+  signupCta:      {{T "raidfinder.signup_cta"}},
+  loginToUse:     {{T "raidlobby.login_to_use"}},
+  // tiers + boss picker
+  bossSelect:     {{T "raidfinder.boss_select"}},
+  tier1:          {{T "raidfinder.tier_1"}},
+  tier3:          {{T "raidfinder.tier_3"}},
+  tier5:          {{T "raidfinder.tier_5"}},
+  tier6:          {{T "raidfinder.tier_6"}},
+  bossLbl:        {{T "raidfinder.raid_boss_lbl"}},
+  weatherBoost:   {{T "raidfinder.weather_boost"}},
+  badgeBoosted:   {{T "raidfinder.badge_boosted"}},
+  optional:       {{T "raidfinder.optional"}},
+  noteLbl:        {{T "raidlobby.note_lbl"}},
+  wxSuffix:       {{T "raidfinder.weather_boost_suffix"}},
+  // queue
+  prequeueTitle:  {{T "raidlobby.prequeue_title"}},
+  prequeueHint:   {{T "raidlobby.prequeue_hint"}},
+  queueListHint:  {{T "raidlobby.queue_list_hint"}},
+  btnQueue:       {{T "raidlobby.btn_queue"}},
+  waitingTitle:   {{T "raidlobby.waiting_title"}},
+  queuePos:       {{T "raidlobby.queue_pos"}},
+  queueOf:        {{T "raidlobby.queue_of"}},
+  priorityBadge:  {{T "raidlobby.priority_badge"}},
+  btnLeaveQueue:  {{T "raidlobby.btn_leave_queue"}},
+  cooldownMsg:    {{T "raidlobby.cooldown_msg"}},
+  // hosting
+  hostTitle:      {{T "raidlobby.host_title"}},
+  btnHost:        {{T "raidlobby.btn_host"}},
+  maxMembers:     {{T "raidlobby.max_members"}},
+  customToggle:   {{T "raidlobby.custom_toggle"}},
+  customBossPh:   {{T "raidlobby.custom_boss_ph"}},
+  customBadge:    {{T "raidlobby.custom_badge"}},
+  hostWaiting:    {{T "raidlobby.host_waiting"}},
+  fullMsg:        {{T "raidlobby.full_msg"}},
+  btnInvited:     {{T "raidlobby.btn_invited"}},
+  btnCancel:      {{T "raidlobby.btn_cancel"}},
+  btnKick:        {{T "raidlobby.btn_kick"}},
+  reportTitle:    {{T "raidlobby.report_title"}},
+  reportAttended: {{T "raidlobby.report_attended"}},
+  reportLeftEarly:{{T "raidlobby.report_left_early"}},
+  btnReport:      {{T "raidlobby.btn_report"}},
+  // member lobby
+  addHost:        {{T "raidfinder.add_friend"}},
+  addHost2:       {{T "raidfinder.add_friend2"}},
+  confirmBtn:     {{T "raidlobby.confirm_btn"}},
+  confirmWindow:  {{T "raidlobby.confirm_window"}},
+  inviteWindow:   {{T "raidlobby.invite_window"}},
+  membersLbl:     {{T "raidlobby.members_lbl"}},
+  unconfirmed:    {{T "raidlobby.unconfirmed"}},
+  confirmedBadge: {{T "raidlobby.confirmed_badge"}},
+  btnLeave:       {{T "raidfinder.btn_leave"}},
+  waitingFill:    {{T "raidlobby.waiting_fill"}},
+  memberFullMsg:  {{T "raidlobby.member_full_msg"}},
+  raidingMsg:     {{T "raidlobby.raiding_msg"}},
+  passWarning:    {{T "raidfinder.pass_warning"}},
+  prepMsg:        {{T "raidfinder.prep_msg"}},
+  prepRaids:      {{T "raidfinder.prep_raids"}},
+  prepMsg2:       {{T "raidfinder.prep_msg2"}},
+  prepMsg3:       {{T "raidfinder.prep_msg3"}},
+  // overview
+  overviewTitle:  {{T "raidlobby.overview_title"}},
+  openLobbies:    {{T "raidlobby.open_lobbies"}},
+  inQueue:        {{T "raidlobby.in_queue"}},
+  noActivity:     {{T "raidlobby.no_activity"}},
+  hostedBy:       {{T "raidlobby.hosted_by"}},
+  // feedback
+  feedbackTitle:  {{T "raidlobby.feedback_title"}},
+  feedbackSuccess:{{T "raidlobby.feedback_success"}},
+  feedbackFailed: {{T "raidlobby.feedback_failed"}},
+  btnCommend:     {{T "raidlobby.btn_commend"}},
+  btnDislike:     {{T "raidlobby.btn_dislike"}},
+  btnSkip:        {{T "raidlobby.btn_skip"}},
+  btnFeedback:    {{T "raidlobby.btn_feedback"}},
+  // badges
+  trustTrusted:   {{T "trust.tier.trusted"}},
+  trustNeutral:   {{T "trust.tier.neutral"}},
+  trustCaution:   {{T "trust.tier.caution"}},
+  rankTrusted:    {{T "rank.trusted"}},
+  rankCC:         {{T "rank.content_creator"}},
+  roleSuper:      {{T "admin.js.role_superadmin"}},
+  roleAdmin:      {{T "admin.js.role_admin"}},
+  roleMod:        {{T "admin.js.role_mod"}},
+  roleTester:     {{T "admin.js.role_tester"}},
+};
+
+const RAID_CTX = {
+  loggedIn: {{if .User}}true{{else}}false{{end}},
+  isMod: {{if .User}}{{if .User.IsMod}}true{{else}}false{{end}}{{else}}false{{end}},
+  canCustom: {{if .Data.CanCustomLobby}}true{{else}}false{{end}},
+  canPreQueue: {{if .Data.CanPreQueue}}true{{else}}false{{end}},
+  username: {{if .User}}{{.User.Username}}{{else}}""{{end}},
 };
 </script>
 <script>
 (function() {
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function staffIcon(badge) {
+    var icons = {superadmin: '👑', admin: '💎', moderator: '🏅', tester: '🧪'};
+    var labels = {superadmin: RF.roleSuper, admin: RF.roleAdmin, moderator: RF.roleMod, tester: RF.roleTester};
+    return icons[badge] ? '<span class="staff-icon" title="' + labels[badge] + '">' + icons[badge] + '</span>' : '';
+  }
+
+  function specialIcon(rank) {
+    if (rank === 'trusted') return '<span class="staff-icon" title="' + RF.rankTrusted + '">✅</span>';
+    if (rank === 'content_creator') return '<span class="staff-icon" title="' + RF.rankCC + '">🎬</span>';
+    return '';
+  }
 
   // ── Trainer Directory ────────────────────────────────────────
   var cards = Array.from(document.querySelectorAll('.trainer-card'));
@@ -290,7 +340,7 @@ const RF = {
       var avatarImg = document.createElement('img');
       avatarImg.className = 'trainer-modal-avatar-sprite';
       avatarImg.src = d.avatar;
-      avatarImg.alt = 'trainer';
+      avatarImg.alt = RF.avatarAlt;
       wrap.appendChild(avatarImg);
     } else {
       var defEl = document.createElement('span');
@@ -303,12 +353,12 @@ const RF = {
     // Name line → header identity zone
     var nameLine = document.createElement('div');
     nameLine.className = 'trainer-modal-name-line';
-    var onlineDot = d.online === '1' ? '<span class="trainer-online-dot" title="Online"></span>' : '';
+    var onlineDot = d.online === '1' ? '<span class="trainer-online-dot" title="' + esc(RF.online) + '"></span>' : '';
     var hasProfile = d.hasProfile === '1';
     var nameClass = (hasProfile && d.superDonator === '1') ? 'trainer-modal-name rainbow-name' : 'trainer-modal-name';
-    var donatorBadge = (hasProfile && d.superDonator === '1') ? '<span class="donator-badge">DONATOR</span>' : '';
-    var asterisk = d.asterisk === '1' ? '<span class="trainer-asterisk" title="Profile not set up">*</span>' : '';
-    nameLine.innerHTML = onlineDot + '<span class="' + nameClass + '">' + esc(d.name || d.username || 'Trainer') + '</span>' + asterisk + staffIcon(d.badge) + donatorBadge;
+    var donatorBadge = (hasProfile && d.superDonator === '1') ? '<span class="donator-badge">' + esc(RF.donator) + '</span>' : '';
+    var asterisk = d.asterisk === '1' ? '<span class="trainer-asterisk" title="' + esc(RF.asteriskTitle) + '">*</span>' : '';
+    nameLine.innerHTML = onlineDot + '<span class="' + nameClass + '">' + esc(d.name || d.username || RF.fallbackName) + '</span>' + asterisk + staffIcon(d.badge) + specialIcon(d.special) + donatorBadge;
     identityEl.appendChild(nameLine);
 
     // Meta line: pronouns + location combined → header identity zone
@@ -388,6 +438,32 @@ const RF = {
       bodyEl.appendChild(footerEl);
     }
 
+    // Awards (lazy fetch; same award from multiple granters stacks as xN)
+    if (d.username) {
+      fetch('/api/awards/of/' + encodeURIComponent(d.username))
+        .then(function(r) { return r.ok ? r.json() : []; })
+        .then(function(grants) {
+          if (!grants || !grants.length) return;
+          var byAward = {};
+          grants.forEach(function(g) {
+            if (!byAward[g.award_id]) byAward[g.award_id] = { g: g, n: 0 };
+            byAward[g.award_id].n++;
+          });
+          var awardsEl = document.createElement('div');
+          awardsEl.className = 'trainer-tags';
+          Object.keys(byAward).forEach(function(k) {
+            var e = byAward[k];
+            var pill = document.createElement('span');
+            pill.className = 'user-tag';
+            pill.style.background = e.g.color || '#f0b429';
+            pill.textContent = e.g.icon + ' ' + e.g.name + (e.n > 1 ? ' x' + e.n : '');
+            if (e.g.note) pill.title = e.g.note;
+            awardsEl.appendChild(pill);
+          });
+          bodyEl.appendChild(awardsEl);
+        }).catch(function() {});
+    }
+
     modalOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -408,721 +484,7 @@ const RF = {
     document.getElementById('tab-' + id).classList.add('active');
   });
 
-  // ── Raid Finder ──────────────────────────────────────────────
-  var IS_LOGGED_IN = {{if .User}}true{{else}}false{{end}};
-  var IS_MOD = {{if .User}}{{if .User.IsMod}}true{{else}}false{{end}}{{else}}false{{end}};
-
-  var raidRoot = document.getElementById('raid-finder-root');
-  var refreshTimer = null;
-  var raidBosses = null; // cached from /api/raids
-
-  function fmt(c) { return c && c.length===12 ? c.slice(0,4)+' '+c.slice(4,8)+' '+c.slice(8) : c; }
-
-  function timeAgo(s) {
-    var d = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
-    if (d < 60) return RF.justNow;
-    if (d < 3600) return Math.floor(d/60) + RF.minAgo;
-    return Math.floor(d/3600) + RF.hrAgo;
-  }
-  function timeLeft(s) {
-    var d = Math.floor((new Date(s).getTime() - Date.now()) / 1000);
-    if (d <= 0) return RF.expired;
-    var m = Math.floor(d/60);
-    if (m < 60) return m + RF.minLeft;
-    return Math.floor(m/60) + 'h ' + (m%60) + RF.minLeft;
-  }
-  function stars(n) {
-    var s = '';
-    for (var i=1; i<=5; i++) s += i<=n ? '★' : '☆';
-    return s;
-  }
-
-  function api(method, url, body) {
-    var headers = {'X-CSRF-Token': CSRF_TOKEN};
-    if (body) headers['Content-Type'] = 'application/json';
-    return fetch(url, {
-      method: method,
-      headers: headers,
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function(r) { return r.json(); });
-  }
-
-  function renderRaidFinder(posts) {
-    raidRoot.innerHTML = '';
-
-    var activePosts  = posts.filter(function(p) { return !p.expired; });
-    var rateablePosts = posts.filter(function(p) { return p.expired; });
-    var myActive     = activePosts.find(function(p) { return p.is_own; });
-    var cooldownMsg  = null;
-
-    // Update tab badge
-    var tabBtn = document.getElementById('raid-tab-btn');
-    if (tabBtn) {
-      tabBtn.textContent = activePosts.length > 0 ? RF.tabLabel + ' (' + activePosts.length + ')' : RF.tabLabel;
-    }
-
-    // Post form / active post notice
-    if (IS_LOGGED_IN) {
-      if (myActive) {
-        var notice = document.createElement('div');
-        notice.className = 'raid-own-notice fade-up';
-        notice.innerHTML = RF.yourPostActive + ' <strong>' + esc(myActive.boss_name) + '</strong>. ' + RF.yourPostDelete;
-        raidRoot.appendChild(notice);
-      } else {
-        raidRoot.appendChild(buildPostForm());
-      }
-    } else {
-      var loginNotice = document.createElement('div');
-      loginNotice.className = 'trainers-join-banner fade-up';
-      loginNotice.innerHTML = '<p><a href="/login">' + RF.loginCta + '</a> ' + RF.or + ' <a href="/register">' + RF.signupCta + '</a> ' + RF.loginToPost + '</p>';
-      raidRoot.appendChild(loginNotice);
-    }
-
-    // Active posts
-    var listHeader = document.createElement('div');
-    listHeader.className = 'raid-list-header';
-    listHeader.innerHTML = '<span class="raid-list-title">' + RF.activeRaids + '</span>' +
-      '<span class="raid-posts-count">' + activePosts.length + ' ' + RF.activeLbl + '</span>' +
-      '<button class="raid-refresh-btn" id="raid-refresh-btn">' + RF.refresh + '</button>';
-    raidRoot.appendChild(listHeader);
-
-    document.getElementById('raid-refresh-btn').addEventListener('click', loadRaidPosts);
-
-    if (activePosts.length === 0) {
-      var empty = document.createElement('div');
-      empty.className = 'raid-posts-empty fade-up';
-      empty.textContent = RF.noRaids;
-      raidRoot.appendChild(empty);
-    } else {
-      var list = document.createElement('div');
-      list.className = 'raid-posts-list';
-      activePosts.forEach(function(p) { list.appendChild(buildPostCard(p)); });
-      raidRoot.appendChild(list);
-    }
-
-    // Rateable expired posts
-    if (rateablePosts.length > 0) {
-      var rateHeader = document.createElement('div');
-      rateHeader.className = 'raid-list-header';
-      rateHeader.innerHTML = '<span class="raid-list-title">' + RF.rateTitle + '</span>';
-      raidRoot.appendChild(rateHeader);
-
-      var rateList = document.createElement('div');
-      rateList.className = 'raid-posts-list';
-      rateablePosts.forEach(function(p) { rateList.appendChild(buildPostCard(p)); });
-      raidRoot.appendChild(rateList);
-    }
-  }
-
-  function buildBossSelect() {
-    var sel = document.createElement('select');
-    sel.className = 'search-input raid-boss-select';
-    sel.id = 'rf-boss'; sel.required = true;
-    var blank = document.createElement('option');
-    blank.value = ''; blank.textContent = RF.bossSelect;
-    sel.appendChild(blank);
-
-    var tierLabels = { '1': RF.tier1, '3': RF.tier3, '5': RF.tier5, '6': RF.tier6 };
-    var tierOrder  = ['6', '5', '3', '1'];
-    tierOrder.forEach(function(tier) {
-      var bosses = raidBosses && raidBosses[tier];
-      if (!bosses || !bosses.length) return;
-      var grp = document.createElement('optgroup');
-      grp.label = tierLabels[tier] || ('Tier ' + tier);
-      bosses.forEach(function(b) {
-        var opt = document.createElement('option');
-        opt.value = b.pokemon_name;
-        opt.dataset.tier = tier;
-        opt.textContent = b.pokemon_name;
-        grp.appendChild(opt);
-      });
-      sel.appendChild(grp);
-    });
-    return sel;
-  }
-
-  function buildPostForm() {
-    var card = document.createElement('div');
-    card.className = 'raid-post-form-card fade-up';
-
-    var title = document.createElement('h3');
-    title.textContent = RF.postTitle;
-    card.appendChild(title);
-
-    var form = document.createElement('form');
-    form.className = 'raid-post-form';
-    form.id = 'raid-post-form';
-
-    // Boss dropdown
-    var bossField = document.createElement('div');
-    bossField.className = 'raid-post-field';
-    var bossLabel = document.createElement('label');
-    bossLabel.htmlFor = 'rf-boss'; bossLabel.textContent = RF.raidBossLbl;
-    bossField.appendChild(bossLabel);
-    bossField.appendChild(buildBossSelect());
-    form.appendChild(bossField);
-
-    // Weather boosted toggle
-    var wxField = document.createElement('div');
-    wxField.className = 'raid-post-field raid-wx-field';
-    var wxLabel = document.createElement('label');
-    wxLabel.className = 'raid-wx-label';
-    var wxCheck = document.createElement('input');
-    wxCheck.type = 'checkbox'; wxCheck.id = 'rf-wx'; wxCheck.name = 'weather_boosted';
-    wxLabel.appendChild(wxCheck);
-    wxLabel.appendChild(document.createTextNode(' ' + RF.weatherBoost));
-    wxField.appendChild(wxLabel);
-    form.appendChild(wxField);
-
-    // Note
-    var noteField = document.createElement('div');
-    noteField.className = 'raid-post-field';
-    var noteLabel = document.createElement('label');
-    noteLabel.htmlFor = 'rf-note';
-    noteLabel.innerHTML = 'Note <span class="raid-optional">' + RF.optional + '</span>';
-    var noteInput = document.createElement('input');
-    noteInput.className = 'search-input'; noteInput.id = 'rf-note';
-    noteInput.placeholder = RF.locationPh; noteInput.maxLength = 160;
-    noteField.appendChild(noteLabel); noteField.appendChild(noteInput);
-    form.appendChild(noteField);
-
-    // Players needed
-    var playersField = document.createElement('div');
-    playersField.className = 'raid-post-field raid-post-field--sm';
-    var playersLabel = document.createElement('label');
-    playersLabel.htmlFor = 'rf-players'; playersLabel.textContent = RF.playersNeeded;
-    var playersInput = document.createElement('input');
-    playersInput.className = 'search-input'; playersInput.id = 'rf-players';
-    playersInput.type = 'number'; playersInput.min = '0'; playersInput.max = '20'; playersInput.placeholder = RF.any;
-    playersField.appendChild(playersLabel); playersField.appendChild(playersInput);
-    form.appendChild(playersField);
-
-    var submitBtn = document.createElement('button');
-    submitBtn.type = 'submit'; submitBtn.className = 'btn-primary raid-post-btn';
-    submitBtn.textContent = RF.btnPost;
-    form.appendChild(submitBtn);
-
-    var errEl = document.createElement('p');
-    errEl.className = 'raid-form-error'; errEl.style.display = 'none';
-    form.appendChild(errEl);
-
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      errEl.style.display = 'none';
-      var bossSel = form.querySelector('#rf-boss');
-      var boss    = bossSel.value.trim();
-      var tier    = parseInt((bossSel.options[bossSel.selectedIndex] || {}).dataset.tier || '0') || 0;
-      var note    = form.querySelector('#rf-note').value.trim();
-      var players = parseInt(form.querySelector('#rf-players').value) || 0;
-      var wx      = form.querySelector('#rf-wx').checked;
-      api('POST', '/api/raid-posts', { boss_name: boss, boss_tier: tier, note: note, players_needed: players, weather_boosted: wx })
-        .then(function(d) {
-          if (d.error) {
-            if (d.error.toLowerCase().indexOf('settings') !== -1) {
-              errEl.innerHTML = esc(d.error) + ' <a href="/settings">Go to Settings</a>';
-            } else {
-              errEl.textContent = d.error;
-            }
-            errEl.style.display = '';
-          } else loadRaidPosts();
-        });
-    });
-
-    card.appendChild(form);
-    return card;
-  }
-
-  function buildPostCard(p) {
-    var card = document.createElement('div');
-    card.className = 'raid-post-card fade-up' + (p.expired ? ' raid-post-card--expired' : '');
-    card.dataset.id = p.id;
-
-    // Top row: boss + players badge
-    var top = document.createElement('div');
-    top.className = 'raid-post-top';
-
-    var bossWrap = document.createElement('div');
-    bossWrap.className = 'raid-post-boss-wrap';
-    var bossEl = document.createElement('span');
-    bossEl.className = 'raid-post-boss';
-    bossEl.textContent = tierLabel(p.boss_tier) + p.boss_name;
-    bossWrap.appendChild(bossEl);
-    if (p.weather_boosted) {
-      var wxBadge = document.createElement('span');
-      wxBadge.className = 'raid-wx-badge';
-      wxBadge.title = RF.weatherBoost;
-      wxBadge.textContent = RF.badgeBoosted;
-      bossWrap.appendChild(wxBadge);
-    }
-    if (p.host_rating > 0) {
-      var ratingEl = document.createElement('span');
-      ratingEl.className = 'raid-host-rating' + (p.rating_decayed ? ' raid-host-rating--decayed' : '');
-      ratingEl.title = p.rating_count + ' ' + (p.rating_count===1 ? RF.ratingS : RF.ratingP) + (p.rating_decayed ? ' · inactive' : '');
-      ratingEl.textContent = '★ ' + p.host_rating.toFixed(1);
-      bossWrap.appendChild(ratingEl);
-    }
-    top.appendChild(bossWrap);
-
-    if (p.players_needed > 0) {
-      var badge = document.createElement('span');
-      badge.className = 'raid-post-players';
-      badge.textContent = RF.need + ' ' + p.players_needed;
-      top.appendChild(badge);
-    }
-    card.appendChild(top);
-
-    // Meta
-    var meta = document.createElement('div');
-    meta.className = 'raid-post-meta';
-    meta.innerHTML = RF.postedBy + ' ' + rainbowName(p.username, p.super_donator) + staffIcon(p.staff_badge) + donatorBadge(p.super_donator) + (p.host_rank ? ' ' + rankBadge(p.host_rank) : '') + ' · ' + timeAgo(p.created_at);
-    card.appendChild(meta);
-
-    // Note
-    if (p.note) {
-      var noteEl = document.createElement('p');
-      noteEl.className = 'raid-post-note';
-      noteEl.textContent = p.note;
-      card.appendChild(noteEl);
-    }
-
-    // Join section (expanded when has_joined=true)
-    if (!p.is_own && IS_LOGGED_IN && p.has_joined && !p.expired) {
-      card.appendChild(buildJoinInfo(p));
-    }
-
-    // Joiners list (own post)
-    if (p.is_own && p.joiners && p.joiners.length > 0) {
-      card.appendChild(buildJoinersList(p));
-    }
-
-    // Rating section (expired posts)
-    if (p.expired && IS_LOGGED_IN && p.my_rating === 0) {
-      card.appendChild(buildRateSection(p));
-    }
-    if (p.expired && IS_LOGGED_IN && p.my_rating > 0) {
-      var rated = document.createElement('div');
-      rated.className = 'raid-rated-badge';
-      rated.textContent = RF.youRated + ' ' + stars(p.my_rating);
-      card.appendChild(rated);
-    }
-
-    // Footer: time remaining + actions
-    var footer = document.createElement('div');
-    footer.className = 'raid-post-footer';
-
-    if (!p.expired) {
-      var joinCount = document.createElement('span');
-      joinCount.className = 'raid-join-count';
-      joinCount.textContent = p.join_count + ' ' + RF.inQueue;
-      footer.appendChild(joinCount);
-
-      var exp = document.createElement('span');
-      exp.className = 'raid-post-expires';
-      exp.textContent = timeLeft(p.expires_at);
-      footer.appendChild(exp);
-    } else {
-      var expiredBadge = document.createElement('span');
-      expiredBadge.className = 'raid-post-expired-badge';
-      expiredBadge.textContent = RF.badgeExpired;
-      footer.appendChild(expiredBadge);
-    }
-
-    // Action buttons
-    if (!p.expired && !IS_LOGGED_IN) {
-      var loginLink = document.createElement('a');
-      loginLink.href = '/login';
-      loginLink.className = 'raid-login-link';
-      loginLink.textContent = RF.btnLoginJoin;
-      footer.appendChild(loginLink);
-    }
-    if (!p.expired && IS_LOGGED_IN) {
-      if (!p.is_own && !p.has_joined) {
-        var joinBtn = document.createElement('button');
-        joinBtn.className = 'btn-primary raid-action-btn';
-        joinBtn.textContent = RF.btnJoin;
-        joinBtn.addEventListener('click', function() { joinRaid(p.id, card); });
-        footer.appendChild(joinBtn);
-      }
-      if (!p.is_own && p.has_joined) {
-        var leaveBtn = document.createElement('button');
-        leaveBtn.className = 'raid-leave-btn';
-        leaveBtn.textContent = p.join_status === 'pending' ? RF.btnWithdraw : RF.btnLeave;
-        leaveBtn.addEventListener('click', function() { leaveRaid(p.id); });
-        footer.appendChild(leaveBtn);
-      }
-      if (p.is_own || IS_MOD) {
-        var delBtn = document.createElement('button');
-        delBtn.className = 'raid-delete-btn';
-        delBtn.textContent = RF.btnRemove;
-        delBtn.addEventListener('click', function() { deleteRaidPost(p.id); });
-        footer.appendChild(delBtn);
-      }
-    }
-
-    card.appendChild(footer);
-    return card;
-  }
-
-  function buildJoinInfo(p) {
-    var wrap = document.createElement('div');
-    wrap.className = 'raid-join-info';
-
-    if (p.join_status === 'pending') {
-      var qMsg = document.createElement('div');
-      qMsg.className = 'raid-queue-status raid-queue-pending';
-      var posLabel = p.queue_position > 0 ? '#' + p.queue_position + ' ' : '';
-      qMsg.innerHTML = RF.pendingPos + ' ' + posLabel + RF.pendingWait + ' <strong>' + esc(p.username) + '</strong> ' + RF.pendingWait2;
-      wrap.appendChild(qMsg);
-      return wrap;
-    }
-
-    if (p.join_status === 'declined') {
-      var dMsg = document.createElement('div');
-      dMsg.className = 'raid-queue-status raid-queue-declined';
-      dMsg.textContent = RF.declinedMsg;
-      wrap.appendChild(dMsg);
-      return wrap;
-    }
-
-    // Accepted: lobby view + trainer code + confirmation flow
-
-    // Co-raiders in this raid
-    if (p.joiners && p.joiners.length > 0) {
-      var lobbyHeader = document.createElement('div');
-      lobbyHeader.className = 'raid-lobby-header';
-      lobbyHeader.textContent = RF.lobbyTitle + ' (' + p.joiners.length + '):';
-      wrap.appendChild(lobbyHeader);
-      var lobbyList = document.createElement('div');
-      lobbyList.className = 'raid-lobby-co-list';
-      p.joiners.forEach(function(j) {
-        var jEl = document.createElement('div');
-        jEl.className = 'raid-lobby-co-raider';
-        jEl.innerHTML = rainbowName(j.username, j.super_donator) + staffIcon(j.staff_badge) + donatorBadge(j.super_donator) + (j.raid_rank ? ' ' + rankBadge(j.raid_rank) : '');
-        lobbyList.appendChild(jEl);
-      });
-      wrap.appendChild(lobbyList);
-    }
-
-    // Remote pass warning
-    var warn = document.createElement('div');
-    warn.className = 'raid-remote-warning';
-    warn.textContent = RF.passWarning;
-    wrap.appendChild(warn);
-
-    // Counter tip
-    var tip = document.createElement('div');
-    tip.className = 'raid-counter-tip';
-    tip.innerHTML = RF.prepMsg + ' <a href="/raids">' + RF.prepRaids + '</a> ' + RF.prepMsg2 + ' <strong>' + esc(p.boss_name) + '</strong>' + RF.prepMsg3;
-    wrap.appendChild(tip);
-
-    // Host code
-    if (p.host_code) {
-      var codeRow = document.createElement('div');
-      codeRow.className = 'raid-host-code-row';
-      codeRow.innerHTML = RF.addFriend + ' <strong>' + esc(p.username) + '</strong> ' + RF.addFriend2 + '&nbsp;' +
-        '<span class="trainer-code">' + fmt(p.host_code) + '</span>&nbsp;' +
-        '<button class="trainer-copy-btn" data-code="' + esc(p.host_code) + '">' + RF.copy + '</button>';
-      codeRow.querySelector('.trainer-copy-btn').addEventListener('click', function(e) {
-        navigator.clipboard.writeText(p.host_code).then(function() {
-          e.target.textContent = RF.copied;
-          setTimeout(function() { e.target.textContent = RF.copy; }, 1500);
-        });
-      });
-      wrap.appendChild(codeRow);
-    } else {
-      var noCode = document.createElement('div');
-      noCode.className = 'raid-host-code-row';
-      noCode.innerHTML = '<em>' + RF.noCode + '</em>';
-      wrap.appendChild(noCode);
-    }
-
-    // Confirmation flow
-    if (!p.join_confirmed) {
-      var confirmBtn = document.createElement('button');
-      confirmBtn.className = 'btn-secondary raid-confirm-btn';
-      confirmBtn.textContent = RF.btnSentFr;
-      confirmBtn.addEventListener('click', function() {
-        api('POST', '/api/raid-posts/' + p.id + '/confirm', {}).then(function(d) {
-          if (!d.error) loadRaidPosts();
-        });
-      });
-      wrap.appendChild(confirmBtn);
-    } else if (!p.host_invited) {
-      var waitMsg = document.createElement('div');
-      waitMsg.className = 'raid-status-msg';
-      waitMsg.innerHTML = RF.frWaiting + ' <strong>' + esc(p.username) + '</strong> ' + RF.frWaiting2;
-      wrap.appendChild(waitMsg);
-    } else {
-      var invitedMsg = document.createElement('div');
-      invitedMsg.className = 'raid-status-msg raid-status-msg--ok';
-      invitedMsg.textContent = RF.inviteSent;
-      wrap.appendChild(invitedMsg);
-    }
-
-    return wrap;
-  }
-
-  function buildJoinersList(p) {
-    var wrap = document.createElement('div');
-    wrap.className = 'raid-joiners-list';
-
-    var pending  = p.joiners.filter(function(j) { return j.status === 'pending'; });
-    var accepted = p.joiners.filter(function(j) { return j.status === 'accepted'; });
-    var declined = p.joiners.filter(function(j) { return j.status === 'declined'; });
-
-    function addSection(label, joiners) {
-      if (!joiners.length) return;
-      var t = document.createElement('div');
-      t.className = 'raid-joiners-title';
-      t.textContent = label + ' (' + joiners.length + ')';
-      wrap.appendChild(t);
-
-      joiners.forEach(function(j) {
-        var row = document.createElement('div');
-        row.className = 'raid-joiner-row';
-
-        var name = document.createElement('span');
-        name.className = 'raid-joiner-name';
-        name.innerHTML = rainbowName(j.username, j.super_donator) + staffIcon(j.staff_badge) + donatorBadge(j.super_donator) + (j.raid_rank ? ' ' + rankBadge(j.raid_rank) : '');
-        row.appendChild(name);
-
-        if (j.status === 'pending') {
-          var ab = document.createElement('button');
-          ab.className = 'btn-secondary raid-accept-btn';
-          ab.textContent = RF.btnAccept;
-          ab.addEventListener('click', (function(jj) { return function() {
-            api('POST', '/api/raid-posts/' + p.id + '/accept', { joiner_id: jj.id })
-              .then(function(d) { if (!d.error) loadRaidPosts(); });
-          }; })(j));
-          row.appendChild(ab);
-
-          var db = document.createElement('button');
-          db.className = 'raid-decline-btn';
-          db.textContent = RF.btnDecline;
-          db.addEventListener('click', (function(jj) { return function() {
-            api('POST', '/api/raid-posts/' + p.id + '/decline', { joiner_id: jj.id })
-              .then(function(d) { if (!d.error) loadRaidPosts(); });
-          }; })(j));
-          row.appendChild(db);
-        } else if (j.status === 'accepted') {
-          if (j.confirmed) {
-            var cb = document.createElement('span');
-            cb.className = 'raid-joiner-badge raid-joiner-badge--confirmed';
-            cb.textContent = RF.badgeFrSent;
-            row.appendChild(cb);
-          } else {
-            var pb = document.createElement('span');
-            pb.className = 'raid-joiner-badge raid-joiner-badge--pending';
-            pb.textContent = RF.badgeFrAwait;
-            row.appendChild(pb);
-          }
-          if (j.confirmed && !j.host_invited) {
-            var ib = document.createElement('button');
-            ib.className = 'btn-secondary raid-invite-btn';
-            ib.textContent = RF.btnSendInvite;
-            ib.addEventListener('click', (function(jj) { return function() {
-              api('POST', '/api/raid-posts/' + p.id + '/invite', { joiner_id: jj.id })
-                .then(function(d) { if (!d.error) loadRaidPosts(); });
-            }; })(j));
-            row.appendChild(ib);
-          } else if (j.host_invited) {
-            var ivb = document.createElement('span');
-            ivb.className = 'raid-joiner-badge raid-joiner-badge--invited';
-            ivb.textContent = RF.badgeInvSent;
-            row.appendChild(ivb);
-          }
-        } else if (j.status === 'declined') {
-          var decB = document.createElement('span');
-          decB.className = 'raid-joiner-badge raid-joiner-badge--declined';
-          decB.textContent = RF.badgeDeclined;
-          row.appendChild(decB);
-        }
-
-        wrap.appendChild(row);
-      });
-    }
-
-    addSection(RF.sectionQueue, pending);
-    addSection(RF.sectionAcc, accepted);
-    if (declined.length) addSection(RF.sectionDec, declined);
-
-    return wrap;
-  }
-
-  function buildRateSection(p) {
-    var isHost = p.is_own;
-    var wrap = document.createElement('div');
-    wrap.className = 'raid-rate-section';
-
-    var label = document.createElement('div');
-    label.className = 'raid-rate-label';
-    label.textContent = isHost ? RF.rateHost : RF.rateJoiner;
-    wrap.appendChild(label);
-
-    var targets = isHost
-      ? p.joiners.filter(function(j) { return j.status === 'accepted' && j.confirmed; })
-      : [{ id: null, username: p.username }];
-
-    targets.forEach(function(t) {
-      var row = document.createElement('div');
-      row.className = 'raid-rate-row';
-
-      if (isHost) {
-        var tname = document.createElement('span');
-        tname.className = 'raid-rate-name';
-        tname.textContent = t.username;
-        row.appendChild(tname);
-      }
-
-      var starRow = document.createElement('div');
-      starRow.className = 'raid-star-row';
-      for (var i = 1; i <= 5; i++) {
-        (function(score) {
-          var btn = document.createElement('button');
-          btn.className = 'raid-star-btn';
-          btn.textContent = '★';
-          btn.title = score + ' ' + (score===1 ? RF.starS : RF.starP);
-          btn.addEventListener('click', (function(ratedId) { return function() {
-            var ratedID = ratedId !== null ? ratedId : null;
-            var body = { score: score };
-            if (ratedID !== null) body.rated_id = ratedID;
-            else body.rated_id = 0;
-            api('POST', '/api/raid-posts/' + p.id + '/rate', body)
-              .then(function(d) { if (!d.error) loadRaidPosts(); });
-          }; })(t.id));
-          starRow.appendChild(btn);
-        })(i);
-      }
-      row.appendChild(starRow);
-      wrap.appendChild(row);
-    });
-
-    return wrap;
-  }
-
-  function joinRaid(id, card) {
-    api('POST', '/api/raid-posts/' + id + '/join', {}).then(function(d) {
-      if (d.error) {
-        if (d.error.toLowerCase().indexOf('settings') !== -1) showCardErrorSettings(card, d.error);
-        else showCardError(card, d.error);
-      } else loadRaidPosts();
-    });
-  }
-  function leaveRaid(id) {
-    api('DELETE', '/api/raid-posts/' + id + '/join').then(loadRaidPosts);
-  }
-  function deleteRaidPost(id) {
-    api('DELETE', '/api/raid-posts/' + id).then(loadRaidPosts);
-  }
-
-  function makeCardErrorEl(card) {
-    var existing = card.querySelector('.raid-card-error');
-    if (existing) existing.remove();
-    var el = document.createElement('div');
-    el.className = 'raid-card-error';
-    card.appendChild(el);
-    return el;
-  }
-  function showCardError(card, msg) {
-    makeCardErrorEl(card).textContent = msg;
-  }
-  function showCardErrorSettings(card, msg) {
-    makeCardErrorEl(card).innerHTML = esc(msg) + ' <a href="/settings">Go to Settings</a>';
-  }
-
-  var CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  function tierLabel(tier) {
-    var map = {1: 'T1', 3: 'T3', 5: 'T5', 6: 'Mega'};
-    return map[tier] ? '[' + map[tier] + '] ' : '';
-  }
-
-  function staffIcon(badge) {
-    var icons = {superadmin: '👑', admin: '💎', moderator: '🏅', tester: '🧪'};
-    var labels = {superadmin: RF.roleSuper, admin: RF.roleAdmin, moderator: RF.roleMod, tester: RF.roleTester};
-    return icons[badge] ? '<span class="staff-icon" title="' + labels[badge] + '">' + icons[badge] + '</span>' : '';
-  }
-
-  function rainbowName(username, superDonator) {
-    return superDonator
-      ? '<span class="rainbow-name">' + esc(username) + '</span>'
-      : esc(username);
-  }
-
-  function donatorBadge(superDonator) {
-    return superDonator ? ' <span class="donator-badge">DONATOR</span>' : '';
-  }
-
-  function rankCls(rank) {
-    if (!rank) return '';
-    var r = rank.toLowerCase();
-    if (r.startsWith('league master')) return 'league-master';
-    if (r.startsWith('champion'))      return 'champion';
-    if (r.startsWith('elite four'))    return 'elite-four';
-    if (r.startsWith('gym leader'))    return 'gym-leader';
-    if (r.startsWith('trainer'))       return 'trainer';
-    if (r.startsWith('youngster'))     return 'youngster';
-    if (r === 'pkmn prof')             return 'pkmn-prof';
-    return r.replace(/\s+/g,'-');
-  }
-  function rankBadge(rank) {
-    if (!rank) return '';
-    return '<span class="rank-badge rank-' + rankCls(rank) + '">' + esc(rank) + '</span>';
-  }
-
-  function loadRaidPosts() {
-    var bossPromise = raidBosses
-      ? Promise.resolve(raidBosses)
-      : fetch('/api/raids').then(function(r) { return r.json(); }).then(function(d) { raidBosses = d; return d; });
-
-    bossPromise.then(function() {
-      return fetch('/api/raid-posts').then(function(r) { return r.json(); });
-    }).then(function(posts) {
-      renderRaidFinder(posts || []);
-    }).catch(function() {
-      raidRoot.innerHTML = '<div class="error-state">' + RF.errorLoad + '</div>';
-    });
-  }
-
-  var weatherEmoji = {
-    'Clear': '☀️', 'Partly Cloudy': '⛅', 'Overcast': '☁️',
-    'Rainy': '🌧️', 'Snow': '❄️', 'Fog': '🌫️', 'Windy': '💨', 'Extreme': '⚠️'
-  };
-
-  function loadWeatherBanner() {
-    if (!IS_LOGGED_IN) return;
-    fetch('/api/weather').then(function(r) { return r.json(); }).then(function(w) {
-      var slot = document.getElementById('weather-banner-slot');
-      if (!slot || !w.pogo_weather) return;
-      var emoji = weatherEmoji[w.pogo_weather] || '🌡️';
-      var types = (w.boosted_types || []).join(', ');
-      var text = '<strong>' + esc(w.pogo_weather) + '</strong>';
-      if (types) text += ': ' + esc(types) + ' ' + RF.wxSuffix;
-      slot.innerHTML = '<div class="weather-banner"><span class="weather-banner-icon">' +
-        emoji + '</span><span class="weather-banner-text">' + text + '</span></div>';
-    }).catch(function() {});
-  }
-
-  // Load on first tab switch to raids, auto-refresh every 30s
-  var raidLoaded = false;
-  document.getElementById('trainers-tabs').addEventListener('click', function(e) {
-    var btn = e.target.closest('.tab-btn');
-    if (btn && btn.dataset.tab === 'raids' && !raidLoaded) {
-      raidLoaded = true;
-      loadWeatherBanner();
-      loadRaidPosts();
-    }
-  });
-  refreshTimer = setInterval(function() {
-    if (document.getElementById('tab-raids').classList.contains('active')) {
-      loadRaidPosts();
-    }
-  }, 30000);
-
 })();
 </script>
+<script src="/static/js/raidfinder.js?v={{.AssetVersion}}"></script>
 {{end}}

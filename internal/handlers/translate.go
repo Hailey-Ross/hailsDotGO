@@ -41,7 +41,7 @@ func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	lang := r.URL.Query().Get("lang")
 	if !editableLang(lang) {
-		writeJSONError(w, "invalid language", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_invalid_lang"), http.StatusBadRequest)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
 		ORDER BY updated_at ASC`,
 		u.ID, lang)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -103,24 +103,24 @@ func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 		NewText string `json:"new_text"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if !editableLang(body.Lang) {
-		writeJSONError(w, "invalid language", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_invalid_lang"), http.StatusBadRequest)
 		return
 	}
 	if !i18n.HasKey(body.Key) {
-		writeJSONError(w, "unknown translation key", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_unknown_key"), http.StatusBadRequest)
 		return
 	}
 	text := strings.TrimSpace(body.NewText)
 	if text == "" {
-		writeJSONError(w, "translation cannot be empty", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_empty"), http.StatusBadRequest)
 		return
 	}
 	if len(text) > translateMaxLen {
-		writeJSONError(w, "translation too long", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_too_long"), http.StatusBadRequest)
 		return
 	}
 
@@ -132,7 +132,7 @@ func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 		WHERE user_id = ? AND lang = ? AND t_key = ? AND status = 'pending'`,
 		text, old, u.ID, body.Lang, body.Key)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	var id int64
@@ -142,7 +142,7 @@ func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 			VALUES (?, ?, ?, ?, ?)`,
 			u.ID, body.Lang, body.Key, old, text)
 		if err != nil {
-			writeJSONError(w, "db error", http.StatusInternalServerError)
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 			return
 		}
 		id, _ = ins.LastInsertId()
@@ -161,18 +161,18 @@ func (h *Handlers) APITranslateWithdraw(w http.ResponseWriter, r *http.Request) 
 	u := h.currentUser(r)
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	res, err := h.db.Exec(
 		`DELETE FROM translation_edits WHERE id = ? AND user_id = ? AND status = 'pending'`,
 		id, u.ID)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -239,16 +239,16 @@ func (h *Handlers) APITranslateLocaleCreate(w http.ResponseWriter, r *http.Reque
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	code := strings.ToLower(strings.TrimSpace(body.Code))
 	if !localeCodeRe.MatchString(code) || code == "en" {
-		writeJSONError(w, "locale code must be two lowercase letters", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_locale_code"), http.StatusBadRequest)
 		return
 	}
 	if i18n.IsSupported(code) {
-		writeJSONError(w, "locale already exists", http.StatusConflict)
+		writeJSONError(w, h.t(r, "error.tl_locale_exists"), http.StatusConflict)
 		return
 	}
 
@@ -256,7 +256,7 @@ func (h *Handlers) APITranslateLocaleCreate(w http.ResponseWriter, r *http.Reque
 		`INSERT INTO locales (code, enabled, created_by) VALUES (?, 0, ?)`, code, u.ID,
 	); err != nil {
 		log.Printf("locale create %q: %v", code, err)
-		writeJSONError(w, "could not create locale", http.StatusConflict)
+		writeJSONError(w, h.t(r, "error.tl_locale_create"), http.StatusConflict)
 		return
 	}
 	if err := i18n.RegisterLocale(code); err != nil {
@@ -272,14 +272,14 @@ func (h *Handlers) APITranslateLocaleCreate(w http.ResponseWriter, r *http.Reque
 func (h *Handlers) AdminLocaleEnable(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "en" || !i18n.IsSupported(code) {
-		writeJSONError(w, "invalid language", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_invalid_lang"), http.StatusBadRequest)
 		return
 	}
 	var body struct {
 		Enabled bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
@@ -287,7 +287,7 @@ func (h *Handlers) AdminLocaleEnable(w http.ResponseWriter, r *http.Request) {
 	// them works without a seeded row.
 	res, err := h.db.Exec(`UPDATE locales SET enabled = ? WHERE code = ?`, body.Enabled, code)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -297,7 +297,7 @@ func (h *Handlers) AdminLocaleEnable(w http.ResponseWriter, r *http.Request) {
 			if _, err := h.db.Exec(
 				`INSERT INTO locales (code, enabled) VALUES (?, ?)`, code, body.Enabled,
 			); err != nil {
-				writeJSONError(w, "db error", http.StatusInternalServerError)
+				writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 				return
 			}
 		}
@@ -314,21 +314,21 @@ func (h *Handlers) AdminLocaleEnable(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) AdminLocaleDelete(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "en" || !i18n.IsSupported(code) {
-		writeJSONError(w, "invalid language", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_invalid_lang"), http.StatusBadRequest)
 		return
 	}
 	if i18n.IsEmbedded(code) {
-		writeJSONError(w, "compiled-in locales cannot be deleted", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_locale_embedded"), http.StatusBadRequest)
 		return
 	}
 	if h.langEnabled(code) {
-		writeJSONError(w, "disable the locale before deleting it", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_locale_disable_first"), http.StatusBadRequest)
 		return
 	}
 
 	if err := i18n.DropLocale(code); err != nil {
 		log.Printf("locale delete %q: %v", code, err)
-		writeJSONError(w, "failed to remove locale", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.tl_locale_delete"), http.StatusInternalServerError)
 		return
 	}
 	if _, err := h.db.Exec(`DELETE FROM locales WHERE code = ?`, code); err != nil {
@@ -368,7 +368,7 @@ func (h *Handlers) AdminTranslationsList(w http.ResponseWriter, r *http.Request)
 	}
 	valid := map[string]bool{"pending": true, "approved": true, "rejected": true}
 	if !valid[status] {
-		writeJSONError(w, "invalid status", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_invalid_status"), http.StatusBadRequest)
 		return
 	}
 
@@ -380,7 +380,7 @@ func (h *Handlers) AdminTranslationsList(w http.ResponseWriter, r *http.Request)
 		ORDER BY te.lang, te.t_key, te.created_at ASC`,
 		status)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -413,12 +413,12 @@ func (h *Handlers) AdminTranslationsList(w http.ResponseWriter, r *http.Request)
 func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	actor := h.currentUser(r)
 	if actor == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -426,7 +426,7 @@ func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Reques
 	if err := h.db.QueryRow(
 		`SELECT lang, t_key, new_text FROM translation_edits WHERE id = ? AND status = 'pending'`, id,
 	).Scan(&lang, &key, &newText); err != nil {
-		writeJSONError(w, "not found or already processed", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.tl_already_processed"), http.StatusNotFound)
 		return
 	}
 
@@ -434,7 +434,7 @@ func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Reques
 	// fails the row stays pending and nothing changed on disk or in memory.
 	if err := i18n.ApplyOverride(lang, key, newText); err != nil {
 		log.Printf("translation approve %d: %v", id, err)
-		writeJSONError(w, "failed to apply translation", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.tl_apply_failed"), http.StatusInternalServerError)
 		return
 	}
 
@@ -445,7 +445,7 @@ func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Reques
 		// The translation is live but the row stayed pending; re-approval is
 		// idempotent, so log loudly and report the inconsistency.
 		log.Printf("translation approve %d: applied but row update failed: %v", id, err)
-		writeJSONError(w, "applied but failed to mark approved; retry approval", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.tl_approve_retry"), http.StatusInternalServerError)
 		return
 	}
 
@@ -456,12 +456,12 @@ func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Reques
 func (h *Handlers) AdminTranslationReject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 	actor := h.currentUser(r)
 	if actor == nil {
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
 	}
 
@@ -471,7 +471,7 @@ func (h *Handlers) AdminTranslationReject(w http.ResponseWriter, r *http.Request
 	json.NewDecoder(r.Body).Decode(&body)
 	reason := strings.TrimSpace(body.Reason)
 	if reason == "" {
-		writeJSONError(w, "a rejection reason is required", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_reason_required"), http.StatusBadRequest)
 		return
 	}
 	if len(reason) > 255 {
@@ -483,11 +483,11 @@ func (h *Handlers) AdminTranslationReject(w http.ResponseWriter, r *http.Request
 		 WHERE id = ? AND status = 'pending'`,
 		reason, actor.ID, id)
 	if err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		writeJSONError(w, "not found or already processed", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.tl_already_processed"), http.StatusNotFound)
 		return
 	}
 
@@ -500,12 +500,12 @@ func (h *Handlers) AdminTranslationReject(w http.ResponseWriter, r *http.Request
 func (h *Handlers) AdminTranslationsExport(w http.ResponseWriter, r *http.Request) {
 	lang := chi.URLParam(r, "lang")
 	if !i18n.IsSupported(lang) {
-		writeJSONError(w, "invalid language", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_invalid_lang"), http.StatusBadRequest)
 		return
 	}
 	data, err := json.MarshalIndent(i18n.Bundle(lang), "", "  ")
 	if err != nil {
-		writeJSONError(w, "marshal error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.tl_export_failed"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -518,7 +518,7 @@ func (h *Handlers) AdminTranslationsExport(w http.ResponseWriter, r *http.Reques
 func (h *Handlers) AdminToggleTranslator(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSONError(w, "invalid id", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -526,22 +526,22 @@ func (h *Handlers) AdminToggleTranslator(w http.ResponseWriter, r *http.Request)
 		Translator bool `json:"translator"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 
 	var targetUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, "user not found", http.StatusNotFound)
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser {
-		writeJSONError(w, "superadmin is always a translator", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_superadmin_translator"), http.StatusBadRequest)
 		return
 	}
 
 	if _, err := h.db.Exec(`UPDATE users SET translator = ? WHERE id = ?`, body.Translator, id); err != nil {
-		writeJSONError(w, "db error", http.StatusInternalServerError)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 

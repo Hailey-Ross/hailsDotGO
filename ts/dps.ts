@@ -7,6 +7,10 @@ import { createPicker, pokemonEntries } from "./shared/picker";
 import type { PickerEntry } from "./shared/picker";
 import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/types";
 
+// Server-injected strings: JSC from templates/base.html, DP from templates/dps.html.
+declare const JSC: Record<string, string>;
+declare const DP: Record<string, string>;
+
 const app = document.getElementById("dps-app")!;
 
 function buildMoveSelect(
@@ -35,14 +39,14 @@ function cpWidget(data: GameData): {
 } {
   const label = document.createElement("label");
   label.className = "level-label";
-  label.textContent = "CP ";
+  label.textContent = `${JSC.cp} `;
   const input = document.createElement("input");
   input.type = "number";
   input.className = "level-input";
   input.min = "10";
   input.max = "99999";
   input.value = "3000";
-  input.placeholder = "CP";
+  input.placeholder = JSC.cp;
   label.appendChild(input);
 
   function getCPM(poke: PokemonStat | null, atkIV: number, defIV: number, staIV: number): number {
@@ -76,17 +80,17 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
 
     const fastSel = buildMoveSelect(
       data.fastMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
-      "Select Fast Move"
+      DP.selectFast
     );
     const chargedSel = buildMoveSelect(
       data.chargedMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
-      "Select Charged Move"
+      DP.selectCharged
     );
     const { label: cpLbl, input: cpInput, getCPM } = cpWidget(data);
 
     const attackerPicker = createPicker({
       entries: allEntries,
-      placeholder: "Search Pokémon (e.g. Mewtwo)",
+      placeholder: DP.searchPokemonEg,
       onSelect: (e) => {
         const poke = e.data as PokemonStat;
         cpInput.value = String(cpForLevel(poke, 15, 15, 15, 0.7903));
@@ -94,7 +98,7 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
     });
 
     const calcBtn = document.createElement("button");
-    calcBtn.className = "btn-primary"; calcBtn.textContent = "Calculate";
+    calcBtn.className = "btn-primary"; calcBtn.textContent = DP.calculate;
 
     form.appendChild(attackerPicker.root);
     form.appendChild(fastSel);
@@ -111,14 +115,14 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
     const targetHeader = document.createElement("span");
     targetHeader.className = "filter-label";
     targetHeader.style.cssText = "width:100%;margin-bottom:0.25rem;";
-    targetHeader.textContent = "vs. Target (optional)";
+    targetHeader.textContent = DP.vsTargetOptional;
     targetBlock.appendChild(targetHeader);
 
     let calcTargetTypes: string[] = [];
 
     const targetPicker = createPicker({
       entries: allEntries,
-      placeholder: "Target Pokémon (e.g. Machamp)",
+      placeholder: DP.targetPokemonEg,
       onSelect: (e) => { calcTargetTypes = e.types; },
       onClear: () => { calcTargetTypes = []; },
     });
@@ -135,11 +139,11 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
       const charged = data.chargedMoves!.find((m) => m.name === chargedSel.value);
 
       if (!poke) {
-        resultArea.innerHTML = `<p class="error-text">Select a Pokémon from the search list.</p>`;
+        resultArea.innerHTML = `<p class="error-text">${DP.errSelectPokemon}</p>`;
         return;
       }
       if (!fast || !charged) {
-        resultArea.innerHTML = `<p class="error-text">Select both a fast move and charged move.</p>`;
+        resultArea.innerHTML = `<p class="error-text">${DP.errSelectMovesLong}</p>`;
         return;
       }
 
@@ -162,7 +166,7 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
       if (hasTarget) {
         const vsSpan = document.createElement("span");
         vsSpan.style.cssText = "font-size:0.78rem;color:var(--text-2);font-weight:400;margin-left:0.4rem;";
-        vsSpan.textContent = `vs. ${targetPicker.getSelected()?.label ?? ""}`;
+        vsSpan.textContent = DP.vsName.replace("{name}", targetPicker.getSelected()?.label ?? "");
         cardTitle.appendChild(vsSpan);
       }
       cardHeader.appendChild(cardSprite);
@@ -183,9 +187,9 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
       card.appendChild(flavorP);
 
       fetchSpeciesData(poke.pokemon_name).then(d => {
-        if (d.genus)  { genusEl.textContent = `The ${d.genus}`; }
+        if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
         if (d.isLegendary || d.isMythical) {
-          badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+          badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
           badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
           badgeEl.style.display = "";
         }
@@ -201,23 +205,23 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
       }
 
       const rows: [string, () => string | HTMLElement, boolean][] = [
-        ["Fast Move", () => {
+        [JSC.fastMove, () => {
           const w = document.createElement("span");
           w.style.cssText = "display:flex;align-items:center;gap:6px;";
           w.appendChild(typeBadge(fast.type)); w.append(fast.name);
           const lbl = effLabel(fEff); if (lbl) w.appendChild(lbl);
           return w;
         }, false],
-        ["Charged Move", () => {
+        [JSC.chargedMove, () => {
           const w = document.createElement("span");
           w.style.cssText = "display:flex;align-items:center;gap:6px;";
           w.appendChild(typeBadge(charged.type)); w.append(charged.name);
           const lbl = effLabel(cEff); if (lbl) w.appendChild(lbl);
           return w;
         }, false],
-        ["Cycle DPS", () => trueDPS(fast, charged, atkStat, defStat, fEff, cEff).toFixed(2), true],
-        ["Fast DPS",  () => fastDPS(fast, atkStat, defStat, fEff).toFixed(2), false],
-        ["Fast EPS",  () => fastEPS(fast).toFixed(2), false],
+        [DP.cycleDps, () => trueDPS(fast, charged, atkStat, defStat, fEff, cEff).toFixed(2), true],
+        [DP.fastDps,  () => fastDPS(fast, atkStat, defStat, fEff).toFixed(2), false],
+        [DP.fastEps,  () => fastEPS(fast).toFixed(2), false],
       ];
 
       for (const [lbl, getVal, highlight] of rows) {
@@ -295,7 +299,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     const targetHeader = document.createElement("span");
     targetHeader.className = "filter-label";
     targetHeader.style.cssText = "width:100%;margin-bottom:0.25rem;";
-    targetHeader.textContent = "Target (optional)";
+    targetHeader.textContent = DP.targetOptional;
     targetBlock.appendChild(targetHeader);
 
     const allTypes = Object.keys(TYPE_COLORS).sort();
@@ -307,8 +311,8 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
       allTypes.forEach((t) => { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); });
       return sel;
     };
-    const type1Sel = makeTypeSel("Type 1");
-    const type2Sel = makeTypeSel("Type 2");
+    const type1Sel = makeTypeSel(DP.type1);
+    const type2Sel = makeTypeSel(DP.type2);
 
     // Manual-types badge row; the picker preview covers the selected case.
     const manualTypesRow = document.createElement("div");
@@ -318,7 +322,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     function updateManualRow(show: boolean) {
       manualTypesRow.innerHTML = "";
       if (show && targetTypes.length) {
-        const vs = document.createElement("span"); vs.className = "filter-label"; vs.textContent = "vs";
+        const vs = document.createElement("span"); vs.className = "filter-label"; vs.textContent = JSC.vs;
         manualTypesRow.appendChild(vs);
         targetTypes.forEach((t) => manualTypesRow.appendChild(typeBadge(t)));
         manualTypesRow.hidden = false;
@@ -329,7 +333,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
 
     const targetPicker = createPicker({
       entries: targetEntries(data, allEntries),
-      placeholder: "Search raid boss or Pokémon...",
+      placeholder: DP.searchBoss,
       showOnFocus: true,
       onSelect: (e) => {
         targetTypes = e.types;
@@ -351,7 +355,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     // Advanced: manual type selection for custom typings.
     const advancedToggle = document.createElement("button");
     advancedToggle.className = "picker-advanced-toggle";
-    advancedToggle.textContent = "Custom types";
+    advancedToggle.textContent = DP.customTypes;
 
     const advancedRow = document.createElement("div");
     advancedRow.className = "picker-advanced-row";
@@ -385,17 +389,17 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
 
     const fastSel = buildMoveSelect(
       data.fastMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
-      "Fast Move"
+      JSC.fastMove
     );
     const chargedSel = buildMoveSelect(
       data.chargedMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
-      "Charged Move"
+      JSC.chargedMove
     );
     const { label: cpLbl, input: cpInput } = cpWidget(data);
 
     const attackerPicker = createPicker({
       entries: allEntries,
-      placeholder: "Search Pokémon (e.g. Mewtwo)",
+      placeholder: DP.searchPokemonEg,
       onSelect: (e) => {
         const poke = e.data as PokemonStat;
         cpInput.value = String(cpForLevel(poke, 15, 15, 15, 0.7903));
@@ -403,7 +407,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     });
 
     const addBtn = document.createElement("button");
-    addBtn.className = "btn-primary"; addBtn.textContent = "+ Add";
+    addBtn.className = "btn-primary"; addBtn.textContent = DP.add;
 
     const errText = document.createElement("p");
     errText.className = "error-text"; errText.style.display = "none";
@@ -435,7 +439,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
       if (attackers.length === 0) {
         const hint = document.createElement("p");
         hint.className = "empty-state";
-        hint.textContent = "Add Pokémon above to compare.";
+        hint.textContent = DP.addHint;
         tableArea.appendChild(hint);
         return;
       }
@@ -467,8 +471,8 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
       const table = document.createElement("table");
       table.className = "counter-table";
       table.innerHTML = `<thead><tr>
-        <th>#</th><th>Pokémon</th><th>Fast Move</th><th>Charged Move</th>
-        <th>CP</th><th>DPS</th><th>TDO</th><th></th>
+        <th>#</th><th>${JSC.pokemon}</th><th>${JSC.fastMove}</th><th>${JSC.chargedMove}</th>
+        <th>${JSC.cp}</th><th>DPS</th><th>TDO</th><th></th>
       </tr></thead>`;
 
       const tbody = document.createElement("tbody");
@@ -519,7 +523,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
         clearTd.colSpan = 8;
         clearTd.style.cssText = "text-align:right;padding:0.5rem 0.9rem;";
         const clearBtn = document.createElement("button");
-        clearBtn.textContent = "Clear all";
+        clearBtn.textContent = DP.clearAll;
         clearBtn.style.cssText = "background:none;border:none;color:var(--text-2);cursor:pointer;font-size:0.8rem;text-decoration:underline;font-family:var(--font);";
         clearBtn.addEventListener("click", () => { attackers = []; renderTable(); });
         clearTd.appendChild(clearBtn);
@@ -556,7 +560,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
         nameEl.textContent = pokeName(data, a.poke.pokemon_name);
         const cpEl = document.createElement("span");
         cpEl.className = "attacker-card-cp";
-        cpEl.textContent = `CP ${a.cp.toLocaleString()}`;
+        cpEl.textContent = `${JSC.cp} ${a.cp.toLocaleString()}`;
         idBlock.appendChild(nameEl);
         idBlock.appendChild(cpEl);
         head.appendChild(idBlock);
@@ -564,7 +568,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
         const removeBtn = document.createElement("button");
         removeBtn.className = "attacker-card-remove";
         removeBtn.textContent = "×";
-        removeBtn.setAttribute("aria-label", "Remove");
+        removeBtn.setAttribute("aria-label", JSC.remove);
         removeBtn.addEventListener("click", () => removeAttacker(a.id));
         head.appendChild(removeBtn);
 
@@ -608,7 +612,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
       if (attackers.length > 1) {
         const clearBtn = document.createElement("button");
         clearBtn.className = "compare-clear-btn";
-        clearBtn.textContent = "Clear all";
+        clearBtn.textContent = DP.clearAll;
         clearBtn.addEventListener("click", () => { attackers = []; renderTable(); });
         cards.appendChild(clearBtn);
       }
@@ -623,8 +627,8 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
       const charged = data.chargedMoves!.find((m) => m.name === chargedSel.value);
       const cp = Math.max(10, Number(cpInput.value) || 3000);
 
-      if (!poke) { errText.textContent = "Select a Pokémon from the search list."; errText.style.display = ""; return; }
-      if (!fast || !charged) { errText.textContent = "Select both moves."; errText.style.display = ""; return; }
+      if (!poke) { errText.textContent = DP.errSelectPokemon; errText.style.display = ""; return; }
+      if (!fast || !charged) { errText.textContent = DP.errSelectMoves; errText.style.display = ""; return; }
 
       attackers.push({ id: nextId++, poke, fast, charged, cp });
       renderTable();
@@ -651,19 +655,19 @@ async function init() {
     app.innerHTML = "";
 
     if (!data.pokemon || !data.fastMoves || !data.chargedMoves) {
-      app.innerHTML = `<div class="error-state">Game data unavailable. Please try again later.</div>`;
+      app.innerHTML = `<div class="error-state">${JSC.gameDataUnavailable}</div>`;
       return;
     }
 
     const allEntries = pokemonEntries(data);
 
     const tabs = buildTabs([
-      { id: "calc",    label: "⚡ Calculator", render: buildCalcPanel(data, allEntries) },
-      { id: "compare", label: "📊 Compare",    render: buildComparePanel(data, allEntries) },
+      { id: "calc",    label: `⚡ ${DP.tabCalc}`,    render: buildCalcPanel(data, allEntries) },
+      { id: "compare", label: `📊 ${DP.tabCompare}`, render: buildComparePanel(data, allEntries) },
     ]);
     app.appendChild(tabs);
   } catch (err) {
-    app.innerHTML = `<div class="error-state">Failed to load data. Please try again later.</div>`;
+    app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     console.error(err);
   }
 }

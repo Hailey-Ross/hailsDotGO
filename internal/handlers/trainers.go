@@ -31,10 +31,18 @@ type trainerEntry struct {
 	RaidXP          int
 	RaidRank        string
 	RaidRankClass   string
+	SpecialRank     string
 	JoinedAt        time.Time
 	Online          bool
 	SuperDonator    bool
 	Tags            []tagEntry
+}
+
+// trainersPageData wraps the directory list with raid finder page context.
+type trainersPageData struct {
+	Trainers       []trainerEntry
+	CanCustomLobby bool
+	CanPreQueue    bool
 }
 
 // staffSortRank returns a staff sort priority (lower = higher rank); 99 = not staff.
@@ -98,17 +106,24 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	canCustom := false
+	canPreQueue := false
+	if u := h.currentUser(r); u != nil {
+		canCustom = h.canCustomLobby(u)
+		canPreQueue = h.canPreQueue(u)
+	}
+
 	rows, err := h.db.Query(`
 		SELECT id, username, COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
 		       COALESCE(pronouns,''), COALESCE(region,''), COALESCE(country,''), COALESCE(location_display,'none'),
-		       role, COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,''), COALESCE(fav_sprite_url,''),
+		       role, COALESCE(special_rank,''), COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,''), COALESCE(fav_sprite_url,''),
 		       COALESCE(raid_xp,0), created_at, COALESCE(profile_public,0),
 		       CASE WHEN last_seen_at IS NOT NULL AND last_seen_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END
 		FROM users
 		WHERE directory_hidden = 0 AND disabled = 0
 		ORDER BY username ASC`)
 	if err != nil {
-		h.render(w, r, "trainers", []trainerEntry{})
+		h.render(w, r, "trainers", trainersPageData{Trainers: []trainerEntry{}, CanCustomLobby: canCustom, CanPreQueue: canPreQueue})
 		return
 	}
 	defer rows.Close()
@@ -119,7 +134,7 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		var userID int
 		var role string
 		var profilePublicInt, onlineInt int
-		if err := rows.Scan(&userID, &t.Username, &t.TrainerName, &t.TrainerCode, &t.Avatar, &t.Pronouns, &t.Region, &t.Country, &t.LocationDisplay, &role, &t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt, &profilePublicInt, &onlineInt); err != nil {
+		if err := rows.Scan(&userID, &t.Username, &t.TrainerName, &t.TrainerCode, &t.Avatar, &t.Pronouns, &t.Region, &t.Country, &t.LocationDisplay, &role, &t.SpecialRank, &t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt, &profilePublicInt, &onlineInt); err != nil {
 			continue
 		}
 		t.ProfilePublic = profilePublicInt > 0
@@ -181,5 +196,5 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		return nameA < nameB
 	})
 
-	h.render(w, r, "trainers", trainers)
+	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, CanCustomLobby: canCustom, CanPreQueue: canPreQueue})
 }

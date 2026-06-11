@@ -79,7 +79,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 

@@ -16,14 +16,15 @@ const sessionTTL = 30 * 24 * time.Hour
 var SuperadminUser string
 
 type User struct {
-	ID         uint
-	Username   string
-	Email      string
-	Role       string
-	Disabled   bool
-	APIAccess  bool
-	Translator bool
-	Lang       string
+	ID          uint
+	Username    string
+	Email       string
+	Role        string
+	Disabled    bool
+	APIAccess   bool
+	Translator  bool
+	SpecialRank string // '', 'trusted', or 'content_creator' (admin-granted)
+	Lang        string
 }
 
 func (u *User) IsSuperAdmin() bool {
@@ -73,11 +74,11 @@ func CreateSession(db *sql.DB, userID uint) (string, error) {
 func GetSession(db *sql.DB, token string) (*User, error) {
 	var u User
 	err := db.QueryRow(`
-		SELECT u.id, u.username, u.email, u.role, u.disabled, u.api_access, u.translator, COALESCE(u.lang,'en')
+		SELECT u.id, u.username, u.email, u.role, u.disabled, u.api_access, u.translator, COALESCE(u.special_rank,''), COALESCE(u.lang,'en')
 		FROM sessions s JOIN users u ON s.user_id = u.id
 		WHERE s.token = ? AND s.expires_at > NOW()`,
 		token,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.Disabled, &u.APIAccess, &u.Translator, &u.Lang)
+	).Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.Disabled, &u.APIAccess, &u.Translator, &u.SpecialRank, &u.Lang)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

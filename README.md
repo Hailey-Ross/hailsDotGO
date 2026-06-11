@@ -2,26 +2,34 @@
 
 A fan-made Pokémon GO companion web app built in Go.
 
-- Raid boss and Max Battle listings with tier tabs and counter recommendations
-- DPS calculator and bulk moveset comparison, with sprite-based Pokémon search and a card layout on mobile
-- PvP IV ranker (GL / UL / ML)
-- Events page: current and upcoming Pokémon GO events with full details (bonuses, featured Pokémon, shinies, raid bosses, research, GO Pass ranks), sourced from LeekDuck via ScrapedDuck
-- Shiny Dex: every available shiny Pokémon, how to find it, and normal vs shiny sprite comparison
-- Personal shiny collection tracker
-- Trainer Directory with searchable profiles
-- Raid Finder: post and join remote raids with queue, lobby, and post-raid rating system
-- Weather boost display based on your saved city
-- User accounts with registration (open or invite-only)
-- Per-page maintenance toggles from the admin panel
-- Tag system: superadmins create/edit/delete tags; mods and above assign them to users
-- Supporter store with optional donation perks (PayPal, sandbox/live toggle)
-- Custom tag requests: supporters submit a tag name and color (staff-reviewed); weekly submission cooldown and color change rate limit enforced
-- Account suspension with optional staff-entered reason shown to the user on login
-- Admin Users tab: mini-card grid with click-to-open modal detail view and full controls
-- Public JSON API with per-IP request rate limits and aggregate bandwidth throttling, plus an unthrottled private API for trusted consumers
-- Automatic cache busting: static asset URLs carry a content hash so every deploy invalidates browser caches
-- Multi-language: English, Spanish, French, and German built in, plus community-created locales
-- Translator workspace: users with the Translator permission suggest translation changes (and whole new languages) with a live split-screen preview; admins review, hot-apply approved edits, and sync them back to GitHub as a pull request
+- Live raid bosses and Max Battles with counter recommendations
+- DPS calculator, moveset comparison, and PvP IV ranker (GL / UL / ML)
+- Events page with full details sourced from LeekDuck via ScrapedDuck
+- Shiny Dex plus a personal shiny collection tracker
+- Trainer Directory and a real-time Raid Finder with matchmaking, lobbies, and a trust system
+- User accounts (open or invite-only registration), staff roles, strikes, tags, and awards
+- Supporter store with optional donation perks (PayPal)
+- Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and GitHub sync
+- Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
+
+---
+
+## Documentation
+
+Everything beyond the quick start below lives in the **[project wiki](https://github.com/Hailey-Ross/hailsDotGO/wiki)**:
+
+| I want to... | Read this |
+|---|---|
+| Install and run my own instance | [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) |
+| Look up an environment variable | [Configuration](https://github.com/Hailey-Ross/hailsDotGO/wiki/Configuration) |
+| Understand the database and migrations | [Database Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Database-Guide) |
+| Deploy to a Linux server | [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment) |
+| Run the site day to day | [Operations](https://github.com/Hailey-Ross/hailsDotGO/wiki/Operations) |
+| Use the JSON API | [API Reference](https://github.com/Hailey-Ross/hailsDotGO/wiki/API-Reference) |
+| Learn how a feature works | [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store), and the other feature pages |
+| Understand roles and permissions | [Accounts and Roles](https://github.com/Hailey-Ross/hailsDotGO/wiki/Accounts-and-Roles), [Admin Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Admin-Guide) |
+| Translate the site or add a language | [Localization](https://github.com/Hailey-Ross/hailsDotGO/wiki/Localization), [Translator Workspace](https://github.com/Hailey-Ross/hailsDotGO/wiki/Translator-Workspace) |
+| Hack on the code | [Architecture](https://github.com/Hailey-Ross/hailsDotGO/wiki/Architecture), [Building and Development](https://github.com/Hailey-Ross/hailsDotGO/wiki/Building-and-Development), [Frontend Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Frontend-Guide) |
 
 ---
 
@@ -39,122 +47,33 @@ A fan-made Pokémon GO companion web app built in Go.
 
 ---
 
-## What You'll Need
+## Quick Start
 
-- **Go 1.25+** ([go.dev/dl](https://go.dev/dl/))
-- **Node.js 18+ and npm** ([nodejs.org](https://nodejs.org/))
-- **MySQL 8+** for accounts, shiny collections, and all persistent data
-- **An SSH key** *(deployment only)* expected at `~/.ssh/hailsdotgo`
-
----
-
-## How It Works
-
-### 1. Game Data
-On startup, the server fetches Pokémon stats, moves, shinies, type effectiveness, and CP multipliers from [PoGoAPI](https://pogoapi.net) and caches them in memory. Data refreshes every 6 hours. If PoGoAPI is unreachable at startup, the server falls back to embedded snapshot data so the app can still serve requests.
-
-### 2. Raid Data
-Live raid bosses (sourced from LeekDuck) and Max Battles (sourced from snacknap) are fetched from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api), cached to disk, and refreshed every 4 hours starting at midnight Mountain Time (12:00 AM, 4:00 AM, 8:00 AM, 12:00 PM, 4:00 PM, 8:00 PM). A stale cache is used if the upstream fetch fails.
-
-### 3. Event Data
-The events feed is pulled from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) (LeekDuck data) every 30 minutes. For each active event, the server also scrapes the matching [LeekDuck](https://leekduck.com) event page (sequential requests spaced 1.5 seconds apart with a descriptive User-Agent), sanitizes the content server side, and caches it to disk. Scraped pages refresh every 12 hours, ended events are evicted, and the last good copy is kept if a fetch fails. The full details are served from `/api/events/{id}` so visitors never need to leave the site.
-
-### 4. Database
-All persistent data lives in MySQL: accounts, sessions, shiny collections, trainer profiles, raid posts, tags, store purchases, and site settings.
-
-### 5. Frontend
-All calculations (DPS, TDO, type effectiveness, CP math, IV stat products) run client-side. TypeScript source lives in `ts/` and compiles to `static/js/` via esbuild.
-
----
-
-## Setup
-
-### 1. Clone the repo
+You will need **Go 1.25+**, **Node.js 18+ with npm**, and **MySQL 8+**.
 
 ```bash
+# 1. Clone and install dependencies
 git clone https://github.com/Hailey-Ross/hailsDotGO.git
 cd hailsDotGO
-```
-
----
-
-### 2. Install dependencies
-
-```bash
 make setup
-```
 
----
-
-### 3. Configure environment
-
-```bash
+# 2. Configure environment
 cp .env.example .env
-```
+# edit .env with your database credentials and SUPERADMIN_USER
 
-Edit `.env` with your values. See [Environment Variables](#environment-variables) below.
-
-Generate a CSRF key and set it as `CSRF_KEY`:
-
-```bash
-openssl rand -hex 32
-```
-
-Without `CSRF_KEY` the app will still run, but tokens reset on every restart and break active sessions.
-
----
-
-### 4. Set up the database
-
-```bash
+# 3. Create the database
 mysql -u youruser -p yourdbname < schema.sql
+
+# 4. Run locally (two terminals)
+npm run watch   # terminal 1: recompile TypeScript on save
+go run .        # terminal 2: run the Go server
 ```
 
-`schema.sql` contains all base tables followed by migration blocks as SQL comments. For a fresh install, apply the base tables then run every migration block in order. The schema automatically seeds all `page_*_enabled` settings to `1` so no manual SQL is needed to enable pages.
+Visit [http://localhost:8080](http://localhost:8080).
 
-**First admin account:**
+The [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) wiki page covers the rest: creating the first admin account, the CSRF key, migration blocks for existing installs, and platform notes. When you are ready to put it on a server, see [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment).
 
-1. Temporarily open registration:
-   ```sql
-   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'registration_open';
-   ```
-2. Set `SUPERADMIN_USER=yourusername` in `.env` using the username you plan to register with.
-3. Start the server and register at `/register`.
-4. Close registration from the admin panel when done.
-
----
-
-### 5. Run locally
-
-Two processes need to run side by side:
-
-```bash
-# Terminal 1: watch and recompile TypeScript on save
-npm run watch
-
-# Terminal 2: run the Go server
-go run .
-```
-
-Visit [http://localhost:8080](http://localhost:8080)
-
----
-
-## Building
-
-```bash
-# Build for your current platform
-make build
-# outputs ./hailsDotGO
-
-# Cross-compile for Linux (from Windows)
-$env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
-go build -ldflags="-s -w" -o hailsDotGO-linux .
-```
-
-### .gitignore
-
-This repository does not ship a `.gitignore`. If you fork it or track your own changes, copy the provided template so build output and secrets never get committed:
+If you fork the repo, copy the provided `.gitignore` template so build output and secrets never get committed:
 
 ```bash
 cp .gitignore.example .gitignore
@@ -162,109 +81,11 @@ cp .gitignore.example .gitignore
 
 ---
 
-## Deployment
+## How It Works (the short version)
 
-`deploy.ps1` handles the full cycle: cross-compiles a Linux binary, bundles TypeScript, SCPs all files to the VPS, and restarts the systemd service.
+Game data (stats, moves, shinies, type chart) comes from [PoGoAPI](https://pogoapi.net) and refreshes every 6 hours, with embedded snapshots as an offline fallback. Official localized Pokémon names (French, German, Spanish, Japanese) come from [PokéAPI](https://pokeapi.co). Raid bosses and Max Battles come from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api), and the events feed from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) with sanitized detail pages from [LeekDuck](https://leekduck.com). All battle math runs client-side in TypeScript compiled by esbuild; accounts and everything persistent live in MySQL.
 
-```powershell
-.\deploy.ps1
-```
-
-Requires `VPS_HOST`, `VPS_USER`, `SUPERADMIN_USER`, and `CSRF_KEY` in `.env`, and an SSH key at `~/.ssh/hailsdotgo` authorized on the server. If using the store, also set the four `PAYPAL_*` vars; the deploy script writes them to the server's `app.env`.
-
----
-
-## Store Setup (Optional)
-
-The store is disabled by default. To enable:
-
-1. Set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE`, and `PAYPAL_WEBHOOK_ID` in `.env`.
-2. Enable from the admin panel, or directly:
-   ```sql
-   UPDATE site_settings SET setting_value = '1' WHERE setting_key = 'store_enabled';
-   ```
-3. Run the store migration block in `schema.sql` to seed the default items (Supporter Pack and Priority Pass), or insert your own into `store_items`.
-
----
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `PORT` | No | `8080` | HTTP listen port |
-| `DB_HOST` | Yes | | MySQL host and port (e.g. `localhost:3306`) |
-| `DB_USER` | Yes | | MySQL username |
-| `DB_PASS` | Yes | | MySQL password |
-| `DB_NAME` | Yes | | MySQL database name |
-| `SUPERADMIN_USER` | Yes | | Username with permanent superadmin privileges |
-| `CSRF_KEY` | No | random | 64-char hex string for CSRF protection |
-| `PAYPAL_CLIENT_ID` | Store only | | PayPal REST API client ID |
-| `PAYPAL_CLIENT_SECRET` | Store only | | PayPal REST API client secret |
-| `PAYPAL_MODE` | Store only | `sandbox` | `sandbox` or `live` |
-| `PAYPAL_WEBHOOK_ID` | Store only | | PayPal webhook ID for payment confirmation |
-| `VPS_HOST` | Deploy only | | VPS hostname or IP |
-| `VPS_USER` | Deploy only | | SSH username on the VPS |
-| `VPS_PASS` | No | | For manual reference only; not used by `deploy.ps1` |
-| `CACHE_DIR` | No | `cache` | Directory for fetched game data and scraped event pages |
-| `LOCALES_DIR` | No | `locales` | Directory for approved translation override files and their backups |
-| `GITHUB_TOKEN` | Translation sync only | | Fine-grained PAT for this repo (contents and pull requests, read/write) |
-| `GITHUB_REPO` | Translation sync only | | Repository for translation sync in `owner/repo` form |
-
----
-
-## User Roles
-
-| Role | Permissions |
-|---|---|
-| `user` | Default for all registered accounts |
-| `tester` | Raid rank label "PKMN Scientist"; sorted above regular users in the Trainer Directory |
-| `moderator` | Admin panel access: strikes, raid bans, directory hide, tag assignment |
-| `admin` | All mod actions + invite generation, rename/suspend users (with optional reason), password reset, role changes, page toggles |
-| `superadmin` | Set via `SUPERADMIN_USER` env var; all admin capabilities + tag create/edit/delete; immune to admin actions |
-
-Staff (mod and above) cannot be raid-banned or hidden from the directory.
-
-In addition to roles, the superadmin can grant individual users the **Translator** permission from the admin panel. Translators get a `/translate` workspace with a live site preview in their chosen language and an editor for suggesting translation changes; suggestions are reviewed in the admin panel's Translations tab.
-
-### Translation workflow
-
-- Approving a suggestion applies it to the live site immediately: the app writes a sparse override file to `LOCALES_DIR/{lang}.json` (only the changed keys) and backs up the previous version to `LOCALES_DIR/backup/{lang}_{timestamp}.json` first. To revert a bad change, copy a backup over the override file and restart the service.
-- Override files live outside the binary and outside the deploy script's tracked files, so they survive redeploys. Embedded locale strings added in a newer build are never shadowed unless a translator explicitly changed that key.
-- **New locales:** translators can create additional languages (any unused two-letter code) from the `/translate` page. A new locale is immediately translatable and previewable there, with every untranslated key falling back to English, but it stays hidden from the public language switcher until an admin enables it in the Translations tab. Admins can disable a locale again at any time, and delete a disabled, non-compiled-in locale (its override file is archived to the backup directory).
-- **GitHub sync:** with `GITHUB_TOKEN` and `GITHUB_REPO` set, the "Sync to GitHub" button in the Translations tab commits the merged locale files to the `translations` branch and opens a pull request against `main`. Merge the PR, `git pull`, and the next build embeds the approved translations; a brand-new locale's file is embedded automatically. After deploying that build, the override files on the server can optionally be deleted; note that overrides always win, so a key edited only in the repo stays shadowed by a stale override until it is removed.
-- Without the GitHub variables, the per-locale export downloads in the Translations tab remain available for syncing the repo manually.
-
----
-
-## API
-
-The public API serves game data as JSON. Full documentation, including rate limits, lives on the live site's [Credits page](https://pogo.hails.live/credits).
-
-| Endpoint | Description | Limit |
-|---|---|---|
-| `GET /api/data` | All game data in one payload | 10 / 2 min per IP |
-| `GET /api/raids` | Current raid bosses by tier | 10 / 2 min per IP |
-| `GET /api/maxbattles` | Current Max Battle bosses by tier | 10 / 2 min per IP |
-| `GET /api/events` | Current and upcoming events feed | 10 / 2 min per IP |
-| `GET /api/events/{id}` | Full sanitized detail for one event | 30 / 2 min per IP |
-| `GET /api/pokemon` | Pokémon base stats | 10 / 2 min per IP |
-| `GET /api/moves` | Fast and charged move data | 10 / 2 min per IP |
-
-An aggregate bandwidth cap of 15 MB per 5 minutes per IP applies across all public endpoints. Logged-in users on the site itself use the session endpoint `GET /api/app/data` with no rate limit. Every public endpoint also has an unthrottled `/api/private/...` mirror that requires an account with API access granted by the superadmin.
-
----
-
-## Data Sources
-
-| Source | What it provides |
-|---|---|
-| [PoGoAPI](https://pogoapi.net) | Pokémon stats, moves, shinies, type effectiveness, CP multipliers |
-| [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api) | Current raid bosses (via LeekDuck) and Max Battles (via snacknap) |
-| [LeekDuck](https://leekduck.com) via [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) | Events feed, full event details, and event images |
-| [PokéAPI](https://pokeapi.co) | Sprites, Pokédex text, genus, legendary/mythical flags, cries |
-| [Open-Meteo](https://open-meteo.com) | Weather data for Pokémon GO weather boost detection (no API key required) |
-| [Pokémon Showdown](https://pokemonshowdown.com) | Trainer class sprites for avatars |
-| [Dreamstone Mysteries](https://github.com/dsmyst/dreamstone-mysteries) | GBA-style trainer sprites |
+Full details, refresh schedules, and attribution: [Data Sources](https://github.com/Hailey-Ross/hailsDotGO/wiki/Data-Sources) and [Architecture](https://github.com/Hailey-Ross/hailsDotGO/wiki/Architecture).
 
 ---
 

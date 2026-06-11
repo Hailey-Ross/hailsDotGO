@@ -73,11 +73,11 @@ func (h *Handlers) AdminTranslationsSync(w http.ResponseWriter, r *http.Request)
 	token := os.Getenv("GITHUB_TOKEN")
 	repo := os.Getenv("GITHUB_REPO")
 	if token == "" || repo == "" || !strings.Contains(repo, "/") {
-		writeJSONError(w, "github sync is not configured", http.StatusBadRequest)
+		writeJSONError(w, h.t(r, "error.tl_gh_not_configured"), http.StatusBadRequest)
 		return
 	}
 	if !ghSyncMu.TryLock() {
-		writeJSONError(w, "a sync is already running", http.StatusConflict)
+		writeJSONError(w, h.t(r, "error.tl_gh_sync_running"), http.StatusConflict)
 		return
 	}
 	defer ghSyncMu.Unlock()
@@ -90,7 +90,7 @@ func (h *Handlers) AdminTranslationsSync(w http.ResponseWriter, r *http.Request)
 		} else {
 			log.Printf("github sync: %s: status %d: %s", step, status, body)
 		}
-		writeJSONError(w, "github sync failed at "+step, http.StatusBadGateway)
+		writeJSONError(w, h.t(r, "error.tl_gh_sync_failed")+" ("+step+")", http.StatusBadGateway)
 	}
 
 	// Base branch head.

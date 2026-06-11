@@ -2,6 +2,10 @@ import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
+// Server-injected strings: JSC from templates/base.html, SD from templates/shinydex.html.
+declare const JSC: Record<string, string>;
+declare const SD: Record<string, string>;
+
 const app = document.getElementById("shinydex-app")!;
 
 // Shinies panel
@@ -15,12 +19,12 @@ interface ShinyGroup {
 }
 
 const SHINY_GROUPS: ShinyGroup[] = [
-  { id: "wild",      label: "Wild",       icon: "🌿", flag: "found_wild",      tooltip: "Encountered randomly in the overworld" },
-  { id: "raid",      label: "Raids",      icon: "⚔️", flag: "found_raid",      tooltip: "Rare reward after defeating a raid boss" },
-  { id: "egg",       label: "Eggs",       icon: "🥚", flag: "found_egg",       tooltip: "Hatched from 2km, 5km, 7km, or 12km eggs" },
-  { id: "research",  label: "Research",   icon: "📋", flag: "found_research",  tooltip: "Reward encounter from field research tasks" },
-  { id: "evolution", label: "Evolution",  icon: "⬆️", flag: "found_evolution", tooltip: "Evolve the base form: cannot be caught directly" },
-  { id: "photobomb", label: "Photobomb",  icon: "📸", flag: "found_photobomb", tooltip: "Appears by surprise when taking a GO Snapshot" },
+  { id: "wild",      label: SD.groupWild,      icon: "🌿", flag: "found_wild",      tooltip: SD.tipWild },
+  { id: "raid",      label: SD.groupRaid,      icon: "⚔️", flag: "found_raid",      tooltip: SD.tipRaid },
+  { id: "egg",       label: SD.groupEgg,       icon: "🥚", flag: "found_egg",       tooltip: SD.tipEgg },
+  { id: "research",  label: SD.groupResearch,  icon: "📋", flag: "found_research",  tooltip: SD.tipResearch },
+  { id: "evolution", label: SD.groupEvolution, icon: "⬆️", flag: "found_evolution", tooltip: SD.tipEvolution },
+  { id: "photobomb", label: SD.groupPhotobomb, icon: "📸", flag: "found_photobomb", tooltip: SD.tipPhotobomb },
 ];
 
 let cryVolume = 0.3;
@@ -30,7 +34,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
     const wrap = document.createElement("div");
 
     if (!data.shinies || Object.keys(data.shinies).length === 0) {
-      wrap.innerHTML = `<div class="error-state">Shiny data unavailable. Check back later.</div>`;
+      wrap.innerHTML = `<div class="error-state">${SD.unavailable}</div>`;
       return wrap;
     }
 
@@ -47,11 +51,11 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
       <div class="shiny-compare" id="shiny-compare-wrap">
         <div class="shiny-compare-side">
           <img class="shiny-compare-img" id="shiny-modal-normal" alt="" />
-          <span>Normal</span>
+          <span>${JSC.formNormal}</span>
         </div>
         <div class="shiny-compare-side">
           <img class="shiny-compare-img" id="shiny-modal-shiny" alt="" />
-          <span>✨ Shiny</span>
+          <span>✨ ${JSC.shiny}</span>
         </div>
       </div>
       <div class="shiny-modal-name-row">
@@ -60,8 +64,8 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
       <span class="poke-genus" id="shiny-modal-genus"></span>
       <span class="poke-legend-badge" id="shiny-modal-badge" style="display:none"></span>
       <div class="poke-cry-controls" id="shiny-cry-controls" style="display:none">
-        <button class="poke-cry-btn" id="shiny-modal-cry" title="Play cry">🔊</button>
-        <input type="range" class="poke-volume-slider" id="shiny-modal-volume" min="0" max="100" value="100" title="Volume">
+        <button class="poke-cry-btn" id="shiny-modal-cry" title="${JSC.playCry}">🔊</button>
+        <input type="range" class="poke-volume-slider" id="shiny-modal-volume" min="0" max="100" value="100" title="${JSC.volume}">
         <span class="poke-volume-label" id="shiny-modal-vlabel">100%</span>
       </div>
       <p class="poke-flavor" id="shiny-modal-flavor" style="display:none"></p>
@@ -77,7 +81,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
     const searchInput = document.createElement("input");
     searchInput.type = "text";
     searchInput.className = "search-input";
-    searchInput.placeholder = `Search ${allShinies.length} Pokémon…`;
+    searchInput.placeholder = JSC.searchNPokemon.replace("{n}", String(allShinies.length));
     searchInput.style.width = "100%";
     searchInput.style.marginBottom = "1rem";
     wrap.appendChild(searchInput);
@@ -89,7 +93,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
     const allBtn = document.createElement("button");
     allBtn.className = "method-tab active";
     allBtn.dataset.group = "all";
-    allBtn.textContent = `All (${allShinies.length})`;
+    allBtn.textContent = SD.allN.replace("{n}", String(allShinies.length));
     methodTabs.appendChild(allBtn);
 
     for (const g of groups) {
@@ -120,7 +124,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
         : source;
 
       if (!filtered.length) {
-        grid.innerHTML = `<p class="empty-state">No results.</p>`;
+        grid.innerHTML = `<p class="empty-state">${JSC.noResults}</p>`;
         return;
       }
 
@@ -176,9 +180,9 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
 
           fetchSpeciesData(s.id).then(d => {
             if (d.flavor) { flavorEl.textContent = d.flavor; flavorEl.style.display = ""; }
-            if (d.genus)  { genusEl.textContent  = `The ${d.genus}`; }
+            if (d.genus)  { genusEl.textContent  = JSC.theGenus.replace("{genus}", d.genus); }
             if (d.isLegendary || d.isMythical) {
-              badgeEl.textContent  = d.isMythical ? "Mythical" : "Legendary";
+              badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
               badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
               badgeEl.style.display = "";
             }
@@ -188,13 +192,13 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
                 if (sprites.normal) {
                   const side = document.createElement("div");
                   side.className = "shiny-compare-side shiny-compare-side--extra";
-                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="Primal"><span>🌋 Primal</span>`;
+                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="${JSC.formPrimal}"><span>🌋 ${JSC.formPrimal}</span>`;
                   compareWrap.appendChild(side);
                 }
                 if (sprites.shiny) {
                   const side = document.createElement("div");
                   side.className = "shiny-compare-side shiny-compare-side--extra";
-                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="Primal Shiny"><span>✨ Primal Shiny</span>`;
+                  side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="${JSC.primalShiny}"><span>✨ ${JSC.primalShiny}</span>`;
                   compareWrap.appendChild(side);
                 }
               });
@@ -217,7 +221,7 @@ function buildShiniesPanel(data: GameData): () => HTMLElement {
           if (obtainMethods.length) {
             const lbl = document.createElement("span");
             lbl.className = "shiny-modal-methods-label";
-            lbl.textContent = "How to find:";
+            lbl.textContent = SD.howToFind;
             methodsEl.appendChild(lbl);
             for (const g of obtainMethods) {
               const chip = document.createElement("span");
@@ -258,7 +262,7 @@ async function init() {
     app.innerHTML = "";
     app.appendChild(buildShiniesPanel(data)());
   } catch (err) {
-    app.innerHTML = `<div class="error-state">Failed to load data. Please try again later.</div>`;
+    app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     console.error(err);
   }
 }

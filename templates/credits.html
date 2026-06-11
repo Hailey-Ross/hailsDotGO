@@ -99,6 +99,82 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (62)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Full translation coverage and official localized Pokémon names</h2>
+        <ul class="cl-list">
+          <li>Every user-facing string now has a locale key and can be translated: roughly 250 new keys covering server error messages (all JSON API errors, login/registration, access control, maintenance fallbacks), the admin panel, store, settings, trainers, and register pages, and all client-side text on the Raids, DPS, PvP, Shinies, and Shiny Dex pages</li>
+          <li>All new keys ship with German, Spanish, French, and Japanese translations; Japanese is now at full parity with English</li>
+          <li>Pokémon names are localized again using official in-game names from PokéAPI species data (PoGoAPI stopped providing language data), now including Japanese; raid counter headers also show localized names</li>
+          <li>Translators can refine any of the new strings in the in-app translator workspace as usual</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (61)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder: shorter lobby lifetime</h2>
+        <ul class="cl-list">
+          <li>Lobbies now expire after 10 minutes instead of 2 hours, keeping the open lobby list current; as before, non-host members are dropped without any penalty when a lobby times out</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (60)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Project wiki and README overhaul</h2>
+        <ul class="cl-list">
+          <li>Launched a full project wiki on GitHub covering everything: getting started, configuration, database, deployment, operations, architecture, the API, data sources, every feature page, roles and the admin panel, and the translation workflow</li>
+          <li>Simplified the README into a quick start that links into the wiki for the deep dives</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (59)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Japanese translation</h2>
+        <ul class="cl-list">
+          <li>Added a full Japanese locale covering every string on the site, using official Pokémon GO terminology (色違い, レイド, 対策ポケモン, and friends)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-11 (58)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder: in-place lobby list refresh and gated queueing</h2>
+        <ul class="cl-list">
+          <li>The Current Activity list now reloads in place; the rest of the screen (including anything typed into the host form) stays put during the periodic refresh</li>
+          <li>Queueing now requires an open lobby: join straight from the activity list with the new per-boss Queue buttons</li>
+          <li>Staff and Super Donators get a Pre-Queue card to line up for any boss before a host appears; Super Donators also keep built-in queue priority</li>
+          <li>Store cards for Priority Pass and Super Donator now list every included perk</li>
+          <li>The Custom Raid boss field is now a sprite search picker with autocomplete covering every Pokémon plus Shadow, Mega, and Dynamax forms</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-10 (57)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Raid Finder rewrite: matchmaking queues, trust system, and awards</h2>
+        <ul class="cl-list">
+          <li>The Raid Finder is now a matchmaking system: pick a boss, join its queue, and get matched automatically with the next open lobby; Priority Pass holders jump ahead in line</li>
+          <li>While waiting you see a live queue position with the spinning pokéball from the maintenance page</li>
+          <li>Matched trainers get the host's Trainer Name and Code with a copy button and 2 minutes to send the friend request; hosts see matched names gray out and light up as each member confirms</li>
+          <li>When a lobby fills, the host gets a 4 minute window to send all in-game invites; if it lapses, everyone returns to the front of the queue with no penalty</li>
+          <li>After each raid, hosts confirm who joined and flag early leavers, and members report whether the raid succeeded and can commend or dislike the host</li>
+          <li>New trust system replaces 5-star ratings: behavior (timeouts, early leaves, commends, dislikes) feeds a score shown publicly as a Trusted / Neutral / Caution badge; staff reports always carry heavy weight, and mass-dislikers lose report weight without their own standing being attacked</li>
+          <li>New admin-granted special ranks with badges: ✅ Trusted and 🎬 Content Creator; holders (plus staff and top-trust users) can host custom raids for any boss</li>
+          <li>New community awards: Pokémon-themed recognitions like Helping Hand and Professor's Aide, granted by staff (community granting can be enabled later for top-trust users) and shown on trainer profiles</li>
+          <li>New admin Raids tab: live lobby moderation, awards management, per-user trust logs and adjustments</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-10 (56)</div>
       <div class="cl-body">
         <h2 class="cl-title">New community locales and GitHub translation sync</h2>

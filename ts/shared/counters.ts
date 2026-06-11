@@ -1,7 +1,10 @@
-import { typeEffectiveness, pokemonByName, pokeSprite } from "./gamedata";
+import { typeEffectiveness, pokemonByName, pokeSprite, pokeName } from "./gamedata";
 import { trueDPS, estimateTDO } from "./damage";
 import { typeBadge } from "./typecolors";
 import type { GameData, RaidBoss } from "./types";
+
+// Server-injected common UI strings, defined in templates/base.html.
+declare const JSC: Record<string, string>;
 
 export interface CounterResult {
   name: string;
@@ -190,18 +193,20 @@ export function calcSinglePokemon(
   return best;
 }
 
-export function renderCounterTable(boss: RaidBoss, results: CounterResult[]): HTMLElement {
+export function renderCounterTable(data: GameData, boss: RaidBoss, results: CounterResult[]): HTMLElement {
   const section = document.createElement("div");
   section.className = "counter-results";
 
   const header = document.createElement("h3");
-  header.textContent = `Top counters for ${boss.pokemon_name.replace(/_/g, " ")} (CP ${boss.cp.toLocaleString()})`;
+  header.textContent = JSC.topCounters
+    .replace("{name}", pokeName(data, boss.pokemon_name))
+    .replace("{cp}", boss.cp.toLocaleString());
   section.appendChild(header);
 
   if (results.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No counter data available.";
+    empty.textContent = JSC.noCounterData;
     section.appendChild(empty);
     return section;
   }
@@ -215,9 +220,9 @@ export function renderCounterTable(boss: RaidBoss, results: CounterResult[]): HT
     <thead>
       <tr>
         <th>#</th>
-        <th>Pokémon</th>
-        <th>Fast Move</th>
-        <th>Charged Move</th>
+        <th>${JSC.pokemon}</th>
+        <th>${JSC.fastMove}</th>
+        <th>${JSC.chargedMove}</th>
         <th>DPS</th>
         <th>TDO</th>
       </tr>
@@ -239,7 +244,7 @@ export function renderCounterTable(boss: RaidBoss, results: CounterResult[]): HT
     spriteImg.className = "poke-sprite";
     spriteImg.loading = "lazy"; spriteImg.decoding = "async";
     nameTd.appendChild(spriteImg);
-    nameTd.append(` ${r.name.replace(/_/g, " ")}`);
+    nameTd.append(` ${pokeName(data, r.name)}`);
 
     const fastTd = document.createElement("td");
     fastTd.appendChild(typeBadge(r.fastType));

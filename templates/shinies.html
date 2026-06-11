@@ -7,5 +7,35 @@
 {{end}}
 
 {{define "scripts"}}
+<script>
+const SH = {
+  heading:         {{T "shinies.js.heading"}},
+  tabAll:          {{T "shinies.js.tab_all"}},
+  tabCaught:       {{T "shinies.js.tab_caught"}},
+  tabMissing:      {{T "shinies.js.tab_missing"}},
+  unavailable:     {{T "shinies.js.unavailable"}},
+  addToCollection: {{T "shinies.js.add_to_collection"}},
+  add:             {{T "shinies.js.add"}},
+  adding:          {{T "shinies.js.adding"}},
+  alreadyOwned:    {{T "shinies.js.already_owned"}},
+  alreadyCaught:   {{T "shinies.js.already_caught"}},
+  saved:           {{T "shinies.js.saved"}},
+  counts:          {{T "shinies.js.counts"}},
+  nothingCaught:   {{T "shinies.js.nothing_caught"}},
+  filterCaught:    {{T "shinies.js.filter_caught"}},
+  today:           {{T "shinies.js.today"}},
+  yesterday:       {{T "shinies.js.yesterday"}},
+  daysAgo:         {{T "shinies.js.days_ago"}},
+  methodAny:       {{T "shinies.js.method_any"}},
+  methodWild:      {{T "shinies.js.method_wild"}},
+  methodEgg:       {{T "shinies.js.method_egg"}},
+  methodRaid:      {{T "shinies.js.method_raid"}},
+  methodResearch:  {{T "shinies.js.method_research"}},
+  methodEvolution: {{T "shinies.js.method_evolution"}},
+  methodPhotobomb: {{T "shinies.js.method_photobomb"}},
+  methodTrade:     {{T "shinies.js.method_trade"}},
+  methodGoTour:    {{T "shinies.js.method_go_tour"}}
+};
+</script>
 <script src="/static/js/shinies.js?v={{.AssetVersion}}"></script>
 {{end}}
