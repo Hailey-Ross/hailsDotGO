@@ -114,8 +114,6 @@ let deadlineRefreshQueued = false;
 let loaded = false;
 let idleShellBuilt = false; // idle screen renders once; polls only reload the lobby list frame
 
-// ── Helpers ───────────────────────────────────────────────────
-
 function esc(s: unknown): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -202,8 +200,6 @@ const POKEBALL_SVG =
   '<circle cx="32" cy="32" r="8" fill="rgba(0,0,0,0.6)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>' +
   '<circle cx="32" cy="32" r="4" fill="rgba(255,255,255,0.15)"/></svg>';
 
-// ── Countdown rendering ───────────────────────────────────────
-
 // Elements carrying data-deadline (ISO timestamp) get their text updated
 // every 250ms from the server-corrected clock. Crossing zero schedules one
 // state refresh so the UI follows the authoritative server transition.
@@ -228,8 +224,6 @@ function tickCountdowns(): void {
     }
   });
 }
-
-// ── Polling control ───────────────────────────────────────────
 
 function stopTimers(): void {
   if (fastTimer !== null) { clearInterval(fastTimer); fastTimer = null; }
@@ -259,8 +253,6 @@ document.addEventListener('visibilitychange', () => {
     fetchState();
   }
 });
-
-// ── Data loading ──────────────────────────────────────────────
 
 function loadBosses(): Promise<Record<string, RaidBoss[]>> {
   if (bosses) return Promise.resolve(bosses);
@@ -303,8 +295,6 @@ function renderFromState(st: RaidState): void {
       renderIdle(st);
   }
 }
-
-// ── Idle: boss pickers + overview ─────────────────────────────
 
 // The idle screen renders its shell (banner, forms, overview frame) once.
 // Subsequent polls only swap the dynamic slot (cooldown, feedback prompts)
@@ -728,7 +718,6 @@ function refreshOverview(): void {
     });
 }
 
-// ── Queued: pokeball waiting screen ───────────────────────────
 
 function renderQueued(st: RaidState): void {
   if (!root || !st.queue) return;
@@ -754,7 +743,6 @@ function renderQueued(st: RaidState): void {
   root.appendChild(card);
 }
 
-// ── Lobby shells ──────────────────────────────────────────────
 
 function lobbyHeader(lb: Lobby): HTMLElement {
   const top = document.createElement('div');
@@ -780,7 +768,6 @@ function countdownRow(labelKey: string, deadline: string): HTMLElement {
   return row;
 }
 
-// ── Member view (matched + confirmed) ─────────────────────────
 
 function renderMemberLobby(st: RaidState): void {
   if (!root || !st.lobby) return;
@@ -917,7 +904,6 @@ function buildMemberList(lb: Lobby, isHost: boolean): HTMLElement {
   return wrap;
 }
 
-// ── Host view ─────────────────────────────────────────────────
 
 function renderHostLobby(st: RaidState): void {
   if (!root || !st.lobby) return;
@@ -1030,7 +1016,6 @@ function buildReportForm(lb: Lobby): HTMLElement {
   return wrap;
 }
 
-// ── Member post-raid feedback ─────────────────────────────────
 
 function buildFeedbackCard(f: FeedbackDue): HTMLElement {
   const card = document.createElement('div');
@@ -1094,7 +1079,6 @@ function buildFeedbackCard(f: FeedbackDue): HTMLElement {
   return card;
 }
 
-// ── Weather banner ────────────────────────────────────────────
 
 const weatherEmoji: Dict = {
   'Clear': '☀️', 'Partly Cloudy': '⛅', 'Overcast': '☁️',
@@ -1115,7 +1099,6 @@ function loadWeatherBanner(): void {
   }).catch(() => {});
 }
 
-// ── Init ──────────────────────────────────────────────────────
 
 function initRaidFinder(): void {
   if (loaded || !root) return;

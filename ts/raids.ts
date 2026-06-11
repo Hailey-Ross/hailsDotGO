@@ -5,7 +5,6 @@ import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, RaidBoss, PokemonStat } from "./shared/types";
 
-// Server-injected strings: JSC from templates/base.html, RD from templates/raids.html.
 declare const JSC: Record<string, string>;
 declare const RD: Record<string, string>;
 
@@ -90,11 +89,9 @@ function buildRaidsView(data: GameData): HTMLElement {
   let activeTier = tiers.length ? tiers[0][0] : "";
   const activeTypes = new Set(uniqueTypes);
 
-  // ── Filter bar ─────────────────────────────────────────────
   const filterBar = document.createElement("div");
   filterBar.className = "raid-filter-bar";
 
-  // Tier tabs (single-select), ordered highest tier to lowest.
   const tierRow = document.createElement("div");
   tierRow.className = "raid-tabs";
 
@@ -139,12 +136,10 @@ function buildRaidsView(data: GameData): HTMLElement {
 
   wrap.appendChild(filterBar);
 
-  // ── Counter panel (shared, updated on boss click) ──────────
   const counterPanel = document.createElement("div");
   counterPanel.style.display = "none";
   let activeCard: HTMLElement | null = null;
 
-  // ── Pokémon picker ──────────────────────────────────────────
   const allBosses = tiers.flatMap(([tier, bosses]) =>
     bosses.map((boss) => ({ boss, tier }))
   );
@@ -426,7 +421,6 @@ function buildRaidsView(data: GameData): HTMLElement {
     dropdown.hidden = true;
     clearBtn.hidden = false;
 
-    // Reset config, compute default CP at L40 15/15/15
     Object.assign(config, DEFAULT_CONFIG);
     currentCP = currentPoke
       ? cpForLevel(currentPoke, 15, 15, 15, DEFAULT_CONFIG.cpm)
@@ -520,7 +514,6 @@ function buildRaidsView(data: GameData): HTMLElement {
 
   wrap.appendChild(picker);
 
-  // ── Tier sections ──────────────────────────────────────────
   const tierSections = new Map<string, HTMLElement>();
   const cardMeta = new Map<string, { el: HTMLElement; types: string[] }>();
 
@@ -629,7 +622,6 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
   counterPanel.style.display = "none";
   let activeCard: HTMLElement | null = null;
 
-  // Highest tier first.
   const tiers = Object.entries(data.maxBattles!).filter(([, b]) => b.length).sort(([a], [b]) => Number(b) - Number(a));
   let activeTier = tiers.length ? tiers[0][0] : "";
   const tierSections = new Map<string, HTMLElement>();

@@ -41,7 +41,6 @@ func (h *Handlers) settingBool(key string) bool {
 	return v == "1"
 }
 
-// APIAwardsList returns the active catalog (public).
 func (h *Handlers) APIAwardsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT id, slug, name, description, icon, color, active, sort_order
@@ -62,7 +61,6 @@ func (h *Handlers) APIAwardsList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
-// APIAwardsOf returns the grants a user has received (public, profile modal).
 func (h *Handlers) APIAwardsOf(w http.ResponseWriter, r *http.Request) {
 	username := chi.URLParam(r, "username")
 	var userID uint
@@ -95,7 +93,42 @@ func (h *Handlers) APIAwardsOf(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
-// APIAwardGrant gives an award to a user by username.
+type userSearchResult struct {
+	Username    string `json:"username"`
+	TrainerName string `json:"trainer_name"`
+}
+
+func (h *Handlers) APIUsersSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(q) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+	like := q + "%"
+	rows, err := h.db.Query(`
+		SELECT username, COALESCE(trainer_name, '')
+		FROM users
+		WHERE disabled = 0
+		  AND (username LIKE ? OR (trainer_name != '' AND trainer_name LIKE ?))
+		ORDER BY username
+		LIMIT 10`, like, like)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	out := []userSearchResult{}
+	for rows.Next() {
+		var u userSearchResult
+		if rows.Scan(&u.Username, &u.TrainerName) == nil {
+			out = append(out, u)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -138,7 +171,11 @@ func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var recipientID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, strings.TrimSpace(body.Username)).Scan(&recipientID); err != nil {
+	input := strings.TrimSpace(body.Username)
+	if err := h.db.QueryRow(`
+		SELECT id FROM users
+		WHERE disabled = 0 AND (username = ? OR (trainer_name != '' AND trainer_name = ?))
+		LIMIT 1`, input, input).Scan(&recipientID); err != nil {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}

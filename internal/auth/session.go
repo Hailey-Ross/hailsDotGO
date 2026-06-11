@@ -43,13 +43,10 @@ func (u *User) IsTester() bool {
 	return u.Role == "tester"
 }
 
-// HasAPIAccess returns true for superadmins (always) and admins explicitly granted API access.
 func (u *User) HasAPIAccess() bool {
-	return u.IsSuperAdmin() || (u.IsAdmin() && u.APIAccess)
+	return u.IsSuperAdmin() || u.APIAccess
 }
 
-// IsTranslator returns true for superadmins (always) and users explicitly
-// granted the translator permission.
 func (u *User) IsTranslator() bool {
 	return u.Translator || u.IsSuperAdmin()
 }

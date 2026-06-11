@@ -29,7 +29,8 @@ func (h *Handlers) LoginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/shinies", http.StatusSeeOther)
 		return
 	}
-	h.render(w, r, "login", authData{})
+	next := r.URL.Query().Get("next")
+	h.render(w, r, "login", authData{Form: map[string]string{"next": next}})
 }
 
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {

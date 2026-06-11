@@ -3,7 +3,6 @@ import { buildTabs } from "./shared/tabs";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, PokemonStat, CPMultiplier } from "./shared/types";
 
-// Server-injected strings: JSC from templates/base.html, PV from templates/pvp.html.
 declare const JSC: Record<string, string>;
 declare const PV: Record<string, string>;
 
@@ -166,7 +165,6 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
       resultArea.appendChild(tableWrap);
     });
 
-    // Enter key triggers calc
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") btn.click(); });
 
     wrap.appendChild(form);

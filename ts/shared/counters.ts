@@ -3,7 +3,6 @@ import { trueDPS, estimateTDO } from "./damage";
 import { typeBadge } from "./typecolors";
 import type { GameData, RaidBoss } from "./types";
 
-// Server-injected common UI strings, defined in templates/base.html.
 declare const JSC: Record<string, string>;
 
 export interface CounterResult {

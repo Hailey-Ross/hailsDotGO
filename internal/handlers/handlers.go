@@ -51,6 +51,7 @@ type PageMaintenance struct {
 	RaidFinderEnabled       bool
 	ShiniesEnabled          bool
 	ShinyDexEnabled         bool
+	TranslatorAppsEnabled   bool
 }
 
 // PageData is the root template data passed to every page.
@@ -97,14 +98,12 @@ func (h *Handlers) reloadLangs() {
 	h.langMu.Unlock()
 }
 
-// publicLangs returns the locales shown in the public language switcher.
 func (h *Handlers) publicLangs() []string {
 	h.langMu.RLock()
 	defer h.langMu.RUnlock()
 	return append([]string(nil), h.enabledLangs...)
 }
 
-// langEnabled reports whether code is publicly selectable.
 func (h *Handlers) langEnabled(code string) bool {
 	h.langMu.RLock()
 	defer h.langMu.RUnlock()
@@ -183,8 +182,6 @@ func previewLang(r *http.Request) string {
 	return lang
 }
 
-// pendingOverrides returns the user's own pending translation edits for lang,
-// keyed by locale string key, for overlaying into the preview render.
 func (h *Handlers) pendingOverrides(userID uint, lang string) map[string]string {
 	rows, err := h.db.Query(
 		`SELECT t_key, new_text FROM translation_edits WHERE user_id = ? AND lang = ? AND status = 'pending'`,
@@ -256,8 +253,6 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 		log.Printf("render %q: %v", page, err)
 	}
 }
-
-// Page handlers
 
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "home", nil)
@@ -375,12 +370,14 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 		RaidFinderEnabled:       true,
 		ShiniesEnabled:          true,
 		ShinyDexEnabled:         true,
+		TranslatorAppsEnabled:   true,
 	}
 	rows, err := h.db.Query(`SELECT setting_key, setting_value FROM site_settings
 		WHERE setting_key IN (
 			'page_raids_enabled','page_dps_enabled','page_pvp_enabled','page_events_enabled',
 			'page_trainers_enabled','section_trainer_directory_enabled',
-			'section_raid_finder_enabled','page_shinies_enabled','page_shinydex_enabled'
+			'section_raid_finder_enabled','page_shinies_enabled','page_shinydex_enabled',
+			'section_translator_apps_enabled'
 		)`)
 	if err != nil {
 		return m
@@ -411,6 +408,8 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 			m.ShiniesEnabled = enabled
 		case "page_shinydex_enabled":
 			m.ShinyDexEnabled = enabled
+		case "section_translator_apps_enabled":
+			m.TranslatorAppsEnabled = enabled
 		}
 	}
 	return m

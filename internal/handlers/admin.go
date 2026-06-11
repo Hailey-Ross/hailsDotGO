@@ -38,8 +38,6 @@ type adminData struct {
 	SuperadminUser   string
 }
 
-// ── Page handlers ─────────────────────────────────────────────
-
 func (h *Handlers) AdminPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "admin", adminData{
 		RegistrationOpen: h.registrationOpen(),
@@ -246,6 +244,7 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 		"section_raid_finder_enabled",
 		"page_shinies_enabled",
 		"page_shinydex_enabled",
+		"section_translator_apps_enabled",
 	}
 
 	saveErr := false
@@ -282,8 +281,6 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 		SuperadminUser:   auth.SuperadminUser,
 	})
 }
-
-// ── User management API ───────────────────────────────────────
 
 type adminTagEntry struct {
 	ID     uint   `json:"id"`
@@ -431,12 +428,14 @@ func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	caller := h.currentUser(r)
+
 	var targetUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
-	if targetUsername == auth.SuperadminUser {
+	if targetUsername == auth.SuperadminUser && !caller.IsSuperAdmin() {
 		writeJSONError(w, h.t(r, "error.adm_reset_superadmin"), http.StatusForbidden)
 		return
 	}
@@ -482,12 +481,14 @@ func (h *Handlers) AdminChangeUsername(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	caller := h.currentUser(r)
+
 	var currentUsername string
 	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&currentUsername); err != nil {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
-	if currentUsername == auth.SuperadminUser {
+	if currentUsername == auth.SuperadminUser && !caller.IsSuperAdmin() {
 		writeJSONError(w, h.t(r, "error.adm_rename_superadmin"), http.StatusForbidden)
 		return
 	}
@@ -605,7 +606,8 @@ func (h *Handlers) AdminSetSpecialRank(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
-	if auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser {
+	caller := h.currentUser(r)
+	if auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser && !caller.IsSuperAdmin() {
 		writeJSONError(w, h.t(r, "error.adm_modify_superadmin"), http.StatusForbidden)
 		return
 	}
@@ -763,11 +765,6 @@ func (h *Handlers) AdminChangeRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke API access if user is demoted away from admin.
-	if body.Role != "admin" {
-		h.db.Exec(`UPDATE users SET api_access = 0 WHERE id = ?`, id)
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }
@@ -789,17 +786,13 @@ func (h *Handlers) AdminToggleAPIAccess(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var targetUsername, targetRole string
-	if err := h.db.QueryRow(`SELECT username, role FROM users WHERE id = ?`, id).Scan(&targetUsername, &targetRole); err != nil {
+	var targetUsername string
+	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
 		writeJSONError(w, h.t(r, "error.adm_superadmin_api"), http.StatusBadRequest)
-		return
-	}
-	if targetRole != "admin" {
-		writeJSONError(w, h.t(r, "error.adm_api_admin_only"), http.StatusBadRequest)
 		return
 	}
 

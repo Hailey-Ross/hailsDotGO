@@ -40,7 +40,6 @@ var pogoBoostedTypes = map[string][]string{
 	"Windy":         {"Dragon", "Flying", "Psychic"},
 }
 
-// weatherStale returns true if the entry is past the next Pokémon GO weather boundary (:00 or :30).
 func weatherStale(fetched time.Time) bool {
 	boundary := fetched.UTC().Truncate(30 * time.Minute).Add(30 * time.Minute)
 	return time.Now().UTC().After(boundary)
@@ -73,8 +72,6 @@ func wmoToPoGO(code int, windKmh float64) string {
 	return base
 }
 
-// geocode resolves a city/region/country string to lat/lon using Open-Meteo's geocoding API.
-// Results are cached indefinitely (cities don't move).
 func geocode(city, region, country string) (float64, float64, error) {
 	key := city + "|" + region + "|" + country
 
@@ -123,8 +120,6 @@ func geocode(city, region, country string) (float64, float64, error) {
 	return ll.Lat, ll.Lon, nil
 }
 
-// fetchOpenMeteo retrieves the current WMO weather code and wind speed for a location
-// and maps it to a Pokémon GO weather condition.
 func fetchOpenMeteo(lat, lon float64) string {
 	u := fmt.Sprintf(
 		"https://api.open-meteo.com/v1/forecast?latitude=%.6f&longitude=%.6f&current=weather_code,wind_speed_10m&wind_speed_unit=kmh&timezone=auto",

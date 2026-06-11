@@ -7,7 +7,6 @@ import { createPicker, pokemonEntries } from "./shared/picker";
 import type { PickerEntry } from "./shared/picker";
 import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/types";
 
-// Server-injected strings: JSC from templates/base.html, DP from templates/dps.html.
 declare const JSC: Record<string, string>;
 declare const DP: Record<string, string>;
 
@@ -69,8 +68,6 @@ function cardSpriteImg(src: string, alt: string, cls: string): HTMLImageElement 
   return img;
 }
 
-// == Calculator tab (single Pokemon) ==========================
-
 function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
@@ -106,7 +103,6 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
     form.appendChild(cpLbl);
     form.appendChild(calcBtn);
 
-    // -- Target section ------------------------------------------
 
     const targetBlock = document.createElement("div");
     targetBlock.className = "calc-form";
@@ -128,7 +124,6 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
     });
     targetBlock.appendChild(targetPicker.root);
 
-    // -- Result area ----------------------------------------------
 
     const resultArea = document.createElement("div");
     resultArea.className = "result-area";
@@ -246,8 +241,6 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
   };
 }
 
-// == Compare tab ===============================================
-
 interface Attacker {
   id: number;
   poke: PokemonStat;
@@ -291,7 +284,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     let attackers: Attacker[] = [];
     let nextId = 0;
 
-    // -- Target section --------------------------------------------
 
     const targetBlock = document.createElement("div");
     targetBlock.className = "calc-form";
@@ -382,7 +374,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
 
     wrap.appendChild(targetBlock);
 
-    // -- Attacker builder ------------------------------------------
 
     const attackerForm = document.createElement("div");
     attackerForm.className = "calc-form";
@@ -420,7 +411,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     attackerForm.appendChild(errText);
     wrap.appendChild(attackerForm);
 
-    // -- Comparison results (table on desktop, cards on mobile) ----
 
     const tableArea = document.createElement("div");
     tableArea.className = "result-area compare-results";
@@ -464,7 +454,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
         renderTable();
       }
 
-      // Desktop table
       const tableWrap = document.createElement("div");
       tableWrap.className = "table-wrap";
 
@@ -646,8 +635,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     return wrap;
   };
 }
-
-// == Init ======================================================
 
 async function init() {
   try {

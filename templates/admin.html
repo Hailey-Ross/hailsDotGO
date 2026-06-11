@@ -15,8 +15,10 @@
   {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">{{T "admin.tab.settings"}}</button>{{end}}
   <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
   <button class="tab-btn" data-tab="raidsv2">{{T "admin.tab.raids"}}</button>
+  <button class="tab-btn" data-tab="awards">{{T "admin.tab.awards"}}</button>
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tag-requests">{{T "admin.tab.tag_requests"}}</button>{{end}}
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translator-apps">{{T "admin.tab.translator_apps"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translations">{{T "admin.tab.translations"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="pages">{{T "admin.tab.pages"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
@@ -187,6 +189,28 @@
 {{end}}
 
 {{if .User.IsAdmin}}
+<div id="tab-translator-apps" class="tab-panel">
+  <div class="admin-card">
+    <div class="admin-card-header">
+      <h2>{{T "admin.ta.title"}}</h2>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <select id="ta-filter" class="move-select" onchange="loadTranslatorApps()">
+          <option value="pending">Pending</option>
+          <option value="reviewing">Reviewing</option>
+          <option value="all">All</option>
+        </select>
+        <button class="um-btn" onclick="loadTranslatorApps()">{{T "admin.translations.refresh"}}</button>
+      </div>
+    </div>
+    <p class="admin-desc">{{T "admin.ta.desc"}}</p>
+    <div id="ta-container">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading"}}</span></div>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{if .User.IsAdmin}}
 <div id="tab-translations" class="tab-panel">
   <div class="admin-card" id="locales-card">
     <div class="admin-card-header">
@@ -324,6 +348,17 @@
           </label>
         </div>
 
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.translator_apps"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="section_translator_apps_enabled" value="1"
+                   {{if .Data.Maintenance.TranslatorAppsEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.TranslatorAppsEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
       </div>
       <button type="submit" class="btn-primary">{{T "admin.pages.save"}}</button>
     </form>
@@ -361,6 +396,11 @@
     </div>
   </div>
 
+
+</div>
+
+<div id="tab-awards" class="tab-panel">
+
   <div class="admin-card">
     <div class="admin-card-header">
       <h2>{{T "admin.awards.title"}}</h2>
@@ -386,7 +426,8 @@
     <h3 style="margin-top:1.5rem;font-size:0.95rem">{{T "admin.awards.grant_title"}}</h3>
     <form id="award-grant-form" class="admin-form" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem">
       <select id="award-grant-select" class="move-select" style="min-width:160px"></select>
-      <input type="text" id="award-grant-user" placeholder="{{T "admin.awards.user_ph"}}" maxlength="32" required class="auth-input" style="width:160px">
+      <input type="text" id="award-grant-user" placeholder="{{T "admin.awards.user_ph"}}" maxlength="64" required class="auth-input" style="width:160px" list="award-user-suggestions" autocomplete="off">
+      <datalist id="award-user-suggestions"></datalist>
       <input type="text" id="award-grant-note" placeholder="{{T "admin.awards.note_ph"}}" maxlength="160" class="auth-input" style="flex:1;min-width:160px">
       <button type="submit" class="btn-primary">{{T "admin.awards.grant_btn"}}</button>
       <span id="award-grant-status" style="font-size:0.8rem"></span>
@@ -550,6 +591,19 @@ const STRINGS = {
   syncNone:             {{T "admin.js.sync_none"}},
   syncRunning:          {{T "admin.js.sync_running"}},
   syncViewPr:           {{T "admin.js.sync_view_pr"}},
+  taNoApps:             {{T "admin.ta.none"}},
+  taMotivation:         {{T "admin.ta.motivation"}},
+  taExperience:         {{T "admin.ta.experience"}},
+  taCountry:            {{T "admin.ta.country"}},
+  taLanguages:          {{T "admin.ta.languages"}},
+  taBtnReviewing:       {{T "admin.ta.btn_reviewing"}},
+  taBtnAccept:          {{T "admin.ta.btn_accept"}},
+  taBtnReject:          {{T "admin.ta.btn_reject"}},
+  taReasonPh:           {{T "admin.ta.reason_ph"}},
+  taStatusPending:      {{T "translate.application.status.pending"}},
+  taStatusReviewing:    {{T "translate.application.status.reviewing"}},
+  taStatusAccepted:     {{T "translate.application.status.accepted"}},
+  taStatusRejected:     {{T "translate.application.status.rejected"}},
   error:                {{T "error.generic"}},
   errorChangeRole:      {{T "admin.js.error_change_role"}},
   usernameRule:         {{T "register.username_rule"}},
@@ -708,8 +762,8 @@ function renderUserDetail(u) {
   const isMe         = u.id === ME_ID;
   const isSuperAdmin = u.username === SUPERADMIN;
   const canDisable   = !isMe && !isSuperAdmin;
-  const canRename    = !isSuperAdmin;
-  const canSetPw     = !isSuperAdmin;
+  const canRename    = !isSuperAdmin || (IS_SUPERADMIN && isMe);
+  const canSetPw     = !isSuperAdmin || (IS_SUPERADMIN && isMe);
   const cap          = s => s.charAt(0).toUpperCase() + s.slice(1);
   const canManageTags = IS_MOD && (u.username !== SUPERADMIN || IS_SUPERADMIN);
 
@@ -723,7 +777,7 @@ function renderUserDetail(u) {
   const dirBadge    = u.directory_hidden ? `<span class="um-status-badge um-status-hidden">${STRINGS.dirHidden}</span>` : '';
   const raidBanBadge= u.raid_banned      ? `<span class="um-status-badge um-status-raid-ban">${STRINGS.raidBanned}</span>` : '';
   const strikeBadge = u.strike_count > 0 ? `<span class="um-status-badge um-status-strike">${u.strike_count} ${u.strike_count > 1 ? STRINGS.strikeP : STRINGS.strikeS}</span>` : '';
-  const hasAPIAccess= u.username === SUPERADMIN || (u.role === 'admin' && u.api_access);
+  const hasAPIAccess= u.username === SUPERADMIN || u.api_access;
   const apiBadge    = hasAPIAccess ? `<span class="um-status-badge um-status-api">${STRINGS.apiAccess}</span>` : '';
   const translatorBadge = u.translator ? `<span class="um-status-badge um-status-api">${STRINGS.translator}</span>` : '';
   const pendingBadge= u.pending_role ? `<span class="um-status-badge um-status-pending">${STRINGS.pending} ${esc(cap(u.pending_role))}</span>` : '';
@@ -736,7 +790,7 @@ function renderUserDetail(u) {
       <option value="admin"     ${u.role==='admin'     ? 'selected':''}>` + STRINGS.roleAdmin + `</option>
     </select>` : '';
 
-  const specialSelect = IS_ADMIN && !isSuperAdmin ? `
+  const specialSelect = IS_ADMIN && (!isSuperAdmin || (IS_SUPERADMIN && isMe)) ? `
     <select class="um-role-select move-select" onchange="setSpecialRank(${u.id}, this)">
       <option value="" ${!u.special_rank ? 'selected':''}>${STRINGS.specialNone}</option>
       <option value="trusted" ${u.special_rank==='trusted' ? 'selected':''}>✅ ${STRINGS.specialTrusted}</option>
@@ -750,7 +804,7 @@ function renderUserDetail(u) {
 
   const dirHideBtn    = `<button class="um-btn ${u.directory_hidden ? 'um-btn-ok' : 'um-btn-warn'}" onclick="toggleDirectoryHide(${u.id}, ${!u.directory_hidden})">${u.directory_hidden ? STRINGS.btnUnhide : STRINGS.btnHide}</button>`;
   const raidBanBtn    = `<button class="um-btn ${u.raid_banned ? 'um-btn-ok' : 'um-btn-danger'}" onclick="toggleRaidBan(${u.id}, ${!u.raid_banned})">${u.raid_banned ? STRINGS.btnUnbanRaids : STRINGS.btnBanRaids}</button>`;
-  const apiAccessBtn  = IS_SUPERADMIN && u.role === 'admin' && u.username !== SUPERADMIN
+  const apiAccessBtn  = IS_SUPERADMIN && u.username !== SUPERADMIN
     ? `<button class="um-btn ${u.api_access ? 'um-btn-danger' : 'um-btn-ok'}" onclick="toggleAPIAccess(${u.id}, ${!u.api_access})">${u.api_access ? STRINGS.btnRevokeApi : STRINGS.btnGrantApi}</button>` : '';
   const translatorBtn = IS_SUPERADMIN && u.username !== SUPERADMIN
     ? `<button class="um-btn ${u.translator ? 'um-btn-danger' : 'um-btn-ok'}" onclick="toggleTranslator(${u.id}, ${!u.translator})">${u.translator ? STRINGS.btnRevokeTranslator : STRINGS.btnGrantTranslator}</button>` : '';
@@ -1667,6 +1721,28 @@ async function revokeGrant(id) {
       }
     });
   }
+  const userInput = document.getElementById('award-grant-user');
+  const userSuggestions = document.getElementById('award-user-suggestions');
+  if (userInput && userSuggestions) {
+    let searchTimer;
+    userInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const q = userInput.value.trim();
+      if (q.length < 2) { userSuggestions.innerHTML = ''; return; }
+      searchTimer = setTimeout(async () => {
+        const res = await fetch('/api/users/search?q=' + encodeURIComponent(q));
+        if (!res.ok) return;
+        const users = await res.json().catch(() => []);
+        userSuggestions.innerHTML = '';
+        users.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.username;
+          opt.label = u.trainer_name ? u.trainer_name + ' (' + u.username + ')' : u.username;
+          userSuggestions.appendChild(opt);
+        });
+      }, 250);
+    });
+  }
 })();
 
 async function setRaidXP(e, id) {
@@ -2073,6 +2149,118 @@ async function toggleStoreItem(id, currentlyActive) {
   if (btnEl)    { btnEl.textContent = d.active ? STRINGS.itemDisable : STRINGS.itemEnable; btnEl.className = 'um-btn ' + (d.active ? 'um-btn-danger' : 'um-btn-ok'); btnEl.setAttribute('onclick', `toggleStoreItem(${id}, ${d.active})`); }
 }
 
+// ── Translator Applications ────────────────────────────────────
+let translatorApps = [];
+
+async function loadTranslatorApps() {
+  const container = document.getElementById('ta-container');
+  if (!container) return;
+  const filter = document.getElementById('ta-filter')?.value || 'pending';
+  container.innerHTML = `<div class="loading-state"><div class="spinner"></div></div>`;
+  const res = await fetch('/api/admin/translator-applications?status=' + filter);
+  if (!res.ok) { container.innerHTML = `<div class="error-state">${STRINGS.failLoad}</div>`; return; }
+  translatorApps = await res.json();
+  renderTranslatorApps();
+}
+
+function taStatusLabel(status) {
+  if (status === 'pending')   return `<span style="color:var(--gold)">${STRINGS.taStatusPending}</span>`;
+  if (status === 'reviewing') return `<span style="color:var(--blue)">${STRINGS.taStatusReviewing}</span>`;
+  if (status === 'accepted')  return `<span style="color:var(--green)">${STRINGS.taStatusAccepted}</span>`;
+  if (status === 'rejected')  return `<span style="color:#fc8181">${STRINGS.taStatusRejected}</span>`;
+  return esc(status);
+}
+
+function taLanguageList(langsJson) {
+  try {
+    const langs = JSON.parse(langsJson);
+    return langs.map(l => {
+      const code = l.code.startsWith('other:') ? l.code.slice(6) : l.code.toUpperCase();
+      return `<span class="tl-badge" style="background:var(--surface-h)">${esc(code)} <small style="opacity:0.7">${esc(l.level)}</small></span>`;
+    }).join(' ');
+  } catch { return esc(langsJson); }
+}
+
+function renderTranslatorApps() {
+  const container = document.getElementById('ta-container');
+  if (!container) return;
+  if (!translatorApps.length) { container.innerHTML = `<p class="empty-state">${STRINGS.taNoApps}</p>`; return; }
+  container.innerHTML = translatorApps.map(a => {
+    const isPendingOrReviewing = a.status === 'pending' || a.status === 'reviewing';
+    const actions = isPendingOrReviewing ? `
+      <div class="um-actions" id="ta-actions-${a.id}">
+        ${a.status === 'pending' ? `<button class="um-btn" onclick="setTaStatus(${a.id},'reviewing')">${STRINGS.taBtnReviewing}</button>` : ''}
+        <button class="um-btn um-btn-ok" onclick="setTaStatus(${a.id},'accepted')">${STRINGS.taBtnAccept}</button>
+        <button class="um-btn um-btn-danger" onclick="setTaStatus(${a.id},'rejected')">${STRINGS.taBtnReject}</button>
+        <input type="text" id="ta-reason-${a.id}" placeholder="${STRINGS.taReasonPh}" class="auth-input" style="flex:1;min-width:180px;font-size:0.82rem;display:none">
+        <button class="um-btn um-btn-danger" id="ta-confirm-reject-${a.id}" style="display:none" onclick="confirmTaReject(${a.id})">${STRINGS.taBtnReject}</button>
+        <span id="ta-status-${a.id}" style="font-size:0.8rem"></span>
+      </div>` : '';
+    return `<div class="um-card" id="ta-row-${a.id}" style="margin-bottom:0.5rem">
+      <div class="um-header">
+        <div class="um-meta">
+          <span class="um-username">${esc(a.username)}</span>
+          <span style="font-size:0.82rem;color:var(--text-2)">${STRINGS.submitted} ${esc(a.created_at)}</span>
+          <div style="margin-top:0.3rem">${taLanguageList(a.languages)}</div>
+        </div>
+        <div style="font-size:0.85rem;font-weight:600">${taStatusLabel(a.status)}</div>
+      </div>
+      <div style="padding:0.5rem 0;font-size:0.84rem;color:var(--text-2)">
+        <p><strong style="color:var(--text)">${STRINGS.taMotivation}</strong> ${esc(a.motivation)}</p>
+        ${a.experience ? `<p style="margin-top:0.35rem"><strong style="color:var(--text)">${STRINGS.taExperience}</strong> ${esc(a.experience)}</p>` : ''}
+        ${a.country ? `<p style="margin-top:0.35rem"><strong style="color:var(--text)">${STRINGS.taCountry}</strong> ${esc(a.country)}</p>` : ''}
+        ${a.reject_reason ? `<p style="margin-top:0.35rem;color:#fc8181"><strong>${STRINGS.rejectReason}</strong> ${esc(a.reject_reason)}</p>` : ''}
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+}
+
+async function setTaStatus(id, status) {
+  if (status === 'rejected') {
+    const reasonEl = document.getElementById('ta-reason-' + id);
+    const confirmBtn = document.getElementById('ta-confirm-reject-' + id);
+    if (reasonEl && reasonEl.style.display === 'none') {
+      reasonEl.style.display = 'inline-block';
+      if (confirmBtn) confirmBtn.style.display = 'inline-block';
+      reasonEl.focus();
+      return;
+    }
+  }
+  const statusEl = document.getElementById('ta-status-' + id);
+  const res = await csrfFetch('/api/admin/translator-applications/' + id + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status}),
+  });
+  if (res.ok) {
+    const app = translatorApps.find(a => a.id === id);
+    if (app) app.status = status;
+    renderTranslatorApps();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function confirmTaReject(id) {
+  const reason = (document.getElementById('ta-reason-' + id)?.value || '').trim();
+  const statusEl = document.getElementById('ta-status-' + id);
+  const res = await csrfFetch('/api/admin/translator-applications/' + id + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'rejected', reason}),
+  });
+  if (res.ok) {
+    const app = translatorApps.find(a => a.id === id);
+    if (app) { app.status = 'rejected'; app.reject_reason = reason; }
+    renderTranslatorApps();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+  }
+}
+
 // Load data when switching tabs
 const origTabClick = document.getElementById('admin-tabs');
 if (origTabClick) {
@@ -2080,9 +2268,11 @@ if (origTabClick) {
     const btn = e.target.closest('.tab-btn');
     if (!btn) return;
     if (btn.dataset.tab === 'tag-requests') loadTagRequests();
+    if (btn.dataset.tab === 'translator-apps') loadTranslatorApps();
     if (btn.dataset.tab === 'translations') { loadTranslations(); loadAdminLocales(); }
     if (btn.dataset.tab === 'donations') loadStoreItems();
-    if (btn.dataset.tab === 'raidsv2') { loadAdminLobbies(); loadAdminAwards(); }
+    if (btn.dataset.tab === 'raidsv2') loadAdminLobbies();
+    if (btn.dataset.tab === 'awards') loadAdminAwards();
   }, true);
 }
 </script>

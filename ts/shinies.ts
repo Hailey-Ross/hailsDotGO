@@ -2,7 +2,6 @@ import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
-// Server-injected strings: JSC and SITE_LANG from templates/base.html, SH from templates/shinies.html.
 declare const JSC: Record<string, string>;
 declare const SH: Record<string, string>;
 declare const SITE_LANG: string;
@@ -120,8 +119,6 @@ async function init() {
   const shinyByName = new Map(allShinies.map((s) => [s.name, s]));
   let caughtIndex = buildCaughtIndex(userShinies);
 
-  // ── Layout ───────────────────────────────────────────────────
-
   app.innerHTML = `
     <div class="page-header">
       <h1>${SH.heading}</h1>
@@ -142,8 +139,6 @@ async function init() {
   const tabsEl     = document.getElementById("sc-tabs")!;
   const searchEl   = document.getElementById("sc-search") as HTMLInputElement;
   const contentEl  = document.getElementById("sc-content")!;
-
-  // ── Add modal ────────────────────────────────────────────────
 
   const modal = document.createElement("div");
   modal.className = "sc-modal";
@@ -262,7 +257,6 @@ async function init() {
     modalAddBtn.disabled = false;
     modalAddBtn.textContent = SH.add;
 
-    // Disable forms already caught
     const caughtForms = FORMS.filter((f) => caughtIndex.has(`${s.name}:${f.value}`)).map((f) => f.value);
     modalFields.innerHTML = "";
     modalFormSel = makeSelect(FORMS, "", caughtForms);
@@ -270,7 +264,6 @@ async function init() {
     modalFields.appendChild(modalFormSel);
     modalFields.appendChild(modalMethodSel);
 
-    // Pick first uncaught form by default
     const firstAvailable = FORMS.find((f) => !caughtForms.includes(f.value));
     if (firstAvailable) modalFormSel.value = firstAvailable.value;
 
@@ -305,8 +298,6 @@ async function init() {
     }
   });
 
-  // ── Helpers ───────────────────────────────────────────────────
-
   function timeAgo(dateStr: string): string {
     const d    = new Date(dateStr);
     const diff = Date.now() - d.getTime();
@@ -318,8 +309,6 @@ async function init() {
     if (days < 365) return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
     return d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
   }
-
-  // ── Counter / Stats bar ──────────────────────────────────────
 
   const METHOD_ICONS: Record<string, string> = {
     wild: "🌿", egg: "🥚", raid: "⚔️", research: "📋",
@@ -350,8 +339,6 @@ async function init() {
       `<span class="sc-stat-counts">${counts}</span>` +
       (chipsHtml ? `<span class="sc-stat-chips">${chipsHtml}</span>` : "");
   }
-
-  // ── Render: All / Missing grid ───────────────────────────────
 
   function renderGrid(source: ShinyPokemon[]) {
     const q = searchEl.value.trim().toLowerCase();
@@ -398,8 +385,6 @@ async function init() {
     contentEl.innerHTML = "";
     contentEl.appendChild(grid);
   }
-
-  // ── Render: Caught list ───────────────────────────────────────
 
   function renderCaughtList() {
     const q = searchEl.value.trim().toLowerCase();
@@ -517,8 +502,6 @@ async function init() {
 
     contentEl.appendChild(list);
   }
-
-  // ── Tab routing ──────────────────────────────────────────────
 
   let activeTab = "all";
 
