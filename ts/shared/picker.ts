@@ -32,6 +32,7 @@ export interface Picker {
   clear(fire?: boolean): void;
   focus(): void;
   isDropdownOpen(): boolean;
+  selectByName(name: string): boolean;
 }
 
 function spriteImg(src: string, alt: string, cls: string): HTMLElement {
@@ -227,6 +228,13 @@ export function createPicker(opts: PickerOptions): Picker {
     if (!root.contains(e.target as Node)) dropdown.hidden = true;
   });
 
+  function selectByName(name: string): boolean {
+    const entry = opts.entries.find((e) => e.name === name || e.key === name);
+    if (!entry) return false;
+    select(entry);
+    return true;
+  }
+
   return {
     root,
     input,
@@ -234,6 +242,7 @@ export function createPicker(opts: PickerOptions): Picker {
     clear,
     focus: () => input.focus(),
     isDropdownOpen: () => !dropdown.hidden,
+    selectByName,
   };
 }
 

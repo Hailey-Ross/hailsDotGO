@@ -42,5 +42,6 @@ const DP = {
   tabCompare:         {{T "dps.js.tab_compare"}}
 };
 </script>
+<script>const DPS_CTX = { loggedIn: {{if .User}}true{{else}}false{{end}} };</script>
 <script src="/static/js/dps.js?v={{.AssetVersion}}"></script>
 {{end}}
