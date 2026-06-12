@@ -9,6 +9,10 @@ import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/type
 
 declare const JSC: Record<string, string>;
 declare const DP: Record<string, string>;
+declare const DPS_CTX: { loggedIn: boolean };
+
+const LS_CALC_TARGET = "dps_calc_target";
+const LS_CMP_TARGET  = "dps_cmp_target";
 
 const app = document.getElementById("dps-app")!;
 
@@ -119,9 +123,19 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
     const targetPicker = createPicker({
       entries: allEntries,
       placeholder: DP.targetPokemonEg,
-      onSelect: (e) => { calcTargetTypes = e.types; },
-      onClear: () => { calcTargetTypes = []; },
+      onSelect: (e) => {
+        calcTargetTypes = e.types;
+        if (DPS_CTX.loggedIn) localStorage.setItem(LS_CALC_TARGET, e.name);
+      },
+      onClear: () => {
+        calcTargetTypes = [];
+        if (DPS_CTX.loggedIn) localStorage.removeItem(LS_CALC_TARGET);
+      },
     });
+    if (DPS_CTX.loggedIn) {
+      const saved = localStorage.getItem(LS_CALC_TARGET);
+      if (saved) targetPicker.selectByName(saved);
+    }
     targetBlock.appendChild(targetPicker.root);
 
 
@@ -332,6 +346,7 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
         type1Sel.value = targetTypes[0] ?? "";
         type2Sel.value = targetTypes[1] ?? "";
         updateManualRow(false);
+        if (DPS_CTX.loggedIn) localStorage.setItem(LS_CMP_TARGET, e.name);
         renderTable();
       },
       onClear: () => {
@@ -339,9 +354,14 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
         type2Sel.value = "";
         targetTypes = [];
         updateManualRow(false);
+        if (DPS_CTX.loggedIn) localStorage.removeItem(LS_CMP_TARGET);
         renderTable();
       },
     });
+    if (DPS_CTX.loggedIn) {
+      const saved = localStorage.getItem(LS_CMP_TARGET);
+      if (saved) targetPicker.selectByName(saved);
+    }
     targetBlock.appendChild(targetPicker.root);
 
     // Advanced: manual type selection for custom typings.
