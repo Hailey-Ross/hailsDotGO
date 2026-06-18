@@ -1,0 +1,156 @@
+{{define "title"}}{{T "raidfinder.page_title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <div>
+    <h1>{{T "raidfinder.page_title"}}</h1>
+    <p>{{T "raidfinder.page_subtitle"}}</p>
+  </div>
+</div>
+
+{{if not .Maintenance.RaidFinderEnabled}}
+  <div style="text-align:center;padding:3rem 1rem">
+    <div style="font-size:2rem;margin-bottom:0.75rem">🔧</div>
+    <p style="color:var(--text-2)">{{T "maintenance.section_message"}}</p>
+  </div>
+{{else}}
+
+{{if and .User .Data.IncompleteProfile}}
+<div class="raid-profile-banner">
+  ⚠ {{T "raidfinder.incomplete_profile_banner"}} <a href="/settings">{{T "raidlobby.go_settings"}}</a>
+</div>
+{{end}}
+
+<div class="raid-lock-wrapper">
+  <div class="raid-content-area{{if not .User}} raid-locked{{end}}">
+    <div id="weather-banner-slot"></div>
+    <div id="raid-finder-root">
+      <div class="loading-state"><div class="spinner"></div><span>{{T "trainers.loading"}}</span></div>
+    </div>
+  </div>
+  {{if not .User}}
+  <div class="raid-lock-overlay">
+    <div class="raid-lock-card">
+      <h2>{{T "raidfinder.login_required_title"}}</h2>
+      <p>{{T "raidfinder.login_required_body"}}</p>
+      <div class="raid-lock-actions">
+        <a href="/login?next=/raidfinder" class="btn-primary">{{T "raidfinder.login_cta"}}</a>
+        <span>{{T "raidfinder.or"}}</span>
+        <a href="/register" class="btn-secondary">{{T "raidfinder.signup_cta"}}</a>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+
+{{end}}
+{{end}}
+
+{{define "scripts"}}
+{{if .Maintenance.RaidFinderEnabled}}
+<script>
+const RF2 = {
+  // shared chrome
+  refresh:        {{T "raidlobby.refresh"}},
+  errorLoad:      {{T "raidlobby.error_load"}},
+  copy:           {{T "raidfinder.copy"}},
+  copied:         {{T "raidfinder.copied"}},
+  goSettings:     {{T "raidlobby.go_settings"}},
+  loginCta:       {{T "raidfinder.login_cta"}},
+  or:             {{T "raidfinder.or"}},
+  signupCta:      {{T "raidfinder.signup_cta"}},
+  loginToUse:     {{T "raidlobby.login_to_use"}},
+  // tiers + boss picker
+  bossSelect:     {{T "raidfinder.boss_select"}},
+  tier1:          {{T "raidfinder.tier_1"}},
+  tier3:          {{T "raidfinder.tier_3"}},
+  tier5:          {{T "raidfinder.tier_5"}},
+  tier6:          {{T "raidfinder.tier_6"}},
+  bossLbl:        {{T "raidfinder.raid_boss_lbl"}},
+  weatherBoost:   {{T "raidfinder.weather_boost"}},
+  badgeBoosted:   {{T "raidfinder.badge_boosted"}},
+  optional:       {{T "raidfinder.optional"}},
+  noteLbl:        {{T "raidlobby.note_lbl"}},
+  wxSuffix:       {{T "raidfinder.weather_boost_suffix"}},
+  // queue
+  prequeueTitle:  {{T "raidlobby.prequeue_title"}},
+  prequeueHint:   {{T "raidlobby.prequeue_hint"}},
+  queueListHint:  {{T "raidlobby.queue_list_hint"}},
+  btnQueue:       {{T "raidlobby.btn_queue"}},
+  waitingTitle:   {{T "raidlobby.waiting_title"}},
+  queuePos:       {{T "raidlobby.queue_pos"}},
+  queueOf:        {{T "raidlobby.queue_of"}},
+  priorityBadge:  {{T "raidlobby.priority_badge"}},
+  btnLeaveQueue:  {{T "raidlobby.btn_leave_queue"}},
+  cooldownMsg:    {{T "raidlobby.cooldown_msg"}},
+  // hosting
+  hostTitle:      {{T "raidlobby.host_title"}},
+  btnHost:        {{T "raidlobby.btn_host"}},
+  maxMembers:     {{T "raidlobby.max_members"}},
+  customToggle:   {{T "raidlobby.custom_toggle"}},
+  customBossPh:   {{T "raidlobby.custom_boss_ph"}},
+  customBadge:    {{T "raidlobby.custom_badge"}},
+  hostWaiting:    {{T "raidlobby.host_waiting"}},
+  fullMsg:        {{T "raidlobby.full_msg"}},
+  btnInvited:     {{T "raidlobby.btn_invited"}},
+  btnCancel:      {{T "raidlobby.btn_cancel"}},
+  btnKick:        {{T "raidlobby.btn_kick"}},
+  reportTitle:    {{T "raidlobby.report_title"}},
+  reportAttended: {{T "raidlobby.report_attended"}},
+  reportLeftEarly:{{T "raidlobby.report_left_early"}},
+  btnReport:      {{T "raidlobby.btn_report"}},
+  // member lobby
+  addHost:        {{T "raidfinder.add_friend"}},
+  addHost2:       {{T "raidfinder.add_friend2"}},
+  confirmBtn:     {{T "raidlobby.confirm_btn"}},
+  confirmWindow:  {{T "raidlobby.confirm_window"}},
+  inviteWindow:   {{T "raidlobby.invite_window"}},
+  membersLbl:     {{T "raidlobby.members_lbl"}},
+  unconfirmed:    {{T "raidlobby.unconfirmed"}},
+  confirmedBadge: {{T "raidlobby.confirmed_badge"}},
+  btnLeave:       {{T "raidfinder.btn_leave"}},
+  waitingFill:    {{T "raidlobby.waiting_fill"}},
+  memberFullMsg:  {{T "raidlobby.member_full_msg"}},
+  raidingMsg:     {{T "raidlobby.raiding_msg"}},
+  passWarning:    {{T "raidfinder.pass_warning"}},
+  prepMsg:        {{T "raidfinder.prep_msg"}},
+  prepRaids:      {{T "raidfinder.prep_raids"}},
+  prepMsg2:       {{T "raidfinder.prep_msg2"}},
+  prepMsg3:       {{T "raidfinder.prep_msg3"}},
+  // overview
+  overviewTitle:  {{T "raidlobby.overview_title"}},
+  openLobbies:    {{T "raidlobby.open_lobbies"}},
+  inQueue:        {{T "raidlobby.in_queue"}},
+  noActivity:     {{T "raidlobby.no_activity"}},
+  hostedBy:       {{T "raidlobby.hosted_by"}},
+  // feedback
+  feedbackTitle:  {{T "raidlobby.feedback_title"}},
+  feedbackSuccess:{{T "raidlobby.feedback_success"}},
+  feedbackFailed: {{T "raidlobby.feedback_failed"}},
+  btnCommend:     {{T "raidlobby.btn_commend"}},
+  btnDislike:     {{T "raidlobby.btn_dislike"}},
+  btnSkip:        {{T "raidlobby.btn_skip"}},
+  btnFeedback:    {{T "raidlobby.btn_feedback"}},
+  // badges
+  trustTrusted:   {{T "trust.tier.trusted"}},
+  trustNeutral:   {{T "trust.tier.neutral"}},
+  trustCaution:   {{T "trust.tier.caution"}},
+  rankTrusted:    {{T "rank.trusted"}},
+  rankCC:         {{T "rank.content_creator"}},
+  roleSuper:      {{T "admin.js.role_superadmin"}},
+  roleAdmin:      {{T "admin.js.role_admin"}},
+  roleMod:        {{T "admin.js.role_mod"}},
+  roleTester:     {{T "admin.js.role_tester"}},
+};
+
+const RAID_CTX = {
+  loggedIn: {{if .User}}true{{else}}false{{end}},
+  isMod: {{if .User}}{{if .User.IsMod}}true{{else}}false{{end}}{{else}}false{{end}},
+  canCustom: {{if .Data.CanCustomLobby}}true{{else}}false{{end}},
+  canPreQueue: {{if .Data.CanPreQueue}}true{{else}}false{{end}},
+  username: {{if .User}}{{.User.Username}}{{else}}""{{end}},
+};
+</script>
+<script src="/static/js/raidfinder.js?v={{.AssetVersion}}"></script>
+{{end}}
+{{end}}

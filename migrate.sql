@@ -400,26 +400,29 @@ INSERT IGNORE INTO locales (code, enabled) VALUES ('es', 1), ('fr', 1), ('de', 1
 ALTER TABLE trust_events MODIFY event_type
   ENUM('commend','dislike','confirm_timeout','invite_window_fail','left_early','raid_success','staff_adjust','host_unfulfilled') NOT NULL;
 
--- 25. Translator applications (2026-06-11)
--- RUN THIS ON THE LIVE DB BEFORE DEPLOYING the translator application feature.
--- languages is a JSON array VARCHAR(500): [{"code":"de","level":"fluent"}, ...].
--- 'accepted' status is informational; the actual gate is users.translator = 1.
-CREATE TABLE IF NOT EXISTS translator_applications (
-  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  user_id       INT UNSIGNED  NOT NULL,
-  languages     VARCHAR(500)  NOT NULL,
-  motivation    TEXT          NOT NULL,
-  experience    VARCHAR(2000) NOT NULL DEFAULT '',
-  country       VARCHAR(100)  NOT NULL DEFAULT '',
-  status        ENUM('pending','reviewing','accepted','rejected') NOT NULL DEFAULT 'pending',
-  reviewed_by   INT UNSIGNED NULL,
-  reviewed_at   DATETIME NULL,
-  reject_reason VARCHAR(255)  NOT NULL DEFAULT '',
-  created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uk_ta_user (user_id),
-  KEY idx_ta_status (status),
-  CONSTRAINT fk_ta_user     FOREIGN KEY (user_id)     REFERENCES users (id) ON DELETE CASCADE,
-  CONSTRAINT fk_ta_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 26. Shiny collection privacy flag (2026-06-18)
+ALTER TABLE users ADD COLUMN shinies_hidden TINYINT(1) NOT NULL DEFAULT 0 AFTER directory_hidden;
+
+  -- 25. Translator applications (2026-06-11)
+  -- RUN THIS ON THE LIVE DB BEFORE DEPLOYING the translator application feature.
+  -- languages is a JSON array VARCHAR(500): [{"code":"de","level":"fluent"}, ...].
+  -- 'accepted' status is informational; the actual gate is users.translator = 1.
+  CREATE TABLE IF NOT EXISTS translator_applications (
+    id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+      user_id       INT UNSIGNED  NOT NULL,
+        languages     VARCHAR(500)  NOT NULL,
+          motivation    TEXT          NOT NULL,
+            experience    VARCHAR(2000) NOT NULL DEFAULT '',
+              country       VARCHAR(100)  NOT NULL DEFAULT '',
+                status        ENUM('pending','reviewing','accepted','rejected') NOT NULL DEFAULT 'pending',
+                  reviewed_by   INT UNSIGNED NULL,
+                    reviewed_at   DATETIME NULL,
+                      reject_reason VARCHAR(255)  NOT NULL DEFAULT '',
+                        created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                          updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            PRIMARY KEY (id),
+                              UNIQUE KEY uk_ta_user (user_id),
+                                KEY idx_ta_status (status),
+                                  CONSTRAINT fk_ta_user     FOREIGN KEY (user_id)     REFERENCES users (id) ON DELETE CASCADE,
+                                    CONSTRAINT fk_ta_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

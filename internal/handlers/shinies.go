@@ -162,6 +162,55 @@ func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+type publicShinyRecord struct {
+	PokemonID string    `json:"pokemon_id"`
+	Form      string    `json:"form"`
+	Method    string    `json:"method"`
+	SpriteURL string    `json:"sprite_url"`
+	CaughtAt  time.Time `json:"caught_at"`
+}
+
+func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+
+	var userID int
+	var profilePublic, shiniesHidden int
+	err := h.db.QueryRow(`
+		SELECT id, COALESCE(profile_public,0), COALESCE(shinies_hidden,0)
+		FROM users WHERE username = ? AND disabled = 0`, username,
+	).Scan(&userID, &profilePublic, &shiniesHidden)
+	if err != nil || profilePublic == 0 || shiniesHidden == 1 {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+
+	rows, err := h.db.Query(`
+		SELECT pokemon_id, form, method, caught_at
+		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`, userID,
+	)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	out := []publicShinyRecord{}
+	for rows.Next() {
+		var s publicShinyRecord
+		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Method, &s.CaughtAt); err != nil {
+			continue
+		}
+		if id := h.store.PokemonDexID(s.PokemonID); id != 0 {
+			s.SpriteURL = pokemonSpriteURL(id, "shiny")
+		}
+		out = append(out, s)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 func writeJSONError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
