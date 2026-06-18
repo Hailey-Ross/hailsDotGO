@@ -48,7 +48,6 @@ export interface ShinyPokemon {
   found_photobomb?: boolean;
 }
 
-// type_effectiveness[attackType][defenseType] = multiplier
 export type TypeChart = Record<string, Record<string, number>>;
 
 export interface CPMultiplier {

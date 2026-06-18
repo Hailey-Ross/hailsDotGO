@@ -80,8 +80,6 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return node;
 }
 
-// Detail modal (one shared overlay, shiny-modal backdrop pattern)
-
 const modal = el("div", "shiny-modal");
 const modalInner = el("div", "event-modal-inner");
 modal.appendChild(modalInner);
@@ -277,8 +275,6 @@ function openModal(ev: PogoEvent) {
   modal.classList.add("open");
 }
 
-// Cards
-
 function buildCard(ev: PogoEvent, now: number): HTMLElement {
   const card = el("div", "event-card");
 
@@ -303,7 +299,6 @@ function buildCard(ev: PogoEvent, now: number): HTMLElement {
   if (end) times.appendChild(el("div", undefined, `${EV.ends}: ${dateFmt.format(end)}`));
   body.appendChild(times);
 
-  // Countdown chip: "starts in" for upcoming, "ends in" for current.
   const upcoming = start !== null && start.getTime() > now;
   const target = upcoming ? start : end;
   if (target) {
@@ -345,8 +340,6 @@ function tickCountdowns() {
     chip.textContent = `${chip.dataset.prefix} ${relTime(ms)}`;
   });
 }
-
-// Init
 
 async function init() {
   try {

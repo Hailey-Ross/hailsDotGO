@@ -61,7 +61,6 @@ function cpWidget(data: GameData): {
   return { label, input, getCPM };
 }
 
-// Sprite for the attacker card / sprite cell; hides itself on 404.
 function cardSpriteImg(src: string, alt: string, cls: string): HTMLImageElement {
   const img = document.createElement("img");
   img.src = src;
@@ -320,7 +319,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     const type1Sel = makeTypeSel(DP.type1);
     const type2Sel = makeTypeSel(DP.type2);
 
-    // Manual-types badge row; the picker preview covers the selected case.
     const manualTypesRow = document.createElement("div");
     manualTypesRow.style.cssText = "display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;width:100%;";
     manualTypesRow.hidden = true;
@@ -364,7 +362,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
     }
     targetBlock.appendChild(targetPicker.root);
 
-    // Advanced: manual type selection for custom typings.
     const advancedToggle = document.createElement("button");
     advancedToggle.className = "picker-advanced-toggle";
     advancedToggle.textContent = DP.customTypes;
@@ -544,7 +541,6 @@ function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTM
       tableWrap.appendChild(table);
       tableArea.appendChild(tableWrap);
 
-      // Mobile cards (same data; CSS swaps visibility at 768px)
       const cards = document.createElement("div");
       cards.className = "compare-cards";
 

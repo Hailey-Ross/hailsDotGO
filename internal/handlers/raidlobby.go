@@ -954,7 +954,6 @@ func (h *Handlers) APIRaidLobbyLeave(w http.ResponseWriter, r *http.Request) {
 
 	h.reopenIfSlotFreed(id)
 
-	// Leave-churn cooldown, unchanged from v1.
 	h.db.Exec(`INSERT INTO raid_leave_log (user_id) VALUES (?)`, u.ID)
 	var leaveCount int
 	h.db.QueryRow(

@@ -9,9 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Admin tooling for Raid Finder v2: awards catalog management, trust
-// inspection and adjustment, and live lobby moderation.
-
 func (h *Handlers) AdminAwardsList(w http.ResponseWriter, r *http.Request) {
 	awards := []awardEntry{}
 	rows, err := h.db.Query(`SELECT id, slug, name, description, icon, color, active, sort_order FROM awards ORDER BY sort_order, name`)

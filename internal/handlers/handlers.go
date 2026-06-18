@@ -282,8 +282,6 @@ func (h *Handlers) Credits(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "credits", nil)
 }
 
-// API handlers
-
 func (h *Handlers) APIData(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.store.AllData())
 }

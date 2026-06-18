@@ -31,7 +31,6 @@ export async function fetchSpeciesData(nameOrId: string | number): Promise<Speci
     if (!res.ok) { speciesCache.set(key, empty); return empty; }
     const json = await res.json();
 
-    // Flavor text
     const entries: Array<{ flavor_text: string; language: { name: string }; version: { name: string } }> =
       json.flavor_text_entries ?? [];
     const en = entries.filter(e => e.language.name === "en");
@@ -43,7 +42,6 @@ export async function fetchSpeciesData(nameOrId: string | number): Promise<Speci
     if (!flavor && en.length > 0) flavor = en[en.length - 1].flavor_text;
     flavor = flavor.replace(/[\f\n\r]/g, " ").replace(/\s+/g, " ").trim();
 
-    // Genus
     const genera: Array<{ genus: string; language: { name: string } }> = json.genera ?? [];
     const genusEntry = genera.find(g => g.language.name === "en");
     const genus = genusEntry?.genus ?? "";

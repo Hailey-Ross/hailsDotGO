@@ -138,7 +138,7 @@ if (Test-Path $manifestPath) {
 }
 $newManifest = @{}
 
-function FileHash([string]$rel) {
+function Get-LocalFileHash([string]$rel) {
     return (Get-FileHash (Join-Path $root $rel) -Algorithm SHA256).Hash
 }
 
@@ -191,7 +191,7 @@ $pendingDirs = [System.Collections.Generic.List[object]]::new()
 Write-Host "`n==> Diffing $($trackedFiles.Count) files + $($trackedDirs.Count) dir(s)" -ForegroundColor Cyan
 foreach ($f in $trackedFiles) {
     $key  = $f.src.Replace('\', '/')
-    $hash = FileHash $f.src
+    $hash = Get-LocalFileHash $f.src
     $newManifest[$key] = $hash
     if ($manifest[$key] -ne $hash) {
         $f.size = FmtBytes (Get-Item (Join-Path $root $f.src)).Length
