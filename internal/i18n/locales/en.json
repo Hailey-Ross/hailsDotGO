@@ -94,6 +94,7 @@
   "credits.about.built_with":    "Built with",
   "credits.about.hosted_on":     "Hosted on",
   "credits.about.open_source":   "Open source:",
+  "credits.about.wiki":          "Documentation:",
 
   "credits.api.public_title":  "Public API",
   "credits.api.public_body":   "The following endpoints are publicly accessible and return game data as JSON. Two limits apply per IP: a per-endpoint request rate limit and an aggregate bandwidth cap across all four endpoints combined.",
