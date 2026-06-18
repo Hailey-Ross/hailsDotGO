@@ -64,6 +64,19 @@
   </div>
 
   <div class="credits-card">
+    <h2>{{T "credits.api.community_title"}}</h2>
+    <p>{{T "credits.api.community_body"}}</p>
+    <table class="api-table">
+      <thead><tr><th>{{T "credits.api.col_endpoint"}}</th><th>{{T "credits.api.col_desc"}}</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /api/awards</code></td><td>{{T "credits.api.awards_desc"}}</td></tr>
+        <tr><td><code>GET /api/awards/of/{username}</code></td><td>{{T "credits.api.awards_of_desc"}}</td></tr>
+        <tr><td><code>GET /api/shinies/of/{username}</code></td><td>{{T "credits.api.shinies_of_desc"}}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="credits-card">
     <h2>{{T "credits.api.private_title"}}</h2>
     <p>{{T "credits.api.private_body"}}</p>
     <table class="api-table">
@@ -76,6 +89,7 @@
         <tr><td><code>GET /api/private/events/{id}</code></td><td>{{T "credits.api.private_event_detail_desc"}}</td></tr>
         <tr><td><code>GET /api/private/pokemon</code></td><td>{{T "credits.api.private_pokemon_desc"}}</td></tr>
         <tr><td><code>GET /api/private/moves</code></td><td>{{T "credits.api.private_moves_desc"}}</td></tr>
+        <tr><td><code>POST /api/refresh</code></td><td>{{T "credits.api.private_refresh_desc"}}</td></tr>
       </tbody>
     </table>
     <p style="margin-top:1rem">{{T "credits.api.private_auth"}}</p>
