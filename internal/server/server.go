@@ -38,7 +38,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	h.StartRaidSweeper()
 
 	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
-	// Counts aggregate bytes across all four public API endpoints for the same IP.
+	// Counts aggregate bytes across all seven public API endpoints for the same IP.
 	apiBW := newBWLimiter(15*1024*1024, 5*time.Minute, 30*time.Minute)
 
 	// CSRF-exempt: PayPal sends server-to-server POSTs without browser CSRF tokens.
