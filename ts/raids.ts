@@ -206,7 +206,6 @@ function buildRaidsView(data: GameData): HTMLElement {
 
     const hasPrimal = baseLookup === "groudon" || baseLookup === "kyogre";
 
-    // Set default form from name prefix
     if (/^shadow_/.test(nameLower)) config.form = "shadow";
     else if (/^primal_/.test(nameLower)) config.form = "primal";
     else config.form = "normal";
@@ -242,7 +241,6 @@ function buildRaidsView(data: GameData): HTMLElement {
     }
     configPanel.appendChild(modRow);
 
-    // CP + IV inputs
     const statsRow = document.createElement("div");
     statsRow.className = "config-row config-stats";
 

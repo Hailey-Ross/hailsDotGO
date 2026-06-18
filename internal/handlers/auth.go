@@ -209,7 +209,6 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		case "tester":
 			h.db.Exec(`UPDATE users SET role = 'tester' WHERE id = ?`, id)
 		}
-		// "user" is the default — no update needed.
 	}
 
 	token, err := auth.CreateSession(h.db, uint(id))

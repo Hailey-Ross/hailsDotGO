@@ -1127,6 +1127,5 @@ if (tabs) {
     }).catch(() => {});
   }
 } else if (root) {
-  // Dedicated /raidfinder page -- initialize immediately without waiting for a tab click.
   initRaidFinder();
 }
