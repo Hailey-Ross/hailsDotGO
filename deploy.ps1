@@ -169,6 +169,7 @@ $trackedFiles = @(
     @{ src = "templates\admin.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\settings.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\trainers.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\raidfinder.html";  dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\store.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\translate.html";   dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "hailsdotgo.service";         dst = "/opt/hailsdotgo/hailsdotgo.service";    binary = $false }
@@ -190,7 +191,7 @@ $pendingDirs = [System.Collections.Generic.List[object]]::new()
 Write-Host "`n==> Diffing $($trackedFiles.Count) files + $($trackedDirs.Count) dir(s)" -ForegroundColor Cyan
 foreach ($f in $trackedFiles) {
     $key  = $f.src.Replace('\', '/')
-    $hash = Get-FileHash $f.src
+    $hash = FileHash $f.src
     $newManifest[$key] = $hash
     if ($manifest[$key] -ne $hash) {
         $f.size = FmtBytes (Get-Item (Join-Path $root $f.src)).Length

@@ -149,7 +149,7 @@ func (h *Handlers) loadTemplates() {
 	pages := []string{
 		"home", "raids", "dps", "pvp", "events", "shinydex", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
-		"translate",
+		"translate", "raidfinder",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(

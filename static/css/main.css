@@ -1748,6 +1748,61 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .weather-banner-icon { font-size: 1.2rem; text-shadow: none; flex-shrink: 0; }
 .weather-banner-text strong { color: var(--text); font-weight: 700; }
+
+/* ── Raid Finder page ───────────────────────────────────────── */
+.raid-lock-wrapper {
+  position: relative;
+  min-height: 320px;
+}
+.raid-content-area.raid-locked {
+  filter: blur(6px) brightness(0.6);
+  pointer-events: none;
+  user-select: none;
+}
+.raid-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 2rem 1rem;
+}
+.raid-lock-card {
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 2rem 2.5rem;
+  text-align: center;
+  max-width: 380px;
+  width: 100%;
+  animation: fadeUp 0.25s ease both;
+}
+.raid-lock-card h2 {
+  font-size: 1.25rem; font-weight: 800;
+  margin-bottom: 0.6rem;
+}
+.raid-lock-card p {
+  color: var(--text-2); font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+.raid-lock-actions {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.75rem; flex-wrap: wrap;
+}
+.raid-lock-actions span { color: var(--text-2); font-size: 0.875rem; }
+.raid-profile-banner {
+  background: rgba(229,57,53,0.1);
+  border: 1px solid rgba(229,57,53,0.35);
+  border-radius: var(--r-sm);
+  padding: 0.75rem 1.1rem;
+  font-size: 0.875rem;
+  color: #fc8181;
+  margin-bottom: 1.25rem;
+}
+.raid-profile-banner a { color: #fc8181; text-decoration: underline; }
+
 .trainers-toolbar {
   display: flex; align-items: center; gap: 1rem;
   margin-bottom: 1.25rem; flex-wrap: wrap;
@@ -1970,6 +2025,46 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .trainer-modal-footer {
   font-size: 0.78rem; color: var(--text-3);
   text-shadow: none; margin-top: 0.55rem;
+}
+.trainer-collection-link {
+  display: block; width: 100%; margin-top: 0.6rem;
+  background: none; border: none; cursor: pointer;
+  font-size: 0.82rem; color: var(--text-2);
+  text-align: center; padding: 0.3rem 0;
+  transition: color 0.15s;
+}
+.trainer-collection-link:hover { color: var(--blue); }
+.trainer-collection-loading {
+  display: block; text-align: center;
+  font-size: 0.82rem; color: var(--text-2); padding: 0.5rem 0;
+}
+.trainer-collection-empty {
+  text-align: center; font-size: 0.82rem;
+  color: var(--text-2); margin: 0.4rem 0 0;
+}
+.trainer-modal-collection { margin-top: 0.25rem; }
+.trainer-shiny-grid {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  justify-content: center; margin-top: 0.4rem;
+}
+.trainer-shiny-item {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.15rem; width: 64px;
+}
+.trainer-shiny-item img {
+  width: 48px; height: 48px; image-rendering: pixelated;
+}
+.trainer-shiny-name {
+  font-size: 0.65rem; text-align: center;
+  color: var(--text); word-break: break-word;
+}
+.trainer-shiny-form-badge {
+  font-size: 0.6rem; padding: 0.1em 0.4em;
+  border-radius: 999px; background: var(--surface-2, var(--surface));
+  color: var(--text-2);
+}
+.trainer-shiny-method {
+  font-size: 0.6rem; color: var(--text-3); text-align: center;
 }
 
 /* ── Tabs ────────────────────────────────────────────────────── */

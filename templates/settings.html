@@ -175,6 +175,15 @@
             <span class="settings-toggle-hint">{{T "settings.directory.hint"}}</span>
           </div>
         </label>
+
+        <label class="settings-toggle-row" for="shinies_hidden">
+          <input type="checkbox" class="settings-checkbox" name="shinies_hidden" value="1"
+                 id="shinies_hidden" {{if .Data.ShiniesHidden}}checked{{end}}>
+          <div class="settings-toggle-text">
+            <span class="settings-toggle-label">{{T "settings.shiny_collection.label"}}</span>
+            <span class="settings-toggle-hint">{{T "settings.shiny_collection.hint"}}</span>
+          </div>
+        </label>
       </div>
 
       <button type="submit" class="btn-primary settings-save-btn">{{T "settings.save"}}</button>

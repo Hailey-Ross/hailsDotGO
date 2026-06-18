@@ -31,6 +31,7 @@
     {{if .Maintenance.EventsEnabled}}<a href="/events">{{T "nav.events"}}</a>{{end}}
     {{if .Maintenance.ShinyDexEnabled}}<a href="/shinydex">{{T "nav.shinydex"}}</a>{{end}}
     {{if .Maintenance.TrainersEnabled}}<a href="/trainers">{{T "nav.trainers"}}</a>{{end}}
+    {{if .Maintenance.RaidFinderEnabled}}<a href="/raidfinder">{{T "nav.raidfinder"}}</a>{{end}}
     {{if .StoreEnabled}}<a href="/store">{{T "nav.store"}}</a>{{end}}
     {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}<a href="/translate">{{T "nav.translate"}}</a>{{end}}
     {{if .User}}

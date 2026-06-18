@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   location_display ENUM('none','country','full') NOT NULL DEFAULT 'none',
   profile_public   TINYINT(1)    NOT NULL DEFAULT 0,
   directory_hidden TINYINT(1)    NOT NULL DEFAULT 0,
+  shinies_hidden   TINYINT(1)    NOT NULL DEFAULT 0,
   raid_banned      TINYINT(1)    NOT NULL DEFAULT 0,
   fav_pokemon      VARCHAR(64)   NOT NULL DEFAULT '',
   fav_pokemon_form VARCHAR(32)   NOT NULL DEFAULT '',

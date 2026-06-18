@@ -30,6 +30,7 @@ type settingsData struct {
 	Country         string
 	LocationDisplay string
 	ProfilePublic   bool
+	ShiniesHidden   bool
 	FavPokemon      string
 	FavPokemonForm  string
 	TrainerClasses  []pogodata.TrainerClass
@@ -62,10 +63,10 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(`
 		SELECT COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
 		       COALESCE(pronouns,''), COALESCE(city,''), COALESCE(region,''), COALESCE(country,''),
-		       COALESCE(location_display,'none'), COALESCE(profile_public,0),
+		       COALESCE(location_display,'none'), COALESCE(profile_public,0), COALESCE(shinies_hidden,0),
 		       COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,'')
 		FROM users WHERE id = ?`, u.ID,
-	).Scan(&d.TrainerName, &d.TrainerCode, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.FavPokemon, &d.FavPokemonForm)
+	).Scan(&d.TrainerName, &d.TrainerCode, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.ShiniesHidden, &d.FavPokemon, &d.FavPokemonForm)
 	d.TrainerClasses = h.store.TrainerClasses()
 	d.PokemonList = h.store.PokemonList()
 	d.TagRequest = h.queryTagRequest(u.ID)
@@ -91,6 +92,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	country         := strings.TrimSpace(r.FormValue("country"))
 	locationDisplay := r.FormValue("location_display")
 	profilePublic   := r.FormValue("profile_public") == "1"
+	shiniesHidden   := r.FormValue("shinies_hidden") == "1"
 	favPokemon      := strings.TrimSpace(r.FormValue("fav_pokemon"))
 	favPokemonForm  := r.FormValue("fav_pokemon_form")
 
@@ -132,7 +134,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		h.render(w, r, "settings", settingsData{
 			Error: msg, TrainerName: trainerName, TrainerCode: trainerCode, Avatar: avatar,
 			Pronouns: pronouns, City: city, Region: region, Country: country,
-			LocationDisplay: locationDisplay, ProfilePublic: profilePublic,
+			LocationDisplay: locationDisplay, ProfilePublic: profilePublic, ShiniesHidden: shiniesHidden,
 			FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
 			TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
 			TagRequest: h.queryTagRequest(u.ID),
@@ -173,6 +175,10 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	if profilePublic {
 		publicInt = 1
 	}
+	shiniesHiddenInt := 0
+	if shiniesHidden {
+		shiniesHiddenInt = 1
+	}
 	favSpriteURL := ""
 	if favPokemon != "" {
 		if id := h.store.PokemonDexID(favPokemon); id != 0 {
@@ -180,8 +186,8 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_, err := h.db.Exec(
-		`UPDATE users SET trainer_name=?, trainer_code=?, avatar=?, pronouns=?, city=?, region=?, country=?, location_display=?, profile_public=?, fav_pokemon=?, fav_pokemon_form=?, fav_sprite_url=? WHERE id=?`,
-		trainerName, trainerCode, avatar, pronouns, city, region, country, locationDisplay, publicInt, favPokemon, favPokemonForm, favSpriteURL, u.ID,
+		`UPDATE users SET trainer_name=?, trainer_code=?, avatar=?, pronouns=?, city=?, region=?, country=?, location_display=?, profile_public=?, shinies_hidden=?, fav_pokemon=?, fav_pokemon_form=?, fav_sprite_url=? WHERE id=?`,
+		trainerName, trainerCode, avatar, pronouns, city, region, country, locationDisplay, publicInt, shiniesHiddenInt, favPokemon, favPokemonForm, favSpriteURL, u.ID,
 	)
 	if err != nil {
 		fail(h.t(r, "error.server"))
@@ -190,7 +196,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "settings", settingsData{
 		Success: true, TrainerName: trainerName, TrainerCode: trainerCode, Avatar: avatar,
 		Pronouns: pronouns, City: city, Region: region, Country: country,
-		LocationDisplay: locationDisplay, ProfilePublic: profilePublic,
+		LocationDisplay: locationDisplay, ProfilePublic: profilePublic, ShiniesHidden: shiniesHidden,
 		FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
 		TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
 		TagRequest: h.queryTagRequest(u.ID),

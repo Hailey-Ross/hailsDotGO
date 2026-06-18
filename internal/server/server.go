@@ -86,6 +86,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/lang", h.SetLang)
 
 		r.Get("/trainers", h.TrainersPage)
+		r.Get("/raidfinder", h.RaidFinderPage)
 
 		r.Get("/store", h.StorePage)
 		r.Post("/store/checkout", h.RequireAuth(h.StoreCheckout))
@@ -178,6 +179,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/api/awards", h.APIAwardsList)
 		r.Get("/api/awards/of/{username}", h.APIAwardsOf)
+		r.Get("/api/shinies/of/{username}", h.APIShiniesOfUser)
 		r.Get("/api/users/search", h.RequireAuth(h.APIUsersSearch))
 		r.Post("/api/awards/{id}/grant", h.RequireAuth(h.APIAwardGrant))
 

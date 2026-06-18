@@ -243,7 +243,11 @@ function setPolling(mode: string): void {
 
 function refreshIfRaidTab(): void {
   const panel = document.getElementById('tab-raids');
-  if (panel && panel.classList.contains('active')) fetchState();
+  if (panel) {
+    if (panel.classList.contains('active')) fetchState();
+  } else {
+    fetchState(); // dedicated /raidfinder page -- always active
+  }
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -1115,11 +1119,14 @@ if (tabs) {
     const btn = (e.target as HTMLElement).closest('.tab-btn') as HTMLElement | null;
     if (btn && btn.dataset.tab === 'raids') initRaidFinder();
   });
-}
-// Active member/host states matter even before the tab is opened: a cheap
-// initial state fetch promotes the fast poll if the user is mid-raid.
-if (RAID_CTX.loggedIn && root) {
-  api('GET', '/api/raid/state').then((st: RaidState) => {
-    if (st && st.mode && st.mode !== 'idle' && st.mode !== 'feedback') initRaidFinder();
-  }).catch(() => {});
+  // Active member/host states matter even before the tab is opened: a cheap
+  // initial state fetch promotes the fast poll if the user is mid-raid.
+  if (RAID_CTX.loggedIn && root) {
+    api('GET', '/api/raid/state').then((st: RaidState) => {
+      if (st && st.mode && st.mode !== 'idle' && st.mode !== 'feedback') initRaidFinder();
+    }).catch(() => {});
+  }
+} else if (root) {
+  // Dedicated /raidfinder page -- initialize immediately without waiting for a tab click.
+  initRaidFinder();
 }

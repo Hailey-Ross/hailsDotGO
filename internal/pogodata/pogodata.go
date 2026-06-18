@@ -1,6 +1,7 @@
 package pogodata
 
 import (
+	"bytes"
 	"embed"
 	"encoding/csv"
 	"encoding/json"
@@ -175,7 +176,7 @@ var dreamstoneTrainerClasses = []TrainerClass{
 // bosses and snacknap Max Battles into clean JSON, refreshed regularly. Both the
 // raidboss and maxbattles endpoints share this entry shape under "currentList".
 type pgapiList struct {
-	CurrentList map[string]json.RawMessage `json:"currentList"`
+	CurrentList json.RawMessage `json:"currentList"`
 }
 
 type pgapiBoss struct {
@@ -806,10 +807,19 @@ func (s *Store) fetchPGAPIGrouped(url string, tierMap []struct {
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return nil, 0, err
 	}
+	// currentList changed from a tier-keyed map to a flat array in the max battles endpoint.
+	// If it's an array, return empty grouped data without error (correct when none are active).
+	if cl := bytes.TrimSpace(resp.CurrentList); len(cl) > 0 && cl[0] == '[' {
+		return make(map[string][]raidBoss), 0, nil
+	}
+	var currentList map[string]json.RawMessage
+	if err := json.Unmarshal(resp.CurrentList, &currentList); err != nil {
+		return nil, 0, err
+	}
 	grouped := make(map[string][]raidBoss)
 	total := 0
 	for _, m := range tierMap {
-		blob, ok := resp.CurrentList[m.src]
+		blob, ok := currentList[m.src]
 		if !ok {
 			continue
 		}
