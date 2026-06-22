@@ -38,10 +38,13 @@
     {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-link-highlight">{{T "nav.collection"}}</a>{{end}}
     <a href="/settings">{{T "nav.settings"}}</a>
     {{if .User.IsMod}}<a href="/admin">{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
-    <form method="POST" action="/logout" style="display:block;margin:0">
-      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-      <button type="submit" class="nav-logout-btn">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}} &times;</button>
-    </form>
+    <div class="nav-user-row">
+      <a href="/notifications" class="nav-notif-link" id="nav-notif-btn" title="{{T "nav.notifications"}}">🔔<span class="nav-notif-badge" id="nav-notif-badge" style="display:none"></span></a>
+      <form method="POST" action="/logout" style="display:block;margin:0">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="nav-logout-btn">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}} &times;</button>
+      </form>
+    </div>
     {{else}}
     <a href="/login">{{T "nav.login"}}</a>
     <a href="/register" class="nav-link-highlight">{{T "nav.signup"}}</a>
@@ -178,6 +181,8 @@ if (typeof particlesJS !== 'undefined') {
 </script>
 
 {{block "scripts" .}}{{end}}
+{{if .User}}<script src="/static/js/notifications.js?v={{.AssetVersion}}"></script>{{end}}
+<div id="notif-toast-container" aria-live="polite"></div>
 </body>
 </html>
 {{end}}

@@ -17,6 +17,8 @@
   <button class="tab-btn active" data-tab="profile">{{T "settings.tab.profile"}}</button>
   <button class="tab-btn" data-tab="location">{{T "settings.tab.location"}}</button>
   {{if .Data.TagRequest}}<button class="tab-btn" data-tab="tag_request">{{T "settings.tab.tag_request"}}</button>{{end}}
+  <button class="tab-btn" data-tab="blocked">{{T "settings.tab.blocked"}}</button>
+  <button class="tab-btn" data-tab="notif_settings">{{T "settings.tab.notifications"}}</button>
 </div>
 
 <div class="settings-wrap">
@@ -254,6 +256,60 @@
   </div>
   {{end}}
 
+  <!-- ── Blocked Users tab ──────────────────────────────────── -->
+  <div id="tab-blocked" class="tab-panel">
+    <div class="settings-section">
+      <h2 class="settings-section-title">{{T "settings.tab.blocked"}}</h2>
+
+      <div class="settings-field">
+        <label class="settings-label">{{T "settings.blocked.search_ph"}}</label>
+        <div style="display:flex;gap:0.5rem;margin-top:0.4rem">
+          <input class="auth-input" type="text" id="block-search-input"
+                 placeholder="{{T "settings.blocked.search_ph"}}" style="flex:1;max-width:320px">
+          <button type="button" class="btn-secondary" id="block-search-btn">{{T "settings.blocked.search_btn"}}</button>
+        </div>
+        <div id="block-search-results" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.4rem"></div>
+      </div>
+
+      <div class="settings-field" style="margin-top:1.25rem">
+        <div id="blocked-users-list" style="display:flex;flex-direction:column;gap:0.4rem">
+          {{if .Data.BlockedUsers}}
+          {{range .Data.BlockedUsers}}
+          <div class="admin-card friends-card" id="blocked-row-{{.Username}}">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <span style="flex:1;font-size:0.95rem">
+                {{if .TrainerName}}{{.TrainerName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.Username}})</span>{{else}}{{.Username}}{{end}}
+              </span>
+              <button type="button" class="btn-secondary settings-unblock-btn" data-username="{{.Username}}"
+                      style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.unblock_btn"}}</button>
+            </div>
+          </div>
+          {{end}}
+          {{else}}
+          <p id="blocked-empty-state" style="color:var(--text-2)">{{T "settings.blocked.none"}}</p>
+          {{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Notification Settings tab ──────────────────────────── -->
+  <div id="tab-notif_settings" class="tab-panel">
+    <div class="settings-section">
+      <h2 class="settings-section-title">{{T "settings.tab.notifications"}}</h2>
+
+      <div class="settings-field">
+        <label class="settings-label" for="notif-volume">{{T "settings.notifications.volume_label"}}</label>
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.5rem;flex-wrap:wrap">
+          <input type="range" id="notif-volume" min="0" max="100" value="30"
+                 style="width:200px;accent-color:var(--accent)">
+          <span id="notif-volume-label" style="font-size:0.95rem;min-width:3rem">30%</span>
+          <button type="button" class="btn-secondary" id="notif-test-btn">{{T "settings.notifications.test_btn"}}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {{end}}
 
@@ -416,6 +472,141 @@
       }
     });
   }
+
+  // ── Blocked users: search + block/unblock ─────────────────────
+  var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
+  function socialFetchSettings(path, method) {
+    return fetch(path, { method: method, headers: { 'X-CSRF-Token': csrf } }).then(function(r) { return r.json().catch(function() { return {}; }); });
+  }
+
+  function removeBlockedRow(username) {
+    var row = document.getElementById('blocked-row-' + username);
+    if (row) row.remove();
+    var empty = document.getElementById('blocked-empty-state');
+    if (!document.querySelector('#blocked-users-list .admin-card') && !empty) {
+      var p = document.createElement('p');
+      p.id = 'blocked-empty-state';
+      p.style.color = 'var(--text-2)';
+      p.textContent = {{T "settings.blocked.none"}};
+      document.getElementById('blocked-users-list').appendChild(p);
+    }
+  }
+
+  function addBlockedRow(username, trainerName) {
+    var empty = document.getElementById('blocked-empty-state');
+    if (empty) empty.remove();
+    var list = document.getElementById('blocked-users-list');
+    var div = document.createElement('div');
+    div.className = 'admin-card friends-card';
+    div.id = 'blocked-row-' + username;
+    var display = trainerName ? trainerName + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + username + ')</span>' : username;
+    div.innerHTML = '<div style="display:flex;align-items:center;gap:0.75rem"><span style="flex:1;font-size:0.95rem">' + display + '</span><button type="button" class="btn-secondary settings-unblock-btn" data-username="' + username + '" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.unblock_btn"}}</button></div>';
+    list.appendChild(div);
+    div.querySelector('.settings-unblock-btn').addEventListener('click', unblockHandler);
+  }
+
+  function unblockHandler() {
+    var btn = this;
+    var username = btn.dataset.username;
+    btn.disabled = true;
+    socialFetchSettings('/api/social/' + encodeURIComponent(username) + '/block', 'DELETE').then(function(d) {
+      if (d.ok) { removeBlockedRow(username); } else { btn.disabled = false; }
+    });
+  }
+
+  document.querySelectorAll('.settings-unblock-btn').forEach(function(btn) {
+    btn.addEventListener('click', unblockHandler.bind(btn));
+  });
+
+  var blockSearchBtn = document.getElementById('block-search-btn');
+  var blockSearchInput = document.getElementById('block-search-input');
+  var blockSearchResults = document.getElementById('block-search-results');
+
+  function renderSearchResults(results) {
+    blockSearchResults.innerHTML = '';
+    if (!results.length) {
+      var p = document.createElement('p');
+      p.style.color = 'var(--text-2)';
+      p.style.fontSize = '0.9rem';
+      p.textContent = {{T "settings.blocked.no_results"}};
+      blockSearchResults.appendChild(p);
+      return;
+    }
+    results.forEach(function(u) {
+      var row = document.createElement('div');
+      row.className = 'admin-card friends-card';
+      row.style.cssText = 'padding:0.5rem 0.75rem';
+      var display = u.trainer_name ? u.trainer_name + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + u.username + ')</span>' : u.username;
+      row.innerHTML = '<div style="display:flex;align-items:center;gap:0.75rem"><span style="flex:1;font-size:0.95rem">' + display + '</span><button type="button" class="btn-secondary block-result-btn" data-username="' + u.username + '" data-trainer="' + (u.trainer_name || '') + '" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.block_btn"}}</button></div>';
+      row.querySelector('.block-result-btn').addEventListener('click', function() {
+        var blockBtn = this;
+        var username = blockBtn.dataset.username;
+        var trainerName = blockBtn.dataset.trainer;
+        blockBtn.disabled = true;
+        socialFetchSettings('/api/social/' + encodeURIComponent(username) + '/block', 'POST').then(function(d) {
+          if (d.ok) {
+            row.remove();
+            addBlockedRow(username, trainerName);
+          } else { blockBtn.disabled = false; }
+        });
+      });
+      blockSearchResults.appendChild(row);
+    });
+  }
+
+  function runBlockSearch() {
+    var q = blockSearchInput.value.trim();
+    if (q.length < 2) return;
+    blockSearchBtn.disabled = true;
+    fetch('/api/users/search?q=' + encodeURIComponent(q), { headers: { 'X-CSRF-Token': csrf } })
+      .then(function(r) { return r.json(); })
+      .then(function(results) { renderSearchResults(results); blockSearchBtn.disabled = false; })
+      .catch(function() { blockSearchBtn.disabled = false; });
+  }
+
+  blockSearchBtn.addEventListener('click', runBlockSearch);
+  blockSearchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); runBlockSearch(); } });
+
+  // ── Notification volume slider ─────────────────────────────────
+  var volSlider = document.getElementById('notif-volume');
+  var volLabel  = document.getElementById('notif-volume-label');
+  var testBtn   = document.getElementById('notif-test-btn');
+
+  function playTestDing(vol) {
+    if (vol <= 0) return;
+    try {
+      var ctx = new AudioContext();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(Math.min(vol / 100, 0.5), ctx.currentTime + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+      osc.onended = function() { ctx.close(); };
+    } catch(_) {}
+  }
+
+  function updateVolLabel(val) {
+    volLabel.textContent = val > 0 ? val + '%' : {{T "settings.notifications.muted"}};
+  }
+
+  var savedVol = localStorage.getItem('notif_sound_volume');
+  var initVol  = savedVol !== null ? parseInt(savedVol, 10) : 30;
+  volSlider.value = String(initVol);
+  updateVolLabel(initVol);
+
+  volSlider.addEventListener('input', function() {
+    var v = parseInt(volSlider.value, 10);
+    updateVolLabel(v);
+    try { localStorage.setItem('notif_sound_volume', String(v)); } catch(_) {}
+  });
+
+  testBtn.addEventListener('click', function() {
+    playTestDing(parseInt(volSlider.value, 10));
+  });
 })();
 </script>
 {{end}}

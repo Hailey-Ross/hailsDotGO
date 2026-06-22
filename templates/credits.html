@@ -127,6 +127,60 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-22 (74)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Dedicated notifications page, friends preview on trainer profile, volume cap</h2>
+        <ul class="cl-list">
+          <li>The 🔔 bell now links to <code>/notifications</code> -- a dedicated page listing active friend-raid notifications with individual dismiss (×) and "Clear all" buttons; empty state shows a "You're all up to date" message</li>
+          <li>Visiting the notifications page marks all current notifications as seen, so the badge resets to 0 on the next poll</li>
+          <li>Your own trainer profile (<code>/trainer/{username}</code>) now shows a "Friends" preview section with your 5 most recent friends and a "View all" link to the Friends page</li>
+          <li>Notification ding volume is now capped at 50% gain regardless of the slider value, preventing accidentally ear-splitting levels while keeping the 0--100% visual scale intact</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-22 (73)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Social UI restructure, notification sound, and trainer profile overhaul</h2>
+        <ul class="cl-list">
+          <li>Blocked users management moved from the Friends page to a new "Blocked Users" tab in Settings, with a live search field that finds users by username or trainer name</li>
+          <li>The notification bell is now an emoji (🔔) displayed inline next to your username in the sidebar, replacing the standalone "Notifications" nav link</li>
+          <li>A short ding plays when a new friend-raid toast appears; volume (including mute) is controlled from a new "Notifications" tab in Settings and is saved per browser</li>
+          <li>Trainer profile pages (<code>/trainer/{username}</code>) have been redesigned with a proper hero layout, larger avatar, clearer name and pronouns display, and better badge/tag arrangement</li>
+          <li>Fixed favorite Pokémon sprite appearing at the bottom of the page instead of layered behind the trainer avatar</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-22 (72)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Friends, notifications, and trainer feedback</h2>
+        <ul class="cl-list">
+          <li>Users can now add each other as friends (directional follow) and block users from a dedicated <code>/friends</code> page and from trainer profile pages</li>
+          <li>Blocking a user removes the friendship in both directions and prevents further social interaction</li>
+          <li>Logged-in users receive a toast notification in the top-right corner when a friend opens a Raid lobby, and a badge on the new notifications nav button shows the count of active friend raids</li>
+          <li>Each trainer now has a dedicated profile page at <code>/trainer/{username}</code>, linked from the trainer directory cards</li>
+          <li>Logged-in users can leave one Pokemon-themed feedback tag per trainer (positive, neutral, or negative) from the trainer profile page; submissions are updatable</li>
+          <li>Moderators and above can delete any feedback using a delete button visible only to them</li>
+          <li>Admins can manage the feedback option list (add, edit, enable/disable, delete) from a new Feedback Options tab in the admin panel</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-22 (71)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Updated site descriptions to reflect current features</h2>
+        <ul class="cl-list">
+          <li>Login and registration page subtitles updated to reflect the full feature set (raids, trainer profiles, community tools) rather than shiny collection tracking only</li>
+          <li>Home page now includes cards for Trainer Directory and Raid Finder, both gated by their respective maintenance flags</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-18 (70)</div>
       <div class="cl-body">
         <h2 class="cl-title">Raid Finder gets its own dedicated page</h2>

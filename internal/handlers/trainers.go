@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type tagEntry struct {
@@ -198,4 +200,172 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 	})
 
 	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, CanGrantAwards: canGrant})
+}
+
+type trainerProfileData struct {
+	Trainer         trainerEntry
+	ViewerUsername  string
+	IsOwnProfile    bool
+	IsFriend        bool
+	IsBlocked       bool
+	TheyBlockedYou  bool
+	Feedback        []trainerFeedbackEntry
+	MyFeedbackID    uint
+	MyFeedbackOpt   uint
+	FeedbackOptions []feedbackOptionRow
+	RecentFriends   []friendEntry
+}
+
+func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+
+	trainerClasses := h.store.TrainerClasses()
+	avatarURLBySlug := make(map[string]string, len(trainerClasses))
+	for _, tc := range trainerClasses {
+		avatarURLBySlug[tc.Slug] = tc.SpriteURL
+	}
+
+	var t trainerEntry
+	var userID uint
+	var role string
+	var profilePublicInt, shiniesHiddenInt, onlineInt int
+
+	err := h.db.QueryRow(`
+		SELECT id, username, COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
+		       COALESCE(pronouns,''), COALESCE(region,''), COALESCE(country,''), COALESCE(location_display,'none'),
+		       role, COALESCE(special_rank,''), COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,''),
+		       COALESCE(fav_sprite_url,''), COALESCE(raid_xp,0), created_at,
+		       COALESCE(profile_public,0), COALESCE(shinies_hidden,0),
+		       CASE WHEN last_seen_at IS NOT NULL AND last_seen_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END
+		FROM users
+		WHERE username = ? AND directory_hidden = 0 AND disabled = 0`, username).
+		Scan(&userID, &t.Username, &t.TrainerName, &t.TrainerCode, &t.Avatar, &t.Pronouns,
+			&t.Region, &t.Country, &t.LocationDisplay, &role, &t.SpecialRank,
+			&t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt,
+			&profilePublicInt, &shiniesHiddenInt, &onlineInt)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	t.ProfilePublic = profilePublicInt > 0
+	t.ShiniesHidden = shiniesHiddenInt > 0
+	t.Online = onlineInt > 0
+	if len(t.TrainerCode) == 12 {
+		t.TrainerCodeFormatted = t.TrainerCode[:4] + " " + t.TrainerCode[4:8] + " " + t.TrainerCode[8:]
+	} else {
+		t.TrainerCodeFormatted = t.TrainerCode
+	}
+	t.AvatarURL = avatarURLBySlug[t.Avatar]
+	t.StaffBadge = staffBadge(t.Username, role)
+	t.RaidRank = raidRankLabel(t.RaidXP, role)
+	t.RaidRankClass = raidRankClass(t.RaidXP, role)
+	t.SuperDonator = h.hasActivePurchase(userID, "super_donator")
+
+	var tags []tagEntry
+	if tagRows, err := h.db.Query(`
+		SELECT t.name, t.color FROM user_tags ut
+		JOIN tags t ON t.id = ut.tag_id
+		WHERE ut.user_id = ? ORDER BY t.name`, userID); err == nil {
+		defer tagRows.Close()
+		for tagRows.Next() {
+			var te tagEntry
+			if tagRows.Scan(&te.Name, &te.Color) == nil {
+				tags = append(tags, te)
+			}
+		}
+	}
+	if tags == nil {
+		tags = []tagEntry{}
+	}
+	t.Tags = tags
+
+	pd := trainerProfileData{Trainer: t}
+
+	viewer := h.currentUser(r)
+	if viewer != nil {
+		pd.ViewerUsername = viewer.Username
+		pd.IsOwnProfile = viewer.ID == userID
+
+		if pd.IsOwnProfile {
+			if fRows, err := h.db.Query(`
+				SELECT u.username, COALESCE(u.trainer_name,''), COALESCE(u.avatar,'')
+				FROM user_friends uf JOIN users u ON u.id = uf.friend_id
+				WHERE uf.user_id = ? ORDER BY uf.created_at DESC LIMIT 5`, viewer.ID); err == nil {
+				defer fRows.Close()
+				for fRows.Next() {
+					var fe friendEntry
+					if fRows.Scan(&fe.Username, &fe.TrainerName, &fe.Avatar) == nil {
+						fe.AvatarURL = avatarURLBySlug[fe.Avatar]
+						pd.RecentFriends = append(pd.RecentFriends, fe)
+					}
+				}
+			}
+		}
+
+		if !pd.IsOwnProfile {
+			var count int
+			h.db.QueryRow(`SELECT COUNT(*) FROM user_friends WHERE user_id = ? AND friend_id = ?`, viewer.ID, userID).Scan(&count)
+			pd.IsFriend = count > 0
+
+			count = 0
+			h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, viewer.ID, userID).Scan(&count)
+			pd.IsBlocked = count > 0
+
+			count = 0
+			h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, userID, viewer.ID).Scan(&count)
+			pd.TheyBlockedYou = count > 0
+
+			var fbID, optID uint
+			h.db.QueryRow(`SELECT id, option_id FROM user_feedback WHERE author_id = ? AND target_id = ?`,
+				viewer.ID, userID).Scan(&fbID, &optID)
+			pd.MyFeedbackID = fbID
+			pd.MyFeedbackOpt = optID
+		}
+	}
+
+	var feedback []trainerFeedbackEntry
+	fbRows, err := h.db.Query(`
+		SELECT uf.id, u.username, COALESCE(u.trainer_name,''), fo.label, fo.sentiment, uf.updated_at
+		FROM user_feedback uf
+		JOIN users u ON u.id = uf.author_id
+		JOIN feedback_options fo ON fo.id = uf.option_id
+		WHERE uf.target_id = ?
+		ORDER BY uf.updated_at DESC`, userID)
+	if err == nil {
+		defer fbRows.Close()
+		for fbRows.Next() {
+			var fb trainerFeedbackEntry
+			if fbRows.Scan(&fb.ID, &fb.AuthorUsername, &fb.AuthorName, &fb.Label, &fb.Sentiment, &fb.UpdatedAt) == nil {
+				feedback = append(feedback, fb)
+			}
+		}
+	}
+	if feedback == nil {
+		feedback = []trainerFeedbackEntry{}
+	}
+	pd.Feedback = feedback
+
+	var options []feedbackOptionRow
+	optRows, err := h.db.Query(`
+		SELECT id, label, sentiment, sort_order, enabled
+		FROM feedback_options WHERE enabled = 1
+		ORDER BY sort_order, id`)
+	if err == nil {
+		defer optRows.Close()
+		for optRows.Next() {
+			var o feedbackOptionRow
+			var enabledInt int
+			if optRows.Scan(&o.ID, &o.Label, &o.Sentiment, &o.SortOrder, &enabledInt) == nil {
+				o.Enabled = enabledInt > 0
+				options = append(options, o)
+			}
+		}
+	}
+	if options == nil {
+		options = []feedbackOptionRow{}
+	}
+	pd.FeedbackOptions = options
+
+	h.render(w, r, "trainer", pd)
 }

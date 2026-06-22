@@ -1,0 +1,201 @@
+{{define "title"}}{{if and .Data.Trainer.ProfilePublic .Data.Trainer.TrainerName}}{{.Data.Trainer.TrainerName}}{{else}}{{.Data.Trainer.Username}}{{end}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <a href="/trainers" class="btn-secondary" style="margin-bottom:0.75rem;display:inline-block">&larr; {{T "trainers.title"}}</a>
+</div>
+
+<div class="trainer-profile-page">
+
+  <!-- ── Profile card ──────────────────────────────────────────── -->
+  <div class="trainer-profile-card admin-card">
+    <div class="trainer-profile-hero">
+
+      <!-- Avatar + fav sprite -->
+      {{if .Data.Trainer.ProfilePublic}}
+      <div class="trainer-sprite-group trainer-profile-sprite-group">
+        {{if .Data.Trainer.FavSpriteURL}}
+        <img class="trainer-fav-sprite{{if eq .Data.Trainer.FavPokemonForm "shadow"}} poke-shadow{{end}}"
+             src="{{.Data.Trainer.FavSpriteURL}}" alt="{{.Data.Trainer.FavPokemon}}"
+             style="width:78px;height:78px">
+        {{end}}
+        {{if .Data.Trainer.AvatarURL}}
+        <img class="trainer-avatar-sprite" src="{{.Data.Trainer.AvatarURL}}" alt="{{T "trainers.avatar_alt"}}"
+             style="width:56px;height:56px">
+        {{else}}
+        <span class="trainer-avatar-sm avatar--default" style="width:56px;height:56px;position:absolute;right:0;bottom:0;z-index:1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
+        </span>
+        {{end}}
+      </div>
+      {{else}}
+      <span class="trainer-avatar-sm avatar--default trainer-profile-sprite-group">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
+      </span>
+      {{end}}
+
+      <!-- Name + meta -->
+      <div class="trainer-profile-meta">
+        <div class="trainer-profile-nameline">
+          <span class="trainer-profile-name">
+            {{if and .Data.Trainer.ProfilePublic .Data.Trainer.TrainerName}}{{.Data.Trainer.TrainerName}}{{else}}{{.Data.Trainer.Username}}{{end}}
+          </span>
+          {{if .Data.Trainer.Online}}<span class="online-dot" title="{{T "trainers.online"}}"></span>{{end}}
+          {{if eq .Data.Trainer.StaffBadge "superadmin"}}<span class="staff-icon" title="{{T "trainers.role_owner"}}">👑</span>
+          {{else if eq .Data.Trainer.StaffBadge "admin"}}<span class="staff-icon" title="{{T "admin.js.role_admin"}}">💎</span>
+          {{else if eq .Data.Trainer.StaffBadge "moderator"}}<span class="staff-icon" title="{{T "admin.js.role_mod"}}">🏅</span>
+          {{else if eq .Data.Trainer.StaffBadge "tester"}}<span class="staff-icon" title="{{T "admin.js.role_tester"}}">🧪</span>{{end}}
+          {{if eq .Data.Trainer.SpecialRank "trusted"}}<span class="staff-icon" title="{{T "rank.trusted"}}">✅</span>
+          {{else if eq .Data.Trainer.SpecialRank "content_creator"}}<span class="staff-icon" title="{{T "rank.content_creator"}}">🎬</span>{{end}}
+        </div>
+
+        {{if and .Data.Trainer.ProfilePublic .Data.Trainer.TrainerName}}
+        <div style="color:var(--text-3);font-size:0.85rem;margin-top:0.1rem">@{{.Data.Trainer.Username}}</div>
+        {{end}}
+
+        {{if and .Data.Trainer.ProfilePublic .Data.Trainer.Pronouns}}
+        <div style="color:var(--text-2);font-size:0.85rem;margin-top:0.2rem">{{.Data.Trainer.Pronouns}}</div>
+        {{end}}
+
+        {{if .Data.Trainer.ProfilePublic}}
+        <div class="trainer-tags" style="margin-top:0.5rem;flex-wrap:wrap">
+          {{if .Data.Trainer.SuperDonator}}<span class="donator-badge">{{T "trainers.donator_badge"}}</span>{{end}}
+          {{if or .Data.Trainer.RaidXP .Data.Trainer.StaffBadge}}
+          <span class="rank-badge rank-{{.Data.Trainer.RaidRankClass}}">{{.Data.Trainer.RaidRank}}</span>
+          {{end}}
+          {{range .Data.Trainer.Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}
+        </div>
+        {{end}}
+
+        <div class="trainer-profile-details">
+          {{if and .Data.Trainer.ProfilePublic (ne .Data.Trainer.LocationDisplay "none")}}
+          <span class="trainer-profile-detail">
+            📍 {{if eq .Data.Trainer.LocationDisplay "full"}}{{.Data.Trainer.Region}}{{if and .Data.Trainer.Region .Data.Trainer.Country}}, {{end}}{{.Data.Trainer.Country}}
+            {{else}}{{.Data.Trainer.Country}}{{end}}
+          </span>
+          {{end}}
+          <span class="trainer-profile-detail" style="color:var(--text-3)">
+            🗓 {{T "raidfinder.trainer_since"}} {{.Data.Trainer.JoinedAt.Format "Jan 2006"}}
+          </span>
+        </div>
+
+        {{if and $.User .Data.Trainer.TrainerCode}}
+        <div class="trainer-card-code" style="margin-top:0.6rem;display:inline-block">{{.Data.Trainer.TrainerCodeFormatted}}</div>
+        {{end}}
+      </div>
+    </div>
+
+    <!-- ── Social actions ──────────────────────────────────────── -->
+    {{if and .User (not .Data.IsOwnProfile)}}
+    {{if not .Data.TheyBlockedYou}}
+    <div class="trainer-social-row" id="social-row" data-username="{{.Data.Trainer.Username}}" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+      {{if .Data.IsBlocked}}
+      <button class="btn-secondary social-btn" id="btn-unblock">{{T "trainer.unblock"}}</button>
+      {{else}}
+      {{if .Data.IsFriend}}
+      <button class="btn-secondary social-btn" id="btn-unfriend">{{T "trainer.remove_friend"}}</button>
+      {{else}}
+      <button class="btn-primary social-btn" id="btn-friend">{{T "trainer.add_friend"}}</button>
+      {{end}}
+      <button class="btn-secondary social-btn social-btn-block" id="btn-block">{{T "trainer.block"}}</button>
+      {{end}}
+    </div>
+    {{end}}
+    {{end}}
+  </div>
+
+  <!-- ── Friends preview (own profile only) ───────────────────── -->
+  {{if .Data.IsOwnProfile}}
+  <div class="admin-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem">
+      <h2 style="font-size:1.05rem;font-weight:600;margin:0">{{T "trainer.friends_section"}}</h2>
+      <a href="/friends" style="font-size:0.82rem;color:var(--accent)">{{T "trainer.friends_view_all"}} &rarr;</a>
+    </div>
+    {{if .Data.RecentFriends}}
+    <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
+      {{range .Data.RecentFriends}}
+      <a href="/trainer/{{.Username}}" style="display:flex;align-items:center;gap:0.4rem;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.6rem;text-decoration:none;color:inherit;font-size:0.82rem;white-space:nowrap">
+        {{if .AvatarURL}}<img src="{{.AvatarURL}}" alt="" style="width:22px;height:22px;flex-shrink:0">{{end}}
+        <span>{{if .TrainerName}}{{.TrainerName}}{{else}}{{.Username}}{{end}}</span>
+      </a>
+      {{end}}
+    </div>
+    {{else}}
+    <p style="color:var(--text-2);font-style:italic;font-size:0.88rem">{{T "friends.no_friends"}}</p>
+    {{end}}
+  </div>
+  {{end}}
+
+  <!-- ── Feedback ───────────────────────────────────────────────── -->
+  <div class="admin-card">
+    <h2 style="margin-bottom:1rem;font-size:1.1rem">{{T "trainer.feedback_title"}}</h2>
+
+    {{if and .User (not .Data.IsOwnProfile) (not .Data.TheyBlockedYou) (not .Data.IsBlocked)}}
+    <div style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)">
+      <h3 style="margin-bottom:0.75rem;font-size:0.95rem;font-weight:600">
+        {{if .Data.MyFeedbackID}}{{T "trainer.feedback_update"}}{{else}}{{T "trainer.feedback_leave"}}{{end}}
+      </h3>
+      <form id="feedback-form" data-username="{{.Data.Trainer.Username}}">
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end">
+          <select id="feedback-select" class="move-select" style="flex:1;min-width:200px">
+            <option value="">-- {{T "trainer.feedback_choose"}} --</option>
+            {{$prevGroup := ""}}
+            {{range .Data.FeedbackOptions}}
+            {{if ne .Sentiment $prevGroup}}
+            {{if ne $prevGroup ""}}</optgroup>{{end}}
+            <optgroup label="{{if eq .Sentiment "positive"}}⭐ Positive{{else if eq .Sentiment "negative"}}⚠️ Negative{{else}}😐 Neutral{{end}}">
+            {{$prevGroup = .Sentiment}}
+            {{end}}
+            <option value="{{.ID}}"{{if eq $.Data.MyFeedbackOpt .ID}} selected{{end}}>{{.Label}}</option>
+            {{end}}
+            {{if ne $prevGroup ""}}</optgroup>{{end}}
+          </select>
+          <button type="submit" class="btn-primary" id="feedback-submit">{{T "trainer.feedback_submit"}}</button>
+        </div>
+        <p id="feedback-form-status" style="font-size:0.82rem;margin-top:0.5rem;display:none"></p>
+      </form>
+      {{if .Data.MyFeedbackID}}
+      <button class="btn-secondary" id="feedback-delete-own" data-id="{{.Data.MyFeedbackID}}"
+              style="margin-top:0.5rem;font-size:0.8rem">{{T "trainer.feedback_remove_own"}}</button>
+      {{end}}
+    </div>
+    {{end}}
+
+    {{if .Data.Feedback}}
+    <div class="feedback-list" id="feedback-list">
+      {{range .Data.Feedback}}
+      <div class="feedback-card feedback-sentiment-{{.Sentiment}}" id="fb-{{.ID}}">
+        <div class="feedback-card-header">
+          <a href="/trainer/{{.AuthorUsername}}" class="feedback-author">
+            {{if .AuthorName}}{{.AuthorName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.AuthorUsername}})</span>{{else}}{{.AuthorUsername}}{{end}}
+          </a>
+          <span class="feedback-date">{{.UpdatedAt.Format "Jan 2, 2006"}}</span>
+        </div>
+        <p class="feedback-label">{{.Label}}</p>
+        {{if $.User}}{{if $.User.IsMod}}
+        <button class="feedback-mod-delete" data-id="{{.ID}}" title="{{T "trainer.feedback_mod_delete"}}" aria-label="{{T "trainer.feedback_mod_delete"}}">🗑</button>
+        {{end}}{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <p style="color:var(--text-2);font-style:italic">{{T "trainer.feedback_none"}}</p>
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const TRAINER_CTX = {
+  username: {{.Data.Trainer.Username}},
+  isMod: {{if and .User .User.IsMod}}true{{else}}false{{end}},
+  loggedIn: {{if .User}}true{{else}}false{{end}},
+  isOwnProfile: {{if .Data.IsOwnProfile}}true{{else}}false{{end}},
+  csrfToken: document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+};
+</script>
+<script src="/static/js/trainer.js?v={{.AssetVersion}}"></script>
+<script src="/static/js/social.js?v={{.AssetVersion}}"></script>
+{{end}}

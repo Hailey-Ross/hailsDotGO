@@ -22,6 +22,7 @@
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translations">{{T "admin.tab.translations"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="pages">{{T "admin.tab.pages"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
   <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
 </div>
 
@@ -438,6 +439,32 @@
   </div>
 
 </div>
+
+{{if .User.IsAdmin}}
+<div id="tab-feedback-options" class="tab-panel">
+  <div class="admin-card" style="margin-bottom:1.25rem">
+    <h2>{{T "admin.feedback.title"}}</h2>
+    <p class="admin-desc">{{T "admin.feedback.desc"}}</p>
+    <div id="feedback-opts-list" style="margin-bottom:1.25rem"></div>
+    <h3 style="font-size:0.9rem;margin-bottom:0.6rem">{{T "admin.feedback.add_title"}}</h3>
+    <form id="feedback-opt-add-form" style="display:flex;flex-direction:column;gap:0.5rem">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end">
+        <input type="text" id="fopt-label" placeholder="{{T "admin.feedback.label_ph"}}" maxlength="120" required
+               class="auth-input" style="flex:2;min-width:180px">
+        <select id="fopt-sentiment" class="move-select" style="flex:1;min-width:130px">
+          <option value="positive">⭐ Positive</option>
+          <option value="neutral" selected>😐 Neutral</option>
+          <option value="negative">⚠️ Negative</option>
+        </select>
+        <input type="number" id="fopt-sort" placeholder="{{T "admin.feedback.sort_ph"}}" value="0" min="0" max="255"
+               class="auth-input" style="width:80px">
+        <button type="submit" class="btn-primary">{{T "admin.feedback.add_btn"}}</button>
+        <span id="fopt-add-status" style="font-size:0.82rem"></span>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
 {{end}}
 
 {{define "scripts"}}
@@ -2273,7 +2300,117 @@ if (origTabClick) {
     if (btn.dataset.tab === 'donations') loadStoreItems();
     if (btn.dataset.tab === 'raidsv2') loadAdminLobbies();
     if (btn.dataset.tab === 'awards') loadAdminAwards();
+    if (btn.dataset.tab === 'feedback-options') loadFeedbackOpts();
   }, true);
+}
+
+// ── Feedback Options admin ───────────────────────────────────────
+let feedbackOpts = [];
+let feedbackOptsLoaded = false;
+
+async function loadFeedbackOpts() {
+  const container = document.getElementById('feedback-opts-list');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>' + STRINGS.loading + '</span></div>';
+  const res = await csrfFetch('/api/admin/feedback-options');
+  if (!res.ok) { container.innerHTML = '<p style="color:#fc8181">' + STRINGS.error + '</p>'; return; }
+  feedbackOpts = await res.json();
+  feedbackOptsLoaded = true;
+  renderFeedbackOpts();
+}
+
+function renderFeedbackOpts() {
+  const container = document.getElementById('feedback-opts-list');
+  if (!container) return;
+  if (!feedbackOpts.length) { container.innerHTML = '<p style="color:var(--text-2);font-size:0.85rem">No options yet.</p>'; return; }
+  const sentimentLabel = {positive: '⭐ Positive', neutral: '😐 Neutral', negative: '⚠️ Negative'};
+  container.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+    <thead><tr style="color:var(--text-2)">
+      <th style="text-align:left;padding:0.3rem 0.5rem">ID</th>
+      <th style="text-align:left;padding:0.3rem 0.5rem">Label</th>
+      <th style="text-align:left;padding:0.3rem 0.5rem">Sentiment</th>
+      <th style="text-align:left;padding:0.3rem 0.5rem">Order</th>
+      <th style="text-align:left;padding:0.3rem 0.5rem">Enabled</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      ${feedbackOpts.map(o => `<tr id="fopt-row-${o.id}" style="border-top:1px solid var(--border)">
+        <td style="padding:0.4rem 0.5rem;color:var(--text-3)">${o.id}</td>
+        <td style="padding:0.4rem 0.5rem"><input class="auth-input fopt-label-edit" data-id="${o.id}" value="${esc(o.label)}" maxlength="120" style="width:100%;min-width:160px"></td>
+        <td style="padding:0.4rem 0.5rem"><select class="move-select fopt-sent-edit" data-id="${o.id}" style="min-width:120px">
+          <option value="positive"${o.sentiment==='positive'?' selected':''}>⭐ Positive</option>
+          <option value="neutral"${o.sentiment==='neutral'?' selected':''}>😐 Neutral</option>
+          <option value="negative"${o.sentiment==='negative'?' selected':''}>⚠️ Negative</option>
+        </select></td>
+        <td style="padding:0.4rem 0.5rem"><input type="number" class="auth-input fopt-sort-edit" data-id="${o.id}" value="${o.sort_order}" min="0" max="255" style="width:60px"></td>
+        <td style="padding:0.4rem 0.5rem"><input type="checkbox" class="fopt-enabled-edit" data-id="${o.id}"${o.enabled?' checked':''}></td>
+        <td style="padding:0.4rem 0.5rem;white-space:nowrap">
+          <button class="um-btn um-btn-ok" onclick="saveFeedbackOpt(${o.id})">Save</button>
+          <button class="um-btn um-btn-bad" onclick="deleteFeedbackOpt(${o.id})" style="margin-left:0.3rem">Delete</button>
+          <span id="fopt-status-${o.id}" style="font-size:0.78rem;margin-left:0.4rem"></span>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function saveFeedbackOpt(id) {
+  const label = document.querySelector(`.fopt-label-edit[data-id="${id}"]`)?.value.trim();
+  const sentiment = document.querySelector(`.fopt-sent-edit[data-id="${id}"]`)?.value;
+  const sortOrder = parseInt(document.querySelector(`.fopt-sort-edit[data-id="${id}"]`)?.value ?? '0');
+  const enabled = document.querySelector(`.fopt-enabled-edit[data-id="${id}"]`)?.checked ?? false;
+  const statusEl = document.getElementById(`fopt-status-${id}`);
+  if (!label) { if (statusEl) { statusEl.textContent = 'Label required'; statusEl.style.color = '#fc8181'; } return; }
+  const res = await csrfFetch('/api/admin/feedback-options/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({label, sentiment, sort_order: sortOrder, enabled}),
+  });
+  if (res.ok) {
+    const opt = feedbackOpts.find(o => o.id === id);
+    if (opt) { opt.label = label; opt.sentiment = sentiment; opt.sort_order = sortOrder; opt.enabled = enabled; }
+    if (statusEl) { statusEl.textContent = 'Saved'; statusEl.style.color = 'var(--green)'; setTimeout(() => { statusEl.textContent = ''; }, 2000); }
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+async function deleteFeedbackOpt(id) {
+  if (!confirm('Delete this feedback option? Existing feedback using it will also be removed.')) return;
+  const res = await csrfFetch('/api/admin/feedback-options/' + id, { method: 'DELETE' });
+  if (res.ok) {
+    feedbackOpts = feedbackOpts.filter(o => o.id !== id);
+    renderFeedbackOpts();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert(d.error || STRINGS.error);
+  }
+}
+
+const foptAddForm = document.getElementById('feedback-opt-add-form');
+if (foptAddForm) {
+  foptAddForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const label = document.getElementById('fopt-label')?.value.trim();
+    const sentiment = document.getElementById('fopt-sentiment')?.value;
+    const sortOrder = parseInt(document.getElementById('fopt-sort')?.value ?? '0');
+    const statusEl = document.getElementById('fopt-add-status');
+    if (!label) return;
+    const res = await csrfFetch('/api/admin/feedback-options', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({label, sentiment, sort_order: sortOrder}),
+    });
+    if (res.ok) {
+      document.getElementById('fopt-label').value = '';
+      if (statusEl) { statusEl.textContent = 'Added!'; statusEl.style.color = 'var(--green)'; setTimeout(() => { statusEl.textContent = ''; }, 2000); }
+      await loadFeedbackOpts();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+    }
+  });
 }
 </script>
 {{end}}

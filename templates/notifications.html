@@ -1,0 +1,145 @@
+{{define "title"}}{{T "notifications.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem">
+  <h1>{{T "notifications.title"}}</h1>
+  <button class="btn-secondary" id="notif-clear-all" style="display:none;font-size:0.85rem">{{T "notifications.clear_all"}}</button>
+</div>
+
+<div id="notif-list" style="display:flex;flex-direction:column;gap:0.75rem;max-width:680px"></div>
+
+<div id="notif-empty" style="display:none;padding:3rem 0;text-align:center">
+  <p style="font-size:1.5rem;margin-bottom:0.5rem">✅</p>
+  <p style="color:var(--text-2)">{{T "notifications.up_to_date"}}</p>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function() {
+  var SEEN_KEY      = 'notif_seen_lobbies';
+  var DISMISSED_KEY = 'notif_dismissed';
+  var csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+  function getSet(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (raw) return new Set(JSON.parse(raw));
+    } catch(_) {}
+    return new Set();
+  }
+
+  function saveSet(key, s, cap) {
+    try {
+      var arr = Array.from(s).slice(-(cap || 500));
+      localStorage.setItem(key, JSON.stringify(arr));
+    } catch(_) {}
+  }
+
+  function markSeen(ids) {
+    var s = getSet(SEEN_KEY);
+    ids.forEach(function(id) { s.add(id); });
+    saveSet(SEEN_KEY, s, 200);
+  }
+
+  function markDismissed(id) {
+    var s = getSet(DISMISSED_KEY);
+    s.add(id);
+    saveSet(DISMISSED_KEY, s, 500);
+  }
+
+  var stateLabels = {
+    'open':    '{{T "notifications.state_open"}}',
+    'full':    '{{T "notifications.state_full"}}',
+    'raiding': '{{T "notifications.state_raiding"}}',
+  };
+  var stateClasses = { 'open': 'state-open', 'full': 'state-full', 'raiding': 'state-raiding' };
+
+  function relativeTime(iso) {
+    var diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60)  return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    return Math.floor(diff / 3600) + 'h ago';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  var list     = document.getElementById('notif-list');
+  var empty    = document.getElementById('notif-empty');
+  var clearBtn = document.getElementById('notif-clear-all');
+  var allIds   = [];
+
+  function checkEmpty() {
+    var hasCards = list.querySelectorAll('.notif-page-card').length > 0;
+    empty.style.display    = hasCards ? 'none' : '';
+    clearBtn.style.display = hasCards ? '' : 'none';
+  }
+
+  function dismissCard(id, card) {
+    markDismissed(id);
+    card.remove();
+    checkEmpty();
+  }
+
+  function renderCard(n) {
+    var hostDisplay = n.host_trainer_name
+      ? esc(n.host_trainer_name) + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + esc(n.host_username) + ')</span>'
+      : esc(n.host_username);
+    var stateLabel = stateLabels[n.state] || n.state;
+    var stateClass = stateClasses[n.state] || '';
+    var tier = n.boss_tier ? ' (T' + n.boss_tier + ')' : '';
+
+    var card = document.createElement('div');
+    card.className = 'notif-page-card admin-card';
+    card.dataset.id = String(n.lobby_id);
+    card.innerHTML =
+      '<div style="display:flex;align-items:flex-start;gap:0.75rem">' +
+        '<span style="font-size:1.5rem;line-height:1;flex-shrink:0">🏟</span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;font-size:0.95rem;margin-bottom:0.2rem">' + esc(n.boss_name) + esc(tier) + '</div>' +
+          '<div style="font-size:0.85rem;color:var(--text-2);margin-bottom:0.35rem">' + hostDisplay + '</div>' +
+          '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">' +
+            '<span class="notif-state-chip ' + stateClass + '">' + esc(stateLabel) + '</span>' +
+            '<span style="font-size:0.78rem;color:var(--text-3)">' + relativeTime(n.created_at) + '</span>' +
+            '<a href="/raidfinder" class="btn-primary" style="font-size:0.78rem;padding:0.25rem 0.6rem">{{T "notifications.join"}}</a>' +
+          '</div>' +
+        '</div>' +
+        '<button class="notif-dismiss-btn" data-id="' + n.lobby_id + '" aria-label="{{T "notifications.dismiss"}}" ' +
+          'style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text-3);font-size:1.1rem;line-height:1;padding:0.2rem">&times;</button>' +
+      '</div>';
+
+    card.querySelector('.notif-dismiss-btn').addEventListener('click', function() {
+      dismissCard(n.lobby_id, card);
+    });
+
+    return card;
+  }
+
+  clearBtn.addEventListener('click', function() {
+    allIds.forEach(function(id) { markDismissed(id); });
+    list.innerHTML = '';
+    checkEmpty();
+  });
+
+  fetch('/api/notifications', { headers: { 'X-CSRF-Token': csrf } })
+    .then(function(r) { return r.json(); })
+    .then(function(notifs) {
+      if (!Array.isArray(notifs)) notifs = [];
+
+      var dismissed = getSet(DISMISSED_KEY);
+
+      // Mark all as seen so badge drops on next poll
+      markSeen(notifs.map(function(n) { return n.lobby_id; }));
+
+      var visible = notifs.filter(function(n) { return !dismissed.has(n.lobby_id); });
+      allIds = visible.map(function(n) { return n.lobby_id; });
+
+      visible.forEach(function(n) { list.appendChild(renderCard(n)); });
+      checkEmpty();
+    })
+    .catch(function() { checkEmpty(); });
+})();
+</script>
+{{end}}

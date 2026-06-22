@@ -84,6 +84,7 @@
         </div>
       </div>
       {{if and .ProfilePublic $.User .TrainerCode}}<div class="trainer-card-code">{{.TrainerCodeFormatted}}</div>{{end}}
+      <a href="/trainer/{{.Username}}" class="trainer-profile-link">{{T "trainers.view_profile"}}</a>
     </div>
     {{end}}
   </div>

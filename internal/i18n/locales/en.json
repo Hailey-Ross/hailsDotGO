@@ -31,6 +31,10 @@
   "home.shinydex.desc": "Browse all available shiny Pokémon and how to find them.",
   "home.shinies.title": "Shiny Collection",
   "home.shinies.desc":  "Track the shiny Pokémon you've caught in your personal collection.",
+  "home.trainers.title": "Trainer Directory",
+  "home.trainers.desc":  "Set up your trainer profile, share your code, and find friends to raid with.",
+  "home.raidfinder.title": "Raid Finder",
+  "home.raidfinder.desc":  "Queue for remote raids and host lobbies to connect with other trainers.",
 
   "raids.title":    "Current Raids",
   "raids.subtitle": "Tap a boss to see the best counters",
@@ -146,7 +150,7 @@
   "credits.changelog.intro":   "A running log of updates and improvements.",
 
   "login.title":       "Welcome back",
-  "login.subtitle":    "Log in to track your shiny collection.",
+  "login.subtitle":    "Log in to access raids, your shiny collection, trainer profile, and more.",
   "login.username":    "Username",
   "login.password":    "Password",
   "login.submit":      "Login",
@@ -154,7 +158,7 @@
   "login.signup_link": "Sign up",
 
   "register.title":        "Create account",
-  "register.subtitle":     "Track your shiny Pokémon GO collection.",
+  "register.subtitle":     "Your Pokémon GO hub: raids, shiny collection, trainer profiles, and more to come.",
   "register.username":     "Username",
   "register.email":        "Email",
   "register.password":     "Password",
@@ -981,5 +985,60 @@
   "shinydex.js.tip_raid": "Rare reward after defeating a raid boss",
   "shinydex.js.tip_research": "Reward encounter from field research tasks",
   "shinydex.js.tip_wild": "Encountered randomly in the overworld",
-  "shinydex.js.unavailable": "Shiny data unavailable. Check back later."
+  "shinydex.js.unavailable": "Shiny data unavailable. Check back later.",
+
+  "nav.notifications": "Notifications",
+
+  "trainers.view_profile": "View Profile",
+
+  "trainer.add_friend":    "Add Friend",
+  "trainer.remove_friend": "Remove Friend",
+  "trainer.block":         "Block",
+  "trainer.unblock":       "Unblock",
+
+  "trainer.friends_section":  "Friends",
+  "trainer.friends_view_all": "View all",
+
+  "trainer.feedback_title":      "Community Feedback",
+  "trainer.feedback_leave":      "Leave Feedback",
+  "trainer.feedback_update":     "Update Your Feedback",
+  "trainer.feedback_choose":     "Choose an option",
+  "trainer.feedback_submit":     "Submit",
+  "trainer.feedback_remove_own": "Remove my feedback",
+  "trainer.feedback_mod_delete": "Delete feedback (mod)",
+  "trainer.feedback_none":       "No feedback yet.",
+
+  "friends.title":           "Friends",
+  "friends.no_friends":      "You haven't added any friends yet.",
+  "friends.no_friends_hint": "Visit a trainer's profile and click Add Friend.",
+
+  "settings.tab.blocked":          "Blocked Users",
+  "settings.blocked.search_ph":    "Search by username or trainer name...",
+  "settings.blocked.search_btn":   "Search",
+  "settings.blocked.block_btn":    "Block",
+  "settings.blocked.unblock_btn":  "Unblock",
+  "settings.blocked.none":         "You haven't blocked anyone.",
+  "settings.blocked.no_results":   "No users found.",
+
+  "settings.tab.notifications":           "Notifications",
+  "settings.notifications.volume_label":  "Notification sound volume",
+  "settings.notifications.test_btn":      "Test sound",
+  "settings.notifications.muted":         "Muted",
+
+  "notifications.title":       "Notifications",
+  "notifications.clear_all":  "Clear all",
+  "notifications.up_to_date": "You're all up to date for now!",
+  "notifications.dismiss":    "Dismiss",
+  "notifications.join":       "Join raid",
+  "notifications.state_open":    "Open",
+  "notifications.state_full":    "Full",
+  "notifications.state_raiding": "Raiding",
+
+  "admin.tab.feedback_options": "Feedback Options",
+  "admin.feedback.title":       "Feedback Options",
+  "admin.feedback.desc":        "Manage the Pokemon-themed phrases users can choose when leaving feedback on a trainer profile.",
+  "admin.feedback.add_title":   "Add New Option",
+  "admin.feedback.label_ph":    "e.g. Great to raid with! ⭐",
+  "admin.feedback.sort_ph":     "Sort",
+  "admin.feedback.add_btn":     "Add"
 }

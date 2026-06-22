@@ -18,6 +18,11 @@ var predefinedPronouns = map[string]bool{
 	"any/all":  true,
 }
 
+type blockedUserEntry struct {
+	Username    string
+	TrainerName string
+}
+
 type settingsData struct {
 	Success         bool
 	Error           string
@@ -36,6 +41,7 @@ type settingsData struct {
 	TrainerClasses  []pogodata.TrainerClass
 	PokemonList     []pogodata.PokemonEntry
 	TagRequest      *tagRequestStatus
+	BlockedUsers    []blockedUserEntry
 }
 
 func (h *Handlers) queryTagRequest(userID uint) *tagRequestStatus {
@@ -70,6 +76,24 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	d.TrainerClasses = h.store.TrainerClasses()
 	d.PokemonList = h.store.PokemonList()
 	d.TagRequest = h.queryTagRequest(u.ID)
+	bRows, err := h.db.Query(`
+		SELECT u.username, COALESCE(u.trainer_name,'')
+		FROM user_blocks ub
+		JOIN users u ON u.id = ub.blocked_id
+		WHERE ub.user_id = ?
+		ORDER BY ub.created_at DESC`, u.ID)
+	if err == nil {
+		defer bRows.Close()
+		for bRows.Next() {
+			var be blockedUserEntry
+			if bRows.Scan(&be.Username, &be.TrainerName) == nil {
+				d.BlockedUsers = append(d.BlockedUsers, be)
+			}
+		}
+	}
+	if d.BlockedUsers == nil {
+		d.BlockedUsers = []blockedUserEntry{}
+	}
 	h.render(w, r, "settings", d)
 }
 
