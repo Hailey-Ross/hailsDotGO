@@ -400,29 +400,91 @@ INSERT IGNORE INTO locales (code, enabled) VALUES ('es', 1), ('fr', 1), ('de', 1
 ALTER TABLE trust_events MODIFY event_type
   ENUM('commend','dislike','confirm_timeout','invite_window_fail','left_early','raid_success','staff_adjust','host_unfulfilled') NOT NULL;
 
+-- 25. Translator applications (2026-06-11)
+-- RUN THIS ON THE LIVE DB BEFORE DEPLOYING the translator application feature.
+-- languages is a JSON array VARCHAR(500): [{"code":"de","level":"fluent"}, ...].
+-- 'accepted' status is informational; the actual gate is users.translator = 1.
+CREATE TABLE IF NOT EXISTS translator_applications (
+  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    user_id       INT UNSIGNED  NOT NULL,
+      languages     VARCHAR(500)  NOT NULL,
+        motivation    TEXT          NOT NULL,
+          experience    VARCHAR(2000) NOT NULL DEFAULT '',
+            country       VARCHAR(100)  NOT NULL DEFAULT '',
+              status        ENUM('pending','reviewing','accepted','rejected') NOT NULL DEFAULT 'pending',
+                reviewed_by   INT UNSIGNED NULL,
+                  reviewed_at   DATETIME NULL,
+                    reject_reason VARCHAR(255)  NOT NULL DEFAULT '',
+                      created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                          PRIMARY KEY (id),
+                            UNIQUE KEY uk_ta_user (user_id),
+                              KEY idx_ta_status (status),
+                                CONSTRAINT fk_ta_user     FOREIGN KEY (user_id)     REFERENCES users (id) ON DELETE CASCADE,
+                                  CONSTRAINT fk_ta_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+                                  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 26. Shiny collection privacy flag (2026-06-18)
 ALTER TABLE users ADD COLUMN shinies_hidden TINYINT(1) NOT NULL DEFAULT 0 AFTER directory_hidden;
 
-  -- 25. Translator applications (2026-06-11)
-  -- RUN THIS ON THE LIVE DB BEFORE DEPLOYING the translator application feature.
-  -- languages is a JSON array VARCHAR(500): [{"code":"de","level":"fluent"}, ...].
-  -- 'accepted' status is informational; the actual gate is users.translator = 1.
-  CREATE TABLE IF NOT EXISTS translator_applications (
-    id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-      user_id       INT UNSIGNED  NOT NULL,
-        languages     VARCHAR(500)  NOT NULL,
-          motivation    TEXT          NOT NULL,
-            experience    VARCHAR(2000) NOT NULL DEFAULT '',
-              country       VARCHAR(100)  NOT NULL DEFAULT '',
-                status        ENUM('pending','reviewing','accepted','rejected') NOT NULL DEFAULT 'pending',
-                  reviewed_by   INT UNSIGNED NULL,
-                    reviewed_at   DATETIME NULL,
-                      reject_reason VARCHAR(255)  NOT NULL DEFAULT '',
-                        created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                          updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                            PRIMARY KEY (id),
-                              UNIQUE KEY uk_ta_user (user_id),
-                                KEY idx_ta_status (status),
-                                  CONSTRAINT fk_ta_user     FOREIGN KEY (user_id)     REFERENCES users (id) ON DELETE CASCADE,
-                                    CONSTRAINT fk_ta_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
-                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 27. Friends and blocks (2026-06-22)
+-- Friendship is directional: adding A->B means A sees notifications for B's raids; B does not see A's.
+-- Blocking removes the friendship in both directions and is enforced in the social API handlers.
+CREATE TABLE IF NOT EXISTS user_friends (
+  user_id    INT UNSIGNED NOT NULL,
+  friend_id  INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, friend_id),
+  CONSTRAINT fk_uf_user   FOREIGN KEY (user_id)   REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_uf_friend FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_blocks (
+  user_id    INT UNSIGNED NOT NULL,
+  blocked_id INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, blocked_id),
+  CONSTRAINT fk_ub_user    FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ub_blocked FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 28. Feedback options -- staff-curated list of Pokemon-themed phrases (2026-06-22)
+-- UNIQUE KEY on label makes the INSERT IGNORE seed safe to re-run.
+CREATE TABLE IF NOT EXISTS feedback_options (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  label      VARCHAR(120) NOT NULL,
+  sentiment  ENUM('positive','neutral','negative') NOT NULL DEFAULT 'neutral',
+  sort_order TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_option_label (label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO feedback_options (label, sentiment, sort_order) VALUES
+  ('Great Raid Host -- always ready on time! ⭐',   'positive', 1),
+  ('Helpful and welcoming in lobbies 🤝',            'positive', 2),
+  ('Would raid with them again! 💪',                 'positive', 3),
+  ('Friendly communicator 📢',                       'positive', 4),
+  ('Kept the lobby fun and positive 🎉',             'positive', 5),
+  ('No issues, standard experience 😐',              'neutral',  10),
+  ('Left the lobby without notice 🚪',               'negative', 20),
+  ('Went offline mid-raid 👻',                       'negative', 21),
+  ('Repeated no-shows 🔴',                           'negative', 22),
+  ('Rude or disrespectful in lobby 😡',              'negative', 23);
+
+-- 29. User feedback -- one review per author/target pair; updatable via ON DUPLICATE KEY (2026-06-22)
+CREATE TABLE IF NOT EXISTS user_feedback (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  author_id  INT UNSIGNED NOT NULL,
+  target_id  INT UNSIGNED NOT NULL,
+  option_id  INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_feedback_pair (author_id, target_id),
+  KEY idx_feedback_target (target_id),
+  CONSTRAINT fk_fb_author FOREIGN KEY (author_id) REFERENCES users(id)            ON DELETE CASCADE,
+  CONSTRAINT fk_fb_target FOREIGN KEY (target_id) REFERENCES users(id)            ON DELETE CASCADE,
+  CONSTRAINT fk_fb_option FOREIGN KEY (option_id) REFERENCES feedback_options(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

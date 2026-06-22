@@ -47,6 +47,22 @@
   </a>
   {{end}}
 
+  {{if .Maintenance.TrainersEnabled}}
+  <a href="/trainers" class="tool-card trainers-card">
+    <div class="tool-icon">👥</div>
+    <h2>{{T "home.trainers.title"}}</h2>
+    <p>{{T "home.trainers.desc"}}</p>
+  </a>
+  {{end}}
+
+  {{if and .Maintenance.TrainersEnabled .Maintenance.RaidFinderEnabled}}
+  <a href="/raidfinder" class="tool-card raidfinder-card">
+    <div class="tool-icon">🔍</div>
+    <h2>{{T "home.raidfinder.title"}}</h2>
+    <p>{{T "home.raidfinder.desc"}}</p>
+  </a>
+  {{end}}
+
   {{if and .User .Maintenance.ShiniesEnabled}}
   <a href="/shinies" class="tool-card shinies-card">
     <div class="tool-icon">🌟</div>

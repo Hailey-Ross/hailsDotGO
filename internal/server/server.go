@@ -86,6 +86,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/lang", h.SetLang)
 
 		r.Get("/trainers", h.TrainersPage)
+		r.Get("/trainer/{username}", h.TrainerProfilePage)
+		r.Get("/friends", h.RequireAuth(h.FriendsPage))
+		r.Get("/notifications", h.RequireAuth(h.NotificationsPage))
 		r.Get("/raidfinder", h.RaidFinderPage)
 
 		r.Get("/store", h.StorePage)
@@ -161,6 +164,27 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/admin/users/{id}/strikes", h.RequireMod(h.AdminStrikesGet))
 		r.Post("/admin/users/{id}/strikes", h.RequireMod(h.AdminStrikesAdd))
 		r.Delete("/admin/users/{id}/strikes/{strikeId}", h.RequireMod(h.AdminStrikesDelete))
+
+		// Social: friends and blocks
+		r.Get("/api/social/{username}", h.RequireAuthAPI(h.APIGetSocialState))
+		r.Post("/api/social/{username}/friend", h.RequireAuthAPI(h.APIFriend))
+		r.Delete("/api/social/{username}/friend", h.RequireAuthAPI(h.APIFriend))
+		r.Post("/api/social/{username}/block", h.RequireAuthAPI(h.APIBlock))
+		r.Delete("/api/social/{username}/block", h.RequireAuthAPI(h.APIBlock))
+
+		// Notifications: active raids from friends
+		r.Get("/api/notifications", h.RequireAuthAPI(h.APIGetNotifications))
+
+		// Feedback: public read, auth write, mod/author delete
+		r.Get("/api/feedback/{username}", h.APIGetFeedback)
+		r.Post("/api/feedback/{username}", h.RequireAuthAPI(h.APIPostFeedback))
+		r.Delete("/api/feedback/entry/{id}", h.RequireAuthAPI(h.APIDeleteFeedback))
+
+		// Admin: feedback option management (admin+ only)
+		r.Get("/api/admin/feedback-options", h.RequireAdmin(h.APIAdminFeedbackOptions))
+		r.Post("/api/admin/feedback-options", h.RequireAdmin(h.APIAdminFeedbackOptions))
+		r.Put("/api/admin/feedback-options/{id}", h.RequireAdmin(h.APIAdminFeedbackOption))
+		r.Delete("/api/admin/feedback-options/{id}", h.RequireAdmin(h.APIAdminFeedbackOption))
 
 		r.Get("/api/raid/overview", h.APIRaidOverview)
 		r.Get("/api/raid/state", h.RequireAuth(h.APIRaidState))

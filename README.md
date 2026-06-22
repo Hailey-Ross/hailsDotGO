@@ -6,7 +6,9 @@ A fan-made Pokémon GO companion web app built in Go.
 - DPS calculator, moveset comparison, and PvP IV ranker (GL / UL / ML)
 - Events page with full details sourced from LeekDuck via ScrapedDuck
 - Shiny Dex plus a personal shiny collection tracker
-- Trainer Directory and a real-time Raid Finder with matchmaking, lobbies, and a trust system
+- Trainer Directory with dedicated profile pages, a real-time Raid Finder with matchmaking, lobbies, and a trust system
+- Friends list, real-time raid notifications with 🔔 badge and optional ding sound, and blocked-user management
+- Community feedback (positive/neutral/negative trainer reviews) visible on every trainer profile
 - User accounts (open or invite-only registration), staff roles, strikes, tags, and awards
 - Supporter store with optional donation perks (PayPal)
 - Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and GitHub sync
@@ -26,7 +28,7 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 | Deploy to a Linux server | [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment) |
 | Run the site day to day | [Operations](https://github.com/Hailey-Ross/hailsDotGO/wiki/Operations) |
 | Use the JSON API | [API Reference](https://github.com/Hailey-Ross/hailsDotGO/wiki/API-Reference) |
-| Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
+| Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
 | Understand roles and permissions | [Accounts and Roles](https://github.com/Hailey-Ross/hailsDotGO/wiki/Accounts-and-Roles), [Admin Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Admin-Guide) |
 | Translate the site or add a language | [Localization](https://github.com/Hailey-Ross/hailsDotGO/wiki/Localization), [Translator Workspace](https://github.com/Hailey-Ross/hailsDotGO/wiki/Translator-Workspace) |
 | Hack on the code | [Architecture](https://github.com/Hailey-Ross/hailsDotGO/wiki/Architecture), [Building and Development](https://github.com/Hailey-Ross/hailsDotGO/wiki/Building-and-Development), [Frontend Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Frontend-Guide) |
