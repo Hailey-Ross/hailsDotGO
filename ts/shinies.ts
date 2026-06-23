@@ -14,6 +14,8 @@ interface UserShiny {
   id: number;
   pokemon_id: string;
   form: string;
+  costume: string;
+  event_tag: string;
   method: string;
   caught_at: string;
 }
@@ -22,6 +24,13 @@ const FORMS = [
   { value: "", label: JSC.formNormal },
   { value: "shadow", label: JSC.formShadow },
   { value: "purified", label: JSC.formPurified },
+];
+
+const COSTUME_SUGGESTIONS = [
+  "Party Hat", "Witch Hat", "Detective Hat", "Flower Crown", "Safari Hat",
+  "Holiday Hat", "Birthday Hat", "Winter Hat", "Lucha Libre", "GO Fest Hat",
+  "Kanto Cap", "Johto Cap", "Hoenn Cap", "Sinnoh Cap", "Unova Cap",
+  "Kalos Cap", "Alola Cap", "Galar Cap", "Hisui Cap", "Paldea Cap",
 ];
 
 const METHODS = [
@@ -46,20 +55,20 @@ async function fetchUserShinies(): Promise<UserShiny[]> {
   return res.json();
 }
 
-async function apiAdd(pokemonId: string, form: string, method: string): Promise<boolean> {
+async function apiAdd(pokemonId: string, form: string, costume: string, eventTag: string, method: string): Promise<boolean> {
   const res = await fetch("/api/shinies", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
-    body: JSON.stringify({ pokemon_id: pokemonId, form, method }),
+    body: JSON.stringify({ pokemon_id: pokemonId, form, costume, event_tag: eventTag, method }),
   });
   return res.ok;
 }
 
-async function apiUpdate(id: number, form: string, method: string): Promise<Response> {
+async function apiUpdate(id: number, form: string, costume: string, eventTag: string, method: string): Promise<Response> {
   return fetch(`/api/shinies/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
-    body: JSON.stringify({ form, method }),
+    body: JSON.stringify({ form, costume, event_tag: eventTag, method }),
   });
 }
 
@@ -73,7 +82,7 @@ async function apiRemove(id: number): Promise<boolean> {
 
 function buildCaughtIndex(shinies: UserShiny[]): Map<string, UserShiny> {
   const m = new Map<string, UserShiny>();
-  for (const s of shinies) m.set(`${s.pokemon_id}:${s.form}`, s);
+  for (const s of shinies) m.set(`${s.pokemon_id}:${s.form}:${s.costume}:${s.event_tag}`, s);
   return m;
 }
 
@@ -186,8 +195,19 @@ async function init() {
   function closeModal() { modal.classList.remove("open"); }
 
   let modalFormSel: HTMLSelectElement;
+  let modalCostumeInput: HTMLInputElement;
+  let modalEventInput: HTMLInputElement;
   let modalMethodSel: HTMLSelectElement;
   let modalTarget: ShinyPokemon | null = null;
+
+  const costumeDatalist = document.createElement("datalist");
+  costumeDatalist.id = "sc-costume-list";
+  for (const c of COSTUME_SUGGESTIONS) {
+    const opt = document.createElement("option");
+    opt.value = c;
+    costumeDatalist.appendChild(opt);
+  }
+  document.body.appendChild(costumeDatalist);
 
   function openAddModal(s: ShinyPokemon) {
     modalTarget = s;
@@ -257,25 +277,52 @@ async function init() {
     modalAddBtn.disabled = false;
     modalAddBtn.textContent = SH.add;
 
-    const caughtForms = FORMS.filter((f) => caughtIndex.has(`${s.name}:${f.value}`)).map((f) => f.value);
     modalFields.innerHTML = "";
-    modalFormSel = makeSelect(FORMS, "", caughtForms);
-    modalMethodSel = makeSelect(METHODS, "");
-    modalFields.appendChild(modalFormSel);
-    modalFields.appendChild(modalMethodSel);
 
-    const firstAvailable = FORMS.find((f) => !caughtForms.includes(f.value));
-    if (firstAvailable) modalFormSel.value = firstAvailable.value;
+    modalFormSel = makeSelect(FORMS, "");
+    modalFields.appendChild(modalFormSel);
+
+    const costumeWrap = document.createElement("div");
+    costumeWrap.className = "sc-field-wrap";
+    const costumeLabel = document.createElement("label");
+    costumeLabel.className = "sc-field-label";
+    costumeLabel.textContent = SH.costumeLabel;
+    modalCostumeInput = document.createElement("input");
+    modalCostumeInput.type = "text";
+    modalCostumeInput.className = "move-select";
+    modalCostumeInput.placeholder = SH.costumePlaceholder;
+    modalCostumeInput.setAttribute("list", "sc-costume-list");
+    costumeWrap.appendChild(costumeLabel);
+    costumeWrap.appendChild(modalCostumeInput);
+    modalFields.appendChild(costumeWrap);
+
+    const eventWrap = document.createElement("div");
+    eventWrap.className = "sc-field-wrap";
+    const eventLabel = document.createElement("label");
+    eventLabel.className = "sc-field-label";
+    eventLabel.textContent = SH.eventLabel;
+    modalEventInput = document.createElement("input");
+    modalEventInput.type = "text";
+    modalEventInput.className = "move-select";
+    modalEventInput.placeholder = SH.eventPlaceholder;
+    eventWrap.appendChild(eventLabel);
+    eventWrap.appendChild(modalEventInput);
+    modalFields.appendChild(eventWrap);
+
+    modalMethodSel = makeSelect(METHODS, "");
+    modalFields.appendChild(modalMethodSel);
 
     modal.classList.add("open");
   }
 
   modalAddBtn.addEventListener("click", async () => {
     if (!modalTarget) return;
-    const form   = modalFormSel.value;
-    const method = modalMethodSel.value;
+    const form    = modalFormSel.value;
+    const costume = modalCostumeInput.value.trim();
+    const eventTag = modalEventInput.value.trim();
+    const method  = modalMethodSel.value;
 
-    if (caughtIndex.has(`${modalTarget.name}:${form}`)) {
+    if (caughtIndex.has(`${modalTarget.name}:${form}:${costume}:${eventTag}`)) {
       modalStatus.textContent = SH.alreadyOwned;
       return;
     }
@@ -284,7 +331,7 @@ async function init() {
     modalAddBtn.textContent = SH.adding;
     modalStatus.textContent = "";
 
-    const ok = await apiAdd(modalTarget.name, form, method);
+    const ok = await apiAdd(modalTarget.name, form, costume, eventTag, method);
     if (ok) {
       userShinies  = await fetchUserShinies();
       caughtIndex  = buildCaughtIndex(userShinies);
@@ -420,7 +467,7 @@ async function init() {
         img.style.display = "none";
       }
 
-      // Name + date
+      // Name + date + costume/event labels
       const nameWrap = document.createElement("div");
       nameWrap.className = "sc-entry-namewrap";
       const name = document.createElement("span");
@@ -431,6 +478,15 @@ async function init() {
       dateEl.textContent = rec.caught_at ? timeAgo(rec.caught_at) : "";
       nameWrap.appendChild(name);
       nameWrap.appendChild(dateEl);
+      if (rec.costume || rec.event_tag) {
+        const metaEl = document.createElement("span");
+        metaEl.className = "sc-entry-meta";
+        const parts: string[] = [];
+        if (rec.costume)   parts.push(rec.costume);
+        if (rec.event_tag) parts.push(rec.event_tag);
+        metaEl.textContent = parts.join(" -- ");
+        nameWrap.appendChild(metaEl);
+      }
 
       // Form selector
       const formSel = makeSelect(FORMS, rec.form);
@@ -447,12 +503,12 @@ async function init() {
       async function saveUpdate() {
         const newForm   = formSel.value;
         const newMethod = methodSel.value;
-        const res = await apiUpdate(rec.id, newForm, newMethod);
+        const res = await apiUpdate(rec.id, newForm, rec.costume, rec.event_tag, newMethod);
         if (res.ok) {
-          caughtIndex.delete(`${rec.pokemon_id}:${rec.form}`);
+          caughtIndex.delete(`${rec.pokemon_id}:${rec.form}:${rec.costume}:${rec.event_tag}`);
           rec.form   = newForm;
           rec.method = newMethod;
-          caughtIndex.set(`${rec.pokemon_id}:${rec.form}`, rec);
+          caughtIndex.set(`${rec.pokemon_id}:${rec.form}:${rec.costume}:${rec.event_tag}`, rec);
           statusEl.textContent = SH.saved;
           clearTimeout(saveTimer);
           saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);

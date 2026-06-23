@@ -2,16 +2,29 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"pogo.hails.cc/internal/auth"
 )
 
+// resolveToken extracts the session token from the request.
+// Checks Authorization: Bearer <token> first (mobile clients), then the hgo_session cookie (web).
+func resolveToken(r *http.Request) string {
+	if hdr := r.Header.Get("Authorization"); strings.HasPrefix(hdr, "Bearer ") {
+		return strings.TrimPrefix(hdr, "Bearer ")
+	}
+	if c, err := r.Cookie(auth.CookieName); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
 func (h *Handlers) currentUser(r *http.Request) *auth.User {
-	c, err := r.Cookie(auth.CookieName)
-	if err != nil {
+	token := resolveToken(r)
+	if token == "" {
 		return nil
 	}
-	u, _ := auth.GetSession(h.db, c.Value)
+	u, _ := auth.GetSession(h.db, token)
 	return u
 }
 

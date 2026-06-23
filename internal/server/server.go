@@ -53,6 +53,47 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		staticFS.ServeHTTP(w, req)
 	}))
 
+	// Mobile API -- outside CSRF group (Bearer tokens are not CSRF-vulnerable).
+	// Login is public and rate-limited; everything else requires Bearer or cookie auth.
+	r.Route("/api/mobile/v1", func(r chi.Router) {
+		r.With(httprate.LimitByIP(5, time.Minute)).Post("/auth/login", h.MobileLogin)
+
+		// Public game data aliases with stable versioned URLs for mobile clients.
+		r.Get("/pokemon", h.APIPokemon)
+		r.Get("/raids", h.APIRaids)
+		r.Get("/events", h.APIEvents)
+		r.Get("/data", h.APIData)
+		r.Get("/raid/overview", h.APIRaidOverview)
+
+		// All remaining endpoints require authentication.
+		r.Group(func(r chi.Router) {
+			r.Use(h.MobileAuthMiddleware())
+			r.Delete("/auth/session", h.MobileLogout)
+			r.Get("/auth/me", h.MobileMe)
+			r.Put("/profile", h.MobilePutProfile)
+			r.Post("/push/token", h.RegisterPushToken)
+			r.Delete("/push/token", h.UnregisterPushToken)
+
+			r.Post("/iv/calculate", h.IVCalculate)
+			r.With(httprate.LimitByIP(10, time.Minute)).Post("/iv/ocr", h.IVFromOCR)
+			r.Post("/iv/pokemon", h.SavePokemonIV)
+			r.Get("/iv/pokemon", h.ListPokemonIV)
+			r.Delete("/iv/pokemon/{id}", h.DeletePokemonIV)
+
+			r.Get("/raid/state", h.APIRaidState)
+			r.Post("/raid/queue", h.APIRaidQueueJoin)
+			r.Delete("/raid/queue", h.APIRaidQueueLeave)
+			r.Post("/raid/lobbies", h.APIRaidLobbyCreate)
+			r.Delete("/raid/lobbies/{id}", h.APIRaidLobbyCancel)
+			r.Post("/raid/lobbies/{id}/confirm", h.APIRaidLobbyConfirm)
+			r.Post("/raid/lobbies/{id}/leave", h.APIRaidLobbyLeave)
+			r.Post("/raid/lobbies/{id}/kick", h.APIRaidLobbyKick)
+			r.Post("/raid/lobbies/{id}/invited", h.APIRaidLobbyInvited)
+			r.Post("/raid/lobbies/{id}/report", h.APIRaidLobbyReport)
+			r.Post("/raid/lobbies/{id}/feedback", h.APIRaidLobbyFeedback)
+		})
+	})
+
 	csrfDebug := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, cookieErr := r.Cookie("_gorilla_csrf")
 		log.Printf("CSRF FAIL: method=%s path=%s reason=%v token=%q cookie_present=%v",
@@ -233,6 +274,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
 
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
+
+		r.Post("/api/iv/calculate", h.RequireAuthAPI(h.IVCalculate))
+		r.With(httprate.LimitByIP(10, time.Minute)).Post("/api/iv/ocr", h.RequireAuthAPI(h.IVFromOCR))
 
 		r.With(httprate.LimitAll(2, 10*time.Minute)).Post("/api/refresh", h.RequireAPIAccess(h.APIRefresh))
 

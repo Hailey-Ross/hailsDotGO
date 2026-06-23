@@ -474,6 +474,7 @@ INSERT IGNORE INTO feedback_options (label, sentiment, sort_order) VALUES
   ('Rude or disrespectful in lobby 😡',              'negative', 23);
 
 -- 29. User feedback -- one review per author/target pair; updatable via ON DUPLICATE KEY (2026-06-22)
+
 CREATE TABLE IF NOT EXISTS user_feedback (
   id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   author_id  INT UNSIGNED NOT NULL,
@@ -488,3 +489,47 @@ CREATE TABLE IF NOT EXISTS user_feedback (
   CONSTRAINT fk_fb_target FOREIGN KEY (target_id) REFERENCES users(id)            ON DELETE CASCADE,
   CONSTRAINT fk_fb_option FOREIGN KEY (option_id) REFERENCES feedback_options(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 30. Mobile companion app tables (2026-06-22)
+CREATE TABLE IF NOT EXISTS user_pokemon_box (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id        INT UNSIGNED NOT NULL,
+  pokemon_name   VARCHAR(64) NOT NULL,
+  form           VARCHAR(64) NOT NULL DEFAULT '',
+  cp             SMALLINT UNSIGNED NOT NULL,
+  level          DECIMAL(4,1) NOT NULL,
+  atk_iv         TINYINT UNSIGNED,
+  def_iv         TINYINT UNSIGNED,
+  sta_iv         TINYINT UNSIGNED,
+  iv_candidates  JSON,
+  caught_at      DATETIME,
+  note           VARCHAR(160),
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_upb_user (user_id),
+  CONSTRAINT fk_upb_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mobile_device_tokens (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id        INT UNSIGNED NOT NULL,
+  platform       ENUM('android','ios') NOT NULL,
+  push_token     VARCHAR(256) NOT NULL,
+  device_name    VARCHAR(128),
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_mdt_token (push_token),
+  KEY idx_mdt_user (user_id),
+  CONSTRAINT fk_mdt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 31. Event Pokémon support in shiny collection (2026-06-23)
+ALTER TABLE user_shinies
+  ADD COLUMN costume   VARCHAR(64)  NOT NULL DEFAULT '' AFTER form,
+  ADD COLUMN event_tag VARCHAR(128) NOT NULL DEFAULT '' AFTER costume,
+  DROP INDEX uk_user_shiny,
+  ADD UNIQUE KEY uk_user_shiny (user_id, pokemon_id, form, costume, event_tag);
+
+  -- 32. Trainer level field (2026-06-23)
+ALTER TABLE users ADD COLUMN trainer_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER trainer_code;

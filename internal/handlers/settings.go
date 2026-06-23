@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"pogo.hails.cc/internal/pogodata"
@@ -28,6 +29,7 @@ type settingsData struct {
 	Error           string
 	TrainerName     string
 	TrainerCode     string
+	TrainerLevel    int
 	Avatar          string
 	Pronouns        string
 	City            string
@@ -67,12 +69,12 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	var d settingsData
 	h.db.QueryRow(`
-		SELECT COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
+		SELECT COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(trainer_level,0), COALESCE(avatar,''),
 		       COALESCE(pronouns,''), COALESCE(city,''), COALESCE(region,''), COALESCE(country,''),
 		       COALESCE(location_display,'none'), COALESCE(profile_public,0), COALESCE(shinies_hidden,0),
 		       COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,'')
 		FROM users WHERE id = ?`, u.ID,
-	).Scan(&d.TrainerName, &d.TrainerCode, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.ShiniesHidden, &d.FavPokemon, &d.FavPokemonForm)
+	).Scan(&d.TrainerName, &d.TrainerCode, &d.TrainerLevel, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.ShiniesHidden, &d.FavPokemon, &d.FavPokemonForm)
 	d.TrainerClasses = h.store.TrainerClasses()
 	d.PokemonList = h.store.PokemonList()
 	d.TagRequest = h.queryTagRequest(u.ID)
@@ -110,6 +112,8 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 
 	trainerName     := strings.TrimSpace(r.FormValue("trainer_name"))
 	trainerCode     := strings.ReplaceAll(strings.TrimSpace(r.FormValue("trainer_code")), " ", "")
+	trainerLevelRaw := strings.TrimSpace(r.FormValue("trainer_level"))
+	trainerLevel, _ := strconv.Atoi(trainerLevelRaw)
 	avatar          := r.FormValue("avatar")
 	city            := strings.TrimSpace(r.FormValue("city"))
 	region          := strings.TrimSpace(r.FormValue("region"))
@@ -156,8 +160,8 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 
 	fail := func(msg string) {
 		h.render(w, r, "settings", settingsData{
-			Error: msg, TrainerName: trainerName, TrainerCode: trainerCode, Avatar: avatar,
-			Pronouns: pronouns, City: city, Region: region, Country: country,
+			Error: msg, TrainerName: trainerName, TrainerCode: trainerCode, TrainerLevel: trainerLevel,
+			Avatar: avatar, Pronouns: pronouns, City: city, Region: region, Country: country,
 			LocationDisplay: locationDisplay, ProfilePublic: profilePublic, ShiniesHidden: shiniesHidden,
 			FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
 			TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
@@ -171,6 +175,10 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	if trainerCode != "" && !trainerCodeRe.MatchString(trainerCode) {
 		fail(h.t(r, "error.trainer_code_format"))
+		return
+	}
+	if trainerLevel != 0 && (trainerLevel < 1 || trainerLevel > 80) {
+		fail(h.t(r, "error.trainer_level_range"))
 		return
 	}
 	if len(city) > 100 || len(region) > 100 || len(country) > 100 {
@@ -210,16 +218,16 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_, err := h.db.Exec(
-		`UPDATE users SET trainer_name=?, trainer_code=?, avatar=?, pronouns=?, city=?, region=?, country=?, location_display=?, profile_public=?, shinies_hidden=?, fav_pokemon=?, fav_pokemon_form=?, fav_sprite_url=? WHERE id=?`,
-		trainerName, trainerCode, avatar, pronouns, city, region, country, locationDisplay, publicInt, shiniesHiddenInt, favPokemon, favPokemonForm, favSpriteURL, u.ID,
+		`UPDATE users SET trainer_name=?, trainer_code=?, trainer_level=?, avatar=?, pronouns=?, city=?, region=?, country=?, location_display=?, profile_public=?, shinies_hidden=?, fav_pokemon=?, fav_pokemon_form=?, fav_sprite_url=? WHERE id=?`,
+		trainerName, trainerCode, trainerLevel, avatar, pronouns, city, region, country, locationDisplay, publicInt, shiniesHiddenInt, favPokemon, favPokemonForm, favSpriteURL, u.ID,
 	)
 	if err != nil {
 		fail(h.t(r, "error.server"))
 		return
 	}
 	h.render(w, r, "settings", settingsData{
-		Success: true, TrainerName: trainerName, TrainerCode: trainerCode, Avatar: avatar,
-		Pronouns: pronouns, City: city, Region: region, Country: country,
+		Success: true, TrainerName: trainerName, TrainerCode: trainerCode, TrainerLevel: trainerLevel,
+		Avatar: avatar, Pronouns: pronouns, City: city, Region: region, Country: country,
 		LocationDisplay: locationDisplay, ProfilePublic: profilePublic, ShiniesHidden: shiniesHidden,
 		FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
 		TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),

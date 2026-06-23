@@ -127,6 +127,63 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-23 (78)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Trainer Level setting and mobile profile API</h2>
+        <ul class="cl-list">
+          <li>New Trainer Level field on the Settings page (Profile tab) -- accepts 1-80, blank means not set; used by the Android companion app to pre-fill the trainer level input in IV scans</li>
+          <li><code>GET /api/mobile/v1/auth/me</code> now includes <code>trainer_level</code> in the response; the login response also includes it so the app has the value immediately on first login</li>
+          <li>New <code>PUT /api/mobile/v1/profile</code> endpoint lets the app update <code>trainer_level</code> when the user levels up -- field is optional in the body, validated 0-80, zero means "unset"</li>
+          <li>DB migration 32 added; run <code>migrate.sql</code> section 32 on existing installs</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-23 (77)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Shiny collection: costume and event Pokémon support</h2>
+        <ul class="cl-list">
+          <li>Shiny collection now supports two new dimensions per catch: <strong>Costume</strong> (e.g. Party Hat, Witch Hat, Detective Hat) and <strong>Event</strong> (e.g. GO Fest 2024, Community Day) -- both are freeform text fields so any future variants work without code changes</li>
+          <li>The unique constraint was widened from <code>(user, pokemon, form)</code> to <code>(user, pokemon, form, costume, event)</code>, meaning you can now log the same Pokémon multiple times if the costume or event differs -- e.g. Party Hat Pikachu from GO Fest 2022 and GO Fest 2024 count as separate catches</li>
+          <li>Add modal shows labelled Costume (with autocomplete datalist of 20 common PoGO costumes) and Event inputs above the existing Form and Method selectors</li>
+          <li>Caught list rows display costume and event as a compact italic subtitle under the Pokémon name when set; form and method remain inline-editable as before</li>
+          <li>DB migration 31 added; run <code>migrate.sql</code> section 31 on existing installs</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-22 (76)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Mobile app backend -- Phase 3 (OCR endpoint) and Phase 4 (push notifications)</h2>
+        <ul class="cl-list">
+          <li>Screenshot OCR: <code>POST /api/iv/ocr</code> accepts a JPEG or PNG screenshot of the Pokemon info screen (multipart upload, max 8 MB), runs Tesseract to extract CP, HP, dust cost, and Pokemon name, detects appraisal star count from pixel color analysis, and immediately returns IV candidates -- rate-limited to 10 requests/min; requires <code>tesseract-ocr</code> on the VPS</li>
+          <li>OCR endpoint mirrored at <code>POST /api/mobile/v1/iv/ocr</code> (Bearer auth, no CSRF) for the future Android and iOS apps; web endpoint is under standard auth+CSRF</li>
+          <li>Push notification dispatch: all four raid events now fire push notifications asynchronously -- user matched into lobby, lobby full (host), lobby cancelled (members), and raid reported (attended members prompted to rate host)</li>
+          <li>FCM (Android) via HTTP v1 API with service-account OAuth2 token auto-refresh; APNs (iOS) via HTTP/2 with p8 JWT auth using <code>github.com/sideshow/apns2</code></li>
+          <li>Push is opt-in at deploy time: server starts without push if <code>FCM_PROJECT_ID</code> / <code>APNS_KEY_PATH</code> env vars are absent; no functionality is broken by unconfigured credentials</li>
+          <li>New env vars added to <code>deploy.ps1</code>: <code>FCM_PROJECT_ID</code>, <code>FCM_CREDENTIALS_JSON</code>, <code>APNS_KEY_PATH</code>, <code>APNS_KEY_ID</code>, <code>APNS_TEAM_ID</code>, <code>APNS_BUNDLE_ID</code>, <code>APNS_PRODUCTION</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-22 (75)</div>
+      <div class="cl-body">
+        <h2 class="cl-title">Mobile app backend -- Phase 1 (auth) and Phase 2 (IV calculator)</h2>
+        <ul class="cl-list">
+          <li>Bearer token auth: all existing session tokens now work via <code>Authorization: Bearer &lt;token&gt;</code> header, enabling a future companion app to authenticate without cookies</li>
+          <li>New mobile API namespace at <code>/api/mobile/v1/</code> -- login, logout, current user, and game data aliases (Pokemon, raids, events) outside CSRF scope</li>
+          <li>Push notification token registration endpoints (<code>POST/DELETE /api/mobile/v1/push/token</code>) ready for FCM (Android) and APNs (iOS) -- dispatch to be wired in a future phase</li>
+          <li>IV calculator: <code>POST /api/iv/calculate</code> accepts Pokemon name, CP, HP, dust cost, trainer level, top-stat appraisal, and star rating; returns all valid IV spreads sorted by IV% with a <code>definitive</code> flag when only one spread matches</li>
+          <li>Pokemon box: <code>POST/GET/DELETE /api/mobile/v1/iv/pokemon</code> lets users save, list (paginated), and delete IV appraisal results for their own collection</li>
+          <li>Two new DB tables: <code>user_pokemon_box</code> (saved IV records with optional candidate JSON) and <code>mobile_device_tokens</code> (per-device push tokens with platform and device name)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-22 (74)</div>
       <div class="cl-body">
         <h2 class="cl-title">Dedicated notifications page, friends preview on trainer profile, volume cap</h2>

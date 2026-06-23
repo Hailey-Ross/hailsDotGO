@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   trainer_name     VARCHAR(64)   NOT NULL DEFAULT '',
   trainer_code     VARCHAR(16)   NOT NULL DEFAULT '',
+  trainer_level    TINYINT UNSIGNED NOT NULL DEFAULT 0,
   avatar           VARCHAR(32)   NOT NULL DEFAULT '',
   pronouns         VARCHAR(32)   NOT NULL DEFAULT '',
   city             VARCHAR(100)  NOT NULL DEFAULT '',
@@ -64,10 +65,12 @@ CREATE TABLE IF NOT EXISTS user_shinies (
   user_id    INT UNSIGNED NOT NULL,
   pokemon_id VARCHAR(64)  NOT NULL,
   form       VARCHAR(32)  NOT NULL DEFAULT '',
+  costume    VARCHAR(64)  NOT NULL DEFAULT '',
+  event_tag  VARCHAR(128) NOT NULL DEFAULT '',
   method     VARCHAR(32)  NOT NULL DEFAULT '',
   caught_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_user_shiny (user_id, pokemon_id, form),
+  UNIQUE KEY uk_user_shiny (user_id, pokemon_id, form, costume, event_tag),
   CONSTRAINT fk_shiny_user FOREIGN KEY (user_id)
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -423,6 +426,41 @@ CREATE TABLE IF NOT EXISTS award_grants (
   CONSTRAINT fk_ag_award     FOREIGN KEY (award_id)     REFERENCES awards (id) ON DELETE CASCADE,
   CONSTRAINT fk_ag_recipient FOREIGN KEY (recipient_id) REFERENCES users (id)  ON DELETE CASCADE,
   CONSTRAINT fk_ag_granter   FOREIGN KEY (granter_id)   REFERENCES users (id)  ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Mobile companion app: saved Pokemon IV appraisals
+CREATE TABLE IF NOT EXISTS user_pokemon_box (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id        INT UNSIGNED NOT NULL,
+  pokemon_name   VARCHAR(64) NOT NULL,
+  form           VARCHAR(64) NOT NULL DEFAULT '',
+  cp             SMALLINT UNSIGNED NOT NULL,
+  level          DECIMAL(4,1) NOT NULL,
+  atk_iv         TINYINT UNSIGNED,
+  def_iv         TINYINT UNSIGNED,
+  sta_iv         TINYINT UNSIGNED,
+  iv_candidates  JSON,
+  caught_at      DATETIME,
+  note           VARCHAR(160),
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_upb_user (user_id),
+  CONSTRAINT fk_upb_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Mobile companion app: FCM (Android) and APNs (iOS) push notification device tokens
+CREATE TABLE IF NOT EXISTS mobile_device_tokens (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id        INT UNSIGNED NOT NULL,
+  platform       ENUM('android','ios') NOT NULL,
+  push_token     VARCHAR(256) NOT NULL,
+  device_name    VARCHAR(128),
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_mdt_token (push_token),
+  KEY idx_mdt_user (user_id),
+  CONSTRAINT fk_mdt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- After first deploy: register your admin account via the UI, then run:
