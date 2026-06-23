@@ -64,6 +64,15 @@
         </div>
 
         <div class="settings-field">
+          <label class="settings-label" for="trainer_level">{{T "settings.trainer_level.label"}}</label>
+          <p class="settings-field-hint">{{T "settings.trainer_level.hint"}}</p>
+          <input class="auth-input" type="number" id="trainer_level" name="trainer_level"
+                 min="1" max="80" placeholder="{{T "settings.trainer_level.placeholder"}}"
+                 value="{{if .Data.TrainerLevel}}{{.Data.TrainerLevel}}{{end}}"
+                 autocomplete="off">
+        </div>
+
+        <div class="settings-field">
           <label class="settings-label" for="avatar-sel">{{T "settings.avatar.label"}}</label>
           <p class="settings-field-hint">{{T "settings.avatar.hint"}}</p>
           <div class="avatar-select-wrap">

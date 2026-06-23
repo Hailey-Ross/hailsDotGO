@@ -1197,6 +1197,23 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   font-size: 0.72rem;
   color: var(--text-3);
 }
+.sc-entry-meta {
+  font-size: 0.7rem;
+  color: var(--text-2);
+  font-style: italic;
+}
+.sc-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+}
+.sc-field-label {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
 
 /* Stats bar */
 #sc-counter {

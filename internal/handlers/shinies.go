@@ -16,6 +16,8 @@ type shinyRecord struct {
 	ID        uint      `json:"id"`
 	PokemonID string    `json:"pokemon_id"`
 	Form      string    `json:"form"`
+	Costume   string    `json:"costume"`
+	EventTag  string    `json:"event_tag"`
 	Method    string    `json:"method"`
 	CaughtAt  time.Time `json:"caught_at"`
 }
@@ -32,7 +34,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_id, form, method, caught_at
+		SELECT id, pokemon_id, form, costume, event_tag, method, caught_at
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`,
 		u.ID,
 	)
@@ -45,7 +47,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	out := []shinyRecord{}
 	for rows.Next() {
 		var s shinyRecord
-		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Method, &s.CaughtAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt); err != nil {
 			continue
 		}
 		out = append(out, s)
@@ -65,6 +67,8 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PokemonID string `json:"pokemon_id"`
 		Form      string `json:"form"`
+		Costume   string `json:"costume"`
+		EventTag  string `json:"event_tag"`
 		Method    string `json:"method"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -78,10 +82,10 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.db.Exec(`
-		INSERT INTO user_shinies (user_id, pokemon_id, form, method)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO user_shinies (user_id, pokemon_id, form, costume, event_tag, method)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE caught_at = caught_at`,
-		u.ID, body.PokemonID, body.Form, body.Method,
+		u.ID, body.PokemonID, body.Form, body.Costume, body.EventTag, body.Method,
 	)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -107,8 +111,10 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Form   string `json:"form"`
-		Method string `json:"method"`
+		Form     string `json:"form"`
+		Costume  string `json:"costume"`
+		EventTag string `json:"event_tag"`
+		Method   string `json:"method"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
@@ -116,8 +122,8 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.db.Exec(
-		`UPDATE user_shinies SET form = ?, method = ? WHERE id = ? AND user_id = ?`,
-		body.Form, body.Method, id, u.ID,
+		`UPDATE user_shinies SET form = ?, costume = ?, event_tag = ?, method = ? WHERE id = ? AND user_id = ?`,
+		body.Form, body.Costume, body.EventTag, body.Method, id, u.ID,
 	)
 	if err != nil {
 		var mysqlErr *mysql.MySQLError
@@ -165,6 +171,8 @@ func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
 type publicShinyRecord struct {
 	PokemonID string    `json:"pokemon_id"`
 	Form      string    `json:"form"`
+	Costume   string    `json:"costume"`
+	EventTag  string    `json:"event_tag"`
 	Method    string    `json:"method"`
 	SpriteURL string    `json:"sprite_url"`
 	CaughtAt  time.Time `json:"caught_at"`
@@ -186,7 +194,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT pokemon_id, form, method, caught_at
+		SELECT pokemon_id, form, costume, event_tag, method, caught_at
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`, userID,
 	)
 	if err != nil {
@@ -198,7 +206,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	out := []publicShinyRecord{}
 	for rows.Next() {
 		var s publicShinyRecord
-		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Method, &s.CaughtAt); err != nil {
+		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt); err != nil {
 			continue
 		}
 		if id := h.store.PokemonDexID(s.PokemonID); id != 0 {

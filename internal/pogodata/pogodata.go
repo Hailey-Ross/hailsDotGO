@@ -912,6 +912,9 @@ func (s *Store) PokemonList() []PokemonEntry {
 func (s *Store) PokemonTypes() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.pokemonTypes
 }
+func (s *Store) CPMultipliers() json.RawMessage {
+	s.mu.RLock(); defer s.mu.RUnlock(); return s.cpMults
+}
 func (s *Store) SpriteCacheGet(slug string) ([]byte, bool) {
 	v, ok := s.spriteCache.Load(slug)
 	if !ok {

@@ -31,6 +31,7 @@ type Handlers struct {
 	db           *sql.DB
 	startTime    time.Time
 	assetVersion string
+	notifier     *pushNotifier
 
 	langMu       sync.RWMutex
 	enabledLangs []string // "en" first, then enabled locales rows, sorted
@@ -68,7 +69,13 @@ type PageData struct {
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
-	h := &Handlers{store: store, db: db, startTime: time.Now(), assetVersion: computeAssetVersion()}
+	h := &Handlers{
+		store:        store,
+		db:           db,
+		startTime:    time.Now(),
+		assetVersion: computeAssetVersion(),
+		notifier:     newPushNotifier(),
+	}
 	h.loadTemplates()
 	h.reloadLangs()
 	return h

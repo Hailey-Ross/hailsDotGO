@@ -228,6 +228,7 @@ func (h *Handlers) matchQueueLocked(bossName string) {
 		}
 
 		deadline := time.Now().Add(confirmWindow)
+		var matchedIDs []uint
 		for _, c := range cands {
 			_, err := h.db.Exec(`
 				INSERT INTO raid_lobby_members (lobby_id, user_id, state, priority, matched_at, confirm_deadline)
@@ -241,6 +242,16 @@ func (h *Handlers) matchQueueLocked(bossName string) {
 				continue
 			}
 			h.db.Exec(`DELETE FROM raid_queue WHERE user_id = ?`, c.userID)
+			matchedIDs = append(matchedIDs, c.userID)
+		}
+		if len(matchedIDs) > 0 {
+			boss := bossName
+			lid := fmt.Sprint(l.id)
+			go h.sendPushToUsers(matchedIDs,
+				"Raid Match Found!",
+				"You matched for "+boss+" -- confirm within 2 minutes",
+				map[string]string{"type": "raid_matched", "lobby_id": lid},
+			)
 		}
 	}
 }
@@ -876,10 +887,28 @@ func (h *Handlers) APIRaidLobbyCancel(w http.ResponseWriter, r *http.Request) {
 	// Members go back to the front of the queue with no penalty. A host
 	// cancelling before the raid started counts toward their unfulfilled
 	// lobby tally; staff cancellations and mid-raid cancels do not.
+	var memberIDs []uint
+	if mrows, err := h.db.Query(`SELECT user_id FROM raid_lobby_members WHERE lobby_id = ? AND state IN ('matched','confirmed')`, id); err == nil {
+		for mrows.Next() {
+			var uid uint
+			if mrows.Scan(&uid) == nil {
+				memberIDs = append(memberIDs, uid)
+			}
+		}
+		mrows.Close()
+	}
 	h.requeueAtFront(id, bossName, bossTier)
 	h.db.Exec(`UPDATE raid_lobbies SET state = 'cancelled', closed_at = NOW() WHERE id = ?`, id)
 	if hostID == u.ID && state != "raiding" {
 		h.logHostUnfulfilled(hostID, id)
+	}
+	if len(memberIDs) > 0 {
+		lid := fmt.Sprint(id)
+		go h.sendPushToUsers(memberIDs,
+			"Lobby Cancelled",
+			"Your "+bossName+" lobby was cancelled by the host",
+			map[string]string{"type": "lobby_cancelled", "lobby_id": lid},
+		)
 	}
 	h.matchQueue(bossName)
 
@@ -921,6 +950,15 @@ func (h *Handlers) APIRaidLobbyConfirm(w http.ResponseWriter, r *http.Request) {
 	if confirmed >= maxMembers {
 		h.db.Exec(`UPDATE raid_lobbies SET state = 'full', invite_deadline = ? WHERE id = ? AND state = 'open'`,
 			time.Now().Add(inviteWindow), id)
+		var bossName string
+		var hostID uint
+		h.db.QueryRow(`SELECT boss_name, host_id FROM raid_lobbies WHERE id = ?`, id).Scan(&bossName, &hostID)
+		lid := fmt.Sprint(id)
+		go h.sendPushToUsers([]uint{hostID},
+			"Lobby Full",
+			"Your "+bossName+" lobby is full -- send friend requests now",
+			map[string]string{"type": "lobby_full", "lobby_id": lid},
+		)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1085,6 +1123,7 @@ func (h *Handlers) APIRaidLobbyReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	attendedAny := false
+	var attendedIDs []uint
 	for _, m := range body.Members {
 		res, err := h.db.Exec(`
 			UPDATE raid_lobby_members SET attended = ?, left_early = ?
@@ -1098,6 +1137,7 @@ func (h *Handlers) APIRaidLobbyReport(w http.ResponseWriter, r *http.Request) {
 		}
 		if m.Attended {
 			attendedAny = true
+			attendedIDs = append(attendedIDs, m.UserID)
 			h.db.Exec(`UPDATE users SET raid_xp = raid_xp + ?, last_raid_at = NOW() WHERE id = ?`, xpJoinComplete, m.UserID)
 		}
 		if m.LeftEarly {
@@ -1107,6 +1147,16 @@ func (h *Handlers) APIRaidLobbyReport(w http.ResponseWriter, r *http.Request) {
 	}
 	if attendedAny {
 		h.db.Exec(`UPDATE users SET raid_xp = raid_xp + ?, last_raid_at = NOW() WHERE id = ?`, xpHostComplete, u.ID)
+	}
+	if len(attendedIDs) > 0 {
+		var bossName string
+		h.db.QueryRow(`SELECT boss_name FROM raid_lobbies WHERE id = ?`, id).Scan(&bossName)
+		lid := fmt.Sprint(id)
+		go h.sendPushToUsers(attendedIDs,
+			"Rate Your Host",
+			"Your "+bossName+" raid is complete -- tap to rate your host",
+			map[string]string{"type": "feedback_requested", "lobby_id": lid},
+		)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
