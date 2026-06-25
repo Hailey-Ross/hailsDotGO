@@ -271,6 +271,37 @@ func (h *Handlers) processRaidTimers() {
 	h.raidMu.Lock()
 	defer h.raidMu.Unlock()
 
+	// 0. 30-second confirm warning push: fires once per member approaching deadline.
+	warnRows, warnErr := h.db.Query(`
+		SELECT lm.user_id, lm.lobby_id FROM raid_lobby_members lm
+		WHERE lm.state = 'matched'
+		  AND lm.confirm_deadline BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 31 SECOND)
+		  AND lm.confirm_warned_30s = 0`)
+	if warnErr == nil {
+		type warnRow struct {
+			userID  uint
+			lobbyID uint64
+		}
+		var warns []warnRow
+		for warnRows.Next() {
+			var w warnRow
+			if warnRows.Scan(&w.userID, &w.lobbyID) == nil {
+				warns = append(warns, w)
+			}
+		}
+		warnRows.Close()
+		for _, w := range warns {
+			h.db.Exec(`UPDATE raid_lobby_members SET confirm_warned_30s = 1
+				WHERE lobby_id = ? AND user_id = ? AND state = 'matched'`, w.lobbyID, w.userID)
+			go h.sendPushToUsers([]uint{w.userID}, "Confirm now!",
+				"30 seconds left to confirm your raid spot!",
+				map[string]string{
+					"type":     "confirm_30s_warning",
+					"lobby_id": fmt.Sprintf("%d", w.lobbyID),
+				})
+		}
+	}
+
 	// 1. Confirm-window timeouts: member is removed entirely (not requeued);
 	// repeated timeouts cost trust (first two per 24h are free).
 	rows, err := h.db.Query(`

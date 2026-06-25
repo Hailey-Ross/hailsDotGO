@@ -138,8 +138,15 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   color: var(--text-2); font-size: 0.95rem; font-weight: 500;
   padding: 0.78rem 1.5rem; display: block;
   transition: color var(--trans), background var(--trans);
+  border-left: 2px solid transparent;
 }
 .nav-links a:hover { color: var(--text); background: var(--surface); }
+.nav-links a.active {
+  color: var(--text);
+  background: var(--surface);
+  border-left-color: var(--blue);
+  padding-left: calc(1.5rem - 2px);
+}
 
 .nav-overlay {
   position: fixed; inset: 0;
@@ -220,7 +227,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .dps-card:hover    { border-color: var(--green); box-shadow: 0 0 20px rgba(0,214,143,0.18); }
 .pvp-card:hover    { border-color: var(--blue);  box-shadow: 0 0 20px rgba(91,156,246,0.18); }
 .events-card:hover { border-color: var(--gold);  box-shadow: 0 0 20px rgba(255,179,64,0.18); }
-.shinydex-card:hover { border-color: #e879f9; box-shadow: 0 0 20px rgba(232,121,249,0.18); }
 .shinies-card { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,179,64,0.12); }
 .shinies-card:hover { border-color: var(--gold); box-shadow: 0 0 20px rgba(255,179,64,0.25); }
 .translator-card { border-color: var(--purple); box-shadow: 0 0 14px rgba(167,139,250,0.12); }
@@ -308,7 +314,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .search-input option, .search-input optgroup { background: #0d0d1e; color: var(--text); }
 .search-input:focus, .move-select:focus, .level-input:focus {
   outline: none; border-color: var(--blue);
-  background: rgba(255,255,255,0.06);
 }
 .level-label {
   color: var(--text-2); font-size: 0.875rem;
@@ -389,6 +394,74 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .iv-table tbody tr:last-child td { border-bottom: none; }
 .rank-s { color: #ffd700; font-weight: 800; }
 .rank-a { color: #c8c8e0; font-weight: 600; }
+
+/* ── IV Calculator ───────────────────────────────────────────── */
+.iv-form {
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: var(--r);
+  padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;
+  max-width: 480px; animation: fadeUp 0.3s ease both;
+}
+.form-label {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  font-size: 0.78rem; font-weight: 700; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.form-input, .form-select {
+  background: #0d0d1e; border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--r-sm); padding: 0.55rem 0.85rem;
+  font-size: 0.9rem; font-family: var(--font);
+  transition: border-color var(--trans), background var(--trans);
+}
+.form-input:focus, .form-select:focus { outline: none; border-color: var(--blue); }
+.form-select option { background: #0d0d1e; color: var(--text); }
+.radio-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.radio-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text-2);
+  padding: 0.4rem 0.9rem; font-size: 0.875rem; font-weight: 600;
+  font-family: var(--font); cursor: pointer;
+  transition: background var(--trans), color var(--trans), border-color var(--trans);
+}
+.radio-btn:hover { color: var(--text); background: var(--surface-h); }
+.radio-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.iv-results-container { margin-top: 1.25rem; }
+.iv-result-summary { font-size: 0.875rem; color: var(--text-2); margin-bottom: 0.75rem; }
+.iv-hint { text-align: center; color: var(--text-2); font-size: 0.9rem; padding: 2rem 1rem; }
+.iv-ocr { display: flex; flex-direction: column; gap: 0.75rem; }
+.iv-status { font-size: 0.875rem; color: var(--text-2); min-height: 1.4em; }
+.iv-box-count { font-size: 0.82rem; color: var(--text-2); margin-bottom: 0.75rem; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: var(--r-sm); font-family: var(--font);
+  font-weight: 600; cursor: pointer;
+  transition: opacity var(--trans), transform var(--trans), background var(--trans);
+}
+.btn-sm {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-2); padding: 0.3rem 0.7rem; font-size: 0.78rem;
+}
+.btn-sm:hover:not(:disabled) { background: var(--surface-h); color: var(--text); transform: translateY(-1px); }
+.btn-sm:disabled { opacity: 0.5; cursor: default; }
+.btn-sm.btn-danger {
+  background: rgba(229,57,53,0.12); border-color: rgba(229,57,53,0.3); color: #fc8181;
+}
+.btn-sm.btn-danger:hover:not(:disabled) {
+  background: rgba(229,57,53,0.22); border-color: rgba(229,57,53,0.5);
+}
+.toast {
+  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  padding: 0.65rem 1.25rem; border-radius: var(--r-sm);
+  font-size: 0.875rem; font-weight: 600; z-index: 9999;
+  animation: fadeUp 0.25s ease both; pointer-events: none; white-space: nowrap;
+}
+.toast-success { background: rgba(0,214,143,0.12); border: 1px solid var(--green); color: var(--green); }
+.toast-error   { background: rgba(229,57,53,0.12); border: 1px solid #fc8181; color: #fc8181; }
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.75rem; margin-top: 1rem;
+  font-size: 0.875rem; color: var(--text-2);
+}
 
 /* ── Raid boss selector ─────────────────────────────────────── */
 .boss-selector { display: flex; flex-direction: column; gap: 1.5rem; }
@@ -820,7 +893,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   transition: background var(--trans), border-color var(--trans), transform var(--trans);
 }
 .shiny-tag:hover { background: rgba(255,255,255,0.07); border-color: var(--border-h); transform: translateY(-2px); }
-.shiny-img { width: 72px; height: 72px; object-fit: contain;
+.shiny-img { width: 83px; height: 83px; object-fit: contain;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6)); image-rendering: pixelated; }
 .shiny-label { font-size: 0.68rem; line-height: 1.25; color: var(--text); word-break: break-word; }
 
@@ -836,7 +909,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   background: rgba(0,0,0,0.7); border: 1px solid var(--border);
   border-radius: var(--r); padding: 2rem;
 }
-.shiny-modal-img { width: 192px; height: 192px; object-fit: contain;
+.shiny-modal-img { width: 221px; height: 221px; object-fit: contain;
   filter: drop-shadow(0 4px 16px rgba(0,0,0,0.8)); image-rendering: pixelated; }
 .shiny-modal-name { font-size: 1.1rem; font-weight: 700; text-transform: capitalize; }
 .shiny-modal-methods { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin-top: 0.6rem; }
@@ -1179,8 +1252,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   color: var(--text-2);
 }
 .shiny-compare-img {
-  width: 128px;
-  height: 128px;
+  width: 147px;
+  height: 147px;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
@@ -1196,6 +1269,11 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .sc-caught-date {
   font-size: 0.72rem;
   color: var(--text-3);
+}
+.sc-entry-sub {
+  font-size: 0.72rem;
+  color: var(--text-2);
+  font-style: italic;
 }
 .sc-entry-meta {
   font-size: 0.7rem;
@@ -1268,6 +1346,17 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   content: '·'; position: absolute; left: 0; color: var(--text-3);
 }
 
+.cl-item + .cl-item {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.cl-num {
+  font-size: 0.72rem; color: var(--text-3); font-weight: 700;
+  margin-right: 0.3rem; letter-spacing: 0.3px;
+}
+
 @media (max-width: 640px) {
   .cl-entry { grid-template-columns: 1fr; gap: 0.5rem; }
 }
@@ -1304,10 +1393,11 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   .tool-card { padding: 1.25rem 1rem; }
 
   /* Forms: iOS font-size fix prevents zoom on input focus */
-  .search-input, .move-select, .level-input {
+  .search-input, .move-select, .level-input, .form-input, .form-select {
     font-size: 16px;
     width: 100%;
   }
+  .iv-form { max-width: 100%; padding: 1rem; }
   .calc-form { flex-direction: column; gap: 0.6rem; }
   .level-input { width: 100%; }
   .btn-primary { width: 100%; justify-content: center; padding: 0.75rem; }
@@ -1341,7 +1431,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 
   /* Shiny grid */
   .shiny-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 0.4rem; }
-  .shiny-img  { width: 60px; height: 60px; }
+  .shiny-img  { width: 69px; height: 69px; }
 
   /* Method tabs */
   .shiny-method-tabs { gap: 0.35rem; padding: 0.5rem 0.6rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
@@ -1356,6 +1446,9 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 
   /* Result cards */
   .result-card { max-width: 100%; }
+
+  /* Trainer shiny grid */
+  .trainer-shiny-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 380px) {
@@ -1439,6 +1532,15 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   text-shadow: none;
   line-height: 1.4;
 }
+/* Duplicate count badge */
+.sc-count-badge {
+  position: absolute; top: 4px; left: 5px;
+  background: var(--blue); color: #fff;
+  font-size: 0.6rem; font-weight: 700;
+  padding: 1px 4px; border-radius: 4px;
+  text-shadow: none;
+  line-height: 1.4;
+}
 .shiny-tag { position: relative; }
 
 /* Shiny collection modal */
@@ -1461,7 +1563,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   transition: color var(--trans);
 }
 .sc-modal-close:hover { color: var(--text); }
-.sc-modal-img  { width: 120px; height: 120px; object-fit: contain; image-rendering: pixelated; }
+.sc-modal-img  { width: 138px; height: 138px; object-fit: contain; image-rendering: pixelated; }
 .sc-modal-name { font-size: 1rem; font-weight: 700; text-transform: capitalize; text-align: center; }
 
 /* Modal body sections */
@@ -1503,7 +1605,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   padding: 0.6rem 0.9rem;
   animation: fadeUp 0.2s ease both;
 }
-.sc-entry-img  { width: 40px; height: 40px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.sc-entry-img  { width: 46px; height: 46px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.sprite-sm-poke { transform: scale(1.05); }
 .sc-entry-name { font-size: 0.875rem; font-weight: 600; flex: 1; min-width: 100px; text-transform: capitalize; }
 .sc-entry .move-select { font-size: 0.82rem; padding: 0.3rem 0.6rem; }
 .sc-save-status { font-size: 0.75rem; color: var(--green); min-width: 50px; }
@@ -1851,10 +1954,10 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 
 /* Trainer avatar (silhouette fallback, on directory card) */
 .trainer-avatar-sm {
-  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+  width: 55px; height: 55px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.trainer-avatar-sm svg { width: 26px; height: 26px; }
+.trainer-avatar-sm svg { width: 30px; height: 30px; }
 
 /* Avatar dropdown + preview (settings page) */
 .avatar-select-wrap { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.25rem; }
@@ -1899,11 +2002,11 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .trainer-card-code { font-family: monospace; font-size: 0.78rem; color: var(--text-2); letter-spacing: 0.05em; padding: 0.2rem 0.5rem; margin-top: 0.4rem; background: var(--surface-2); border-radius: 6px; text-align: center; }
 
 /* Trainer sprite avatar on directory card */
-.trainer-avatar-sprite { width: 64px; height: 64px; object-fit: contain; flex-shrink: 0; image-rendering: pixelated; }
+.trainer-avatar-sprite { width: 74px; height: 74px; object-fit: contain; flex-shrink: 0; image-rendering: pixelated; }
 /* Larger preview in the settings avatar picker */
-#avatar-preview-img, #avatar-preview-default { width: 80px; height: 80px; }
+#avatar-preview-img, #avatar-preview-default { width: 92px; height: 92px; }
 #avatar-preview-default { border-radius: 50%; }
-#avatar-preview-default svg { width: 36px; height: 36px; }
+#avatar-preview-default svg { width: 41px; height: 41px; }
 .trainer-code {
   font-family: 'Courier New', monospace; font-size: 0.95rem; font-weight: 600;
   color: var(--blue); letter-spacing: 0.5px; flex: 1;
@@ -1930,15 +2033,17 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 /* ── Trainer sprite group (fav Pokémon layered behind avatar) ── */
 .trainer-sprite-group {
   position: relative; flex-shrink: 0;
-  width: 64px; height: 64px;
+  width: 74px; height: 74px;
 }
-.trainer-sprite-group .trainer-avatar-sprite,
-.trainer-sprite-group .trainer-avatar-sm {
+.trainer-sprite-group .trainer-avatar-sprite {
   position: absolute; right: 0; bottom: 0; z-index: 1;
+}
+.trainer-sprite-group .trainer-avatar-sm {
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 1;
 }
 .trainer-fav-sprite {
   position: absolute;
-  width: 62px; height: 62px;
+  width: 71px; height: 71px;
   object-fit: contain; image-rendering: pixelated;
   left: -10px; bottom: 0; z-index: 0;
   opacity: 0.9;
@@ -1951,7 +2056,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 /* Settings fav Pokémon picker */
 .fav-form-wrap { margin-top: 0.4rem; }
 .fav-pokemon-preview-img {
-  width: 64px; height: 64px;
+  width: 74px; height: 74px;
   object-fit: contain; image-rendering: pixelated;
 }
 
@@ -1999,20 +2104,20 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .trainer-modal-sprite-wrap {
   position: relative;
-  width: 130px; height: 96px;
+  width: 150px; height: 110px;
 }
 .trainer-modal-avatar-sprite {
-  width: 96px; height: 96px;
+  width: 110px; height: 110px;
   object-fit: contain; image-rendering: pixelated;
   position: absolute; right: 0; bottom: 0; z-index: 1;
 }
 .trainer-modal-avatar-default {
-  width: 96px; height: 96px;
+  width: 110px; height: 110px;
   border-radius: 50%;
-  position: absolute; right: 0; bottom: 0; z-index: 1;
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 1;
 }
 .trainer-modal-fav-sprite {
-  width: 88px; height: 88px;
+  width: 101px; height: 101px;
   object-fit: contain; image-rendering: pixelated;
   position: absolute; left: 0; bottom: 0;
   z-index: 0; opacity: 0.9;
@@ -2061,15 +2166,15 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .trainer-modal-collection { margin-top: 0.25rem; }
 .trainer-shiny-grid {
-  display: flex; flex-wrap: wrap; gap: 0.5rem;
-  justify-content: center; margin-top: 0.4rem;
+  display: grid; grid-template-columns: repeat(9, 1fr);
+  gap: 0.5rem; margin-top: 0.4rem;
 }
 .trainer-shiny-item {
   display: flex; flex-direction: column; align-items: center;
-  gap: 0.15rem; width: 64px;
+  gap: 0.15rem; min-width: 0;
 }
 .trainer-shiny-item img {
-  width: 48px; height: 48px; image-rendering: pixelated;
+  width: 55px; height: 55px; image-rendering: pixelated;
 }
 .trainer-shiny-name {
   font-size: 0.65rem; text-align: center;
@@ -2082,6 +2187,19 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .trainer-shiny-method {
   font-size: 0.6rem; color: var(--text-3); text-align: center;
+}
+.trainer-shiny-sub {
+  font-size: 0.6rem; color: var(--text-2); font-style: italic;
+  text-align: center; word-break: break-word;
+}
+.trainer-shiny-rainbow-wrap {
+  padding: 2px; border-radius: var(--r); margin-bottom: 1.25rem;
+  background: linear-gradient(90deg, #ff4444, #ff8c00, #ffd700, #44cc44, #44aaff, #9966ff, #ff44cc, #ff4444);
+  background-size: 200% auto;
+  animation: rainbow-shift 3s linear infinite;
+}
+.trainer-shiny-rainbow-wrap .admin-card {
+  margin-bottom: 0; border: none; background: var(--bg);
 }
 
 /* ── Tabs ────────────────────────────────────────────────────── */
@@ -2688,7 +2806,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   gap: 1.25rem;
 }
 .trainer-profile-sprite-group {
-  width: 80px; height: 80px;
+  width: 92px; height: 92px;
   flex-shrink: 0;
 }
 .trainer-profile-meta {
@@ -2809,3 +2927,85 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   text-decoration: none;
 }
 .friends-name:hover { text-decoration: underline; }
+
+/* ── Desktop layout (≥1024px) ───────────────────────────────── */
+@media (min-width: 1024px) {
+  /* Persistent sidebar -- always visible, no burger needed */
+  .nav-sidebar {
+    transform: none;
+    transition: none;
+    box-shadow: none;
+  }
+  .nav-sidebar-close { display: none; }
+  .nav-burger        { display: none; }
+  .nav-overlay       { display: none !important; }
+
+  /* Container fills all available space to the right of the sidebar */
+  .container {
+    width: calc(100% - 280px);
+    max-width: none;
+    margin-left: 280px;
+    margin-right: 0;
+    padding: 1.75rem 2.5rem;
+  }
+
+  /* Home page hero */
+  .hero h1 { font-size: 3.75rem; }
+
+  /* Remove mobile max-width caps */
+  .result-card  { max-width: none; }
+  .iv-form      { max-width: none; }
+  .settings-wrap { max-width: 720px; }
+
+  /* Pages that should not fill the full viewport width */
+  #iv-app            { max-width: 960px;  margin: 0 auto; }
+  #raids-app         { max-width: 1100px; margin: 0 auto; }
+  .raid-lock-wrapper { max-width: 860px;  margin: 0 auto; }
+
+  /* Input boxes should not span the full available width */
+  .form-input, .form-select { max-width: 420px; }
+  .move-select              { max-width: 320px; }
+  .search-input             { max-width: 440px; }
+
+  /* IV manual tab: form fields left, results right */
+  .iv-form {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .iv-form > *:not(.iv-results-container) { grid-column: 1; }
+  .iv-form > .iv-results-container {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  /* IV OCR tab: upload button left, results right */
+  .iv-ocr {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .iv-ocr > *:not(.iv-results-container) { grid-column: 1; }
+  .iv-ocr > .iv-results-container {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  /* DPS calc and compare panels: form left, results right */
+  .dps-calc-panel,
+  .dps-compare-panel {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .dps-calc-panel > .calc-form,
+  .dps-compare-panel > .calc-form { grid-column: 1; }
+  .dps-calc-panel > .result-area,
+  .dps-compare-panel > .result-area {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+}

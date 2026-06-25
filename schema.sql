@@ -70,10 +70,14 @@ CREATE TABLE IF NOT EXISTS user_shinies (
   method     VARCHAR(32)  NOT NULL DEFAULT '',
   caught_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_user_shiny (user_id, pokemon_id, form, costume, event_tag),
+  KEY idx_user_shiny (user_id, pokemon_id),
   CONSTRAINT fk_shiny_user FOREIGN KEY (user_id)
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration 33 (2026-06-23): drop unique constraint to allow true duplicate shiny entries
+-- ALTER TABLE user_shinies ADD INDEX idx_user_shiny (user_id, pokemon_id);
+-- ALTER TABLE user_shinies DROP INDEX uk_user_shiny;
 
 CREATE TABLE IF NOT EXISTS site_settings (
   setting_key   VARCHAR(64)  NOT NULL,
@@ -348,7 +352,8 @@ CREATE TABLE IF NOT EXISTS raid_lobby_members (
   attended         TINYINT(1)   NULL,
   left_early       TINYINT(1)   NOT NULL DEFAULT 0,
   raid_success     TINYINT(1)   NULL,
-  host_vote        ENUM('none','commend','dislike') NOT NULL DEFAULT 'none',
+  host_vote          ENUM('none','commend','dislike') NOT NULL DEFAULT 'none',
+  confirm_warned_30s TINYINT(1)   NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY uk_lobby_member (lobby_id, user_id),
   KEY idx_member_user (user_id, state),
@@ -397,7 +402,8 @@ CREATE TABLE IF NOT EXISTS awards (
   icon        VARCHAR(16)  NOT NULL DEFAULT '🏆',
   color       VARCHAR(7)   NOT NULL DEFAULT '#f0b429',
   active      TINYINT(1)   NOT NULL DEFAULT 1,
-  sort_order  TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  sort_order     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  min_grant_rank TINYINT UNSIGNED NOT NULL DEFAULT 0,
   created_by  INT UNSIGNED NULL,
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

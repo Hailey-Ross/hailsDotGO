@@ -7,21 +7,19 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"pogo.hails.cc/internal/auth"
 )
 
-// Awards: Pokemon-themed community recognitions. Staff can always grant;
-// community granting unlocks behind site_settings awards_community_grants_enabled
-// for users at or above awards_grant_min_trust effective trust.
-
 type awardEntry struct {
-	ID          uint   `json:"id"`
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Icon        string `json:"icon"`
-	Color       string `json:"color"`
-	Active      bool   `json:"active"`
-	SortOrder   int    `json:"sort_order"`
+	ID           uint   `json:"id"`
+	Slug         string `json:"slug"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Icon         string `json:"icon"`
+	Color        string `json:"color"`
+	Active       bool   `json:"active"`
+	SortOrder    int    `json:"sort_order"`
+	MinGrantRank int    `json:"min_grant_rank"`
 }
 
 type awardGrantEntry struct {
@@ -43,7 +41,7 @@ func (h *Handlers) settingBool(key string) bool {
 
 func (h *Handlers) APIAwardsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
-		SELECT id, slug, name, description, icon, color, active, sort_order
+		SELECT id, slug, name, description, icon, color, active, sort_order, min_grant_rank
 		FROM awards WHERE active = 1 ORDER BY sort_order, name`)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -53,7 +51,7 @@ func (h *Handlers) APIAwardsList(w http.ResponseWriter, r *http.Request) {
 	out := []awardEntry{}
 	for rows.Next() {
 		var a awardEntry
-		if rows.Scan(&a.ID, &a.Slug, &a.Name, &a.Description, &a.Icon, &a.Color, &a.Active, &a.SortOrder) == nil {
+		if rows.Scan(&a.ID, &a.Slug, &a.Name, &a.Description, &a.Icon, &a.Color, &a.Active, &a.SortOrder, &a.MinGrantRank) == nil {
 			out = append(out, a)
 		}
 	}
@@ -129,21 +127,32 @@ func (h *Handlers) APIUsersSearch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
+// userAwardGrantRank returns the effective grant rank for a user.
+// Ranks: 0=User, 1=Trusted, 2=ContentCreator, 3=Translator, 4=Tester, 5=Moderator, 100=Admin.
+// Checked top-down so multi-attribute users get their highest rank.
+func userAwardGrantRank(u *auth.User) int {
+	switch {
+	case u.IsAdmin():
+		return 100
+	case u.Role == "moderator":
+		return 5
+	case u.IsTester():
+		return 4
+	case u.Translator: // raw field; IsTranslator() also matches superadmin which IsAdmin() already covers
+		return 3
+	case u.SpecialRank == "content_creator":
+		return 2
+	case u.SpecialRank == "trusted":
+		return 1
+	}
+	return 0
+}
+
 func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
 		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
 		return
-	}
-	if !u.IsMod() {
-		if !h.settingBool("awards_community_grants_enabled") {
-			writeJSONError(w, h.t(r, "error.award_community_disabled"), http.StatusForbidden)
-			return
-		}
-		if h.effectiveTrust(u.ID) < h.settingFloat("awards_grant_min_trust", 50) {
-			writeJSONError(w, h.t(r, "error.award_trust_too_low"), http.StatusForbidden)
-			return
-		}
 	}
 
 	awardID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
@@ -166,10 +175,23 @@ func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var active bool
-	if err := h.db.QueryRow(`SELECT active FROM awards WHERE id = ?`, awardID).Scan(&active); err != nil || !active {
+	var minGrantRank int
+	if err := h.db.QueryRow(`SELECT active, min_grant_rank FROM awards WHERE id = ?`, awardID).Scan(&active, &minGrantRank); err != nil || !active {
 		writeJSONError(w, h.t(r, "error.award_not_found"), http.StatusNotFound)
 		return
 	}
+
+	if !u.IsMod() {
+		if !h.settingBool("awards_community_grants_enabled") {
+			writeJSONError(w, h.t(r, "error.award_community_disabled"), http.StatusForbidden)
+			return
+		}
+		if userAwardGrantRank(u) < minGrantRank {
+			writeJSONError(w, h.t(r, "error.award_rank_too_low"), http.StatusForbidden)
+			return
+		}
+	}
+
 	var recipientID uint
 	input := strings.TrimSpace(body.Username)
 	if err := h.db.QueryRow(`

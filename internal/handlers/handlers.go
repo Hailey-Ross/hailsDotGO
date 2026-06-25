@@ -47,11 +47,11 @@ type PageMaintenance struct {
 	DPSEnabled              bool
 	PVPEnabled              bool
 	EventsEnabled           bool
+	IVEnabled               bool
 	TrainersEnabled         bool
 	TrainerDirectoryEnabled bool
 	RaidFinderEnabled       bool
 	ShiniesEnabled          bool
-	ShinyDexEnabled         bool
 	TranslatorAppsEnabled   bool
 }
 
@@ -66,6 +66,7 @@ type PageData struct {
 	Lang         string
 	Langs        []string
 	AssetVersion string
+	Path         string
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
@@ -149,14 +150,17 @@ var tmplFuncs = template.FuncMap{
 	"divf":  func(a, b int) float64 { return float64(a) / float64(b) },
 	"upper": strings.ToUpper,
 	"T":     func(key string) string { return key }, // replaced per-request via Clone+Funcs
+	"pathActive": func(currentPath, prefix string) bool {
+		return currentPath == prefix || strings.HasPrefix(currentPath, prefix+"/")
+	},
 }
 
 func (h *Handlers) loadTemplates() {
 	h.tmpl = make(map[string]*template.Template)
 	pages := []string{
-		"home", "raids", "dps", "pvp", "events", "shinydex", "credits", "maintenance",
+		"home", "raids", "dps", "pvp", "events", "iv", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
-		"translate", "raidfinder", "trainer", "friends", "notifications",
+		"translate", "raidfinder", "trainer", "social", "notifications",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(
@@ -255,7 +259,7 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, Langs: h.publicLangs(), AssetVersion: h.assetVersion}
+	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, Langs: h.publicLangs(), AssetVersion: h.assetVersion, Path: r.URL.Path}
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)
 	}
@@ -279,10 +283,6 @@ func (h *Handlers) PVP(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Events(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "events", nil)
-}
-
-func (h *Handlers) ShinyDex(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "shinydex", nil)
 }
 
 func (h *Handlers) Credits(w http.ResponseWriter, r *http.Request) {
@@ -370,18 +370,18 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 		DPSEnabled:              true,
 		PVPEnabled:              true,
 		EventsEnabled:           true,
+		IVEnabled:               true,
 		TrainersEnabled:         true,
 		TrainerDirectoryEnabled: true,
 		RaidFinderEnabled:       true,
 		ShiniesEnabled:          true,
-		ShinyDexEnabled:         true,
 		TranslatorAppsEnabled:   true,
 	}
 	rows, err := h.db.Query(`SELECT setting_key, setting_value FROM site_settings
 		WHERE setting_key IN (
 			'page_raids_enabled','page_dps_enabled','page_pvp_enabled','page_events_enabled',
-			'page_trainers_enabled','section_trainer_directory_enabled',
-			'section_raid_finder_enabled','page_shinies_enabled','page_shinydex_enabled',
+			'page_iv_enabled','page_trainers_enabled','section_trainer_directory_enabled',
+			'section_raid_finder_enabled','page_shinies_enabled',
 			'section_translator_apps_enabled'
 		)`)
 	if err != nil {
@@ -403,6 +403,8 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 			m.PVPEnabled = enabled
 		case "page_events_enabled":
 			m.EventsEnabled = enabled
+		case "page_iv_enabled":
+			m.IVEnabled = enabled
 		case "page_trainers_enabled":
 			m.TrainersEnabled = enabled
 		case "section_trainer_directory_enabled":
@@ -411,8 +413,6 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 			m.RaidFinderEnabled = enabled
 		case "page_shinies_enabled":
 			m.ShiniesEnabled = enabled
-		case "page_shinydex_enabled":
-			m.ShinyDexEnabled = enabled
 		case "section_translator_apps_enabled":
 			m.TranslatorAppsEnabled = enabled
 		}
@@ -430,12 +430,12 @@ func pageEnabled(page string, m PageMaintenance) bool {
 		return m.PVPEnabled
 	case "events":
 		return m.EventsEnabled
+	case "iv":
+		return m.IVEnabled
 	case "trainers":
 		return m.TrainersEnabled
 	case "shinies":
 		return m.ShiniesEnabled
-	case "shinydex":
-		return m.ShinyDexEnabled
 	}
 	return true
 }

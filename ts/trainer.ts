@@ -1,4 +1,4 @@
-// Handles feedback form submission and mod-delete on the trainer profile page.
+import { costumeShinyUrl, TINY_POKEMON } from "./shared/costumes";
 
 function trainerFetch(path: string, method: string, body?: unknown): Promise<Response> {
   const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
@@ -69,6 +69,105 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       btn.disabled = false;
     }
   });
+})();
+
+// ── Shiny collection ─────────────────────────────────────────────
+(function initShinyCollection() {
+  const container = document.getElementById('trainer-shiny-container');
+  if (!container) return;
+
+  const METHOD_ICONS: Record<string, string> = {
+    wild: '🌿', egg: '🥚', raid: '⚔️', research: '📋',
+    evolution: '⬆️', photobomb: '📸', trade: '🤝', go_tour: '🎟️',
+  };
+  const METHOD_LABELS: Record<string, string> = {
+    wild: TRAINER_CTX.methodWild, egg: TRAINER_CTX.methodEgg,
+    raid: TRAINER_CTX.methodRaid, research: TRAINER_CTX.methodResearch,
+    evolution: TRAINER_CTX.methodEvolution, photobomb: TRAINER_CTX.methodPhotobomb,
+    trade: TRAINER_CTX.methodTrade, go_tour: TRAINER_CTX.methodGoTour,
+  };
+
+  type ShinyItem = {
+    pokemon_id: string; form: string; costume: string;
+    event_tag: string; method: string; sprite_url: string;
+  };
+
+  function renderItems(items: ShinyItem[]): void {
+    container.innerHTML = '';
+    if (!items.length) {
+      const p = document.createElement('p');
+      p.style.cssText = 'color:var(--text-2);font-style:italic;font-size:0.88rem';
+      p.textContent = TRAINER_CTX.collectionEmpty;
+      container.appendChild(p);
+      return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'trainer-shiny-grid';
+    for (const item of items) {
+      if (!item.sprite_url) continue;
+      const cell = document.createElement('div');
+      cell.className = 'trainer-shiny-item';
+      const img = document.createElement('img');
+      const dexMatch = /\/shiny\/(\d+)\.png$/.exec(item.sprite_url);
+      const dexId = dexMatch ? parseInt(dexMatch[1], 10) : 0;
+      const resolvedSrc = (item.costume && dexId)
+        ? (costumeShinyUrl(dexId, item.pokemon_id, item.costume) ?? item.sprite_url)
+        : item.sprite_url;
+      img.src = resolvedSrc;
+      if (resolvedSrc !== item.sprite_url) {
+        img.onerror = () => { img.src = item.sprite_url; img.onerror = null; };
+      }
+      if (dexId && TINY_POKEMON.has(dexId)) img.classList.add("sprite-sm-poke");
+      img.alt = item.pokemon_id;
+      img.width = 48; img.height = 48;
+      cell.appendChild(img);
+      const name = document.createElement('span');
+      name.className = 'trainer-shiny-name';
+      name.textContent = item.pokemon_id;
+      cell.appendChild(name);
+      if (item.form === 'shadow' || item.form === 'purified') {
+        const badge = document.createElement('span');
+        badge.className = 'trainer-shiny-form-badge';
+        badge.textContent = item.form === 'shadow' ? TRAINER_CTX.formShadow : TRAINER_CTX.formPurified;
+        cell.appendChild(badge);
+      }
+      if (item.costume || item.event_tag) {
+        const sub = document.createElement('span');
+        sub.className = 'trainer-shiny-sub';
+        const parts: string[] = [];
+        if (item.costume)   parts.push(item.costume);
+        if (item.event_tag) parts.push(item.event_tag);
+        sub.textContent = parts.join(' · ');
+        cell.appendChild(sub);
+      }
+      if (item.method) {
+        const method = document.createElement('span');
+        method.className = 'trainer-shiny-method';
+        method.textContent = (METHOD_ICONS[item.method] ?? '') + ' ' + (METHOD_LABELS[item.method] ?? item.method);
+        cell.appendChild(method);
+      }
+      grid.appendChild(cell);
+    }
+    container.appendChild(grid);
+  }
+
+  container.textContent = TRAINER_CTX.collectionLoading;
+
+  fetch('/api/shinies/of/' + encodeURIComponent(TRAINER_CTX.username))
+    .then((r) => r.ok ? r.json() as Promise<ShinyItem[]> : Promise.resolve([] as ShinyItem[]))
+    .then((all) => {
+      const LIMIT = 9;
+      renderItems(all.slice(0, LIMIT));
+      if (all.length > LIMIT) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-secondary';
+        btn.style.cssText = 'margin-top:0.75rem;font-size:0.82rem';
+        btn.textContent = TRAINER_CTX.shinyShowAll.replace('{n}', String(all.length));
+        btn.addEventListener('click', () => { renderItems(all); btn.remove(); });
+        container.appendChild(btn);
+      }
+    })
+    .catch(() => { container.textContent = ''; });
 })();
 
 // ── Mod delete buttons ───────────────────────────────────────────

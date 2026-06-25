@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-sql-driver/mysql"
 )
 
 type shinyRecord struct {
@@ -83,8 +81,7 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.db.Exec(`
 		INSERT INTO user_shinies (user_id, pokemon_id, form, costume, event_tag, method)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE caught_at = caught_at`,
+		VALUES (?, ?, ?, ?, ?, ?)`,
 		u.ID, body.PokemonID, body.Form, body.Costume, body.EventTag, body.Method,
 	)
 	if err != nil {
@@ -126,11 +123,6 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 		body.Form, body.Costume, body.EventTag, body.Method, id, u.ID,
 	)
 	if err != nil {
-		var mysqlErr *mysql.MySQLError
-		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-			writeJSONError(w, h.t(r, "error.shiny_form_duplicate"), http.StatusConflict)
-			return
-		}
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}

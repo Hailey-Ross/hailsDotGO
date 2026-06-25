@@ -239,11 +239,11 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 		"page_dps_enabled",
 		"page_pvp_enabled",
 		"page_events_enabled",
+		"page_iv_enabled",
 		"page_trainers_enabled",
 		"section_trainer_directory_enabled",
 		"section_raid_finder_enabled",
 		"page_shinies_enabled",
-		"page_shinydex_enabled",
 		"section_translator_apps_enabled",
 	}
 

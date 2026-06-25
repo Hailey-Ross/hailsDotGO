@@ -48,6 +48,7 @@ if (-not $script:vpsHost)        { throw ".env missing VPS_HOST" }
 if (-not $script:vpsUser)        { throw ".env missing VPS_USER" }
 if (-not $script:dbHost)         { throw ".env missing DB_HOST" }
 if (-not $script:superadminUser) { throw ".env missing SUPERADMIN_USER" }
+if (-not $script:csrfKey)        { throw ".env missing CSRF_KEY (generate with: openssl rand -hex 32)" }
 
 $target = "$($script:vpsUser)@$($script:vpsHost)"
 $key    = "$env:USERPROFILE\.ssh\hailsdotgo"
@@ -167,12 +168,12 @@ $trackedFiles = @(
     @{ src = "templates\dps.html";         dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\pvp.html";         dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\events.html";      dst = "/opt/hailsdotgo/templates/";            binary = $false },
+    @{ src = "templates\iv.html";          dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\credits.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\login.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\maintenance.html"; dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\register.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\shinies.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\shinydex.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\admin.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\settings.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "templates\trainers.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },

@@ -94,11 +94,14 @@ func (h *Handlers) MobileLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userResp := userToMobileResponse(u)
+	h.db.QueryRow(`SELECT COALESCE(trainer_level,0) FROM users WHERE id = ?`, u.ID).Scan(&userResp.TrainerLevel)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"token":      token,
 		"expires_at": time.Now().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339),
-		"user":       userToMobileResponse(u),
+		"user":       userResp,
 	})
 }
 

@@ -12,27 +12,21 @@
     <div class="trainer-profile-hero">
 
       <!-- Avatar + fav sprite -->
-      {{if .Data.Trainer.ProfilePublic}}
       <div class="trainer-sprite-group trainer-profile-sprite-group">
         {{if .Data.Trainer.FavSpriteURL}}
         <img class="trainer-fav-sprite{{if eq .Data.Trainer.FavPokemonForm "shadow"}} poke-shadow{{end}}"
              src="{{.Data.Trainer.FavSpriteURL}}" alt="{{.Data.Trainer.FavPokemon}}"
-             style="width:78px;height:78px">
+             style="width:90px;height:90px">
         {{end}}
         {{if .Data.Trainer.AvatarURL}}
         <img class="trainer-avatar-sprite" src="{{.Data.Trainer.AvatarURL}}" alt="{{T "trainers.avatar_alt"}}"
-             style="width:56px;height:56px">
+             style="width:64px;height:64px">
         {{else}}
-        <span class="trainer-avatar-sm avatar--default" style="width:56px;height:56px;position:absolute;right:0;bottom:0;z-index:1">
+        <span class="trainer-avatar-sm avatar--default" style="width:64px;height:64px;position:absolute;left:50%;bottom:0;transform:translateX(-50%);z-index:1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
         </span>
         {{end}}
       </div>
-      {{else}}
-      <span class="trainer-avatar-sm avatar--default trainer-profile-sprite-group">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
-      </span>
-      {{end}}
 
       <!-- Name + meta -->
       <div class="trainer-profile-meta">
@@ -57,15 +51,6 @@
         <div style="color:var(--text-2);font-size:0.85rem;margin-top:0.2rem">{{.Data.Trainer.Pronouns}}</div>
         {{end}}
 
-        {{if .Data.Trainer.ProfilePublic}}
-        <div class="trainer-tags" style="margin-top:0.5rem;flex-wrap:wrap">
-          {{if .Data.Trainer.SuperDonator}}<span class="donator-badge">{{T "trainers.donator_badge"}}</span>{{end}}
-          {{if or .Data.Trainer.RaidXP .Data.Trainer.StaffBadge}}
-          <span class="rank-badge rank-{{.Data.Trainer.RaidRankClass}}">{{.Data.Trainer.RaidRank}}</span>
-          {{end}}
-          {{range .Data.Trainer.Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}
-        </div>
-        {{end}}
 
         <div class="trainer-profile-details">
           {{if and .Data.Trainer.ProfilePublic (ne .Data.Trainer.LocationDisplay "none")}}
@@ -92,11 +77,9 @@
       {{if .Data.IsBlocked}}
       <button class="btn-secondary social-btn" id="btn-unblock">{{T "trainer.unblock"}}</button>
       {{else}}
-      {{if .Data.IsFriend}}
-      <button class="btn-secondary social-btn" id="btn-unfriend">{{T "trainer.remove_friend"}}</button>
-      {{else}}
-      <button class="btn-primary social-btn" id="btn-friend">{{T "trainer.add_friend"}}</button>
-      {{end}}
+      <button class="btn-primary social-btn" id="btn-friend"{{if .Data.IsFollowing}} style="display:none"{{end}}>{{T "trainer.add_friend"}}</button>
+      <button class="btn-secondary social-btn" id="btn-unfriend"{{if not .Data.IsFollowing}} style="display:none"{{end}}>{{T "trainer.remove_friend"}}</button>
+      {{if and .Data.IsFollowing .Data.FollowsMe}}<span style="font-size:0.8rem;color:var(--text-2);align-self:center">{{T "trainer.is_friends"}}</span>{{end}}
       <button class="btn-secondary social-btn social-btn-block" id="btn-block">{{T "trainer.block"}}</button>
       {{end}}
     </div>
@@ -104,25 +87,67 @@
     {{end}}
   </div>
 
-  <!-- ── Friends preview (own profile only) ───────────────────── -->
-  {{if .Data.IsOwnProfile}}
-  <div class="admin-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem">
-      <h2 style="font-size:1.05rem;font-weight:600;margin:0">{{T "trainer.friends_section"}}</h2>
-      <a href="/friends" style="font-size:0.82rem;color:var(--accent)">{{T "trainer.friends_view_all"}} &rarr;</a>
+  <!-- ── Achievements (rank, tags, awards) ──────────────────── -->
+  {{$hasBadges := or .Data.Trainer.SuperDonator (or .Data.Trainer.RaidXP .Data.Trainer.StaffBadge) .Data.Trainer.Tags}}
+  <div class="admin-card trainer-achievements-card" id="trainer-achievements"
+       style="padding:0.85rem 1rem{{if not $hasBadges}};display:none{{end}}">
+    <div class="trainer-tags" id="trainer-badges-row" style="flex-wrap:wrap;gap:0.4rem">
+      {{if .Data.Trainer.SuperDonator}}<span class="donator-badge">{{T "trainers.donator_badge"}}</span>{{end}}
+      {{if or .Data.Trainer.RaidXP .Data.Trainer.StaffBadge}}
+      <span class="rank-badge rank-{{.Data.Trainer.RaidRankClass}}">{{.Data.Trainer.RaidRank}}</span>
+      {{end}}
+      {{range .Data.Trainer.Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}
     </div>
-    {{if .Data.RecentFriends}}
-    <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
-      {{range .Data.RecentFriends}}
-      <a href="/trainer/{{.Username}}" style="display:flex;align-items:center;gap:0.4rem;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.6rem;text-decoration:none;color:inherit;font-size:0.82rem;white-space:nowrap">
-        {{if .AvatarURL}}<img src="{{.AvatarURL}}" alt="" style="width:22px;height:22px;flex-shrink:0">{{end}}
-        <span>{{if .TrainerName}}{{.TrainerName}}{{else}}{{.Username}}{{end}}</span>
+    <div id="trainer-awards-wrap" style="display:none;margin-top:0.65rem">
+      <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:0.35rem;font-weight:500">{{T "trainer.awards_label"}}</div>
+      <div class="trainer-tags" id="trainer-awards-row" style="flex-wrap:wrap;gap:0.4rem"></div>
+    </div>
+  </div>
+
+  <!-- ── Followers / Following stats ─────────────────────────── -->
+  <div class="admin-card" style="padding:1rem">
+    <div style="display:flex;gap:3rem;justify-content:center">
+      <a href="/social/{{.Data.Trainer.Username}}#followers" style="text-align:center;text-decoration:none">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--text-1)">{{.Data.FollowerCount}}</div>
+        <div style="font-size:0.8rem;color:var(--text-3);margin-top:0.2rem">{{T "trainer.followers"}}</div>
       </a>
+      <a href="/social/{{.Data.Trainer.Username}}#following" style="text-align:center;text-decoration:none">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--text-1)">{{.Data.FollowingCount}}</div>
+        <div style="font-size:0.8rem;color:var(--text-3);margin-top:0.2rem">{{T "trainer.following"}}</div>
+      </a>
+    </div>
+    <div style="margin-top:0.6rem;text-align:center">
+      <a href="/social/{{.Data.Trainer.Username}}" style="font-size:0.82rem;color:var(--accent)">{{T "trainer.view_connections"}} &rarr;</a>
+    </div>
+    {{if .Data.IsOwnProfile}}
+    <div style="margin-top:0.85rem;border-top:1px solid var(--border);padding-top:0.85rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+        <span style="font-size:0.9rem;font-weight:600">{{T "trainer.friends_section"}}</span>
+        <a href="/social/{{.Data.Trainer.Username}}" style="font-size:0.82rem;color:var(--accent)">{{T "trainer.friends_view_all"}} &rarr;</a>
+      </div>
+      {{if .Data.RecentFriends}}
+      <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
+        {{range .Data.RecentFriends}}
+        <a href="/trainer/{{.Username}}" style="display:flex;align-items:center;gap:0.4rem;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.6rem;text-decoration:none;color:inherit;font-size:0.82rem;white-space:nowrap">
+          {{if .AvatarURL}}<img src="{{.AvatarURL}}" alt="" style="width:22px;height:22px;flex-shrink:0">{{end}}
+          <span>{{if .TrainerName}}{{.TrainerName}}{{else}}{{.Username}}{{end}}</span>
+        </a>
+        {{end}}
+      </div>
+      {{else}}
+      <p style="color:var(--text-2);font-style:italic;font-size:0.88rem">{{T "friends.no_friends"}}</p>
       {{end}}
     </div>
-    {{else}}
-    <p style="color:var(--text-2);font-style:italic;font-size:0.88rem">{{T "friends.no_friends"}}</p>
     {{end}}
+  </div>
+
+  <!-- ── Shiny collection ─────────────────────────────────────────── -->
+  {{if and .Data.Trainer.ProfilePublic (not .Data.Trainer.ShiniesHidden)}}
+  <div class="trainer-shiny-rainbow-wrap">
+    <div class="admin-card" id="trainer-shiny-section">
+      <h2 style="font-size:1.05rem;font-weight:600;margin:0 0 0.85rem">{{T "trainer.shiny_section"}}</h2>
+      <div id="trainer-shiny-container"></div>
+    </div>
   </div>
   {{end}}
 
@@ -193,8 +218,56 @@ const TRAINER_CTX = {
   isMod: {{if and .User .User.IsMod}}true{{else}}false{{end}},
   loggedIn: {{if .User}}true{{else}}false{{end}},
   isOwnProfile: {{if .Data.IsOwnProfile}}true{{else}}false{{end}},
-  csrfToken: document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+  csrfToken: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+  shinyShowAll:      {{T "trainer.shiny_show_all"}},
+  collectionEmpty:   {{T "trainers.collection_empty"}},
+  collectionLoading: {{T "trainers.collection_loading"}},
+  formShadow:        {{T "raidfinder.form_shadow"}},
+  formPurified:      {{T "raidfinder.form_purified"}},
+  methodWild:        {{T "shinies.js.method_wild"}},
+  methodEgg:         {{T "shinies.js.method_egg"}},
+  methodRaid:        {{T "shinies.js.method_raid"}},
+  methodResearch:    {{T "shinies.js.method_research"}},
+  methodEvolution:   {{T "shinies.js.method_evolution"}},
+  methodPhotobomb:   {{T "shinies.js.method_photobomb"}},
+  methodTrade:       {{T "shinies.js.method_trade"}},
+  methodGoTour:      {{T "shinies.js.method_go_tour"}},
 };
+</script>
+<script>
+(function() {
+  var awardsWrap = document.getElementById('trainer-awards-wrap');
+  var awardsRow  = document.getElementById('trainer-awards-row');
+  var card       = document.getElementById('trainer-achievements');
+  if (!awardsRow || !TRAINER_CTX.username) return;
+  fetch('/api/awards/of/' + encodeURIComponent(TRAINER_CTX.username))
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(grants) {
+      if (!grants || !grants.length) return;
+      var byAward = {};
+      grants.forEach(function(g) {
+        if (!byAward[g.award_id]) byAward[g.award_id] = { g: g, granters: [], notes: [] };
+        if (g.granter) byAward[g.award_id].granters.push(g.granter);
+        if (g.note)    byAward[g.award_id].notes.push(g.note);
+      });
+      Object.keys(byAward).forEach(function(k) {
+        var e = byAward[k];
+        var n = e.granters.length;
+        var pill = document.createElement('span');
+        pill.className = 'user-tag';
+        pill.style.background = e.g.color || '#f0b429';
+        pill.textContent = e.g.icon + ' ' + e.g.name + (n > 1 ? ' \xd7' + n : '');
+        var tooltipParts = [];
+        if (e.granters.length) tooltipParts.push('Granted by @' + e.granters.join(', @'));
+        var uniqueNotes = e.notes.filter(function(v, i, a) { return v && a.indexOf(v) === i; });
+        if (uniqueNotes.length) tooltipParts.push(uniqueNotes.join(' | '));
+        if (tooltipParts.length) pill.title = tooltipParts.join('\n');
+        awardsRow.appendChild(pill);
+      });
+      if (awardsWrap) awardsWrap.style.display = '';
+      if (card) card.style.display = '';
+    }).catch(function() {});
+})();
 </script>
 <script src="/static/js/trainer.js?v={{.AssetVersion}}"></script>
 <script src="/static/js/social.js?v={{.AssetVersion}}"></script>

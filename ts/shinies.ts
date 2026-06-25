@@ -1,5 +1,6 @@
 import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
+import { costumeShinyUrl, TINY_POKEMON } from "./shared/costumes";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
 declare const JSC: Record<string, string>;
@@ -20,18 +21,118 @@ interface UserShiny {
   caught_at: string;
 }
 
+const EVENT_OPTIONS: { value: string; label: string }[] = [
+  // Recurring
+  { value: "Community Day",              label: "Community Day" },
+  { value: "Spotlight Hour",             label: "Spotlight Hour" },
+  { value: "Raid Day",                   label: "Raid Day" },
+  { value: "Raid Hour",                  label: "Raid Hour" },
+  { value: "GO Battle Day",              label: "GO Battle Day" },
+  { value: "GO Battle Week",             label: "GO Battle Week" },
+  // GO Fest
+  { value: "GO Fest 2018",               label: "GO Fest 2018" },
+  { value: "GO Fest 2019",               label: "GO Fest 2019" },
+  { value: "GO Fest 2020",               label: "GO Fest 2020" },
+  { value: "GO Fest 2021",               label: "GO Fest 2021" },
+  { value: "GO Fest 2022",               label: "GO Fest 2022" },
+  { value: "GO Fest 2023",               label: "GO Fest 2023" },
+  { value: "GO Fest 2024",               label: "GO Fest 2024" },
+  { value: "GO Fest 2025",               label: "GO Fest 2025" },
+  { value: "GO Fest 2026",               label: "GO Fest 2026" },
+  // GO Tour
+  { value: "GO Tour: Kanto",             label: "GO Tour: Kanto" },
+  { value: "GO Tour: Johto",             label: "GO Tour: Johto" },
+  { value: "GO Tour: Hoenn",             label: "GO Tour: Hoenn" },
+  { value: "GO Tour: Sinnoh",            label: "GO Tour: Sinnoh" },
+  { value: "GO Tour: Unova",             label: "GO Tour: Unova" },
+  // Seasonal
+  { value: "Halloween",                  label: "Halloween" },
+  { value: "Winter Holiday",             label: "Winter Holiday" },
+  { value: "Valentine's Day",            label: "Valentine's Day" },
+  { value: "Spring",                     label: "Spring" },
+  { value: "Summer",                     label: "Summer" },
+  // Other
+  { value: "Safari Zone",                label: "Safari Zone" },
+  { value: "Pokemon Day",                label: "Pokemon Day" },
+  { value: "GO Anniversary",             label: "GO Anniversary" },
+  { value: "World Championships",        label: "World Championships" },
+  { value: "Max Out",                    label: "Max Out" },
+  { value: "World of Wonders",           label: "World of Wonders" },
+  { value: "Shared Skies",               label: "Shared Skies" },
+  { value: "Adventures Abound",          label: "Adventures Abound" },
+  { value: "Timeless Travels",           label: "Timeless Travels" },
+  { value: "Mythical Wishes",            label: "Mythical Wishes" },
+];
+
 const FORMS = [
   { value: "", label: JSC.formNormal },
   { value: "shadow", label: JSC.formShadow },
   { value: "purified", label: JSC.formPurified },
 ];
 
-const COSTUME_SUGGESTIONS = [
-  "Party Hat", "Witch Hat", "Detective Hat", "Flower Crown", "Safari Hat",
-  "Holiday Hat", "Birthday Hat", "Winter Hat", "Lucha Libre", "GO Fest Hat",
-  "Kanto Cap", "Johto Cap", "Hoenn Cap", "Sinnoh Cap", "Unova Cap",
-  "Kalos Cap", "Alola Cap", "Galar Cap", "Hisui Cap", "Paldea Cap",
+// Costumes valid for any Pokémon (shown in datalist regardless of species)
+const GENERIC_COSTUMES = [
+  "Party Hat", "Flower Crown", "Witch Hat",
 ];
+// Costumes shown only when the matching species is selected
+const POKEMON_EXTRA_COSTUMES: Record<string, string[]> = {
+  "Pikachu": [
+    "Ash Hat",
+    "Red's Hat", "Leaf's Hat",
+    "Lucas's Hat", "Dawn's Hat",
+    "Hilbert's Hat", "Hilda's Hat", "Nate's Visor", "Rosa's Visor",
+    "Akari's Kerchief",
+    "Detective Hat", "Straw Hat", "World Cap", "Safari Hat", "Cake Hat",
+    "Rock Star", "Pop Star", "Libre", "Dracula",
+    "Kariyushi Shirt", "Blue Shirt", "Green Shirt", "Purple Shirt", "Batik Shirt",
+    "Pyrite Crown", "Quartz Crown", "Malachite Crown", "Aquamarine Crown", "Amethyst Crown",
+    "Sun Crown", "Moon Crown", "Top Hat", "Team Instinct Hat", "Team Mystic Hat",
+    "Santa Hat", "Holiday Outfit",
+  ],
+  "Pichu":     ["Santa Hat"],
+  "Raichu":    ["Santa Hat", "Ash Hat"],
+  "Eevee":     ["Sun Crown", "Moon Crown"],
+  "Espeon":    ["Day Scarf"],
+  "Umbreon":   ["Night Scarf"],
+  "Squirtle":  ["Sunglasses"],
+  "Wartortle": ["Sunglasses"],
+  "Blastoise": ["Sunglasses"],
+  "Snorlax":   ["Nightcap", "Studded Jacket"],
+  "Slowpoke":  ["New Year Costume"],
+  "Slowbro":   ["New Year Costume"],
+  "Slowking":  ["New Year Costume"],
+  "Jigglypuff": ["Ribbon"],
+  "Wigglytuff": ["Ribbon"],
+  "Noibat":    ["Headband"],
+  "Noivern":   ["Headband"],
+  "Cubchoo":   ["Holiday Outfit"],
+  "Beartic":   ["Holiday Outfit"],
+  "Delibird":  ["Holiday Ribbon", "Holiday Outfit"],
+  "Spheal":    ["Festive Outfit"],
+  "Sealeo":    ["Festive Outfit"],
+  "Walrein":   ["Festive Outfit"],
+  "Psyduck":   ["Holiday Attire"],
+  "Gengar":    ["Halloween Costume"],
+  "Lapras":    ["Drip Scarf"],
+  "Dragonite": ["Bowtie & Sunglasses"],
+  "Minccino":  ["Fashion Outfit"],
+  "Cinccino":  ["Fashion Outfit"],
+  "Shinx":     ["Fashion Outfit"],
+  "Luxio":     ["Fashion Outfit"],
+  "Luxray":    ["Fashion Outfit"],
+  "Kirlia":    ["Fashion Outfit"],
+  "Gardevoir": ["Fashion Outfit"],
+  "Croagunk":  ["Fashion Outfit"],
+  "Toxicroak": ["Fashion Outfit"],
+  "Diglett":   ["Fashion Outfit"],
+  "Butterfree":["Fashion Outfit"],
+  "Aerodactyl":["Satchel"],
+  "Caterpie":  ["Cowboy Hat"],
+  "Cubone":    ["Cempasúchil Crown"],
+  "Ponyta":    ["Candela Costume"],
+  "Ditto":     ["Hat", "Cap"],
+  "Vulpix":    ["Spooky Festival Costume"],
+};
 
 const METHODS = [
   { value: "", label: SH.methodAny },
@@ -44,6 +145,32 @@ const METHODS = [
   { value: "trade", label: SH.methodTrade },
   { value: "go_tour", label: SH.methodGoTour },
 ];
+
+function setSprite(img: HTMLImageElement, dexId: number, pokemonName: string, costume: string) {
+  const costumeUrl = costume ? costumeShinyUrl(dexId, pokemonName, costume) : null;
+  const fallback = spriteUrl(dexId);
+  if (costumeUrl) {
+    img.src = costumeUrl;
+    img.onerror = () => { img.src = fallback; img.onerror = () => { img.style.display = "none"; }; };
+  } else {
+    img.src = fallback;
+    img.onerror = () => { img.style.display = "none"; };
+  }
+}
+
+function refreshCostumeDatalist(pokemonName: string) {
+  const dl = document.getElementById("sc-costume-list") as HTMLDataListElement;
+  if (!dl) return;
+  dl.innerHTML = "";
+  const seen = new Set<string>();
+  for (const c of [...GENERIC_COSTUMES, ...(POKEMON_EXTRA_COSTUMES[pokemonName] ?? [])]) {
+    if (seen.has(c)) continue;
+    seen.add(c);
+    const opt = document.createElement("option");
+    opt.value = c;
+    dl.appendChild(opt);
+  }
+}
 
 function spriteUrl(id: number) {
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`;
@@ -128,6 +255,13 @@ async function init() {
   const shinyByName = new Map(allShinies.map((s) => [s.name, s]));
   let caughtIndex = buildCaughtIndex(userShinies);
 
+  function buildCountMap(shinies: UserShiny[]): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const s of shinies) m.set(s.pokemon_id, (m.get(s.pokemon_id) ?? 0) + 1);
+    return m;
+  }
+  let countMap = buildCountMap(userShinies);
+
   app.innerHTML = `
     <div class="page-header">
       <h1>${SH.heading}</h1>
@@ -202,12 +336,21 @@ async function init() {
 
   const costumeDatalist = document.createElement("datalist");
   costumeDatalist.id = "sc-costume-list";
-  for (const c of COSTUME_SUGGESTIONS) {
+  for (const c of GENERIC_COSTUMES) {
     const opt = document.createElement("option");
     opt.value = c;
     costumeDatalist.appendChild(opt);
   }
   document.body.appendChild(costumeDatalist);
+
+  const eventDatalist = document.createElement("datalist");
+  eventDatalist.id = "sc-event-list";
+  for (const e of EVENT_OPTIONS) {
+    const opt = document.createElement("option");
+    opt.value = e.value;
+    eventDatalist.appendChild(opt);
+  }
+  document.body.appendChild(eventDatalist);
 
   function openAddModal(s: ShinyPokemon) {
     modalTarget = s;
@@ -296,6 +439,18 @@ async function init() {
     costumeWrap.appendChild(modalCostumeInput);
     modalFields.appendChild(costumeWrap);
 
+    const shinyImgEl = document.getElementById("sc-modal-shiny") as HTMLImageElement;
+    const updateModalSprite = () => {
+      const costume = modalCostumeInput.value.trim();
+      const url = costume ? costumeShinyUrl(s.id, s.name, costume) : null;
+      shinyImgEl.onerror = url
+        ? () => { shinyImgEl.src = spriteUrl(s.id); shinyImgEl.onerror = null; }
+        : null;
+      shinyImgEl.src = url ?? spriteUrl(s.id);
+    };
+    modalCostumeInput.addEventListener("input", updateModalSprite);
+    modalCostumeInput.addEventListener("change", updateModalSprite);
+
     const eventWrap = document.createElement("div");
     eventWrap.className = "sc-field-wrap";
     const eventLabel = document.createElement("label");
@@ -305,6 +460,7 @@ async function init() {
     modalEventInput.type = "text";
     modalEventInput.className = "move-select";
     modalEventInput.placeholder = SH.eventPlaceholder;
+    modalEventInput.setAttribute("list", "sc-event-list");
     eventWrap.appendChild(eventLabel);
     eventWrap.appendChild(modalEventInput);
     modalFields.appendChild(eventWrap);
@@ -312,6 +468,7 @@ async function init() {
     modalMethodSel = makeSelect(METHODS, "");
     modalFields.appendChild(modalMethodSel);
 
+    refreshCostumeDatalist(s.name);
     modal.classList.add("open");
   }
 
@@ -322,11 +479,6 @@ async function init() {
     const eventTag = modalEventInput.value.trim();
     const method  = modalMethodSel.value;
 
-    if (caughtIndex.has(`${modalTarget.name}:${form}:${costume}:${eventTag}`)) {
-      modalStatus.textContent = SH.alreadyOwned;
-      return;
-    }
-
     modalAddBtn.disabled = true;
     modalAddBtn.textContent = SH.adding;
     modalStatus.textContent = "";
@@ -335,6 +487,7 @@ async function init() {
     if (ok) {
       userShinies  = await fetchUserShinies();
       caughtIndex  = buildCaughtIndex(userShinies);
+      countMap     = buildCountMap(userShinies);
       updateCounter();
       renderTab();
       closeModal();
@@ -411,10 +564,19 @@ async function init() {
         card.appendChild(badge);
       }
 
+      const count = countMap.get(s.name) ?? 0;
+      if (count > 1) {
+        const countBadge = document.createElement("span");
+        countBadge.className = "sc-count-badge";
+        countBadge.textContent = `×${count}`;
+        card.appendChild(countBadge);
+      }
+
       const img = document.createElement("img");
       img.src = spriteUrl(s.id);
       img.alt = s.name;
       img.className = "shiny-img";
+      if (TINY_POKEMON.has(s.id)) img.classList.add("sprite-sm-poke");
       img.loading = "lazy";
       img.decoding = "async";
       img.onerror = () => { img.style.display = "none"; };
@@ -461,8 +623,8 @@ async function init() {
       img.className = "sc-entry-img";
       img.alt = rec.pokemon_id;
       if (poke) {
-        img.src = spriteUrl(poke.id);
-        img.onerror = () => { img.style.display = "none"; };
+        setSprite(img, poke.id, poke.name, rec.costume);
+        if (TINY_POKEMON.has(poke.id)) img.classList.add("sprite-sm-poke");
       } else {
         img.style.display = "none";
       }
@@ -478,18 +640,36 @@ async function init() {
       dateEl.textContent = rec.caught_at ? timeAgo(rec.caught_at) : "";
       nameWrap.appendChild(name);
       nameWrap.appendChild(dateEl);
-      if (rec.costume || rec.event_tag) {
-        const metaEl = document.createElement("span");
-        metaEl.className = "sc-entry-meta";
-        const parts: string[] = [];
-        if (rec.costume)   parts.push(rec.costume);
-        if (rec.event_tag) parts.push(rec.event_tag);
-        metaEl.textContent = parts.join(" -- ");
-        nameWrap.appendChild(metaEl);
+      const subParts: string[] = [];
+      if (rec.form === "shadow")   subParts.push(JSC.formShadow);
+      if (rec.form === "purified") subParts.push(JSC.formPurified);
+      if (rec.costume)             subParts.push(rec.costume);
+      if (rec.event_tag)           subParts.push(rec.event_tag);
+      if (subParts.length) {
+        const sub = document.createElement("span");
+        sub.className = "sc-entry-sub";
+        sub.textContent = subParts.join(" · ");
+        nameWrap.appendChild(sub);
       }
-
       // Form selector
       const formSel = makeSelect(FORMS, rec.form);
+
+      // Costume input
+      const costumeSel = document.createElement("input");
+      costumeSel.type = "text";
+      costumeSel.className = "move-select";
+      costumeSel.value = rec.costume;
+      costumeSel.placeholder = SH.costumePlaceholder;
+      costumeSel.setAttribute("list", "sc-costume-list");
+      costumeSel.addEventListener("focus", () => refreshCostumeDatalist(rec.pokemon_id));
+
+      // Event tag input
+      const eventSel = document.createElement("input");
+      eventSel.type = "text";
+      eventSel.className = "move-select";
+      eventSel.value = rec.event_tag;
+      eventSel.placeholder = SH.eventPlaceholder;
+      eventSel.setAttribute("list", "sc-event-list");
 
       // Method selector
       const methodSel = makeSelect(METHODS, rec.method);
@@ -500,32 +680,53 @@ async function init() {
 
       let saveTimer: ReturnType<typeof setTimeout>;
 
-      async function saveUpdate() {
-        const newForm   = formSel.value;
-        const newMethod = methodSel.value;
-        const res = await apiUpdate(rec.id, newForm, rec.costume, rec.event_tag, newMethod);
+      const saveUpdate = async () => {
+        const newForm     = formSel.value;
+        const newCostume  = costumeSel.value;
+        const newEventTag = eventSel.value;
+        const newMethod   = methodSel.value;
+        let res: Response;
+        try {
+          res = await apiUpdate(rec.id, newForm, newCostume, newEventTag, newMethod);
+        } catch (e) {
+          console.error("shiny update failed (network):", e);
+          statusEl.textContent = JSC.error;
+          return;
+        }
         if (res.ok) {
           caughtIndex.delete(`${rec.pokemon_id}:${rec.form}:${rec.costume}:${rec.event_tag}`);
-          rec.form   = newForm;
-          rec.method = newMethod;
+          rec.form      = newForm;
+          rec.costume   = newCostume;
+          rec.event_tag = newEventTag;
+          rec.method    = newMethod;
           caughtIndex.set(`${rec.pokemon_id}:${rec.form}:${rec.costume}:${rec.event_tag}`, rec);
           statusEl.textContent = SH.saved;
           clearTimeout(saveTimer);
           saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);
         } else if (res.status === 409) {
-          formSel.value   = rec.form;
-          methodSel.value = rec.method;
+          formSel.value    = rec.form;
+          costumeSel.value = rec.costume;
+          eventSel.value   = rec.event_tag;
+          methodSel.value  = rec.method;
           statusEl.textContent = SH.alreadyCaught;
           clearTimeout(saveTimer);
           saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 2000);
         } else {
-          formSel.value   = rec.form;
-          methodSel.value = rec.method;
+          console.error("shiny update failed:", res.status, rec.pokemon_id);
+          formSel.value    = rec.form;
+          costumeSel.value = rec.costume;
+          eventSel.value   = rec.event_tag;
+          methodSel.value  = rec.method;
           statusEl.textContent = JSC.error;
         }
-      }
+      };
 
       formSel.addEventListener("change", saveUpdate);
+      costumeSel.addEventListener("change", saveUpdate);
+      costumeSel.addEventListener("change", () => {
+        if (poke) setSprite(img, poke.id, poke.name, costumeSel.value.trim());
+      });
+      eventSel.addEventListener("change", saveUpdate);
       methodSel.addEventListener("change", saveUpdate);
 
       // Remove button
@@ -539,6 +740,7 @@ async function init() {
         if (ok) {
           userShinies = await fetchUserShinies();
           caughtIndex = buildCaughtIndex(userShinies);
+          countMap    = buildCountMap(userShinies);
           updateCounter();
           renderCaughtList();
         } else {
@@ -550,6 +752,8 @@ async function init() {
       row.appendChild(img);
       row.appendChild(nameWrap);
       row.appendChild(formSel);
+      row.appendChild(costumeSel);
+      row.appendChild(eventSel);
       row.appendChild(methodSel);
       row.appendChild(statusEl);
       row.appendChild(removeBtn);

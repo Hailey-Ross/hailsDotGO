@@ -11,14 +11,14 @@ import (
 
 func (h *Handlers) AdminAwardsList(w http.ResponseWriter, r *http.Request) {
 	awards := []awardEntry{}
-	rows, err := h.db.Query(`SELECT id, slug, name, description, icon, color, active, sort_order FROM awards ORDER BY sort_order, name`)
+	rows, err := h.db.Query(`SELECT id, slug, name, description, icon, color, active, sort_order, min_grant_rank FROM awards ORDER BY sort_order, name`)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 	for rows.Next() {
 		var a awardEntry
-		if rows.Scan(&a.ID, &a.Slug, &a.Name, &a.Description, &a.Icon, &a.Color, &a.Active, &a.SortOrder) == nil {
+		if rows.Scan(&a.ID, &a.Slug, &a.Name, &a.Description, &a.Icon, &a.Color, &a.Active, &a.SortOrder, &a.MinGrantRank) == nil {
 			awards = append(awards, a)
 		}
 	}
@@ -72,11 +72,12 @@ func slugify(s string) string {
 func (h *Handlers) AdminAwardCreate(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	var body struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Icon        string `json:"icon"`
-		Color       string `json:"color"`
-		SortOrder   int    `json:"sort_order"`
+		Name         string `json:"name"`
+		Description  string `json:"description"`
+		Icon         string `json:"icon"`
+		Color        string `json:"color"`
+		SortOrder    int    `json:"sort_order"`
+		MinGrantRank int    `json:"min_grant_rank"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
@@ -100,10 +101,13 @@ func (h *Handlers) AdminAwardCreate(w http.ResponseWriter, r *http.Request) {
 	if color == "" {
 		color = "#f0b429"
 	}
+	if body.MinGrantRank < 0 || body.MinGrantRank > 5 {
+		body.MinGrantRank = 0
+	}
 	res, err := h.db.Exec(`
-		INSERT INTO awards (slug, name, description, icon, color, sort_order, created_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		slug, name, strings.TrimSpace(body.Description), icon, color, body.SortOrder, u.ID)
+		INSERT INTO awards (slug, name, description, icon, color, sort_order, min_grant_rank, created_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		slug, name, strings.TrimSpace(body.Description), icon, color, body.SortOrder, body.MinGrantRank, u.ID)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.rv2_award_exists"), http.StatusConflict)
 		return
@@ -120,12 +124,13 @@ func (h *Handlers) AdminAwardUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Icon        string `json:"icon"`
-		Color       string `json:"color"`
-		Active      bool   `json:"active"`
-		SortOrder   int    `json:"sort_order"`
+		Name         string `json:"name"`
+		Description  string `json:"description"`
+		Icon         string `json:"icon"`
+		Color        string `json:"color"`
+		Active       bool   `json:"active"`
+		SortOrder    int    `json:"sort_order"`
+		MinGrantRank int    `json:"min_grant_rank"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
@@ -136,11 +141,14 @@ func (h *Handlers) AdminAwardUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.rv2_award_name"), http.StatusBadRequest)
 		return
 	}
+	if body.MinGrantRank < 0 || body.MinGrantRank > 5 {
+		body.MinGrantRank = 0
+	}
 	if _, err := h.db.Exec(`
-		UPDATE awards SET name = ?, description = ?, icon = ?, color = ?, active = ?, sort_order = ?
+		UPDATE awards SET name = ?, description = ?, icon = ?, color = ?, active = ?, sort_order = ?, min_grant_rank = ?
 		WHERE id = ?`,
 		name, strings.TrimSpace(body.Description), strings.TrimSpace(body.Icon),
-		strings.TrimSpace(body.Color), body.Active, body.SortOrder, id); err != nil {
+		strings.TrimSpace(body.Color), body.Active, body.SortOrder, body.MinGrantRank, id); err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}

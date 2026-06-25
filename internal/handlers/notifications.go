@@ -29,7 +29,7 @@ func (h *Handlers) APIGetNotifications(w http.ResponseWriter, r *http.Request) {
 		FROM raid_lobbies rl
 		JOIN users u ON u.id = rl.host_id
 		WHERE rl.host_id IN (
-			SELECT friend_id FROM user_friends WHERE user_id = ?
+			SELECT friend_id FROM user_follows WHERE user_id = ?
 		)
 		AND rl.state IN ('open', 'full', 'raiding')
 		ORDER BY rl.created_at DESC`, u.ID)

@@ -244,13 +244,17 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 				resp["pokemon"] = poke
 				var cpms []cpmEntry
 				if json.Unmarshal(h.store.CPMultipliers(), &cpms) == nil {
+					var appraisalBars *int
+					if ext.AppraisalBars >= 0 {
+						appraisalBars = &ext.AppraisalBars
+					}
 					req := ivRequest{
 						PokemonName:   ext.PokemonName,
 						CP:            ext.CP,
 						HP:            ext.HP,
 						DustCost:      ext.DustCost,
 						TrainerLevel:  trainerLevel,
-						AppraisalBars: ext.AppraisalBars,
+						AppraisalBars: appraisalBars,
 					}
 					candidates := enumerateIVs(req, *poke, cpms)
 					resp["candidates"] = candidates

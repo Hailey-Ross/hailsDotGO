@@ -54,7 +54,7 @@ function setLoading(btn: HTMLButtonElement, loading: boolean): void {
 
   if (btnBlock) {
     btnBlock.addEventListener('click', async () => {
-      if (!confirm('Block this user? They will be removed from your friends list and will not be able to add you.')) return;
+      if (!confirm('Block this user? They will be unfollowed in both directions and will not be able to follow you.')) return;
       setLoading(btnBlock, true);
       const d = await socialFetch(`/api/social/${encodeURIComponent(username)}/block`, 'POST');
       if (d.ok) {
