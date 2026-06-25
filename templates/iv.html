@@ -1,0 +1,74 @@
+{{define "title"}}{{T "iv.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{T "iv.title"}}</h1>
+  <p>{{T "iv.subtitle"}}</p>
+</div>
+
+<div id="iv-app">
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>{{T "iv.loading"}}</p>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const IV = {
+  tabManual:         {{T "iv.tab_manual"}},
+  tabOCR:            {{T "iv.tab_ocr"}},
+  tabBox:            {{T "iv.tab_box"}},
+  fieldPokemon:      {{T "iv.field_pokemon"}},
+  fieldCP:           {{T "iv.field_cp"}},
+  fieldHP:           {{T "iv.field_hp"}},
+  fieldDust:         {{T "iv.field_dust"}},
+  fieldTrainerLvl:   {{T "iv.field_trainer_level"}},
+  fieldTopStat:      {{T "iv.field_top_stat"}},
+  fieldAppraisal:    {{T "iv.field_appraisal"}},
+  topAtk:            {{T "iv.top_atk"}},
+  topDef:            {{T "iv.top_def"}},
+  topSta:            {{T "iv.top_sta"}},
+  topUnknown:        {{T "iv.top_unknown"}},
+  stars0:            {{T "iv.stars_0"}},
+  stars1:            {{T "iv.stars_1"}},
+  stars2:            {{T "iv.stars_2"}},
+  stars3:            {{T "iv.stars_3"}},
+  starsUnknown:      {{T "iv.stars_unknown"}},
+  btnCalculate:      {{T "iv.btn_calculate"}},
+  btnOCRScan:        {{T "iv.btn_ocr_scan"}},
+  btnSaveBox:        {{T "iv.btn_save_box"}},
+  btnDelete:         {{T "iv.btn_delete"}},
+  resultDefinitive:  {{T "iv.result_definitive"}},
+  resultCount:       {{T "iv.result_count"}},
+  resultNoMatch:     {{T "iv.result_no_match"}},
+  boxEmpty:          {{T "iv.box_empty"}},
+  boxFull:           {{T "iv.box_full"}},
+  boxCount:          {{T "iv.box_count"}},
+  ocrHint:           {{T "iv.ocr_hint"}},
+  boxHint:           {{T "iv.box_hint"}},
+  colAtk:            {{T "iv.col_atk"}},
+  colDef:            {{T "iv.col_def"}},
+  colSta:            {{T "iv.col_sta"}},
+  colLevel:          {{T "iv.col_level"}},
+  colIVPct:          {{T "iv.col_iv_pct"}},
+  colCP:             {{T "iv.col_cp"}},
+  colHP:             {{T "iv.col_hp"}},
+  colActions:        {{T "iv.col_actions"}},
+  colNote:           {{T "iv.col_note"}},
+  notePlaceholder:   {{T "iv.note_placeholder"}},
+  saveSuccess:       {{T "iv.save_success"}},
+  saveFailed:        {{T "iv.save_failed"}},
+  deleteSuccess:     {{T "iv.delete_success"}},
+  deleteFailed:      {{T "iv.delete_failed"}},
+  ocrFailed:         {{T "iv.ocr_failed"}},
+  commonError:       {{T "js.common.error"}},
+  commonFailed:      {{T "js.common.failed_load"}},
+  commonRemove:      {{T "js.common.remove"}},
+  noPokemonFound:    {{T "js.common.no_pokemon_found"}}
+};
+</script>
+<script>const IV_CTX = { loggedIn: {{if .User}}true{{else}}false{{end}}, trainerLevel: {{if .Data}}{{.Data.TrainerLevel}}{{else}}0{{end}} };</script>
+<script src="/static/js/iv.js?v={{.AssetVersion}}"></script>
+{{end}}

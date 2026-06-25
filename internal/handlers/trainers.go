@@ -42,8 +42,8 @@ type trainerEntry struct {
 }
 
 type trainersPageData struct {
-	Trainers       []trainerEntry
-	CanGrantAwards bool
+	Trainers      []trainerEntry
+	UserGrantRank int // -1 = cannot grant (logged out or community grants disabled)
 }
 
 func staffSortRank(badge string) int {
@@ -106,12 +106,10 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	canGrant := false
+	userGrantRank := -1
 	if u := h.currentUser(r); u != nil {
-		if u.IsMod() {
-			canGrant = true
-		} else if h.settingBool("awards_community_grants_enabled") {
-			canGrant = h.effectiveTrust(u.ID) >= h.settingFloat("awards_grant_min_trust", 50)
+		if u.IsMod() || h.settingBool("awards_community_grants_enabled") {
+			userGrantRank = userAwardGrantRank(u)
 		}
 	}
 
@@ -125,7 +123,7 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		WHERE directory_hidden = 0 AND disabled = 0
 		ORDER BY username ASC`)
 	if err != nil {
-		h.render(w, r, "trainers", trainersPageData{Trainers: []trainerEntry{}, CanGrantAwards: canGrant})
+		h.render(w, r, "trainers", trainersPageData{Trainers: []trainerEntry{}, UserGrantRank: userGrantRank})
 		return
 	}
 	defer rows.Close()
@@ -199,14 +197,15 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		return nameA < nameB
 	})
 
-	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, CanGrantAwards: canGrant})
+	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, UserGrantRank: userGrantRank})
 }
 
 type trainerProfileData struct {
 	Trainer         trainerEntry
 	ViewerUsername  string
 	IsOwnProfile    bool
-	IsFriend        bool
+	IsFollowing     bool
+	FollowsMe       bool
 	IsBlocked       bool
 	TheyBlockedYou  bool
 	Feedback        []trainerFeedbackEntry
@@ -214,6 +213,8 @@ type trainerProfileData struct {
 	MyFeedbackOpt   uint
 	FeedbackOptions []feedbackOptionRow
 	RecentFriends   []friendEntry
+	FollowerCount   int
+	FollowingCount  int
 }
 
 func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +291,7 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 		if pd.IsOwnProfile {
 			if fRows, err := h.db.Query(`
 				SELECT u.username, COALESCE(u.trainer_name,''), COALESCE(u.avatar,'')
-				FROM user_friends uf JOIN users u ON u.id = uf.friend_id
+				FROM user_follows uf JOIN users u ON u.id = uf.friend_id
 				WHERE uf.user_id = ? ORDER BY uf.created_at DESC LIMIT 5`, viewer.ID); err == nil {
 				defer fRows.Close()
 				for fRows.Next() {
@@ -305,8 +306,12 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 
 		if !pd.IsOwnProfile {
 			var count int
-			h.db.QueryRow(`SELECT COUNT(*) FROM user_friends WHERE user_id = ? AND friend_id = ?`, viewer.ID, userID).Scan(&count)
-			pd.IsFriend = count > 0
+			h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ? AND friend_id = ?`, viewer.ID, userID).Scan(&count)
+			pd.IsFollowing = count > 0
+
+			count = 0
+			h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ? AND friend_id = ?`, userID, viewer.ID).Scan(&count)
+			pd.FollowsMe = count > 0
 
 			count = 0
 			h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, viewer.ID, userID).Scan(&count)
@@ -323,6 +328,9 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 			pd.MyFeedbackOpt = optID
 		}
 	}
+
+	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE friend_id = ?`, userID).Scan(&pd.FollowerCount)
+	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ?`, userID).Scan(&pd.FollowingCount)
 
 	var feedback []trainerFeedbackEntry
 	fbRows, err := h.db.Query(`

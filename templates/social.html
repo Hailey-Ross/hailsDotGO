@@ -1,0 +1,164 @@
+{{define "title"}}{{if .Data.TrainerName}}{{.Data.TrainerName}}{{else}}@{{.Data.Username}}{{end}}'s Connections{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{if .Data.TrainerName}}{{.Data.TrainerName}}{{else}}@{{.Data.Username}}{{end}}'s Connections</h1>
+  <p class="page-subtitle"><a href="/trainer/{{.Data.Username}}" style="color:var(--accent)">@{{.Data.Username}}</a></p>
+</div>
+
+<div class="tabs" id="social-tabs">
+  <button class="tab-btn" data-tab="friends">{{T "social.tab_friends"}} <span style="opacity:0.65;font-size:0.85em">({{len .Data.Friends}})</span></button>
+  <button class="tab-btn" data-tab="followers">{{T "social.tab_followers"}} <span style="opacity:0.65;font-size:0.85em">({{len .Data.Followers}})</span></button>
+  <button class="tab-btn" data-tab="following">{{T "social.tab_following"}} <span style="opacity:0.65;font-size:0.85em">({{len .Data.Following}})</span></button>
+</div>
+
+<div id="tab-friends" class="tab-panel">
+  {{if .Data.Friends}}
+  <div class="friends-grid">
+    {{range .Data.Friends}}
+    <div class="friends-card admin-card">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        {{if .AvatarURL}}
+        <img class="trainer-avatar-sprite" src="{{.AvatarURL}}" alt="" style="width:48px;height:48px;flex-shrink:0">
+        {{else}}
+        <span class="trainer-avatar-sm avatar--default" style="width:48px;height:48px;flex-shrink:0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
+        </span>
+        {{end}}
+        <div style="flex:1;min-width:0">
+          <a href="/trainer/{{.Username}}" class="friends-name">
+            {{if .TrainerName}}{{.TrainerName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.Username}})</span>{{else}}{{.Username}}{{end}}
+          </a>
+        </div>
+        <div style="flex-shrink:0">
+          <a href="/trainer/{{.Username}}" class="btn-secondary" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "trainers.view_profile"}}</a>
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="trainers-empty fade-up" style="padding:2rem 0">
+    <p style="color:var(--text-2)">{{T "social.no_friends"}}</p>
+  </div>
+  {{end}}
+</div>
+
+<div id="tab-followers" class="tab-panel">
+  {{if .Data.Followers}}
+  <div class="friends-grid">
+    {{range .Data.Followers}}
+    <div class="friends-card admin-card">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        {{if .AvatarURL}}
+        <img class="trainer-avatar-sprite" src="{{.AvatarURL}}" alt="" style="width:48px;height:48px;flex-shrink:0">
+        {{else}}
+        <span class="trainer-avatar-sm avatar--default" style="width:48px;height:48px;flex-shrink:0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
+        </span>
+        {{end}}
+        <div style="flex:1;min-width:0">
+          <a href="/trainer/{{.Username}}" class="friends-name">
+            {{if .TrainerName}}{{.TrainerName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.Username}})</span>{{else}}{{.Username}}{{end}}
+          </a>
+        </div>
+        <div style="flex-shrink:0">
+          <a href="/trainer/{{.Username}}" class="btn-secondary" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "trainers.view_profile"}}</a>
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="trainers-empty fade-up" style="padding:2rem 0">
+    <p style="color:var(--text-2)">{{T "social.no_followers"}}</p>
+  </div>
+  {{end}}
+</div>
+
+<div id="tab-following" class="tab-panel">
+  {{if .Data.Following}}
+  <div class="friends-grid" id="following-grid">
+    {{range .Data.Following}}
+    <div class="friends-card admin-card">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        {{if .AvatarURL}}
+        <img class="trainer-avatar-sprite" src="{{.AvatarURL}}" alt="" style="width:48px;height:48px;flex-shrink:0">
+        {{else}}
+        <span class="trainer-avatar-sm avatar--default" style="width:48px;height:48px;flex-shrink:0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
+        </span>
+        {{end}}
+        <div style="flex:1;min-width:0">
+          <a href="/trainer/{{.Username}}" class="friends-name">
+            {{if .TrainerName}}{{.TrainerName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.Username}})</span>{{else}}{{.Username}}{{end}}
+          </a>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-shrink:0">
+          <a href="/trainer/{{.Username}}" class="btn-secondary" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "trainers.view_profile"}}</a>
+          {{if $.Data.IsOwnProfile}}
+          <button class="btn-secondary social-btn friends-remove-btn" data-username="{{.Username}}" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "trainer.remove_friend"}}</button>
+          {{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="trainers-empty fade-up" style="padding:2rem 0">
+    <p style="color:var(--text-2)">{{T "social.no_following"}}</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+(function() {
+  var validTabs = ['friends', 'followers', 'following'];
+
+  function activate(tab) {
+    document.querySelectorAll('#social-tabs .tab-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.tab-panel').forEach(function(panel) {
+      panel.classList.toggle('active', panel.id === 'tab-' + tab);
+    });
+  }
+
+  var initial = location.hash.replace('#', '');
+  activate(validTabs.indexOf(initial) !== -1 ? initial : 'friends');
+
+  document.querySelectorAll('#social-tabs .tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var tab = this.dataset.tab;
+      history.replaceState(null, '', '#' + tab);
+      activate(tab);
+    });
+  });
+
+  window.addEventListener('hashchange', function() {
+    var hash = location.hash.replace('#', '');
+    activate(validTabs.indexOf(hash) !== -1 ? hash : 'friends');
+  });
+
+  document.querySelectorAll('.friends-remove-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var username = btn.dataset.username;
+      btn.disabled = true;
+      fetch('/api/social/' + encodeURIComponent(username) + '/friend', {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content ?? '' }
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.ok) {
+          var card = btn.closest('.friends-card');
+          if (card) card.remove();
+        } else {
+          btn.disabled = false;
+        }
+      }).catch(function() { btn.disabled = false; });
+    });
+  });
+})();
+</script>
+{{end}}

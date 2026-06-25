@@ -74,6 +74,7 @@ function cardSpriteImg(src: string, alt: string, cls: string): HTMLImageElement 
 function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
+    wrap.className = "dps-calc-panel";
 
     const form = document.createElement("div");
     form.className = "calc-form";
@@ -293,6 +294,7 @@ function targetEntries(data: GameData, all: PickerEntry[]): PickerEntry[] {
 function buildComparePanel(data: GameData, allEntries: PickerEntry[]): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
+    wrap.className = "dps-compare-panel";
     let targetTypes: string[] = [];
     let attackers: Attacker[] = [];
     let nextId = 0;

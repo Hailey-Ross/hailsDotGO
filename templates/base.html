@@ -25,24 +25,24 @@
     <button class="nav-sidebar-close" id="nav-sidebar-close" aria-label="Close menu">&times;</button>
   </div>
   <div class="nav-links" id="nav-links">
-    {{if .Maintenance.RaidsEnabled}}<a href="/raids">{{T "nav.raids"}}</a>{{end}}
-    {{if .Maintenance.DPSEnabled}}<a href="/dps">{{T "nav.dps"}}</a>{{end}}
-    {{if .Maintenance.PVPEnabled}}<a href="/pvp">{{T "nav.pvp"}}</a>{{end}}
-    {{if .Maintenance.EventsEnabled}}<a href="/events">{{T "nav.events"}}</a>{{end}}
-    {{if .Maintenance.ShinyDexEnabled}}<a href="/shinydex">{{T "nav.shinydex"}}</a>{{end}}
-    {{if .Maintenance.TrainersEnabled}}<a href="/trainers">{{T "nav.trainers"}}</a>{{end}}
-    {{if .Maintenance.RaidFinderEnabled}}<a href="/raidfinder">{{T "nav.raidfinder"}}</a>{{end}}
-    {{if .StoreEnabled}}<a href="/store">{{T "nav.store"}}</a>{{end}}
-    {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}<a href="/translate">{{T "nav.translate"}}</a>{{end}}
+    {{if .Maintenance.RaidsEnabled}}<a href="/raids"{{if pathActive .Path "/raids"}} class="active"{{end}}>{{T "nav.raids"}}</a>{{end}}
+    {{if .Maintenance.DPSEnabled}}<a href="/dps"{{if pathActive .Path "/dps"}} class="active"{{end}}>{{T "nav.dps"}}</a>{{end}}
+    {{if .Maintenance.IVEnabled}}<a href="/iv"{{if pathActive .Path "/iv"}} class="active"{{end}}>{{T "nav.iv"}}</a>{{end}}
+    {{if .Maintenance.PVPEnabled}}<a href="/pvp"{{if pathActive .Path "/pvp"}} class="active"{{end}}>{{T "nav.pvp"}}</a>{{end}}
+    {{if .Maintenance.EventsEnabled}}<a href="/events"{{if pathActive .Path "/events"}} class="active"{{end}}>{{T "nav.events"}}</a>{{end}}
+{{if .Maintenance.TrainersEnabled}}<a href="/trainers"{{if pathActive .Path "/trainers"}} class="active"{{end}}>{{T "nav.trainers"}}</a>{{end}}
+    {{if .Maintenance.RaidFinderEnabled}}<a href="/raidfinder"{{if pathActive .Path "/raidfinder"}} class="active"{{end}}>{{T "nav.raidfinder"}}</a>{{end}}
+    {{if .StoreEnabled}}<a href="/store"{{if pathActive .Path "/store"}} class="active"{{end}}>{{T "nav.store"}}</a>{{end}}
+    {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}<a href="/translate"{{if pathActive .Path "/translate"}} class="active"{{end}}>{{T "nav.translate"}}</a>{{end}}
     {{if .User}}
-    {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-link-highlight">{{T "nav.collection"}}</a>{{end}}
-    <a href="/settings">{{T "nav.settings"}}</a>
-    {{if .User.IsMod}}<a href="/admin">{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
+    {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-link-highlight{{if pathActive .Path "/shinies"}} active{{end}}">{{T "nav.collection"}}</a>{{end}}
+    <a href="/settings"{{if pathActive .Path "/settings"}} class="active"{{end}}>{{T "nav.settings"}}</a>
+    {{if .User.IsMod}}<a href="/admin"{{if pathActive .Path "/admin"}} class="active"{{end}}>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
     <div class="nav-user-row">
       <a href="/notifications" class="nav-notif-link" id="nav-notif-btn" title="{{T "nav.notifications"}}">🔔<span class="nav-notif-badge" id="nav-notif-badge" style="display:none"></span></a>
       <form method="POST" action="/logout" style="display:block;margin:0">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="nav-logout-btn">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}} &times;</button>
+        <button type="submit" class="nav-logout-btn" onclick="return confirm({{T "nav.logout_confirm"}})">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}} &times;</button>
       </form>
     </div>
     {{else}}

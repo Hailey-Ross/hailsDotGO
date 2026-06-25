@@ -63,7 +63,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/raids", h.APIRaids)
 		r.Get("/events", h.APIEvents)
 		r.Get("/data", h.APIData)
-		r.Get("/raid/overview", h.APIRaidOverview)
+		r.Get("/raid/overview", h.MobileRaidOverview)
 
 		// All remaining endpoints require authentication.
 		r.Group(func(r chi.Router) {
@@ -80,7 +80,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/iv/pokemon", h.ListPokemonIV)
 			r.Delete("/iv/pokemon/{id}", h.DeletePokemonIV)
 
-			r.Get("/raid/state", h.APIRaidState)
+			r.Get("/raid/state", h.MobileRaidState)
 			r.Post("/raid/queue", h.APIRaidQueueJoin)
 			r.Delete("/raid/queue", h.APIRaidQueueLeave)
 			r.Post("/raid/lobbies", h.APIRaidLobbyCreate)
@@ -89,13 +89,13 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Post("/raid/lobbies/{id}/leave", h.APIRaidLobbyLeave)
 			r.Post("/raid/lobbies/{id}/kick", h.APIRaidLobbyKick)
 			r.Post("/raid/lobbies/{id}/invited", h.APIRaidLobbyInvited)
-			r.Post("/raid/lobbies/{id}/report", h.APIRaidLobbyReport)
-			r.Post("/raid/lobbies/{id}/feedback", h.APIRaidLobbyFeedback)
+			r.Post("/raid/lobbies/{id}/report", h.MobileRaidLobbyReport)
+			r.Post("/raid/lobbies/{id}/feedback", h.MobileRaidLobbyFeedback)
 		})
 	})
 
 	csrfDebug := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, cookieErr := r.Cookie("_gorilla_csrf")
+		_, cookieErr := r.Cookie("_pogo_csrf")
 		log.Printf("CSRF FAIL: method=%s path=%s reason=%v token=%q cookie_present=%v",
 			r.Method, r.URL.Path,
 			csrf.FailureReason(r),
@@ -106,14 +106,14 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	})
 
 	r.Group(func(r chi.Router) {
-		r.Use(csrf.Protect(csrfKey, csrf.Secure(true), csrf.SameSite(csrf.SameSiteStrictMode), csrf.ErrorHandler(csrfDebug)))
+		r.Use(csrf.Protect(csrfKey, csrf.Secure(true), csrf.SameSite(csrf.SameSiteStrictMode), csrf.Path("/"), csrf.ErrorHandler(csrfDebug), csrf.CookieName("_pogo_csrf")))
 
 		r.Get("/", h.Home)
 		r.Get("/raids", h.Raids)
 		r.Get("/dps", h.DPS)
 		r.Get("/pvp", h.PVP)
 		r.Get("/events", h.Events)
-		r.Get("/shinydex", h.ShinyDex)
+		r.Get("/iv", h.GetIVPage)
 		r.Get("/credits", h.Credits)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
@@ -128,7 +128,8 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/trainers", h.TrainersPage)
 		r.Get("/trainer/{username}", h.TrainerProfilePage)
-		r.Get("/friends", h.RequireAuth(h.FriendsPage))
+		r.Get("/social/{username}", h.SocialPage)
+		r.Get("/friends", h.RequireAuth(h.FriendsRedirect))
 		r.Get("/notifications", h.RequireAuth(h.NotificationsPage))
 		r.Get("/raidfinder", h.RaidFinderPage)
 
@@ -275,7 +276,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
 
-		r.Post("/api/iv/calculate", h.RequireAuthAPI(h.IVCalculate))
+		r.Post("/api/iv/calculate", h.IVCalculate)
 		r.With(httprate.LimitByIP(10, time.Minute)).Post("/api/iv/ocr", h.RequireAuthAPI(h.IVFromOCR))
 
 		r.With(httprate.LimitAll(2, 10*time.Minute)).Post("/api/refresh", h.RequireAPIAccess(h.APIRefresh))

@@ -295,6 +295,17 @@
         </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.iv"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="page_iv_enabled" value="1"
+                   {{if .Data.Maintenance.IVEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.IVEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
           <span style="font-size:0.9rem">{{T "admin.pages.trainers"}}</span>
           <label class="admin-toggle-label" style="margin:0">
             <input type="checkbox" name="page_trainers_enabled" value="1"
@@ -334,17 +345,6 @@
                    {{if .Data.Maintenance.ShiniesEnabled}}checked{{end}}>
             <span class="admin-toggle-text">
               {{if .Data.Maintenance.ShiniesEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
-            </span>
-          </label>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:0.9rem">{{T "admin.pages.shinydex"}}</span>
-          <label class="admin-toggle-label" style="margin:0">
-            <input type="checkbox" name="page_shinydex_enabled" value="1"
-                   {{if .Data.Maintenance.ShinyDexEnabled}}checked{{end}}>
-            <span class="admin-toggle-text">
-              {{if .Data.Maintenance.ShinyDexEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
             </span>
           </label>
         </div>
@@ -416,6 +416,14 @@
       <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:var(--text-2)">
         {{T "admin.awards.color_label"}} <input type="color" id="award-color-input" value="#f0b429" style="width:36px;height:28px;padding:2px;border-radius:4px;border:1px solid var(--border);background:transparent;cursor:pointer">
       </label>
+      <select id="award-min-rank-input" class="auth-input" style="width:auto;font-size:0.83rem">
+        <option value="0">Anyone</option>
+        <option value="1">Trusted+</option>
+        <option value="2">Content Creator+</option>
+        <option value="3">Translator+</option>
+        <option value="4">Tester+</option>
+        <option value="5">Moderator only</option>
+      </select>
       <button type="submit" class="btn-primary">{{T "admin.awards.create"}}</button>
       <span id="award-create-status" style="font-size:0.8rem"></span>
     </form>
@@ -1626,6 +1634,8 @@ async function deleteAdminLobby(id) {
 
 // ── Awards management ──────────────────────────────────────────
 
+const AWARD_RANK_LABELS = ['Anyone','Trusted+','Content Creator+','Translator+','Tester+','Moderator only'];
+
 let adminAwards = [];
 
 async function loadAdminAwards() {
@@ -1646,10 +1656,13 @@ async function loadAdminAwards() {
         <strong style="color:${esc(a.color)}">${esc(a.name)}</strong>
         <span style="color:var(--text-2)">${esc(a.description)}</span>
         ${IS_ADMIN ? `
+        <select style="font-size:0.78rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="updateAwardMinRank(${a.id}, +this.value)">
+          ${AWARD_RANK_LABELS.map((l,i) => `<option value="${i}"${a.min_grant_rank===i?' selected':''}>${l}</option>`).join('')}
+        </select>
         <span style="margin-left:auto;display:flex;gap:0.4rem">
           <button class="um-btn ${a.active ? 'um-btn-warn' : 'um-btn-ok'}" onclick="toggleAwardActive(${a.id})">${a.active ? STRINGS.btnDeactivate : STRINGS.btnActivate}</button>
           <button class="um-btn um-btn-danger" onclick="deleteAward(${a.id})">${STRINGS.btnDelete}</button>
-        </span>` : ''}
+        </span>` : `<span style="font-size:0.78rem;color:var(--text-2)">${AWARD_RANK_LABELS[a.min_grant_rank] || 'Anyone'}</span>`}
       </div>`).join('');
   }
 
@@ -1679,7 +1692,18 @@ async function toggleAwardActive(id) {
   const res = await csrfFetch('/api/admin/awards/' + id, {
     method: 'PATCH',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name: a.name, description: a.description, icon: a.icon, color: a.color, active: !a.active, sort_order: a.sort_order}),
+    body: JSON.stringify({name: a.name, description: a.description, icon: a.icon, color: a.color, active: !a.active, sort_order: a.sort_order, min_grant_rank: a.min_grant_rank}),
+  });
+  if (res.ok) loadAdminAwards();
+}
+
+async function updateAwardMinRank(id, rank) {
+  const a = adminAwards.find(a => a.id === id);
+  if (!a) return;
+  const res = await csrfFetch('/api/admin/awards/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name: a.name, description: a.description, icon: a.icon, color: a.color, active: a.active, sort_order: a.sort_order, min_grant_rank: rank}),
   });
   if (res.ok) loadAdminAwards();
 }
@@ -1709,6 +1733,7 @@ async function revokeGrant(id) {
           icon: document.getElementById('award-icon-input').value.trim(),
           description: document.getElementById('award-desc-input').value.trim(),
           color: document.getElementById('award-color-input').value,
+          min_grant_rank: parseInt(document.getElementById('award-min-rank-input').value, 10) || 0,
         }),
       });
       if (res.ok) {

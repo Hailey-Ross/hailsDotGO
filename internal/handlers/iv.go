@@ -12,6 +12,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type ivPageData struct {
+	TrainerLevel int
+}
+
+func (h *Handlers) GetIVPage(w http.ResponseWriter, r *http.Request) {
+	pd := ivPageData{}
+	if u := h.currentUser(r); u != nil {
+		h.db.QueryRow(`SELECT COALESCE(trainer_level, 0) FROM users WHERE id = ?`, u.ID).Scan(&pd.TrainerLevel)
+	}
+	h.render(w, r, "iv", pd)
+}
+
 // IV calculation types
 
 type cpmEntry struct {
@@ -44,18 +56,20 @@ type ivRequest struct {
 	HP            int    `json:"hp"`
 	DustCost      int    `json:"dust_cost"`
 	TrainerLevel  int    `json:"trainer_level"`
-	TopStat       string `json:"top_stat"`       // "atk", "def", "sta", or "" to skip filter
-	AppraisalBars int    `json:"appraisal_bars"` // 0-3 (PoGo star rating); -1 to skip filter
+	TopStat       string `json:"top_stat"`        // "atk", "def", "sta", or "" to skip filter
+	AppraisalBars *int   `json:"appraisal_bars"` // nil or absent = skip; 0-3 = apply star filter
 }
 
 // dustBrackets maps stardust power-up cost to the level range it implies.
+// Each bracket covers MinLvl through MaxLvl+0.5 (the loop adds an extra half-step).
 // 10,000 dust appears twice (levels 39-40 and 41-42) to cover both regular and XL candy ranges.
+// Purified Pokémon cost 10% less; 5400 is the purified equivalent of the standard 6000 tier.
 var dustBrackets = []struct{ Dust, MinLvl, MaxLvl int }{
 	{200, 1, 2}, {400, 3, 4}, {600, 5, 6}, {800, 7, 8},
 	{1000, 9, 10}, {1300, 11, 12}, {1600, 13, 14}, {1900, 15, 16},
 	{2200, 17, 18}, {2500, 19, 20}, {3000, 21, 22}, {3500, 23, 24},
 	{4000, 25, 26}, {4500, 27, 28}, {5000, 29, 30},
-	{6000, 31, 32}, {7000, 33, 34}, {8000, 35, 36}, {9000, 37, 38},
+	{5400, 31, 32}, {6000, 31, 32}, {7000, 33, 34}, {8000, 35, 36}, {9000, 37, 38},
 	{10000, 39, 40}, {10000, 41, 42},
 	{12000, 43, 44}, {15000, 45, 46}, {17500, 47, 48}, {20000, 49, 50},
 }
@@ -102,7 +116,7 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 		}
 	}
 	if minLvl == 0 {
-		return nil
+		return []IVCandidate{}
 	}
 
 	// Wild/hatched Pokemon cannot exceed trainer level + 2.
@@ -111,9 +125,9 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 	}
 
 	ivSumMin, ivSumMax := 0, 45
-	if req.AppraisalBars >= 0 && req.AppraisalBars <= 3 {
-		ivSumMin = appraisalRange[req.AppraisalBars][0]
-		ivSumMax = appraisalRange[req.AppraisalBars][1]
+	if req.AppraisalBars != nil && *req.AppraisalBars >= 0 && *req.AppraisalBars <= 3 {
+		ivSumMin = appraisalRange[*req.AppraisalBars][0]
+		ivSumMax = appraisalRange[*req.AppraisalBars][1]
 	}
 
 	cpmByLevel := make(map[float64]float64, len(cpms))
@@ -121,7 +135,7 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 		cpmByLevel[e.Level] = e.Multiplier
 	}
 
-	var candidates []IVCandidate
+	candidates := make([]IVCandidate, 0)
 	for atkIV := 0; atkIV <= 15; atkIV++ {
 		for defIV := 0; defIV <= 15; defIV++ {
 			for staIV := 0; staIV <= 15; staIV++ {
@@ -143,7 +157,7 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 						continue
 					}
 				}
-				for lvl := float64(minLvl); lvl <= float64(maxLvl); lvl += 0.5 {
+				for lvl := float64(minLvl); lvl <= float64(maxLvl)+0.5; lvl += 0.5 {
 					cpm, ok := cpmByLevel[lvl]
 					if !ok {
 						continue
@@ -230,6 +244,7 @@ type pokemonBoxEntry struct {
 	AtkIV        *int            `json:"atk_iv"`
 	DefIV        *int            `json:"def_iv"`
 	StaIV        *int            `json:"sta_iv"`
+	IVPct        *float64        `json:"iv_pct,omitempty"`
 	IVCandidates json.RawMessage `json:"iv_candidates,omitempty"`
 	CaughtAt     *time.Time      `json:"caught_at,omitempty"`
 	Note         string          `json:"note"`
@@ -264,6 +279,17 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(body.Note) > 160 {
 		body.Note = body.Note[:160]
+	}
+
+	const maxPokemonBoxSize = 3000
+	var boxCount int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM user_pokemon_box WHERE user_id = ?`, u.ID).Scan(&boxCount); err != nil {
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if boxCount >= maxPokemonBoxSize {
+		writeJSONError(w, "box is full (3000 Pokémon limit)", http.StatusConflict)
+		return
 	}
 
 	var candidatesJSON any
@@ -334,6 +360,10 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(candidatesRaw) > 0 {
 			e.IVCandidates = json.RawMessage(candidatesRaw)
+		}
+		if e.AtkIV != nil && e.DefIV != nil && e.StaIV != nil {
+			pct := math.Round(float64(*e.AtkIV+*e.DefIV+*e.StaIV)/45.0*1000) / 10
+			e.IVPct = &pct
 		}
 		entries = append(entries, e)
 	}

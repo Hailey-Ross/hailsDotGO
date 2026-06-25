@@ -531,5 +531,23 @@ ALTER TABLE user_shinies
   DROP INDEX uk_user_shiny,
   ADD UNIQUE KEY uk_user_shiny (user_id, pokemon_id, form, costume, event_tag);
 
-  -- 32. Trainer level field (2026-06-23)
+-- 32. Trainer level field (2026-06-23)
 ALTER TABLE users ADD COLUMN trainer_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER trainer_code;
+
+-- 33. Drop unique constraint on user_shinies to allow true duplicate shiny entries (2026-06-23)
+-- Add replacement index first so MySQL has an alternative for the FK before dropping the unique one.
+ALTER TABLE user_shinies ADD INDEX idx_user_shiny (user_id, pokemon_id);
+ALTER TABLE user_shinies DROP INDEX uk_user_shiny;
+
+-- 34. Rename user_friends to user_follows (2026-06-23)
+-- Converts the "Add Friend" concept to a followers/following model.
+-- Semantics unchanged: user_id follows friend_id. All FKs, indexes, and data preserved.
+RENAME TABLE user_friends TO user_follows;
+
+-- 35. Confirm timeout warning flag on raid_lobby_members (2026-06-25)
+ALTER TABLE raid_lobby_members ADD COLUMN confirm_warned_30s TINYINT(1) NOT NULL DEFAULT 0;
+
+-- 36. Per-award minimum grant rank (2026-06-25)
+-- 0=Anyone  1=Trusted  2=ContentCreator  3=Translator  4=Tester  5=Moderator
+-- Admins always bypass via IsMod() check in the handler.
+ALTER TABLE awards ADD COLUMN min_grant_rank TINYINT UNSIGNED NOT NULL DEFAULT 0;
