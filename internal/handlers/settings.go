@@ -75,7 +75,8 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(fav_pokemon,''), COALESCE(fav_pokemon_form,'')
 		FROM users WHERE id = ?`, u.ID,
 	).Scan(&d.TrainerName, &d.TrainerCode, &d.TrainerLevel, &d.Avatar, &d.Pronouns, &d.City, &d.Region, &d.Country, &d.LocationDisplay, &d.ProfilePublic, &d.ShiniesHidden, &d.FavPokemon, &d.FavPokemonForm)
-	d.TrainerClasses = h.store.TrainerClasses()
+	locks, _ := h.loadSpriteLocks()
+	d.TrainerClasses = filteredTrainerClasses(h.store.TrainerClasses(), locks, userAwardGrantRank(u))
 	d.PokemonList = h.store.PokemonList()
 	d.TagRequest = h.queryTagRequest(u.ID)
 	bRows, err := h.db.Query(`
@@ -139,9 +140,13 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	if !validDisplay[locationDisplay] {
 		locationDisplay = "none"
 	}
+	avatarLocks, _ := h.loadSpriteLocks()
+	userRank := userAwardGrantRank(u)
 	validAvatars := map[string]bool{"": true}
 	for _, tc := range h.store.TrainerClasses() {
-		validAvatars[tc.Slug] = true
+		if userRank >= spriteMinRank(tc, avatarLocks) {
+			validAvatars[tc.Slug] = true
+		}
 	}
 	if !validAvatars[avatar] {
 		avatar = ""
@@ -164,7 +169,8 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 			Avatar: avatar, Pronouns: pronouns, City: city, Region: region, Country: country,
 			LocationDisplay: locationDisplay, ProfilePublic: profilePublic, ShiniesHidden: shiniesHidden,
 			FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
-			TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
+			TrainerClasses: filteredTrainerClasses(h.store.TrainerClasses(), avatarLocks, userRank),
+			PokemonList: h.store.PokemonList(),
 			TagRequest: h.queryTagRequest(u.ID),
 		})
 	}
@@ -230,7 +236,8 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		Avatar: avatar, Pronouns: pronouns, City: city, Region: region, Country: country,
 		LocationDisplay: locationDisplay, ProfilePublic: profilePublic, ShiniesHidden: shiniesHidden,
 		FavPokemon: favPokemon, FavPokemonForm: favPokemonForm,
-		TrainerClasses: h.store.TrainerClasses(), PokemonList: h.store.PokemonList(),
-		TagRequest: h.queryTagRequest(u.ID),
+		TrainerClasses: filteredTrainerClasses(h.store.TrainerClasses(), avatarLocks, userRank),
+		PokemonList:    h.store.PokemonList(),
+		TagRequest:     h.queryTagRequest(u.ID),
 	})
 }

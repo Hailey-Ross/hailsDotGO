@@ -23,6 +23,7 @@
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="pages">{{T "admin.tab.pages"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
+  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="sprites">Trainer Avatars</button>{{end}}
   <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
 </div>
 
@@ -470,6 +471,33 @@
         <span id="fopt-add-status" style="font-size:0.82rem"></span>
       </div>
     </form>
+  </div>
+</div>
+
+<div id="tab-sprites" class="tab-panel">
+  <div class="admin-card">
+    <h2>Trainer Avatars</h2>
+    <p class="admin-desc">Lock trainer sprites to a minimum rank. Professor sprites are always locked to Trusted or higher -- this is automatic and cannot be changed here.</p>
+
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+      <input type="text" id="sprite-search" class="auth-input" placeholder="Search sprites..."
+             style="max-width:220px" autocomplete="off">
+      <select id="sprite-group-filter" class="move-select" style="max-width:195px">
+        <option value="">All groups</option>
+        <option value="classic">Classic (Showdown)</option>
+        <option value="dreamstone">Dreamstone (GBA)</option>
+        <option value="pex">pokeemerald-expansion (FRLG)</option>
+      </select>
+      <select id="sprite-lock-filter" class="move-select" style="max-width:175px">
+        <option value="">All locks</option>
+        <option value="locked">Locked only</option>
+        <option value="unlocked">Unlocked only</option>
+      </select>
+    </div>
+
+    <div id="sprite-lock-table" style="display:flex;flex-direction:column;gap:0.35rem">
+      <p style="color:var(--text-2);font-size:0.9rem">Loading...</p>
+    </div>
   </div>
 </div>
 {{end}}
@@ -2437,5 +2465,123 @@ if (foptAddForm) {
     }
   });
 }
+
+// ---- Trainer Avatars (sprite locks) ----------------------------------------
+var spriteData = null;
+
+var LOCK_OPTIONS = [
+  {v: 0,   label: 'Unlocked (all users)'},
+  {v: 1,   label: 'Trusted or higher'},
+  {v: 2,   label: 'Content Creator or higher'},
+  {v: 4,   label: 'Tester or higher'},
+  {v: 5,   label: 'Moderator or higher'},
+  {v: 100, label: 'Admin only'},
+];
+
+var GROUP_LABELS = {
+  classic:    'Classic (Showdown)',
+  dreamstone: 'Dreamstone (GBA)',
+  pex:        'pokeemerald-expansion (FRLG)',
+};
+
+async function loadSpriteLocks() {
+  var tableEl = document.getElementById('sprite-lock-table');
+  if (!tableEl) return;
+  tableEl.innerHTML = '<p style="color:var(--text-2);font-size:0.9rem">Loading...</p>';
+  var res = await fetch('/api/admin/sprite-locks');
+  if (!res.ok) { tableEl.innerHTML = '<p style="color:#fc8181">Failed to load sprite data.</p>'; return; }
+  spriteData = await res.json();
+  renderSpriteTable();
+}
+
+function renderSpriteTable() {
+  var tableEl = document.getElementById('sprite-lock-table');
+  if (!tableEl || !spriteData) return;
+  var q     = (document.getElementById('sprite-search')?.value || '').toLowerCase().replace(/[-_]/g, ' ');
+  var grp   = document.getElementById('sprite-group-filter')?.value || '';
+  var lk    = document.getElementById('sprite-lock-filter')?.value || '';
+
+  var filtered = spriteData.filter(function(s) {
+    if (grp && s.group !== grp) return false;
+    var effRank = s.is_professor ? 1 : s.min_rank;
+    if (lk === 'locked'   && effRank === 0) return false;
+    if (lk === 'unlocked' && effRank  >  0) return false;
+    if (q) {
+      var haystack = (s.label + ' ' + s.slug + ' ' + (GROUP_LABELS[s.group] || s.group)).toLowerCase().replace(/[-_]/g, ' ');
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tableEl.innerHTML = '<p style="color:var(--text-2);font-size:0.9rem">No sprites match the current filters.</p>';
+    return;
+  }
+
+  tableEl.innerHTML = filtered.map(function(s) {
+    var effRank = s.is_professor ? 1 : s.min_rank;
+    var imgStyle = 'width:36px;height:36px;object-fit:contain;image-rendering:pixelated;flex-shrink:0';
+    var img = '<img src="' + s.sprite_url + '" alt="" style="' + imgStyle + '" loading="lazy">';
+    var badge = '<span style="font-size:0.7rem;color:var(--text-3);background:rgba(255,255,255,0.07);'
+              + 'border-radius:4px;padding:1px 6px;margin-left:0.4rem">'
+              + (GROUP_LABELS[s.group] || s.group) + '</span>';
+    var lockPart;
+    if (s.is_professor) {
+      lockPart = '<span style="font-size:0.8rem;color:var(--text-3);font-style:italic">Trusted+ (auto-locked)</span>';
+    } else {
+      var opts = LOCK_OPTIONS.map(function(o) {
+        return '<option value="' + o.v + '"' + (s.min_rank === o.v ? ' selected' : '') + '>' + o.label + '</option>';
+      }).join('');
+      lockPart = '<select class="move-select sprite-lock-sel" data-slug="' + s.slug + '" style="font-size:0.82rem">'
+               + opts + '</select>'
+               + '<button class="btn-primary sprite-lock-save" data-slug="' + s.slug
+               + '" style="font-size:0.8rem;padding:0.3rem 0.75rem">Save</button>'
+               + '<span class="sprite-lock-status" data-slug="' + s.slug
+               + '" style="font-size:0.8rem;min-width:50px"></span>';
+    }
+    return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.6rem;'
+         + 'background:rgba(255,255,255,0.04);border-radius:6px;flex-wrap:wrap">'
+         + img
+         + '<span style="flex:1;font-size:0.88rem;min-width:120px">' + s.label + badge + '</span>'
+         + '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">' + lockPart + '</div>'
+         + '</div>';
+  }).join('');
+
+  tableEl.querySelectorAll('.sprite-lock-save').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var slug = btn.dataset.slug;
+      var sel = tableEl.querySelector('.sprite-lock-sel[data-slug="' + slug + '"]');
+      var statusEl = tableEl.querySelector('.sprite-lock-status[data-slug="' + slug + '"]');
+      var minRank = parseInt(sel.value, 10);
+      var res = await csrfFetch('/api/admin/sprite-lock/' + encodeURIComponent(slug), {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({min_rank: minRank}),
+      });
+      if (res.ok) {
+        var entry = spriteData.find(function(s) { return s.slug === slug; });
+        if (entry) entry.min_rank = minRank;
+        if (statusEl) { statusEl.textContent = 'Saved'; statusEl.style.color = 'var(--green)'; setTimeout(function() { statusEl.textContent = ''; }, 2000); }
+      } else {
+        var d = await res.json().catch(function() { return {}; });
+        if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+      }
+    });
+  });
+}
+
+(function() {
+  var spritesLoaded = false;
+  document.addEventListener('DOMContentLoaded', function() {
+    var spritesTab = document.querySelector('[data-tab="sprites"]');
+    if (!spritesTab) return;
+    spritesTab.addEventListener('click', function() {
+      if (!spritesLoaded) { spritesLoaded = true; loadSpriteLocks(); }
+    });
+    document.getElementById('sprite-search')?.addEventListener('input', renderSpriteTable);
+    document.getElementById('sprite-group-filter')?.addEventListener('change', renderSpriteTable);
+    document.getElementById('sprite-lock-filter')?.addEventListener('change', renderSpriteTable);
+  });
+})();
 </script>
 {{end}}

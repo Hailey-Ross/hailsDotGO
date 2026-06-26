@@ -1,6 +1,7 @@
 export interface PokemonStat {
   pokemon_id: number;
   pokemon_name: string;
+  form?: string;
   base_attack: number;
   base_defense: number;
   base_stamina: number;

@@ -551,3 +551,18 @@ ALTER TABLE raid_lobby_members ADD COLUMN confirm_warned_30s TINYINT(1) NOT NULL
 -- 0=Anyone  1=Trusted  2=ContentCreator  3=Translator  4=Tester  5=Moderator
 -- Admins always bypass via IsMod() check in the handler.
 ALTER TABLE awards ADD COLUMN min_grant_rank TINYINT UNSIGNED NOT NULL DEFAULT 0;
+
+-- 37. Trainer avatar sprite locks (2026-06-26)
+-- 0=all  1=Trusted+  2=ContentCreator+  4=Tester+  5=Moderator+  100=Admin only
+-- Professor sprites (label starts "Prof.") are always enforced at rank 1 in code.
+-- This table covers admin-configurable locks for all other sprites.
+CREATE TABLE IF NOT EXISTS sprite_locks (
+  slug       VARCHAR(100) NOT NULL,
+  min_rank   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 38. Shiny evolved_at (2026-06-26)
+ALTER TABLE user_shinies ADD COLUMN evolved_at DATETIME NULL DEFAULT NULL;
+

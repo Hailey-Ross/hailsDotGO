@@ -18,14 +18,16 @@ import (
 // ocrRegion is a percentage-based crop of a full screenshot (fractions 0-1).
 type ocrRegion struct{ x1, y1, x2, y2 float64 }
 
-// Approximate regions for a portrait PoGo Pokemon info screen (16:9 to 19.5:9).
-// These assume the phone is held vertically and the Pokemon details screen is visible.
 var (
-	ocrRegionCP    = ocrRegion{0.20, 0.22, 0.80, 0.36}
-	ocrRegionName  = ocrRegion{0.10, 0.10, 0.90, 0.20}
-	ocrRegionHP    = ocrRegion{0.45, 0.59, 0.85, 0.67}
-	ocrRegionDust  = ocrRegion{0.28, 0.68, 0.72, 0.77}
-	ocrRegionStars = ocrRegion{0.20, 0.80, 0.80, 0.91}
+	ocrRegionTop25  = ocrRegion{0.00, 0.00, 1.00, 0.25} // CP pass 1
+	ocrRegionTop18  = ocrRegion{0.00, 0.00, 1.00, 0.18} // CP pass 2 (contrast-enhanced)
+	ocrRegionName   = ocrRegion{0.10, 0.37, 0.90, 0.52} // name card-zone (below sprite, ~37-52%)
+	ocrRegionFooter = ocrRegion{0.00, 0.80, 1.00, 1.00} // "This X was caught in..."
+	ocrRegionHP     = ocrRegion{0.35, 0.43, 0.75, 0.54} // HP bar below name (~43-54%)
+	ocrRegionDust           = ocrRegion{0.28, 0.68, 0.72, 0.77}
+	ocrRegionPowerUp        = ocrRegion{0.38, 0.73, 0.78, 0.88} // POWER UP cost row (dust cost appears here on info screens)
+	ocrRegionStars          = ocrRegion{0.60, 0.38, 0.92, 0.52} // standard-screen dots (right of name row -- estimated, calibrate from screenshot)
+	ocrRegionAppraisalScreen = ocrRegion{0.00, 0.00, 0.25, 1.00} // appraisal-results screen bars (mobile app coordinates)
 )
 
 type subImager interface {
@@ -49,7 +51,6 @@ func cropPct(img image.Image, reg ocrRegion) image.Image {
 	if si, ok := img.(subImager); ok {
 		return si.SubImage(rect)
 	}
-	// Fallback for image types that don't implement SubImage.
 	out := image.NewRGBA(image.Rectangle{Max: image.Point{
 		X: rect.Max.X - rect.Min.X,
 		Y: rect.Max.Y - rect.Min.Y,
@@ -62,9 +63,28 @@ func cropPct(img image.Image, reg ocrRegion) image.Image {
 	return out
 }
 
-// runTesseract writes a cropped image to a temp JPEG, runs tesseract on it,
-// and returns the trimmed stdout. psm is the Tesseract page segmentation mode
-// (e.g. "7" = single line). allowlist is an optional character whitelist.
+// contrastEnhance converts an image to grayscale with contrast x1.5.
+func contrastEnhance(img image.Image) image.Image {
+	b := img.Bounds()
+	out := image.NewGray(image.Rectangle{Max: image.Point{X: b.Max.X - b.Min.X, Y: b.Max.Y - b.Min.Y}})
+	const contrast = 1.5
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			rr, gg, bb, _ := img.At(x, y).RGBA()
+			gray := (19595*rr + 38470*gg + 7471*bb) >> 24
+			enhanced := int(float64(gray)*contrast) - int(128*(contrast-1))
+			if enhanced < 0 {
+				enhanced = 0
+			} else if enhanced > 255 {
+				enhanced = 255
+			}
+			out.SetGray(x-b.Min.X, y-b.Min.Y, color.Gray{Y: uint8(enhanced)})
+		}
+	}
+	return out
+}
+
+// runTesseract writes an image to a temp JPEG, runs tesseract, and returns trimmed stdout.
 func runTesseract(img image.Image, psm, allowlist string) (string, error) {
 	f, err := os.CreateTemp("", "pogo-ocr-*.jpg")
 	if err != nil {
@@ -86,57 +106,174 @@ func runTesseract(img image.Image, psm, allowlist string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
-// isGoldPixel reports whether a pixel matches PoGo's amber/gold appraisal star color.
-func isGoldPixel(c color.RGBA) bool {
-	return int(c.R) > 180 && int(c.G) > 120 && int(c.B) < 100
-}
+// ---- CP extraction ----
 
-// detectStars counts filled appraisal stars (0-3) by sampling the horizontal
-// midline of three equal zones in the appraisal region for gold pixels.
-// Returns -1 if no gold is found (detection failure or 0-star Pokemon).
-func detectStars(img image.Image) int {
-	b := img.Bounds()
-	w := b.Max.X - b.Min.X
-	h := b.Max.Y - b.Min.Y
-	midY := b.Min.Y + h/2
-	starW := float64(w) / 3.0
+var (
+	reAllNums        = regexp.MustCompile(`\d{2,5}`)
+	reAllNumsBounded = regexp.MustCompile(`\b\d{2,5}\b`)
+	reCPMisread      = regexp.MustCompile(`(?i)[co0][ph]\s*(\d{1,5})`)
+	reNonDigits      = regexp.MustCompile(`\D+`)
+)
 
-	filled := 0
-	for s := range 3 {
-		x1 := b.Min.X + int(math.Round(starW*float64(s)+starW*0.2))
-		x2 := b.Min.X + int(math.Round(starW*float64(s)+starW*0.8))
-		total := x2 - x1
-		if total <= 0 {
-			continue
-		}
-		gold := 0
-		for x := x1; x < x2; x++ {
-			c := color.RGBAModel.Convert(img.At(x, midY)).(color.RGBA)
-			if isGoldPixel(c) {
-				gold++
+func extractCPPass1(img image.Image) int {
+	text, _ := runTesseract(cropPct(img, ocrRegionTop25), "6", "")
+	best := 0
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(strings.ToUpper(line), "CP") {
+			for _, tok := range strings.Fields(reNonDigits.ReplaceAllString(line, " ")) {
+				if v, err := strconv.Atoi(tok); err == nil && v >= 10 && v <= 50000 && v > best {
+					best = v
+				}
 			}
 		}
-		if gold > total/3 {
-			filled++
+	}
+	if best > 0 {
+		return best
+	}
+	for _, m := range reAllNums.FindAllString(text, -1) {
+		if v, err := strconv.Atoi(m); err == nil && v >= 10 && v <= 50000 && v > best {
+			best = v
 		}
 	}
-	if filled == 0 {
-		// Cannot distinguish 0 stars from detection failure -- caller passes -1 to
-		// skip the IV sum filter rather than incorrectly narrowing to 0-22.
-		return -1
+	if m := reCPMisread.FindStringSubmatch(text); len(m) > 1 {
+		if v, err := strconv.Atoi(m[1]); err == nil && v >= 10 && v <= 50000 && v > best {
+			best = v
+		}
 	}
-	return filled
+	return best
 }
 
-var reDigitsComma = regexp.MustCompile(`[\d,]+`)
+func extractCPPass2(img image.Image) int {
+	enhanced := contrastEnhance(cropPct(img, ocrRegionTop18))
+	text, _ := runTesseract(enhanced, "6", "")
+	best := 0
+	for _, m := range reAllNumsBounded.FindAllString(text, -1) {
+		if v, err := strconv.Atoi(m); err == nil && v >= 10 && v <= 50000 && v > best {
+			best = v
+		}
+	}
+	return best
+}
 
-func firstIntOCR(text string) int {
-	m := reDigitsComma.FindString(text)
-	if m == "" {
+// ---- Arc detection ----
+
+const (
+	arcCXFrac    = 0.500
+	arcCYFrac    = 0.259
+	arcRFrac     = 0.452
+	arcEmptyDeg  = 195
+	arcFullDeg   = 96
+	arcSpanDeg   = 261
+	arcBrightMin = 580
+)
+
+func detectArcCP(img image.Image, maxCP int) int {
+	if maxCP <= 0 {
 		return 0
 	}
-	v, _ := strconv.Atoi(strings.ReplaceAll(m, ",", ""))
-	return v
+	b := img.Bounds()
+	fw := float64(b.Max.X - b.Min.X)
+	fh := float64(b.Max.Y - b.Min.Y)
+	cx := fw * arcCXFrac
+	cy := fh * arcCYFrac
+	r := fw * arcRFrac
+
+	endpointDeg := arcEmptyDeg
+	for step := 0; step <= arcSpanDeg; step++ {
+		deg := ((arcFullDeg - step) % 360 + 360) % 360
+		rad := float64(deg-90) * math.Pi / 180
+		x := math.Round(cx + r*math.Cos(rad))
+		y := math.Round(cy + r*math.Sin(rad))
+		if x/fw > 0.83 && y/fh < 0.18 { // camera icon exclusion
+			continue
+		}
+		px := b.Min.X + int(x)
+		py := b.Min.Y + int(y)
+		if px < b.Min.X || px >= b.Max.X || py < b.Min.Y || py >= b.Max.Y {
+			continue
+		}
+		rr, gg, bb, _ := img.At(px, py).RGBA()
+		if int(rr>>8)+int(gg>>8)+int(bb>>8) > arcBrightMin {
+			endpointDeg = deg
+			break
+		}
+	}
+
+	dist := ((endpointDeg - arcEmptyDeg) + 360) % 360
+	fillPct := math.Min(float64(dist)/float64(arcSpanDeg), 1.0)
+	arcCP := int(math.Round(fillPct * float64(maxCP)))
+	if arcCP <= 10 {
+		return 0
+	}
+	return arcCP
+}
+
+// computeMaxCP returns the max CP for a Pokemon at all-15 IVs at trainer level.
+func computeMaxCP(poke pokemonStatEntry, trainerLevel int, cpms []cpmEntry) int {
+	pokeLvl := float64(trainerLevel + 2)
+	if pokeLvl > 51 {
+		pokeLvl = 51
+	}
+	bestCPM, bestDist := 0.0, math.MaxFloat64
+	for _, e := range cpms {
+		if d := math.Abs(e.Level - pokeLvl); d < bestDist {
+			bestDist = d
+			bestCPM = e.Multiplier
+		}
+	}
+	if bestCPM == 0 {
+		return 0
+	}
+	atk := float64(poke.BaseAttack + 15)
+	def := float64(poke.BaseDefense + 15)
+	sta := float64(poke.BaseStamina + 15)
+	return int(math.Floor(atk * math.Sqrt(def) * math.Sqrt(sta) * bestCPM * bestCPM / 10))
+}
+
+// ---- Name detection ----
+
+var (
+	reFooterName   = regexp.MustCompile(`This\s+([A-Z][a-z]+(?:[- ][A-Z][a-z]+)?)\s+was\s+caught`)
+	reMegaName     = regexp.MustCompile(`(?i)([A-Za-z][A-Za-z\-]{2,})\s+MEGA\s+ENERGY`)
+	nameExclusions = map[string]bool{
+		"normal": true, "fire": true, "water": true, "grass": true, "electric": true,
+		"ice": true, "fighting": true, "poison": true, "ground": true, "flying": true,
+		"psychic": true, "bug": true, "rock": true, "ghost": true, "dragon": true,
+		"dark": true, "steel": true, "fairy": true, "attack": true, "defense": true,
+		"hp": true, "cp": true, "candy": true, "stardust": true, "mega": true,
+		"energy": true, "lucky": true, "weather": true, "boosted": true, "purified": true,
+		"shadow": true, "height": true, "weight": true, "evolve": true, "power": true,
+	}
+)
+
+func titleCase(s string) string {
+	words := strings.Fields(strings.ToLower(s))
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+func detectName(img image.Image, fullText string) (string, string) {
+	footerText, _ := runTesseract(cropPct(img, ocrRegionFooter), "6", "")
+	if m := reFooterName.FindStringSubmatch(footerText); len(m) > 1 {
+		if name := strings.TrimSpace(m[1]); name != "" {
+			return titleCase(name), "footer"
+		}
+	}
+	if m := reMegaName.FindStringSubmatch(fullText); len(m) > 1 {
+		if name := strings.TrimSpace(m[1]); name != "" {
+			return titleCase(name), "mega"
+		}
+	}
+	cardText, _ := runTesseract(cropPct(img, ocrRegionName), "6", "")
+	name := cleanOCRName(cardText)
+	if name != "" && !nameExclusions[strings.ToLower(name)] {
+		return name, "card"
+	}
+	return "", ""
 }
 
 func cleanOCRName(text string) string {
@@ -149,17 +286,290 @@ func cleanOCRName(text string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-type ocrExtracted struct {
-	CP            int    `json:"cp"`
-	HP            int    `json:"hp"`
-	DustCost      int    `json:"dust_cost"`
-	PokemonName   string `json:"pokemon_name"`
-	AppraisalBars int    `json:"appraisal_bars"`
-	RawCP         string `json:"raw_cp"`
-	RawHP         string `json:"raw_hp"`
-	RawDust       string `json:"raw_dust"`
-	RawName       string `json:"raw_name"`
+// ---- HP detection ----
+
+var (
+	reOCRDigitFix = regexp.MustCompile(`(\d)[Oo](\d)`)
+	reOCRSlashFix = regexp.MustCompile(`([\s/])[Oo](\d)`)
+	reHPFraction  = regexp.MustCompile(`(?i)(\d{1,4})\s*/\s*\d{1,4}\s*HP`)
+	reDigitsComma = regexp.MustCompile(`[\d,]+`)
+)
+
+func fixOCRDigits(s string) string {
+	s = reOCRDigitFix.ReplaceAllString(s, "${1}0${2}")
+	s = reOCRSlashFix.ReplaceAllString(s, "${1}0${2}")
+	return s
 }
+
+func extractHP(img image.Image) int {
+	raw, _ := runTesseract(cropPct(img, ocrRegionHP), "7", "0123456789/HP ")
+	fixed := fixOCRDigits(raw)
+	if m := reHPFraction.FindStringSubmatch(fixed); len(m) > 1 {
+		if v, err := strconv.Atoi(m[1]); err == nil {
+			return v
+		}
+	}
+	return firstIntOCR(fixed)
+}
+
+func firstIntOCR(text string) int {
+	m := reDigitsComma.FindString(text)
+	if m == "" {
+		return 0
+	}
+	v, _ := strconv.Atoi(strings.ReplaceAll(m, ",", ""))
+	return v
+}
+
+// ---- Dust detection + normalisation ----
+
+var standardDust = []int{
+	200, 400, 600, 800, 1000, 1300, 1600, 1900, 2200, 2500,
+	3000, 3500, 4000, 4500, 5000, 6000, 7000, 8000, 9000,
+	10000, 12000, 15000, 17500, 20000,
+}
+
+func standardDustSet() map[int]bool {
+	s := make(map[int]bool, len(standardDust))
+	for _, d := range standardDust {
+		s[d] = true
+	}
+	return s
+}
+
+func buildDisplayableDust() []int {
+	seen := make(map[int]bool)
+	for _, d := range standardDust {
+		seen[d] = true
+		seen[d/2] = true
+		seen[int(float64(d)*0.9)] = true
+		seen[d*6] = true
+	}
+	all := make([]int, 0, len(seen))
+	for v := range seen {
+		if v > 0 {
+			all = append(all, v)
+		}
+	}
+	// sort descending
+	for i := 0; i < len(all); i++ {
+		for j := i + 1; j < len(all); j++ {
+			if all[j] > all[i] {
+				all[i], all[j] = all[j], all[i]
+			}
+		}
+	}
+	return all
+}
+
+var (
+	dustDisplayable   = buildDisplayableDust()
+	reDustNum         = regexp.MustCompile(`\b(\d{1,6})\b`)
+	reSpacedThousands = regexp.MustCompile(`\b(\d{1,3}) (\d{3})\b`)
+)
+
+func detectRawDust(text string) int {
+	// Normalize Tesseract quirk: "4 000" → "4000" before comma removal
+	normalized := reSpacedThousands.ReplaceAllString(text, "$1$2")
+	clean := strings.ReplaceAll(normalized, ",", "")
+	nums := make(map[int]bool)
+	for _, m := range reDustNum.FindAllString(clean, -1) {
+		if v, err := strconv.Atoi(m); err == nil {
+			nums[v] = true
+		}
+	}
+	for _, target := range dustDisplayable {
+		if nums[target] {
+			return target
+		}
+	}
+	return 0
+}
+
+func normaliseDust(rawDust int, isLucky, isPurified, isShadow bool) int {
+	if isLucky {
+		return rawDust * 2
+	}
+	if isPurified {
+		return int(math.Floor(float64(rawDust) * 10.0 / 9.0))
+	}
+	if isShadow {
+		return rawDust / 6
+	}
+	return rawDust
+}
+
+func inferDustFlags(rawDust int, isLucky, isPurified, isShadow bool) (bool, bool, bool) {
+	if isLucky || isPurified || isShadow || rawDust == 0 {
+		return isLucky, isPurified, isShadow
+	}
+	stdSet := standardDustSet()
+	if stdSet[rawDust] {
+		return false, false, false
+	}
+	// Lucky: displayed cost = standard ÷ 2
+	if stdSet[rawDust*2] {
+		return true, false, false
+	}
+	purifiedBase := int(math.Round(float64(rawDust) * 10.0 / 9.0))
+	if stdSet[purifiedBase] {
+		return false, true, false
+	}
+	if rawDust%6 == 0 && stdSet[rawDust/6] {
+		return false, false, true
+	}
+	return false, false, false
+}
+
+// ---- Appraisal star detection (gap-based) ----
+
+func isOrangePixel(r, g, b uint8) bool {
+	return r > 180 && g > 80 && b < 120 && r > g && (int(r)-int(b)) > 100
+}
+
+func isRainbowPixel(r, g, b uint8) bool {
+	isMagenta := r > 200 && b > 120 && g < 190 && (int(r)-int(g)) > 60 && b > g
+	isPurple := b > 150 && b >= r && g < 150
+	isTeal := g > 160 && b > 140 && r < 160
+	return isMagenta || isPurple || isTeal
+}
+
+func countStarsFromText(text string) int {
+	n := strings.Count(text, "★")
+	if n >= 1 && n <= 3 {
+		return n
+	}
+	return -1
+}
+
+// detectStars returns (starCount 0-3, isHundo). Returns -1 if detection fails.
+func detectStars(img image.Image) (int, bool) {
+	b := img.Bounds()
+	w := b.Max.X - b.Min.X
+	h := b.Max.Y - b.Min.Y
+	if w <= 0 || h <= 0 {
+		return -1, false
+	}
+
+	const numRows = 13
+	const samplesPerRow = 50
+	const yStart = 0.58
+	const yEnd = 0.70
+	const xEnd = 0.25
+
+	orangeHits := make([]int, numRows)
+	rainbowTotal := 0
+
+	for i := 0; i < numRows; i++ {
+		yFrac := yStart + float64(i)*(yEnd-yStart)/float64(numRows-1)
+		py := b.Min.Y + int(math.Round(float64(h)*yFrac))
+		if py < b.Min.Y || py >= b.Max.Y {
+			continue
+		}
+		for j := 0; j < samplesPerRow; j++ {
+			xFrac := float64(j) / float64(samplesPerRow-1) * xEnd
+			px := b.Min.X + int(math.Round(float64(w)*xFrac))
+			if px < b.Min.X || px >= b.Max.X {
+				continue
+			}
+			rr, gg, bb, _ := img.At(px, py).RGBA()
+			rv, gv, bv := uint8(rr>>8), uint8(gg>>8), uint8(bb>>8)
+			if isOrangePixel(rv, gv, bv) {
+				orangeHits[i]++
+			}
+			if isRainbowPixel(rv, gv, bv) {
+				rainbowTotal++
+			}
+		}
+	}
+
+	total, firstHit, lastHit := 0, -1, -1
+	for i, hits := range orangeHits {
+		total += hits
+		if hits > 0 {
+			if firstHit == -1 {
+				firstHit = i
+			}
+			lastHit = i
+		}
+	}
+
+	if total < 2 || firstHit == -1 {
+		return -1, false
+	}
+
+	hasGap := false
+	for i := firstHit + 1; i < lastHit; i++ {
+		if orangeHits[i] == 0 {
+			hasGap = true
+			break
+		}
+	}
+
+	stars := 0
+	switch {
+	case !hasGap && total >= 10:
+		stars = 3
+	case hasGap:
+		inner := 0
+		for i := firstHit + 1; i < lastHit; i++ {
+			inner += orangeHits[i]
+		}
+		if inner >= 10 {
+			stars = 2
+		} else {
+			stars = 1
+		}
+	case total >= 3:
+		stars = 1
+	default:
+		return -1, false
+	}
+
+	return stars, stars == 3 && rainbowTotal >= 3
+}
+
+// ---- Status keyword detection ----
+
+func containsWordCI(text, word string) bool {
+	lower := strings.ToLower(text)
+	for {
+		idx := strings.Index(lower, word)
+		if idx < 0 {
+			return false
+		}
+		before := idx == 0 || !isAlpha(lower[idx-1])
+		after := idx+len(word) >= len(lower) || !isAlpha(lower[idx+len(word)])
+		if before && after {
+			return true
+		}
+		lower = lower[idx+1:]
+	}
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+// ---- Response type ----
+
+type ocrExtracted struct {
+	CP             int    `json:"cp"`
+	CPSource       string `json:"cp_source"`
+	HP             int    `json:"hp"`
+	RawDust        int    `json:"raw_dust"`
+	NormalisedDust int    `json:"normalised_dust"`
+	PokemonName    string `json:"pokemon_name"`
+	NameSource     string `json:"name_source"`
+	AppraisalBars  int    `json:"appraisal_bars"`
+	IsHundo        bool   `json:"is_hundo"`
+	IsLucky        bool   `json:"is_lucky"`
+	IsShadow       bool   `json:"is_shadow"`
+	IsPurified     bool   `json:"is_purified"`
+	RawCP          string `json:"raw_cp"`
+}
+
+// ---- Handler ----
 
 func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	const maxBytes = 8 << 20
@@ -175,7 +585,6 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Sniff MIME type from first 512 bytes, then seek back to start.
 	buf := make([]byte, 512)
 	n, _ := file.Read(buf)
 	sniffed := http.DetectContentType(buf[:n])
@@ -199,29 +608,168 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Trainer level: DB value takes precedence for authenticated users;
+	// query param only applies for unauthenticated requests.
 	trainerLevel := 40
-	if tl := r.URL.Query().Get("trainer_level"); tl != "" {
-		if v, err2 := strconv.Atoi(tl); err2 == nil && v >= 1 && v <= 50 {
-			trainerLevel = v
+	isAuthed := false
+	if u := h.currentUser(r); u != nil {
+		isAuthed = true
+		h.db.QueryRow(`SELECT COALESCE(trainer_level, 40) FROM users WHERE id = ?`, u.ID).Scan(&trainerLevel)
+	}
+	if !isAuthed {
+		if tl := r.URL.Query().Get("trainer_level"); tl != "" {
+			if v, err2 := strconv.Atoi(tl); err2 == nil && v >= 1 && v <= 51 {
+				trainerLevel = v
+			}
 		}
 	}
 
-	rawCP, _ := runTesseract(cropPct(img, ocrRegionCP), "7", "0123456789")
-	rawName, _ := runTesseract(cropPct(img, ocrRegionName), "7", "")
-	rawHP, _ := runTesseract(cropPct(img, ocrRegionHP), "7", "0123456789")
-	rawDust, _ := runTesseract(cropPct(img, ocrRegionDust), "7", "0123456789,")
+	// Single full-image OCR pass reused for name strategies + status keywords + dust
+	fullText, _ := runTesseract(img, "6", "")
+
+	isLucky := containsWordCI(fullText, "lucky")
+	isShadow := containsWordCI(fullText, "shadow")
+	isPurified := containsWordCI(fullText, "purified")
+
+	pokemonName, nameSource := detectName(img, fullText)
+
+	cp1 := extractCPPass1(img)
+	cp2 := extractCPPass2(img)
+	bestTextCP := cp1
+	if cp2 > bestTextCP {
+		bestTextCP = cp2
+	}
+
+	// Load game data
+	var pokeList []pokemonStatEntry
+	_ = json.Unmarshal(h.store.Pokemon(), &pokeList)
+	var cpms []cpmEntry
+	_ = json.Unmarshal(h.store.CPMultipliers(), &cpms)
+
+	var poke *pokemonStatEntry
+	if pokemonName != "" {
+		var firstMatch *pokemonStatEntry
+		for i := range pokeList {
+			if !strings.EqualFold(pokeList[i].PokemonName, pokemonName) {
+				continue
+			}
+			if firstMatch == nil {
+				firstMatch = &pokeList[i]
+			}
+			if strings.EqualFold(pokeList[i].Form, "Normal") {
+				poke = &pokeList[i]
+				break
+			}
+		}
+		if poke == nil {
+			poke = firstMatch
+		}
+	}
+
+	// Fallback: scan full-image OCR text for the earliest-appearing known Pokémon name.
+	// Handles screenshots where the card region mis-reads (e.g. wrong aspect ratio).
+	if poke == nil && len(pokeList) > 0 {
+		lft := strings.ToLower(fullText)
+		bestPos := len(lft) + 1
+		for i := range pokeList {
+			name := strings.ToLower(pokeList[i].PokemonName)
+			if len(name) < 4 {
+				continue
+			}
+			idx := strings.Index(lft, name)
+			if idx < 0 || idx >= bestPos {
+				continue
+			}
+			before := idx == 0 || !isAlpha(lft[idx-1])
+			after := idx+len(name) >= len(lft) || !isAlpha(lft[idx+len(name)])
+			if before && after {
+				bestPos = idx
+				pokemonName = titleCase(pokeList[i].PokemonName)
+				nameSource = "fulltext"
+				poke = &pokeList[i]
+			}
+		}
+		// Prefer Normal form over regional variants when multiple forms share the same name.
+		if poke != nil && !strings.EqualFold(poke.Form, "Normal") {
+			for i := range pokeList {
+				if strings.EqualFold(pokeList[i].PokemonName, pokemonName) &&
+					strings.EqualFold(pokeList[i].Form, "Normal") {
+					poke = &pokeList[i]
+					break
+				}
+			}
+		}
+	}
+
+	arcCP := 0
+	if poke != nil {
+		arcCP = detectArcCP(img, computeMaxCP(*poke, trainerLevel, cpms))
+	}
+
+	bestCP := bestTextCP
+	cpSource := "text"
+	if bestCP < 10 {
+		if arcCP > 0 {
+			bestCP = arcCP
+			cpSource = "arc"
+		} else {
+			cpSource = "none"
+		}
+	} else if arcCP > 0 {
+		diff := bestCP - arcCP
+		if diff < 0 {
+			diff = -diff
+		}
+		if float64(diff)/float64(bestCP) > 0.10 {
+			bestCP = arcCP
+			cpSource = "arc"
+		}
+	}
+
+	hp := extractHP(img)
+	// Fallback: try the HP fraction pattern anywhere in the full image OCR text.
+	if hp == 0 {
+		if m := reHPFraction.FindStringSubmatch(fixOCRDigits(fullText)); len(m) > 1 {
+			if v, err2 := strconv.Atoi(m[1]); err2 == nil {
+				hp = v
+			}
+		}
+	}
+
+	dustText, _    := runTesseract(cropPct(img, ocrRegionDust),    "7", "0123456789,")
+	powerUpText, _ := runTesseract(cropPct(img, ocrRegionPowerUp), "7", "0123456789,")
+	rawDust := detectRawDust(fullText + " " + dustText + " " + powerUpText)
+	if rawDust == 0 {
+		rawDust = firstIntOCR(dustText)
+	}
+	isLucky, isPurified, isShadow = inferDustFlags(rawDust, isLucky, isPurified, isShadow)
+	normDust := normaliseDust(rawDust, isLucky, isPurified, isShadow)
+	if normDust == 0 {
+		normDust = rawDust
+	}
+
+	stars := countStarsFromText(fullText)
+	isHundo := false
+	if stars < 0 && containsWordCI(fullText, "attack") &&
+		containsWordCI(fullText, "defense") && containsWordCI(fullText, "hp") {
+		stars, isHundo = detectStars(cropPct(img, ocrRegionAppraisalScreen))
+	}
 
 	ext := ocrExtracted{
-		RawCP:         rawCP,
-		RawHP:         rawHP,
-		RawDust:       rawDust,
-		RawName:       rawName,
-		AppraisalBars: detectStars(cropPct(img, ocrRegionStars)),
+		CP:             bestCP,
+		CPSource:       cpSource,
+		HP:             hp,
+		RawDust:        rawDust,
+		NormalisedDust: normDust,
+		PokemonName:    pokemonName,
+		NameSource:     nameSource,
+		AppraisalBars:  stars,
+		IsHundo:        isHundo,
+		IsLucky:        isLucky,
+		IsShadow:       isShadow,
+		IsPurified:     isPurified,
+		RawCP:          strconv.Itoa(cp1) + "/" + strconv.Itoa(cp2),
 	}
-	ext.CP = firstIntOCR(rawCP)
-	ext.HP = firstIntOCR(rawHP)
-	ext.DustCost = firstIntOCR(rawDust)
-	ext.PokemonName = cleanOCRName(rawName)
 
 	resp := map[string]any{
 		"extracted":  ext,
@@ -230,39 +778,24 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		"definitive": false,
 	}
 
-	if ext.CP > 0 && ext.HP > 0 && ext.DustCost > 0 && ext.PokemonName != "" {
-		var pokeList []pokemonStatEntry
-		if json.Unmarshal(h.store.Pokemon(), &pokeList) == nil {
-			var poke *pokemonStatEntry
-			for i := range pokeList {
-				if strings.EqualFold(pokeList[i].PokemonName, ext.PokemonName) {
-					poke = &pokeList[i]
-					break
-				}
-			}
-			if poke != nil {
-				resp["pokemon"] = poke
-				var cpms []cpmEntry
-				if json.Unmarshal(h.store.CPMultipliers(), &cpms) == nil {
-					var appraisalBars *int
-					if ext.AppraisalBars >= 0 {
-						appraisalBars = &ext.AppraisalBars
-					}
-					req := ivRequest{
-						PokemonName:   ext.PokemonName,
-						CP:            ext.CP,
-						HP:            ext.HP,
-						DustCost:      ext.DustCost,
-						TrainerLevel:  trainerLevel,
-						AppraisalBars: appraisalBars,
-					}
-					candidates := enumerateIVs(req, *poke, cpms)
-					resp["candidates"] = candidates
-					resp["count"] = len(candidates)
-					resp["definitive"] = len(candidates) == 1
-				}
-			}
+	if bestCP > 0 && hp > 0 && normDust > 0 && poke != nil && len(cpms) > 0 {
+		resp["pokemon"] = poke
+		var appraisalBars *int
+		if stars >= 0 {
+			appraisalBars = &stars
 		}
+		req := ivRequest{
+			PokemonName:   pokemonName,
+			CP:            bestCP,
+			HP:            hp,
+			DustCost:      normDust,
+			TrainerLevel:  trainerLevel,
+			AppraisalBars: appraisalBars,
+		}
+		candidates := enumerateIVs(req, *poke, cpms)
+		resp["candidates"] = candidates
+		resp["count"] = len(candidates)
+		resp["definitive"] = len(candidates) == 1
 	}
 
 	w.Header().Set("Content-Type", "application/json")

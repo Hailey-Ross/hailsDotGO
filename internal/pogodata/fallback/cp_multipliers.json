@@ -354,5 +354,53 @@
     {
         "level": 45.0,
         "multiplier": 0.81529999
+    },
+    {
+        "level": 45.5,
+        "multiplier": 0.81779999
+    },
+    {
+        "level": 46.0,
+        "multiplier": 0.82029999
+    },
+    {
+        "level": 46.5,
+        "multiplier": 0.82279999
+    },
+    {
+        "level": 47.0,
+        "multiplier": 0.82529999
+    },
+    {
+        "level": 47.5,
+        "multiplier": 0.82779999
+    },
+    {
+        "level": 48.0,
+        "multiplier": 0.83029999
+    },
+    {
+        "level": 48.5,
+        "multiplier": 0.83279999
+    },
+    {
+        "level": 49.0,
+        "multiplier": 0.83529999
+    },
+    {
+        "level": 49.5,
+        "multiplier": 0.83779999
+    },
+    {
+        "level": 50.0,
+        "multiplier": 0.84029999
+    },
+    {
+        "level": 50.5,
+        "multiplier": 0.84279999
+    },
+    {
+        "level": 51.0,
+        "multiplier": 0.84529999
     }
 ]

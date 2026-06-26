@@ -52,6 +52,7 @@ type IVCandidate struct {
 
 type ivRequest struct {
 	PokemonName   string `json:"pokemon_name"`
+	Form          string `json:"form"`
 	CP            int    `json:"cp"`
 	HP            int    `json:"hp"`
 	DustCost      int    `json:"dust_cost"`
@@ -71,7 +72,7 @@ var dustBrackets = []struct{ Dust, MinLvl, MaxLvl int }{
 	{4000, 25, 26}, {4500, 27, 28}, {5000, 29, 30},
 	{5400, 31, 32}, {6000, 31, 32}, {7000, 33, 34}, {8000, 35, 36}, {9000, 37, 38},
 	{10000, 39, 40}, {10000, 41, 42},
-	{12000, 43, 44}, {15000, 45, 46}, {17500, 47, 48}, {20000, 49, 50},
+	{12000, 43, 44}, {15000, 45, 46}, {17500, 47, 48}, {20000, 49, 51},
 }
 
 // appraisalRange maps PoGo star rating (0-3) to the total IV sum range it implies.
@@ -119,9 +120,12 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 		return []IVCandidate{}
 	}
 
-	// Wild/hatched Pokemon cannot exceed trainer level + 2.
+	// Wild/hatched Pokemon cannot exceed trainer level + 2, capped at 51.
 	if maxAllowed := req.TrainerLevel + 2; maxLvl > maxAllowed {
 		maxLvl = maxAllowed
+	}
+	if maxLvl > 51 {
+		maxLvl = 51
 	}
 
 	ivSumMin, ivSumMax := 0, 45
@@ -194,8 +198,8 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	if req.PokemonName == "" || req.CP < 10 || req.CP > 9999 ||
-		req.HP < 1 || req.HP > 999 || req.TrainerLevel < 1 || req.TrainerLevel > 50 {
+	if req.PokemonName == "" || req.CP < 10 || req.CP > 50000 ||
+		req.HP < 1 || req.HP > 999 || req.TrainerLevel < 1 || req.TrainerLevel > 51 {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
 		return
 	}
@@ -206,11 +210,29 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var poke *pokemonStatEntry
+	var firstMatch *pokemonStatEntry
 	for i := range pokeList {
-		if strings.EqualFold(pokeList[i].PokemonName, req.PokemonName) {
+		if !strings.EqualFold(pokeList[i].PokemonName, req.PokemonName) {
+			continue
+		}
+		if req.Form != "" {
+			if strings.EqualFold(pokeList[i].Form, req.Form) {
+				poke = &pokeList[i]
+				break
+			}
+			continue
+		}
+		// No form specified: prefer Normal form, but track first match as fallback.
+		if firstMatch == nil {
+			firstMatch = &pokeList[i]
+		}
+		if strings.EqualFold(pokeList[i].Form, "Normal") {
 			poke = &pokeList[i]
 			break
 		}
+	}
+	if poke == nil {
+		poke = firstMatch
 	}
 	if poke == nil {
 		writeJSONError(w, "pokemon not found", http.StatusNotFound)

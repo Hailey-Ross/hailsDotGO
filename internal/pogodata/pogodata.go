@@ -68,6 +68,144 @@ var builtinTrainerClasses = []TrainerClass{
 	{Slug: "gentleman",    Label: "Gentleman",      SpriteURL: showdownBase + "gentleman.png"},
 	{Slug: "medium",       Label: "Medium",         SpriteURL: showdownBase + "medium.png"},
 	{Slug: "worker",       Label: "Worker",         SpriteURL: showdownBase + "worker.png"},
+
+	// -- Villains & Team Bosses --
+	{Slug: "giovanni",  Label: "Giovanni",        SpriteURL: showdownBase + "giovanni.png"},
+	{Slug: "cyrus",     Label: "Cyrus",            SpriteURL: showdownBase + "cyrus.png"},
+	{Slug: "ghetsis",   Label: "Ghetsis",          SpriteURL: showdownBase + "ghetsis.png"},
+	{Slug: "lysandre",  Label: "Lysandre",         SpriteURL: showdownBase + "lysandre.png"},
+	{Slug: "lusamine",  Label: "Lusamine",         SpriteURL: showdownBase + "lusamine.png"},
+	{Slug: "guzma",     Label: "Guzma",            SpriteURL: showdownBase + "guzma.png"},
+	{Slug: "rose",      Label: "Chairman Rose",    SpriteURL: showdownBase + "rose.png"},
+	{Slug: "volo",      Label: "Volo",             SpriteURL: showdownBase + "volo.png"},
+
+	// -- Rivals --
+	{Slug: "blue",      Label: "Blue",             SpriteURL: showdownBase + "blue.png"},
+	{Slug: "silver",    Label: "Silver",           SpriteURL: showdownBase + "silver.png"},
+	{Slug: "wally",     Label: "Wally",            SpriteURL: showdownBase + "wally.png"},
+	{Slug: "barry",     Label: "Barry",            SpriteURL: showdownBase + "barry.png"},
+	{Slug: "cheren",    Label: "Cheren",           SpriteURL: showdownBase + "cheren.png"},
+	{Slug: "bianca",    Label: "Bianca",           SpriteURL: showdownBase + "bianca.png"},
+	{Slug: "hugh",      Label: "Hugh",             SpriteURL: showdownBase + "hugh.png"},
+	{Slug: "calem",     Label: "Calem",            SpriteURL: showdownBase + "calem.png"},
+	{Slug: "serena",    Label: "Serena",           SpriteURL: showdownBase + "serena.png"},
+	{Slug: "hop",       Label: "Hop",              SpriteURL: showdownBase + "hop.png"},
+	{Slug: "bede",      Label: "Bede",             SpriteURL: showdownBase + "bede.png"},
+	{Slug: "marnie",    Label: "Marnie",           SpriteURL: showdownBase + "marnie.png"},
+	{Slug: "kieran",    Label: "Kieran",           SpriteURL: showdownBase + "kieran.png"},
+
+	// -- Named Side Characters --
+	{Slug: "n",         Label: "N",                SpriteURL: showdownBase + "n.png"},
+	{Slug: "colress",   Label: "Colress",          SpriteURL: showdownBase + "colress.png"},
+	{Slug: "gladion",   Label: "Gladion",          SpriteURL: showdownBase + "gladion.png"},
+	{Slug: "lillie",    Label: "Lillie",           SpriteURL: showdownBase + "lillie.png"},
+	{Slug: "hau",       Label: "Hau",              SpriteURL: showdownBase + "hau.png"},
+	{Slug: "plumeria",  Label: "Plumeria",         SpriteURL: showdownBase + "plumeria.png"},
+	{Slug: "sonia",     Label: "Sonia",            SpriteURL: showdownBase + "sonia.png"},
+	{Slug: "penny",     Label: "Penny",            SpriteURL: showdownBase + "penny.png"},
+
+	// -- Champions & Elite Four --
+	{Slug: "cynthia",   Label: "Cynthia",          SpriteURL: showdownBase + "cynthia.png"},
+	{Slug: "diantha",   Label: "Diantha",          SpriteURL: showdownBase + "diantha.png"},
+	{Slug: "iris",      Label: "Iris",             SpriteURL: showdownBase + "iris.png"},
+	{Slug: "alder",     Label: "Alder",            SpriteURL: showdownBase + "alder.png"},
+	{Slug: "leon",      Label: "Leon",             SpriteURL: showdownBase + "leon.png"},
+	{Slug: "geeta",     Label: "Geeta",            SpriteURL: showdownBase + "geeta.png"},
+	{Slug: "steven",    Label: "Steven",           SpriteURL: showdownBase + "steven.png"},
+
+	// -- Gym Leaders: Kanto --
+	{Slug: "brock",     Label: "Brock",            SpriteURL: showdownBase + "brock.png"},
+	{Slug: "misty",     Label: "Misty",            SpriteURL: showdownBase + "misty.png"},
+	{Slug: "lt-surge",  Label: "Lt. Surge",        SpriteURL: showdownBase + "ltsurge.png"},
+	{Slug: "erika",     Label: "Erika",            SpriteURL: showdownBase + "erika.png"},
+	{Slug: "koga",      Label: "Koga",             SpriteURL: showdownBase + "koga.png"},
+	{Slug: "sabrina",   Label: "Sabrina",          SpriteURL: showdownBase + "sabrina.png"},
+	{Slug: "blaine",    Label: "Blaine",           SpriteURL: showdownBase + "blaine.png"},
+
+	// -- Gym Leaders: Johto --
+	{Slug: "falkner",   Label: "Falkner",          SpriteURL: showdownBase + "falkner.png"},
+	{Slug: "bugsy",     Label: "Bugsy",            SpriteURL: showdownBase + "bugsy.png"},
+	{Slug: "whitney",   Label: "Whitney",          SpriteURL: showdownBase + "whitney.png"},
+	{Slug: "morty",     Label: "Morty",            SpriteURL: showdownBase + "morty.png"},
+	{Slug: "jasmine",   Label: "Jasmine",          SpriteURL: showdownBase + "jasmine.png"},
+	{Slug: "pryce",     Label: "Pryce",            SpriteURL: showdownBase + "pryce.png"},
+	{Slug: "clair",     Label: "Clair",            SpriteURL: showdownBase + "clair.png"},
+
+	// -- Scientists, Professors & Researchers --
+	{Slug: "scientist", Label: "Scientist",        SpriteURL: showdownBase + "scientist.png"},
+	{Slug: "doctor",    Label: "Doctor",           SpriteURL: showdownBase + "doctor.png"},
+	{Slug: "nurse",     Label: "Nurse",            SpriteURL: showdownBase + "nurse.png"},
+	{Slug: "elm",       Label: "Prof. Elm",        SpriteURL: showdownBase + "elm.png"},
+	{Slug: "birch",     Label: "Prof. Birch",      SpriteURL: showdownBase + "birch.png"},
+	{Slug: "rowan",     Label: "Prof. Rowan",      SpriteURL: showdownBase + "rowan.png"},
+	{Slug: "sycamore",  Label: "Prof. Sycamore",   SpriteURL: showdownBase + "sycamore.png"},
+	{Slug: "kukui",     Label: "Prof. Kukui",      SpriteURL: showdownBase + "kukui.png"},
+	{Slug: "burnet",    Label: "Prof. Burnet",     SpriteURL: showdownBase + "burnet.png"},
+	{Slug: "juniper",   Label: "Prof. Juniper",    SpriteURL: showdownBase + "juniper.png"},
+	{Slug: "magnolia",  Label: "Prof. Magnolia",   SpriteURL: showdownBase + "magnolia.png"},
+	{Slug: "laventon",  Label: "Prof. Laventon",   SpriteURL: showdownBase + "laventon.png"},
+	{Slug: "turo",      Label: "Prof. Turo",       SpriteURL: showdownBase + "turo.png"},
+	{Slug: "sada",      Label: "Prof. Sada",       SpriteURL: showdownBase + "sada.png"},
+	{Slug: "willow",    Label: "Prof. Willow",     SpriteURL: showdownBase + "willow.png"},
+	{Slug: "faba",      Label: "Faba",             SpriteURL: showdownBase + "faba.png"},
+	{Slug: "molayne",   Label: "Molayne",          SpriteURL: showdownBase + "molayne.png"},
+
+	// -- Playable Characters --
+	{Slug: "kris",      Label: "Kris",             SpriteURL: showdownBase + "kris.png"},
+	{Slug: "ethan",     Label: "Ethan",            SpriteURL: showdownBase + "ethan.png"},
+	{Slug: "lyra",      Label: "Lyra",             SpriteURL: showdownBase + "lyra.png"},
+	{Slug: "hilbert",   Label: "Hilbert",          SpriteURL: showdownBase + "hilbert.png"},
+	{Slug: "hilda",     Label: "Hilda",            SpriteURL: showdownBase + "hilda.png"},
+	{Slug: "dawn",      Label: "Dawn",             SpriteURL: showdownBase + "dawn.png"},
+	{Slug: "lucas",     Label: "Lucas",            SpriteURL: showdownBase + "lucas.png"},
+	{Slug: "nate",      Label: "Nate",             SpriteURL: showdownBase + "nate.png"},
+	{Slug: "rosa",      Label: "Rosa",             SpriteURL: showdownBase + "rosa.png"},
+	{Slug: "elio",      Label: "Elio",             SpriteURL: showdownBase + "elio.png"},
+	{Slug: "selene",    Label: "Selene",           SpriteURL: showdownBase + "selene.png"},
+	{Slug: "victor",    Label: "Victor",           SpriteURL: showdownBase + "victor.png"},
+	{Slug: "gloria",    Label: "Gloria",           SpriteURL: showdownBase + "gloria.png"},
+	{Slug: "florian-s",        Label: "Florian",              SpriteURL: showdownBase + "florian-s.png"},
+	{Slug: "florian-bb",       Label: "Florian (Blueberry)",  SpriteURL: showdownBase + "florian-bb.png"},
+	{Slug: "florian-festival", Label: "Florian (Festival)",   SpriteURL: showdownBase + "florian-festival.png"},
+	{Slug: "juliana-s",        Label: "Juliana",              SpriteURL: showdownBase + "juliana-s.png"},
+	{Slug: "juliana-bb",       Label: "Juliana (Blueberry)",  SpriteURL: showdownBase + "juliana-bb.png"},
+	{Slug: "juliana-festival", Label: "Juliana (Festival)",   SpriteURL: showdownBase + "juliana-festival.png"},
+	{Slug: "arven-s",   Label: "Arven (S)",        SpriteURL: showdownBase + "arven-s.png"},
+	{Slug: "arven-v",   Label: "Arven (V)",        SpriteURL: showdownBase + "arven-v.png"},
+
+	// -- Elite Four: Sinnoh --
+	{Slug: "aaron",     Label: "Aaron",            SpriteURL: showdownBase + "aaron.png"},
+	{Slug: "bertha",    Label: "Bertha",           SpriteURL: showdownBase + "bertha.png"},
+	{Slug: "flint",     Label: "Flint",            SpriteURL: showdownBase + "flint.png"},
+	{Slug: "lucian",    Label: "Lucian",           SpriteURL: showdownBase + "lucian.png"},
+	{Slug: "volkner",   Label: "Volkner",          SpriteURL: showdownBase + "volkner.png"},
+
+	// -- Elite Four: Kalos --
+	{Slug: "malva",     Label: "Malva",            SpriteURL: showdownBase + "malva.png"},
+	{Slug: "wikstrom",  Label: "Wikstrom",         SpriteURL: showdownBase + "wikstrom.png"},
+	{Slug: "siebold",   Label: "Siebold",          SpriteURL: showdownBase + "siebold.png"},
+	{Slug: "drasna",    Label: "Drasna",           SpriteURL: showdownBase + "drasna.png"},
+
+	// -- Gym Leaders: Galar --
+	{Slug: "nessa",     Label: "Nessa",            SpriteURL: showdownBase + "nessa.png"},
+	{Slug: "kabu",      Label: "Kabu",             SpriteURL: showdownBase + "kabu.png"},
+	{Slug: "bea",       Label: "Bea",              SpriteURL: showdownBase + "bea.png"},
+	{Slug: "allister",  Label: "Allister",         SpriteURL: showdownBase + "allister.png"},
+	{Slug: "opal",      Label: "Opal",             SpriteURL: showdownBase + "opal.png"},
+	{Slug: "gordie",    Label: "Gordie",           SpriteURL: showdownBase + "gordie.png"},
+	{Slug: "melony",    Label: "Melony",           SpriteURL: showdownBase + "melony.png"},
+	{Slug: "piers",     Label: "Piers",            SpriteURL: showdownBase + "piers.png"},
+	{Slug: "raihan",    Label: "Raihan",           SpriteURL: showdownBase + "raihan.png"},
+
+	// -- Gym Leaders: Paldea --
+	{Slug: "brassius",  Label: "Brassius",         SpriteURL: showdownBase + "brassius.png"},
+	{Slug: "iono",      Label: "Iono",             SpriteURL: showdownBase + "iono.png"},
+	{Slug: "larry",     Label: "Larry",            SpriteURL: showdownBase + "larry.png"},
+	{Slug: "ryme",      Label: "Ryme",             SpriteURL: showdownBase + "ryme.png"},
+	{Slug: "tulip",     Label: "Tulip",            SpriteURL: showdownBase + "tulip.png"},
+	{Slug: "grusha",    Label: "Grusha",           SpriteURL: showdownBase + "grusha.png"},
+	{Slug: "hassel",    Label: "Hassel",           SpriteURL: showdownBase + "hassel.png"},
+	{Slug: "poppy",     Label: "Poppy",            SpriteURL: showdownBase + "poppy.png"},
 }
 
 // dreamstoneTrainerClasses are trainer front sprites from Pokémon Dreamstone Mysteries
@@ -170,6 +308,110 @@ var dreamstoneTrainerClasses = []TrainerClass{
 	{Slug: "ds-wally",                Label: "Wally (DS)",                SpriteURL: "/static/sprites/dreamstone/wally.png"},
 	{Slug: "ds-young_couple",         Label: "Young Couple (DS)",         SpriteURL: "/static/sprites/dreamstone/young_couple.png"},
 	{Slug: "ds-youngster",            Label: "Youngster (DS)",            SpriteURL: "/static/sprites/dreamstone/youngster.png"},
+}
+
+// pexTrainerClasses are FRLG-style trainer front sprites from pokeemerald-expansion
+// (github.com/rh-hideout/pokeemerald-expansion), a community pokeemerald ROM hack.
+// Sprites are stored locally under static/sprites/pex/ and served as static files.
+// Attribution: Rom Hacking Hideout (RHH).
+var pexTrainerClasses = []TrainerClass{
+	// -- Kanto Gym Leaders (FRLG) --
+	{Slug: "pex-leader_brock_frlg",    Label: "Brock (FRLG)",        SpriteURL: "/static/sprites/pex/leader_brock_frlg.png"},
+	{Slug: "pex-leader_misty_frlg",    Label: "Misty (FRLG)",        SpriteURL: "/static/sprites/pex/leader_misty_frlg.png"},
+	{Slug: "pex-leader_lt_surge_frlg", Label: "Lt. Surge (FRLG)",    SpriteURL: "/static/sprites/pex/leader_lt_surge_frlg.png"},
+	{Slug: "pex-leader_erika_frlg",    Label: "Erika (FRLG)",        SpriteURL: "/static/sprites/pex/leader_erika_frlg.png"},
+	{Slug: "pex-leader_koga_frlg",     Label: "Koga (FRLG)",         SpriteURL: "/static/sprites/pex/leader_koga_frlg.png"},
+	{Slug: "pex-leader_sabrina_frlg",  Label: "Sabrina (FRLG)",      SpriteURL: "/static/sprites/pex/leader_sabrina_frlg.png"},
+	{Slug: "pex-leader_blaine_frlg",   Label: "Blaine (FRLG)",       SpriteURL: "/static/sprites/pex/leader_blaine_frlg.png"},
+	{Slug: "pex-leader_giovanni_frlg", Label: "Giovanni (FRLG)",     SpriteURL: "/static/sprites/pex/leader_giovanni_frlg.png"},
+
+	// -- Kanto Elite Four & Champions (FRLG) --
+	{Slug: "pex-elite_four_lorelei_frlg", Label: "Lorelei (FRLG)",      SpriteURL: "/static/sprites/pex/elite_four_lorelei_frlg.png"},
+	{Slug: "pex-elite_four_bruno_frlg",   Label: "Bruno (FRLG)",         SpriteURL: "/static/sprites/pex/elite_four_bruno_frlg.png"},
+	{Slug: "pex-elite_four_agatha_frlg",  Label: "Agatha (FRLG)",        SpriteURL: "/static/sprites/pex/elite_four_agatha_frlg.png"},
+	{Slug: "pex-elite_four_lance_frlg",   Label: "Lance (FRLG)",         SpriteURL: "/static/sprites/pex/elite_four_lance_frlg.png"},
+	{Slug: "pex-champion_steven_frlg",    Label: "Steven (FRLG)",        SpriteURL: "/static/sprites/pex/champion_steven_frlg.png"},
+	{Slug: "pex-champion_rival_frlg",     Label: "Blue (FRLG)",          SpriteURL: "/static/sprites/pex/champion_rival_frlg.png"},
+	{Slug: "pex-rival_early_frlg",        Label: "Blue Early (FRLG)",    SpriteURL: "/static/sprites/pex/rival_early_frlg.png"},
+	{Slug: "pex-rival_late_frlg",         Label: "Blue Late (FRLG)",     SpriteURL: "/static/sprites/pex/rival_late_frlg.png"},
+
+	// -- Professors & Scientists (FRLG) --
+	{Slug: "pex-professor_oak_frlg", Label: "Prof. Oak (FRLG)",    SpriteURL: "/static/sprites/pex/professor_oak_frlg.png"},
+	{Slug: "pex-scientist_frlg",     Label: "Scientist (FRLG)",    SpriteURL: "/static/sprites/pex/scientist_frlg.png"},
+	{Slug: "pex-engineer_frlg",      Label: "Engineer (FRLG)",     SpriteURL: "/static/sprites/pex/engineer_frlg.png"},
+
+	// -- Team Rocket (FRLG) --
+	{Slug: "pex-rocket_grunt_f_frlg", Label: "Rocket Grunt F (FRLG)", SpriteURL: "/static/sprites/pex/rocket_grunt_f_frlg.png"},
+	{Slug: "pex-rocket_grunt_m_frlg", Label: "Rocket Grunt M (FRLG)", SpriteURL: "/static/sprites/pex/rocket_grunt_m_frlg.png"},
+
+	// -- Trainer Classes: New to FRLG --
+	{Slug: "pex-burglar_frlg",    Label: "Burglar (FRLG)",     SpriteURL: "/static/sprites/pex/burglar_frlg.png"},
+	{Slug: "pex-biker_frlg",      Label: "Biker (FRLG)",       SpriteURL: "/static/sprites/pex/biker_frlg.png"},
+	{Slug: "pex-juggler_frlg",    Label: "Juggler (FRLG)",     SpriteURL: "/static/sprites/pex/juggler_frlg.png"},
+	{Slug: "pex-channeler_frlg",  Label: "Channeler (FRLG)",   SpriteURL: "/static/sprites/pex/channeler_frlg.png"},
+	{Slug: "pex-cue_ball_frlg",   Label: "Cue Ball (FRLG)",    SpriteURL: "/static/sprites/pex/cue_ball_frlg.png"},
+	{Slug: "pex-gamer_frlg",      Label: "Gamer (FRLG)",       SpriteURL: "/static/sprites/pex/gamer_frlg.png"},
+	{Slug: "pex-painter_frlg",    Label: "Painter (FRLG)",     SpriteURL: "/static/sprites/pex/painter_frlg.png"},
+	{Slug: "pex-rocker_frlg",     Label: "Rocker (FRLG)",      SpriteURL: "/static/sprites/pex/rocker_frlg.png"},
+	{Slug: "pex-tamer_frlg",      Label: "Tamer (FRLG)",       SpriteURL: "/static/sprites/pex/tamer_frlg.png"},
+	{Slug: "pex-crush_girl_frlg", Label: "Crush Girl (FRLG)",  SpriteURL: "/static/sprites/pex/crush_girl_frlg.png"},
+	{Slug: "pex-crush_kin_frlg",  Label: "Crush Kin (FRLG)",   SpriteURL: "/static/sprites/pex/crush_kin_frlg.png"},
+	{Slug: "pex-super_nerd_frlg", Label: "Super Nerd (FRLG)",  SpriteURL: "/static/sprites/pex/super_nerd_frlg.png"},
+
+	// -- Trainer Classes: FRLG variants of existing classes --
+	{Slug: "pex-aroma_lady_frlg",           Label: "Aroma Lady (FRLG)",            SpriteURL: "/static/sprites/pex/aroma_lady_frlg.png"},
+	{Slug: "pex-beauty_frlg",               Label: "Beauty (FRLG)",                SpriteURL: "/static/sprites/pex/beauty_frlg.png"},
+	{Slug: "pex-bird_keeper_frlg",          Label: "Bird Keeper (FRLG)",           SpriteURL: "/static/sprites/pex/bird_keeper_frlg.png"},
+	{Slug: "pex-black_belt_frlg",           Label: "Black Belt (FRLG)",            SpriteURL: "/static/sprites/pex/black_belt_frlg.png"},
+	{Slug: "pex-bug_catcher_frlg",          Label: "Bug Catcher (FRLG)",           SpriteURL: "/static/sprites/pex/bug_catcher_frlg.png"},
+	{Slug: "pex-camper_frlg",               Label: "Camper (FRLG)",                SpriteURL: "/static/sprites/pex/camper_frlg.png"},
+	{Slug: "pex-collector_frlg",            Label: "Collector (FRLG)",             SpriteURL: "/static/sprites/pex/collector_frlg.png"},
+	{Slug: "pex-cool_couple_frlg",          Label: "Cool Couple (FRLG)",           SpriteURL: "/static/sprites/pex/cool_couple_frlg.png"},
+	{Slug: "pex-cool_trainer_f_frlg",       Label: "Cool Trainer F (FRLG)",        SpriteURL: "/static/sprites/pex/cool_trainer_f_frlg.png"},
+	{Slug: "pex-cool_trainer_m_frlg",       Label: "Cool Trainer M (FRLG)",        SpriteURL: "/static/sprites/pex/cool_trainer_m_frlg.png"},
+	{Slug: "pex-cycling_triathlete_f_frlg", Label: "Cycling Triathlete F (FRLG)",  SpriteURL: "/static/sprites/pex/cycling_triathlete_f_frlg.png"},
+	{Slug: "pex-cycling_triathlete_m_frlg", Label: "Cycling Triathlete M (FRLG)",  SpriteURL: "/static/sprites/pex/cycling_triathlete_m_frlg.png"},
+	{Slug: "pex-dragon_tamer_frlg",         Label: "Dragon Tamer (FRLG)",          SpriteURL: "/static/sprites/pex/dragon_tamer_frlg.png"},
+	{Slug: "pex-expert_f_frlg",             Label: "Expert F (FRLG)",              SpriteURL: "/static/sprites/pex/expert_f_frlg.png"},
+	{Slug: "pex-expert_m_frlg",             Label: "Expert M (FRLG)",              SpriteURL: "/static/sprites/pex/expert_m_frlg.png"},
+	{Slug: "pex-fisherman_frlg",            Label: "Fisherman (FRLG)",             SpriteURL: "/static/sprites/pex/fisherman_frlg.png"},
+	{Slug: "pex-gentleman_frlg",            Label: "Gentleman (FRLG)",             SpriteURL: "/static/sprites/pex/gentleman_frlg.png"},
+	{Slug: "pex-guitarist_frlg",            Label: "Guitarist (FRLG)",             SpriteURL: "/static/sprites/pex/guitarist_frlg.png"},
+	{Slug: "pex-hex_maniac_frlg",           Label: "Hex Maniac (FRLG)",            SpriteURL: "/static/sprites/pex/hex_maniac_frlg.png"},
+	{Slug: "pex-hiker_frlg",               Label: "Hiker (FRLG)",                 SpriteURL: "/static/sprites/pex/hiker_frlg.png"},
+	{Slug: "pex-interviewer_frlg",          Label: "Interviewer (FRLG)",           SpriteURL: "/static/sprites/pex/interviewer_frlg.png"},
+	{Slug: "pex-kindler_frlg",              Label: "Kindler (FRLG)",               SpriteURL: "/static/sprites/pex/kindler_frlg.png"},
+	{Slug: "pex-lady_frlg",                Label: "Lady (FRLG)",                  SpriteURL: "/static/sprites/pex/lady_frlg.png"},
+	{Slug: "pex-lass_frlg",                Label: "Lass (FRLG)",                  SpriteURL: "/static/sprites/pex/lass_frlg.png"},
+	{Slug: "pex-parasol_lady_frlg",         Label: "Parasol Lady (FRLG)",          SpriteURL: "/static/sprites/pex/parasol_lady_frlg.png"},
+	{Slug: "pex-picnicker_frlg",            Label: "Picnicker (FRLG)",             SpriteURL: "/static/sprites/pex/picnicker_frlg.png"},
+	{Slug: "pex-pokefan_f_frlg",            Label: "Pokefan F (FRLG)",             SpriteURL: "/static/sprites/pex/pokefan_f_frlg.png"},
+	{Slug: "pex-pokefan_m_frlg",            Label: "Pokefan M (FRLG)",             SpriteURL: "/static/sprites/pex/pokefan_m_frlg.png"},
+	{Slug: "pex-pokemaniac_frlg",           Label: "Pokemaniac (FRLG)",            SpriteURL: "/static/sprites/pex/pokemaniac_frlg.png"},
+	{Slug: "pex-pokemon_breeder_frlg",      Label: "Pokemon Breeder (FRLG)",       SpriteURL: "/static/sprites/pex/pokemon_breeder_frlg.png"},
+	{Slug: "pex-pokemon_ranger_f_frlg",     Label: "Pokemon Ranger F (FRLG)",      SpriteURL: "/static/sprites/pex/pokemon_ranger_f_frlg.png"},
+	{Slug: "pex-pokemon_ranger_m_frlg",     Label: "Pokemon Ranger M (FRLG)",      SpriteURL: "/static/sprites/pex/pokemon_ranger_m_frlg.png"},
+	{Slug: "pex-psychic_f_frlg",            Label: "Psychic F (FRLG)",             SpriteURL: "/static/sprites/pex/psychic_f_frlg.png"},
+	{Slug: "pex-psychic_m_frlg",            Label: "Psychic M (FRLG)",             SpriteURL: "/static/sprites/pex/psychic_m_frlg.png"},
+	{Slug: "pex-rich_boy_frlg",             Label: "Rich Boy (FRLG)",              SpriteURL: "/static/sprites/pex/rich_boy_frlg.png"},
+	{Slug: "pex-ruin_maniac_frlg",          Label: "Ruin Maniac (FRLG)",           SpriteURL: "/static/sprites/pex/ruin_maniac_frlg.png"},
+	{Slug: "pex-running_triathlete_f_frlg", Label: "Running Triathlete F (FRLG)",  SpriteURL: "/static/sprites/pex/running_triathlete_f_frlg.png"},
+	{Slug: "pex-running_triathlete_m_frlg", Label: "Running Triathlete M (FRLG)",  SpriteURL: "/static/sprites/pex/running_triathlete_m_frlg.png"},
+	{Slug: "pex-sailor_frlg",               Label: "Sailor (FRLG)",                SpriteURL: "/static/sprites/pex/sailor_frlg.png"},
+	{Slug: "pex-school_kid_f_frlg",         Label: "School Kid F (FRLG)",          SpriteURL: "/static/sprites/pex/school_kid_f_frlg.png"},
+	{Slug: "pex-school_kid_m_frlg",         Label: "School Kid M (FRLG)",          SpriteURL: "/static/sprites/pex/school_kid_m_frlg.png"},
+	{Slug: "pex-sis_and_bro_frlg",          Label: "Sis & Bro (FRLG)",             SpriteURL: "/static/sprites/pex/sis_and_bro_frlg.png"},
+	{Slug: "pex-sr_and_jr_frlg",            Label: "Sr. & Jr. (FRLG)",             SpriteURL: "/static/sprites/pex/sr_and_jr_frlg.png"},
+	{Slug: "pex-swimmer_f_frlg",            Label: "Swimmer F (FRLG)",             SpriteURL: "/static/sprites/pex/swimmer_f_frlg.png"},
+	{Slug: "pex-swimmer_m_frlg",            Label: "Swimmer M (FRLG)",             SpriteURL: "/static/sprites/pex/swimmer_m_frlg.png"},
+	{Slug: "pex-swimming_triathlete_f_frlg",Label: "Swimming Triathlete F (FRLG)", SpriteURL: "/static/sprites/pex/swimming_triathlete_f_frlg.png"},
+	{Slug: "pex-swimming_triathlete_m_frlg",Label: "Swimming Triathlete M (FRLG)", SpriteURL: "/static/sprites/pex/swimming_triathlete_m_frlg.png"},
+	{Slug: "pex-tuber_f_frlg",              Label: "Tuber F (FRLG)",               SpriteURL: "/static/sprites/pex/tuber_f_frlg.png"},
+	{Slug: "pex-tuber_m_frlg",              Label: "Tuber M (FRLG)",               SpriteURL: "/static/sprites/pex/tuber_m_frlg.png"},
+	{Slug: "pex-twins_frlg",                Label: "Twins (FRLG)",                 SpriteURL: "/static/sprites/pex/twins_frlg.png"},
+	{Slug: "pex-wally_frlg",                Label: "Wally (FRLG)",                 SpriteURL: "/static/sprites/pex/wally_frlg.png"},
+	{Slug: "pex-young_couple_frlg",         Label: "Young Couple (FRLG)",          SpriteURL: "/static/sprites/pex/young_couple_frlg.png"},
+	{Slug: "pex-youngster_frlg",            Label: "Youngster (FRLG)",             SpriteURL: "/static/sprites/pex/youngster_frlg.png"},
 }
 
 // pokemon-go-api (github.com/pokemon-go-api/pokemon-go-api) aggregates LeekDuck raid
@@ -280,12 +522,16 @@ type Store struct {
 }
 
 func New() *Store {
-	classes := make([]TrainerClass, 0, len(builtinTrainerClasses)+len(dreamstoneTrainerClasses))
+	classes := make([]TrainerClass, 0, len(builtinTrainerClasses)+len(dreamstoneTrainerClasses)+len(pexTrainerClasses))
 	for _, tc := range builtinTrainerClasses {
 		classes = append(classes, TrainerClass{Slug: tc.Slug, Label: tc.Label, SpriteURL: "/api/trainer-sprite/" + tc.Slug, Group: "classic"})
 	}
 	for _, tc := range dreamstoneTrainerClasses {
 		tc.Group = "dreamstone"
+		classes = append(classes, tc)
+	}
+	for _, tc := range pexTrainerClasses {
+		tc.Group = "pex"
 		classes = append(classes, tc)
 	}
 	cacheDir := os.Getenv("CACHE_DIR")
@@ -748,6 +994,7 @@ func (s *Store) fetchPGAPIRaids() (json.RawMessage, error) {
 		shadow bool
 	}{
 		{"mega", "6", false},
+		{"ultra_beast", "5", false},
 		{"lvl5", "5", false},
 		{"lvl3", "3", false},
 		{"lvl1", "1", false},

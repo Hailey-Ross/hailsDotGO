@@ -193,7 +193,8 @@ Get-ChildItem (Join-Path $root "static\js") -Filter *.js -File | Sort-Object Nam
 }
 
 $trackedDirs = @(
-    @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" }
+    @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" },
+    @{ src = "static\sprites\pex";        dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/pex" }
 )
 
 $pending    = [System.Collections.Generic.List[object]]::new()
@@ -288,7 +289,24 @@ if ($status -eq "active") {
     Write-Host "  $uploadCount uploaded, $skipCount unchanged, $(Elapsed) total" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "==> Recent log" -ForegroundColor Cyan
-    & ssh @ssh $target "journalctl -u hailsdotgo -n 10 --no-pager"
+    $logLines = & ssh @ssh $target "journalctl -u hailsdotgo -n 20 --no-pager"
+    $warnings = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in $logLines) {
+        if (($line -match 'fetched 0 bosses' -and $line -notmatch 'max battles') -or $line -match 'pogodata:.+refresh:') {
+            Write-Host $line -ForegroundColor Yellow
+            $msg = ($line -replace '^.+hailsDotGO\[\d+\]:\s+[\d/]+ [\d:]+ ', '').Trim()
+            $warnings.Add($msg)
+        } else {
+            Write-Host $line
+        }
+    }
+    if ($warnings.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  !! $($warnings.Count) data warning(s):" -ForegroundColor Red
+        foreach ($w in $warnings) {
+            Write-Host "     $w" -ForegroundColor Yellow
+        }
+    }
 } else {
     Write-Host ""
     Write-Host "  Service is $status - fetching logs..." -ForegroundColor Red
