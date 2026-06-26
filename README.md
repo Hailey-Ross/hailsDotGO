@@ -4,6 +4,7 @@ A fan-made Pokémon GO companion web app built in Go.
 
 - Live raid bosses and Max Battles with counter recommendations
 - DPS calculator, moveset comparison, and PvP IV ranker (GL / UL / ML)
+- IV Calculator with manual entry, form and Pokémon status support, and OCR screenshot scanning (CP, HP, dust, appraisal auto-detection)
 - Events page with full details sourced from LeekDuck via ScrapedDuck
 - Shiny Dex plus a personal shiny collection tracker
 - Trainer Directory with dedicated profile pages, a real-time Raid Finder with matchmaking, lobbies, and a trust system

@@ -72,11 +72,11 @@ func main() {
 	store.Start()
 
 	srv := &http.Server{
-		Addr:         ":" + port,
-		Handler:      server.New(store, db, csrfKey),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              ":" + port,
+		Handler:           server.New(store, db, csrfKey),
+		ReadHeaderTimeout: 15 * time.Second,
+		WriteTimeout:      90 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

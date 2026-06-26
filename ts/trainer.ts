@@ -78,18 +78,19 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
 
   const METHOD_ICONS: Record<string, string> = {
     wild: '🌿', egg: '🥚', raid: '⚔️', research: '📋',
-    evolution: '⬆️', photobomb: '📸', trade: '🤝', go_tour: '🎟️',
+    evolution: '⬆️', photobomb: '📸', trade: '🤝', go_pass: '🎫', go_tour: '🎟️',
   };
   const METHOD_LABELS: Record<string, string> = {
     wild: TRAINER_CTX.methodWild, egg: TRAINER_CTX.methodEgg,
     raid: TRAINER_CTX.methodRaid, research: TRAINER_CTX.methodResearch,
     evolution: TRAINER_CTX.methodEvolution, photobomb: TRAINER_CTX.methodPhotobomb,
-    trade: TRAINER_CTX.methodTrade, go_tour: TRAINER_CTX.methodGoTour,
+    trade: TRAINER_CTX.methodTrade, go_pass: TRAINER_CTX.methodGoPass, go_tour: TRAINER_CTX.methodGoTour,
   };
 
   type ShinyItem = {
     pokemon_id: string; form: string; costume: string;
     event_tag: string; method: string; sprite_url: string;
+    evolved_at: string | null;
   };
 
   function renderItems(items: ShinyItem[]): void {
@@ -106,7 +107,7 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     for (const item of items) {
       if (!item.sprite_url) continue;
       const cell = document.createElement('div');
-      cell.className = 'trainer-shiny-item';
+      cell.className = 'trainer-shiny-item' + (item.evolved_at ? ' sc-evolved-card' : '');
       const img = document.createElement('img');
       const dexMatch = /\/shiny\/(\d+)\.png$/.exec(item.sprite_url);
       const dexId = dexMatch ? parseInt(dexMatch[1], 10) : 0;
@@ -121,6 +122,13 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       img.alt = item.pokemon_id;
       img.width = 48; img.height = 48;
       cell.appendChild(img);
+      if (item.evolved_at) {
+        const evBadge = document.createElement('span');
+        evBadge.className = 'trainer-evolved-badge';
+        evBadge.textContent = '⬆';
+        evBadge.title = TRAINER_CTX.evolved;
+        cell.appendChild(evBadge);
+      }
       const name = document.createElement('span');
       name.className = 'trainer-shiny-name';
       name.textContent = item.pokemon_id;
@@ -163,7 +171,15 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
         btn.className = 'btn-secondary';
         btn.style.cssText = 'margin-top:0.75rem;font-size:0.82rem';
         btn.textContent = TRAINER_CTX.shinyShowAll.replace('{n}', String(all.length));
-        btn.addEventListener('click', () => { renderItems(all); btn.remove(); });
+        btn.addEventListener('click', () => {
+          const byDex = [...all].sort((a, b) => {
+            const dexA = parseInt(/\/shiny\/(\d+)\.png$/.exec(a.sprite_url)?.[1] ?? '0', 10);
+            const dexB = parseInt(/\/shiny\/(\d+)\.png$/.exec(b.sprite_url)?.[1] ?? '0', 10);
+            return dexA - dexB;
+          });
+          renderItems(byDex);
+          btn.remove();
+        });
         container.appendChild(btn);
       }
     })

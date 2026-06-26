@@ -11,13 +11,14 @@ import (
 )
 
 type shinyRecord struct {
-	ID        uint      `json:"id"`
-	PokemonID string    `json:"pokemon_id"`
-	Form      string    `json:"form"`
-	Costume   string    `json:"costume"`
-	EventTag  string    `json:"event_tag"`
-	Method    string    `json:"method"`
-	CaughtAt  time.Time `json:"caught_at"`
+	ID        uint       `json:"id"`
+	PokemonID string     `json:"pokemon_id"`
+	Form      string     `json:"form"`
+	Costume   string     `json:"costume"`
+	EventTag  string     `json:"event_tag"`
+	Method    string     `json:"method"`
+	CaughtAt  time.Time  `json:"caught_at"`
+	EvolvedAt *time.Time `json:"evolved_at"`
 }
 
 func (h *Handlers) ShiniesPage(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +33,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_id, form, costume, event_tag, method, caught_at
+		SELECT id, pokemon_id, form, costume, event_tag, method, caught_at, evolved_at
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`,
 		u.ID,
 	)
@@ -45,7 +46,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	out := []shinyRecord{}
 	for rows.Next() {
 		var s shinyRecord
-		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
 			continue
 		}
 		out = append(out, s)
@@ -160,14 +161,52 @@ func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
+	u := h.currentUser(r)
+	if u == nil {
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
+		return
+	}
+
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		Into string `json:"into"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
+	body.Into = strings.TrimSpace(body.Into)
+	if body.Into == "" {
+		writeJSONError(w, "missing target form", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.db.Exec(
+		`UPDATE user_shinies SET pokemon_id = ?, evolved_at = NOW() WHERE id = ? AND user_id = ?`,
+		body.Into, id, u.ID,
+	); err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type publicShinyRecord struct {
-	PokemonID string    `json:"pokemon_id"`
-	Form      string    `json:"form"`
-	Costume   string    `json:"costume"`
-	EventTag  string    `json:"event_tag"`
-	Method    string    `json:"method"`
-	SpriteURL string    `json:"sprite_url"`
-	CaughtAt  time.Time `json:"caught_at"`
+	PokemonID string     `json:"pokemon_id"`
+	Form      string     `json:"form"`
+	Costume   string     `json:"costume"`
+	EventTag  string     `json:"event_tag"`
+	Method    string     `json:"method"`
+	SpriteURL string     `json:"sprite_url"`
+	CaughtAt  time.Time  `json:"caught_at"`
+	EvolvedAt *time.Time `json:"evolved_at"`
 }
 
 func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +225,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT pokemon_id, form, costume, event_tag, method, caught_at
+		SELECT pokemon_id, form, costume, event_tag, method, caught_at, evolved_at
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`, userID,
 	)
 	if err != nil {
@@ -198,7 +237,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	out := []publicShinyRecord{}
 	for rows.Next() {
 		var s publicShinyRecord
-		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt); err != nil {
+		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
 			continue
 		}
 		if id := h.store.PokemonDexID(s.PokemonID); id != 0 {

@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS user_shinies (
   event_tag  VARCHAR(128) NOT NULL DEFAULT '',
   method     VARCHAR(32)  NOT NULL DEFAULT '',
   caught_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  evolved_at DATETIME     NULL DEFAULT NULL,
   PRIMARY KEY (id),
   KEY idx_user_shiny (user_id, pokemon_id),
   CONSTRAINT fk_shiny_user FOREIGN KEY (user_id)
@@ -467,6 +468,16 @@ CREATE TABLE IF NOT EXISTS mobile_device_tokens (
   UNIQUE KEY idx_mdt_token (push_token),
   KEY idx_mdt_user (user_id),
   CONSTRAINT fk_mdt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Trainer avatar access locks: min_rank required to select an avatar slug.
+-- 0=all, 1=trusted+, 2=content_creator+, 4=tester+, 5=moderator+, 100=admin+
+-- Professors are auto-locked at rank 1 in code; this table covers admin-configured locks.
+CREATE TABLE IF NOT EXISTS sprite_locks (
+  slug       VARCHAR(100) NOT NULL,
+  min_rank   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- After first deploy: register your admin account via the UI, then run:

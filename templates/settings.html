@@ -73,22 +73,19 @@
         </div>
 
         <div class="settings-field">
-          <label class="settings-label" for="avatar-sel">{{T "settings.avatar.label"}}</label>
+          <label class="settings-label" for="avatar-search">{{T "settings.avatar.label"}}</label>
           <p class="settings-field-hint">{{T "settings.avatar.hint"}}</p>
           <div class="avatar-select-wrap">
-            <select id="avatar-sel" name="avatar" class="auth-input">
-              <option value="">{{T "settings.avatar.default"}}</option>
-              <optgroup label="Classic (Showdown)">
-                {{range .Data.TrainerClasses}}{{if eq .Group "classic"}}
-                <option value="{{.Slug}}" {{if eq $.Data.Avatar .Slug}}selected{{end}}>{{.Label}}</option>
-                {{end}}{{end}}
-              </optgroup>
-              <optgroup label="Dreamstone Mysteries (GBA)">
-                {{range .Data.TrainerClasses}}{{if eq .Group "dreamstone"}}
-                <option value="{{.Slug}}" {{if eq $.Data.Avatar .Slug}}selected{{end}}>{{.Label}}</option>
-                {{end}}{{end}}
-              </optgroup>
-            </select>
+            <input type="hidden" id="avatar-val" name="avatar" value="{{.Data.Avatar}}">
+            <div id="avatar-combo-wrap" class="pokemon-picker picker-inline">
+              <div class="picker-search-row">
+                <input type="text" id="avatar-search" class="search-input auth-input"
+                       placeholder="Search trainers..." autocomplete="off">
+                <button type="button" id="avatar-combo-clear" class="picker-clear-btn"
+                        aria-label="Clear" hidden>&#x2715;</button>
+              </div>
+              <div id="avatar-combo-dropdown" class="picker-dropdown" hidden></div>
+            </div>
             <span id="avatar-preview-default" class="trainer-avatar-sm avatar--default">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>
             </span>
@@ -342,28 +339,137 @@
     prCustom.style.display = prSel.value === 'custom' ? '' : 'none';
   });
 
-  // ── Avatar dropdown + preview ─────────────────────────────────
-  var spriteMap = {};
-  {{range .Data.TrainerClasses}}spriteMap["{{.Slug}}"] = "{{.SpriteURL}}";
-  {{end}}
+  // ── Avatar searchable combobox ────────────────────────────────
+  (function () {
+    var allTrainers = [
+      {{range .Data.TrainerClasses}}
+      {slug:"{{.Slug}}",label:"{{js .Label}}",sprite:"{{.SpriteURL}}",group:"{{.Group}}"},
+      {{end}}
+    ];
+    var groupLabels = {
+      "classic":    "Classic (Showdown)",
+      "dreamstone": "Dreamstone Mysteries (GBA)",
+      "pex":        "pokeemerald-expansion (FRLG)"
+    };
 
-  var avatarSel = document.getElementById('avatar-sel');
-  var previewDefault = document.getElementById('avatar-preview-default');
-  var previewImg = document.getElementById('avatar-preview-img');
+    // Extra search tags per slug -- allows "researcher" / "professor" to find all relevant sprites
+    var tagMap = {
+      "elm": "researcher professor", "birch": "researcher professor",
+      "rowan": "researcher professor", "sycamore": "researcher professor",
+      "kukui": "researcher professor", "burnet": "researcher professor",
+      "juniper": "researcher professor", "magnolia": "researcher professor",
+      "laventon": "researcher professor", "turo": "researcher professor",
+      "sada": "researcher professor", "willow": "researcher professor",
+      "scientist": "researcher", "super-nerd": "researcher",
+      "doctor": "researcher", "nurse": "researcher",
+      "faba": "researcher", "colress": "researcher", "molayne": "researcher",
+      "pex-professor_oak_frlg": "researcher professor",
+      "pex-scientist_frlg": "researcher", "pex-engineer_frlg": "researcher",
+      "pex-super_nerd_frlg": "researcher"
+    };
 
-  function updateAvatarPreview() {
-    var slug = avatarSel.value;
-    if (slug && spriteMap[slug]) {
-      previewImg.src = spriteMap[slug];
-      previewImg.style.display = '';
-      previewDefault.style.display = 'none';
-    } else {
-      previewImg.style.display = 'none';
-      previewDefault.style.display = '';
+    var hiddenInput    = document.getElementById('avatar-val');
+    var searchInput    = document.getElementById('avatar-search');
+    var clearBtn       = document.getElementById('avatar-combo-clear');
+    var dropdown       = document.getElementById('avatar-combo-dropdown');
+    var previewDefault = document.getElementById('avatar-preview-default');
+    var previewImg     = document.getElementById('avatar-preview-img');
+
+    var selected = allTrainers.find(function(t){ return t.slug === hiddenInput.value; }) || null;
+
+    function updatePreview(trainer) {
+      if (trainer) {
+        previewImg.src = trainer.sprite;
+        previewImg.style.display = '';
+        previewDefault.style.display = 'none';
+      } else {
+        previewImg.style.display = 'none';
+        previewDefault.style.display = '';
+      }
     }
-  }
-  avatarSel.addEventListener('change', updateAvatarPreview);
-  updateAvatarPreview();
+
+    function norm(s) { return s.toLowerCase().replace(/[_\-]/g, ' '); }
+
+    function buildDropdown(query) {
+      dropdown.innerHTML = '';
+      var q = norm(query.trim());
+      var matches;
+      if (!q) {
+        matches = allTrainers;
+      } else {
+        matches = allTrainers.map(function(t) {
+          var l = norm(t.label), s = norm(t.slug), g = norm(groupLabels[t.group] || t.group);
+          var tags = tagMap[t.slug] || '';
+          if (l === q)                                   return {t:t, r:0};
+          if (l.startsWith(q))                          return {t:t, r:1};
+          if (l.includes(q))                            return {t:t, r:2};
+          if (s.includes(q)||g.includes(q)||tags.includes(q)) return {t:t, r:3};
+          return null;
+        }).filter(Boolean).sort(function(a,b){return a.r-b.r;}).slice(0,25).map(function(m){return m.t;});
+      }
+      if (!matches.length) {
+        var none = document.createElement('button');
+        none.className = 'picker-option'; none.disabled = true;
+        none.textContent = 'No trainers found';
+        dropdown.appendChild(none);
+      } else {
+        var lastGroup = null;
+        matches.forEach(function(t) {
+          if (t.group !== lastGroup) {
+            var hdr = document.createElement('div');
+            hdr.className = 'avatar-opt-group-hdr';
+            hdr.textContent = groupLabels[t.group] || t.group;
+            dropdown.appendChild(hdr);
+            lastGroup = t.group;
+          }
+          var opt = document.createElement('button');
+          opt.type = 'button'; opt.className = 'picker-option';
+          var img = document.createElement('img');
+          img.src = t.sprite; img.alt = t.label;
+          img.className = 'picker-option-sprite'; img.loading = 'lazy';
+          img.addEventListener('error', function(){ img.style.visibility='hidden'; });
+          opt.appendChild(img);
+          var nm = document.createElement('span');
+          nm.className = 'picker-option-name'; nm.textContent = t.label;
+          opt.appendChild(nm);
+          opt.addEventListener('mousedown', function(e){ e.preventDefault(); pick(t); });
+          dropdown.appendChild(opt);
+        });
+      }
+      dropdown.hidden = false;
+    }
+
+    function pick(trainer) {
+      selected = trainer;
+      hiddenInput.value  = trainer ? trainer.slug : '';
+      searchInput.value  = trainer ? trainer.label : '';
+      clearBtn.hidden    = !trainer;
+      dropdown.hidden    = true;
+      updatePreview(trainer);
+    }
+
+    if (selected) { searchInput.value = selected.label; clearBtn.hidden = false; updatePreview(selected); }
+
+    searchInput.addEventListener('input',  function(){ buildDropdown(searchInput.value); });
+    searchInput.addEventListener('focus',  function(){ buildDropdown(searchInput.value); });
+    searchInput.addEventListener('blur',   function(){ setTimeout(function(){ dropdown.hidden=true; }, 150); });
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { dropdown.hidden = true; }
+      if (e.key === 'Enter' && !dropdown.hidden) {
+        var f = dropdown.querySelector('.picker-option:not([disabled])');
+        if (f) f.dispatchEvent(new MouseEvent('mousedown'));
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        var f = dropdown.querySelector('.picker-option');
+        if (f) f.focus();
+      }
+    });
+    clearBtn.addEventListener('click', function(){ pick(null); searchInput.focus(); });
+    document.addEventListener('click', function(e) {
+      if (!document.getElementById('avatar-combo-wrap').contains(e.target)) dropdown.hidden = true;
+    });
+  })();
 
   // ── Favorite Pokémon picker ───────────────────────────────────
   var pokemonIDs = {};

@@ -30,6 +30,7 @@
       <li><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>: {{T "credits.about.source_openmeteo"}}</li>
       <li><a href="https://pokemonshowdown.com" target="_blank" rel="noopener">Pokémon Showdown</a>: {{T "credits.about.source_showdown"}}</li>
       <li><a href="https://github.com/dsmyst/dreamstone-mysteries" target="_blank" rel="noopener">Dreamstone Mysteries</a> (dsmyst): {{T "credits.about.source_dreamstone"}}</li>
+      <li><a href="https://github.com/rh-hideout/pokeemerald-expansion" target="_blank" rel="noopener">pokeemerald-expansion</a> (Rom Hacking Hideout): {{T "credits.about.source_pex"}}</li>
     </ul>
   </div>
 
@@ -126,6 +127,170 @@
   </div>
 
   <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-26</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(111)</span> IV Calculator: design alignment</h2>
+          <ul class="cl-list">
+            <li>Restructured the Manual and OCR tab containers to match the site-wide calc page pattern -- form inputs now live in their own glass card (column 1 on desktop) separate from the results panel (column 2), matching how the DPS and Raid counters are laid out</li>
+            <li>OCR tab now wraps the upload button, scan status, and extracted data card in a unified controls card instead of loose floating elements</li>
+            <li>Fixed "Log in" hint messages (OCR and My Box tabs when not logged in, and the My Box empty state) -- now shown in a proper glass card instead of floating plain text</li>
+            <li>Fixed broken Pok&eacute;mon Status labels (Normal / Shadow / Purified / Lucky) -- the i18n strings were defined but not passed to the page script, causing "undefined" to render for each button</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(112)</span> Trainer profile: shiny collection sort on expand</h2>
+          <ul class="cl-list">
+            <li>Expanding the shiny collection on a trainer profile now re-orders the full list by Pokédex number (ascending) instead of keeping entry order</li>
+            <li>The initial 9-item preview still shows the most recently caught first</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(110)</span> Shiny Collection: evolve transform</h2>
+          <ul class="cl-list">
+            <li>Evolving a shiny now transforms it in place -- Charmander becomes Charmeleon, Charmeleon becomes Charizard, and so on through the full evolutionary line</li>
+            <li>Click "Evolve" on any caught entry to see the next available form; for branching evolutions (Eevee, Gloom, Slowpoke, etc.) a sprite picker lets you choose which branch</li>
+            <li>Evolution is permanent and one-way; the entry stays in your collection with a ⬆ chip marking when it evolved</li>
+            <li>Counter counts all entries including evolved ones; the Evolved tab filters to shinies that have been evolved at least once</li>
+            <li>Evolution data is bundled statically for all GO-relevant species across generations 1--9; unknown/final forms show "No evolutions"</li>
+            <li>Available in all five supported locales</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(109)</span> Shiny Collection: Go Pass catch method</h2>
+          <ul class="cl-list">
+            <li>Added "Go Pass" as a catch method for the shiny collection (passes that grant encounters, e.g. Paid Event Passes, GO Battle League reward encounters)</li>
+            <li>Displayed with 🎫 icon on shiny cards and trainer profiles; available in all five supported locales</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(105)</span> Trainer Avatars: 101 new Classic sprites</h2>
+          <ul class="cl-list">
+            <li>Added 101 named characters to the Classic (Showdown) avatar set, now spanning Generations 1--9</li>
+            <li>Villains &amp; team bosses: Giovanni, Cyrus, Ghetsis, Lysandre, Lusamine, Guzma, Chairman Rose, Volo</li>
+            <li>Rivals: Blue, Silver, Wally, Barry, Cheren, Bianca, Hugh, Calem, Serena, Hop, Bede, Marnie, Kieran</li>
+            <li>Fan favorites: N, Colress, Gladion, Lillie, Hau, Plumeria, Sonia, Penny</li>
+            <li>Champions: Cynthia, Diantha, Iris, Alder, Leon, Geeta, Steven</li>
+            <li>Gym leaders -- Kanto: Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine; Johto: Falkner, Bugsy, Whitney, Morty, Jasmine, Pryce, Clair; Galar: Nessa, Kabu, Bea, Allister, Opal, Gordie, Melony, Piers, Raihan; Paldea: Brassius, Iono, Larry, Ryme, Tulip, Grusha, Hassel, Poppy</li>
+            <li>Elite Four: Aaron, Bertha, Flint, Lucian, Volkner (Sinnoh); Malva, Wikstrom, Siebold, Drasna (Kalos)</li>
+            <li>Scientists: Scientist, Prof. Sycamore, Prof. Kukui, Faba</li>
+            <li>Playable characters: Kris, Ethan, Lyra, Hilbert, Hilda, Dawn, Lucas, Nate, Rosa, Elio, Selene, Victor, Gloria, Florian, Juliana, Arven (multiple outfit variants for Paldea characters)</li>
+            <li>Sprites proxied through the existing Showdown CDN handler -- no new assets stored locally</li>
+            <li>Added 86 FRLG-style trainer sprites from pokeemerald-expansion (Rom Hacking Hideout) as a new "pokeemerald-expansion (FRLG)" avatar set: Kanto gym leaders (Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine, Giovanni in GBA art style), Kanto Elite Four (Lorelei, Bruno, Agatha, Lance), Blue as rival and champion (both outfits), Steven (FRLG), Prof. Oak, Team Rocket grunts (F/M), and 60+ trainer class variants in FRLG art style including new-to-GBA classes (Burglar, Biker, Juggler, Channeler, Cue Ball, Gamer, Painter, Rocker, Tamer, Crush Girl, Crush Kin, Super Nerd, Engineer, Scientist)</li>
+            <li>Credits page updated with pokeemerald-expansion attribution</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(108)</span> Admin: Trainer Avatar lock management</h2>
+          <ul class="cl-list">
+            <li>New "Trainer Avatars" section in the admin panel for managing which users can access each sprite</li>
+            <li>Professor sprites are automatically locked to Trusted rank or higher -- plain users cannot select them</li>
+            <li>All other sprites can be individually locked to a rank tier (Trusted, Content Creator, Tester, Moderator, Admin) via the admin UI</li>
+            <li>Locked sprites are hidden from the avatar picker for ineligible users</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(107)</span> Avatar picker: expanded researcher &amp; professor sprites</h2>
+          <ul class="cl-list">
+            <li>Added 13 new researcher/scientist-type trainer avatars to the Classic (Showdown) set</li>
+            <li>Professors (each generation now represented): Prof. Elm, Prof. Birch, Prof. Rowan, Prof. Juniper, Prof. Burnet, Prof. Magnolia, Prof. Laventon, Prof. Turo, Prof. Sada, Prof. Willow</li>
+            <li>Trainer classes: Doctor, Nurse (added alongside the existing Scientist and Super Nerd classes)</li>
+            <li>Named researchers: Molayne (Alola Trial Captain and scientist)</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(106)</span> Avatar picker: searchable combobox</h2>
+          <ul class="cl-list">
+            <li>The Trainer Avatar dropdown is now a typed, searchable combobox -- type a character name to filter across all 310+ sprites instantly</li>
+            <li>Smart ranking: exact name match surfaces first, then starts-with, then contains; typing "N" finds the character N before Nessa, Nate, etc.</li>
+            <li>Each dropdown result shows a sprite thumbnail alongside the character name, grouped by set (Classic / Dreamstone / FRLG)</li>
+            <li>Cross-set search: typing "Giovanni" shows both Classic and FRLG variants; typing "FRLG" shows all 86 pokeemerald-expansion sprites</li>
+            <li>Fixed: pokeemerald-expansion sprites were not displaying on the live site -- the deploy script was missing the <code>static/sprites/pex/</code> directory, so the 86 PNG files were never uploaded to the server</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-25</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(104)</span> IV Calculator OCR: appraisal star detection</h2>
+          <ul class="cl-list">
+            <li>OCR scan now attempts to detect the appraisal star rating (0--3 stars, hundo) automatically from the screenshot without requiring manual input</li>
+            <li>Strategy 1: reads ★ characters captured by Tesseract in the full-image OCR pass -- works on both standard and appraisal screenshots when the symbol is legible</li>
+            <li>Strategy 2: orange/gold pixel scan in the correct region of the standard detail screen (the small appraisal dots to the right of the Pokémon name) -- region is calibrated as best-guess and may be refined</li>
+            <li>Strategy 3: if the screenshot is an appraisal-results view (contains "Attack / Defense / HP" labels), the coloured stat bars at the left of the screen are scanned instead</li>
+            <li>If no strategy succeeds the extracted card still shows the Stars field as editable so it can be entered manually before recalculating</li>
+            <li>Fixed the server-side upload timeout: <code>ReadTimeout</code> was cutting off PNG uploads larger than ~200 KB on slow connections; changed to <code>ReadHeaderTimeout</code> which only limits reading HTTP headers, leaving body upload time unrestricted</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(103)</span> IV Calculator: bug fixes and form-aware lookup</h2>
+          <ul class="cl-list">
+            <li>Fixed "Failed to load data" for valid inputs: the server was returning JSON <code>null</code> for an empty candidate list, which crashed the page; now always returns an empty array</li>
+            <li>Fixed a systematic off-by-half-level bug where every dust bracket missed its final half-level -- e.g. CP 985 Dugtrio (level 22) and CP 1790 Altaria (level 32.5) were silently skipped and reported as "no results"</li>
+            <li>Fixed wrong base stats for regional-form Pokémon: Alolan Dugtrio was being used instead of Normal Dugtrio because the picker deduplicated by name; forms now appear as separate picker entries (e.g. "Dugtrio (Alolan)") and the correct form's stats are sent to the server</li>
+            <li>Added Pokémon Status selector (Normal / Shadow / Purified / Lucky); automatically normalises the displayed stardust cost to the standard bracket value so entering 5,400 + Purified correctly maps to the 6,000 tier</li>
+            <li>Added 5,400 dust bracket as a server-side fallback for purified Pokémon at levels 31--32</li>
+            <li>OCR scan: fixed name and HP regions that were reading the wrong part of the screenshot for most modern phone aspect ratios; added full-image OCR fallback so the Pokémon name and HP fraction are recovered even when the crop misses</li>
+            <li>CP input field maximum raised from 9,999 to 50,000 to support Mega Pokémon</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-25</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(102)</span> Admin: scrollable tab bar</h2>
+          <ul class="cl-list">
+            <li>Admin tab bar now wraps to the next row when the window is too narrow to show all tabs -- no more silent overflow bleeding off-screen</li>
+            <li>Other tab bars (IV calculator, credits) are unaffected</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-25</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(101)</span> IV scanner: mobile OCR algorithm backport</h2>
+          <ul class="cl-list">
+            <li>CP extraction now runs two passes: a top-25% zone scan preferring lines containing "CP", plus a contrast-enhanced top-18% retry -- results take the highest of both, matching the Android app's approach for large Pokémon that partially cover the digits</li>
+            <li>CP arc detection ported from the Android scanner: scans the white horseshoe arc pixel-by-pixel to derive CP when text OCR returns nothing, with camera-icon exclusion so Celesteela and similar don't trigger a false endpoint</li>
+            <li>Name detection upgraded to three strategies in priority order: "This X was caught in..." footer text (highest confidence), "X MEGA ENERGY" line, then card-zone OCR as fallback -- source tag ("footer" / "mega" / "card") shown in the scan results panel</li>
+            <li>Lucky, Shadow, and Purified detection: scans full OCR text for status keywords; if not found explicitly, infers from the dust cost (halved = Lucky, x0.9 = Purified, x6 = Shadow) and normalises the dust before sending to the IV calculator</li>
+            <li>HP extraction now applies O/0 character substitution before parsing and uses a fraction regex (current/max HP) instead of the first number found</li>
+            <li>Appraisal star count upgraded to the gap-based algorithm: 13-row orange pixel scan with gap detection distinguishes 1-star (ring only, gap visible) from 2-star (partial fill) from 3-star (no gap); rainbow pixel classifier detects hundos</li>
+            <li>Scan results panel now shows an "extracted values" card with editable CP, HP, dust, name, and star fields so you can correct any misread before recalculating -- no need to re-upload</li>
+            <li>Status badges shown: 100% IV (golden), Lucky (amber), Shadow (purple), Purified (blue), CP source (arc vs text)</li>
+            <li>Trainer level is now read from your account settings server-side and passed automatically -- no longer defaults to 40 for logged-in users</li>
+            <li>CP multiplier table extended to level 51 (was missing levels 45.5--51); IV search now covers level 49--51 Pokémon for high-level trainers</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
 
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-25</div>

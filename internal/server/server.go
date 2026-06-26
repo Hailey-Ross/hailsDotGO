@@ -264,6 +264,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/api/trainer-sprite/{slug}", h.APITrainerSprite)
 
+		r.Get("/api/admin/sprite-locks",          h.RequireAdmin(h.AdminGetSpriteLocks))
+		r.Post("/api/admin/sprite-lock/{slug}",   h.RequireAdmin(h.AdminSetSpriteLock))
+		r.Delete("/api/admin/sprite-lock/{slug}", h.RequireAdmin(h.AdminDeleteSpriteLock))
+
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))
 
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
@@ -293,6 +297,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/shinies", h.RequireAuth(h.APIShiniesAdd))
 		r.Put("/api/shinies/{id}", h.RequireAuth(h.APIShiniesUpdate))
 		r.Delete("/api/shinies/{id}", h.RequireAuth(h.APIShiniesDelete))
+		r.Post("/api/shinies/{id}/evolve", h.RequireAuth(h.APIShiniesEvolve))
 	})
 
 	return r

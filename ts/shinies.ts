@@ -1,6 +1,7 @@
 import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import { costumeShinyUrl, TINY_POKEMON } from "./shared/costumes";
+import { EVOLUTION_NEXT } from "./shared/evolutions";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
 declare const JSC: Record<string, string>;
@@ -19,6 +20,7 @@ interface UserShiny {
   event_tag: string;
   method: string;
   caught_at: string;
+  evolved_at: string | null;
 }
 
 const EVENT_OPTIONS: { value: string; label: string }[] = [
@@ -143,6 +145,7 @@ const METHODS = [
   { value: "evolution", label: SH.methodEvolution },
   { value: "photobomb", label: SH.methodPhotobomb },
   { value: "trade", label: SH.methodTrade },
+  { value: "go_pass", label: SH.methodGoPass },
   { value: "go_tour", label: SH.methodGoTour },
 ];
 
@@ -207,6 +210,15 @@ async function apiRemove(id: number): Promise<boolean> {
   return res.ok;
 }
 
+async function apiEvolve(id: number, into: string): Promise<boolean> {
+  const res = await fetch(`/api/shinies/${id}/evolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
+    body: JSON.stringify({ into }),
+  });
+  return res.ok;
+}
+
 function buildCaughtIndex(shinies: UserShiny[]): Map<string, UserShiny> {
   const m = new Map<string, UserShiny>();
   for (const s of shinies) m.set(`${s.pokemon_id}:${s.form}:${s.costume}:${s.event_tag}`, s);
@@ -253,14 +265,24 @@ async function init() {
 
   const allShinies = Object.values(gameData.shinies);
   const shinyByName = new Map(allShinies.map((s) => [s.name, s]));
-  let caughtIndex = buildCaughtIndex(userShinies);
+
+  let evolvedShinies: UserShiny[] = [];
+  let caughtIndex: Map<string, UserShiny>;
+  let countMap: Map<string, number>;
 
   function buildCountMap(shinies: UserShiny[]): Map<string, number> {
     const m = new Map<string, number>();
     for (const s of shinies) m.set(s.pokemon_id, (m.get(s.pokemon_id) ?? 0) + 1);
     return m;
   }
-  let countMap = buildCountMap(userShinies);
+
+  function rebuildState(shinies: UserShiny[]) {
+    evolvedShinies = shinies.filter((s) => !!s.evolved_at);
+    caughtIndex    = buildCaughtIndex(shinies);
+    countMap       = buildCountMap(shinies);
+  }
+
+  rebuildState(userShinies);
 
   app.innerHTML = `
     <div class="page-header">
@@ -270,6 +292,7 @@ async function init() {
     <div class="tabs" id="sc-tabs">
       <button class="tab-btn active" data-tab="all">${SH.tabAll}</button>
       <button class="tab-btn" data-tab="caught">${SH.tabCaught}</button>
+      <button class="tab-btn" data-tab="evolved">${SH.tabEvolved}</button>
       <button class="tab-btn" data-tab="missing">${SH.tabMissing}</button>
     </div>
     <input id="sc-search" type="text" class="search-input"
@@ -485,9 +508,8 @@ async function init() {
 
     const ok = await apiAdd(modalTarget.name, form, costume, eventTag, method);
     if (ok) {
-      userShinies  = await fetchUserShinies();
-      caughtIndex  = buildCaughtIndex(userShinies);
-      countMap     = buildCountMap(userShinies);
+      userShinies = await fetchUserShinies();
+      rebuildState(userShinies);
       updateCounter();
       renderTab();
       closeModal();
@@ -512,7 +534,7 @@ async function init() {
 
   const METHOD_ICONS: Record<string, string> = {
     wild: "🌿", egg: "🥚", raid: "⚔️", research: "📋",
-    evolution: "⬆️", photobomb: "📸", trade: "🤝", go_tour: "🎟️",
+    evolution: "⬆️", photobomb: "📸", trade: "🤝", go_pass: "🎫", go_tour: "🎟️",
   };
 
   function updateCounter() {
@@ -535,8 +557,11 @@ async function init() {
     const counts = SH.counts
       .replace("{unique}", String(unique))
       .replace("{total}", String(total));
+    const evolvedChip = evolvedShinies.length
+      ? ` <span class="sc-evolved-counter-chip">⬆️ ${SH.countsEvolved.replace("{n}", String(evolvedShinies.length))}</span>`
+      : "";
     counterEl.innerHTML =
-      `<span class="sc-stat-counts">${counts}</span>` +
+      `<span class="sc-stat-counts">${counts}</span>${evolvedChip}` +
       (chipsHtml ? `<span class="sc-stat-chips">${chipsHtml}</span>` : "");
   }
 
@@ -595,28 +620,107 @@ async function init() {
     contentEl.appendChild(grid);
   }
 
-  function renderCaughtList() {
-    const q = searchEl.value.trim().toLowerCase();
-    const entries = userShinies.filter((s) =>
-      !q || s.pokemon_id.toLowerCase().includes(q)
-    );
+  function showEvolvePicker(
+    row: HTMLElement,
+    rec: UserShiny,
+    options: string[],
+    triggerBtn: HTMLButtonElement,
+  ) {
+    triggerBtn.remove();
 
-    contentEl.innerHTML = "";
+    const picker = document.createElement("div");
+    picker.className = "sc-evolve-picker";
 
-    if (!entries.length) {
-      contentEl.innerHTML = q
-        ? `<p class="empty-state">${JSC.noResults}</p>`
-        : `<p class="empty-state">${SH.nothingCaught}</p>`;
-      return;
+    if (options.length === 1) {
+      const label = document.createElement("span");
+      label.textContent = SH.evolveInto.replace("{name}", options[0]);
+      const confirmBtn = document.createElement("button");
+      confirmBtn.className = "sc-evolve-confirm btn-primary";
+      confirmBtn.textContent = "✓";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "sc-evolve-cancel";
+      cancelBtn.textContent = "✕";
+
+      confirmBtn.addEventListener("click", async () => {
+        confirmBtn.disabled = true;
+        cancelBtn.disabled = true;
+        const ok = await apiEvolve(rec.id, options[0]);
+        if (ok) {
+          userShinies = await fetchUserShinies();
+          rebuildState(userShinies);
+          updateCounter();
+          renderTab();
+        } else {
+          picker.remove();
+          row.appendChild(triggerBtn);
+        }
+      });
+      cancelBtn.addEventListener("click", () => {
+        picker.remove();
+        row.appendChild(triggerBtn);
+      });
+
+      picker.appendChild(label);
+      picker.appendChild(confirmBtn);
+      picker.appendChild(cancelBtn);
+    } else {
+      const label = document.createElement("span");
+      label.textContent = SH.evolvePick + ":";
+      picker.appendChild(label);
+
+      for (const optName of options) {
+        const optPoke = shinyByName.get(optName);
+        const optBtn = document.createElement("button");
+        optBtn.className = "sc-evolve-option";
+        optBtn.title = optName;
+
+        if (optPoke) {
+          const optImg = document.createElement("img");
+          optImg.src = spriteUrl(optPoke.id);
+          optImg.alt = optName;
+          optImg.onerror = () => { optImg.style.display = "none"; };
+          optBtn.appendChild(optImg);
+        }
+        const optLabel = document.createElement("span");
+        optLabel.textContent = pokeName(gameData, optName);
+        optBtn.appendChild(optLabel);
+
+        optBtn.addEventListener("click", async () => {
+          picker.querySelectorAll("button").forEach((b) => { (b as HTMLButtonElement).disabled = true; });
+          const ok = await apiEvolve(rec.id, optName);
+          if (ok) {
+            userShinies = await fetchUserShinies();
+            rebuildState(userShinies);
+            updateCounter();
+            renderTab();
+          } else {
+            picker.querySelectorAll("button").forEach((b) => { (b as HTMLButtonElement).disabled = false; });
+          }
+        });
+        picker.appendChild(optBtn);
+      }
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "sc-evolve-cancel";
+      cancelBtn.textContent = "✕";
+      cancelBtn.addEventListener("click", () => {
+        picker.remove();
+        row.appendChild(triggerBtn);
+      });
+      picker.appendChild(cancelBtn);
     }
 
+    row.appendChild(picker);
+  }
+
+  function renderShinyRows(entries: UserShiny[]) {
     const list = document.createElement("div");
     list.className = "sc-list";
 
     for (const rec of entries) {
       const poke = shinyByName.get(rec.pokemon_id);
       const row  = document.createElement("div");
-      row.className = "sc-entry";
+      row.className = "sc-entry" + (rec.evolved_at ? " sc-row-evolved" : "");
 
       // Sprite
       const img = document.createElement("img");
@@ -629,7 +733,7 @@ async function init() {
         img.style.display = "none";
       }
 
-      // Name + date + costume/event labels
+      // Name + date + evolved chip + costume/event labels
       const nameWrap = document.createElement("div");
       nameWrap.className = "sc-entry-namewrap";
       const name = document.createElement("span");
@@ -640,6 +744,12 @@ async function init() {
       dateEl.textContent = rec.caught_at ? timeAgo(rec.caught_at) : "";
       nameWrap.appendChild(name);
       nameWrap.appendChild(dateEl);
+      if (rec.evolved_at) {
+        const chip = document.createElement("span");
+        chip.className = "sc-evolved-chip";
+        chip.textContent = `⬆️ ${SH.evolved}`;
+        nameWrap.appendChild(chip);
+      }
       const subParts: string[] = [];
       if (rec.form === "shadow")   subParts.push(JSC.formShadow);
       if (rec.form === "purified") subParts.push(JSC.formPurified);
@@ -651,6 +761,7 @@ async function init() {
         sub.textContent = subParts.join(" · ");
         nameWrap.appendChild(sub);
       }
+
       // Form selector
       const formSel = makeSelect(FORMS, rec.form);
 
@@ -729,6 +840,26 @@ async function init() {
       eventSel.addEventListener("change", saveUpdate);
       methodSel.addEventListener("change", saveUpdate);
 
+      // Evolve button -- transforms entry into next form
+      const evolveBtn = document.createElement("button");
+      evolveBtn.className = "sc-evolve-btn";
+      evolveBtn.textContent = SH.evolveBtn;
+      evolveBtn.title = SH.evolveBtn;
+      evolveBtn.addEventListener("click", () => {
+        const nextForms = EVOLUTION_NEXT[rec.pokemon_id] ?? [];
+        const available = nextForms.filter((n) => n && shinyByName.has(n));
+        if (!available.length) {
+          evolveBtn.textContent = SH.evolveNone;
+          evolveBtn.disabled = true;
+          setTimeout(() => {
+            evolveBtn.textContent = SH.evolveBtn;
+            evolveBtn.disabled = false;
+          }, 2000);
+          return;
+        }
+        showEvolvePicker(row, rec, available, evolveBtn);
+      });
+
       // Remove button
       const removeBtn = document.createElement("button");
       removeBtn.className = "sc-remove-btn";
@@ -739,10 +870,9 @@ async function init() {
         const ok = await apiRemove(rec.id);
         if (ok) {
           userShinies = await fetchUserShinies();
-          caughtIndex = buildCaughtIndex(userShinies);
-          countMap    = buildCountMap(userShinies);
+          rebuildState(userShinies);
           updateCounter();
-          renderCaughtList();
+          renderTab();
         } else {
           removeBtn.disabled = false;
           removeBtn.textContent = JSC.remove;
@@ -756,6 +886,7 @@ async function init() {
       row.appendChild(eventSel);
       row.appendChild(methodSel);
       row.appendChild(statusEl);
+      row.appendChild(evolveBtn);
       row.appendChild(removeBtn);
       list.appendChild(row);
     }
@@ -763,12 +894,32 @@ async function init() {
     contentEl.appendChild(list);
   }
 
+  function renderCaughtList(evolvedOnly = false) {
+    const source = evolvedOnly ? evolvedShinies : userShinies;
+    const q = searchEl.value.trim().toLowerCase();
+    const entries = source.filter((s) => !q || s.pokemon_id.toLowerCase().includes(q));
+
+    contentEl.innerHTML = "";
+
+    if (!entries.length) {
+      contentEl.innerHTML = q
+        ? `<p class="empty-state">${JSC.noResults}</p>`
+        : `<p class="empty-state">${SH.nothingCaught}</p>`;
+      return;
+    }
+
+    renderShinyRows(entries);
+  }
+
   let activeTab = "all";
 
   function renderTab() {
     if (activeTab === "caught") {
       searchEl.placeholder = SH.filterCaught;
-      renderCaughtList();
+      renderCaughtList(false);
+    } else if (activeTab === "evolved") {
+      searchEl.placeholder = SH.filterCaught;
+      renderCaughtList(true);
     } else {
       const source = activeTab === "missing"
         ? allShinies.filter((s) => !anyFormCaught(s.name, caughtIndex))
