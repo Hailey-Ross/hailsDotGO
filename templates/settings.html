@@ -346,26 +346,360 @@
       {slug:"{{.Slug}}",label:"{{js .Label}}",sprite:"{{.SpriteURL}}",group:"{{.Group}}"},
       {{end}}
     ];
+    var groupOrder = [
+      "showdown-modern","showdown-gen1rb","showdown-gen1","showdown-gen2",
+      "showdown-gen3rs","showdown-gen3","showdown-gen4dp","showdown-gen4",
+      "showdown-gen5","showdown-gen6","showdown-gen7","showdown-gen8","showdown-gen9",
+      "showdown-lgpe","showdown-masters","showdown-go",
+      "dreamstone","pex"
+    ];
     var groupLabels = {
-      "classic":    "Classic (Showdown)",
-      "dreamstone": "Dreamstone Mysteries (GBA)",
-      "pex":        "pokeemerald-expansion (FRLG)"
+      "showdown-modern":  "Showdown -- Modern",
+      "showdown-gen1rb":  "Showdown -- Gen 1 (Red/Blue)",
+      "showdown-gen1":    "Showdown -- Gen 1 (Yellow)",
+      "showdown-gen2":    "Showdown -- Gen 2",
+      "showdown-gen3rs":  "Showdown -- Gen 3 (Ruby/Sapphire)",
+      "showdown-gen3":    "Showdown -- Gen 3 (Emerald/FRLG)",
+      "showdown-gen4dp":  "Showdown -- Gen 4 (Diamond/Pearl)",
+      "showdown-gen4":    "Showdown -- Gen 4 (HG/SS)",
+      "showdown-gen5":    "Showdown -- Gen 5",
+      "showdown-gen6":    "Showdown -- Gen 6",
+      "showdown-gen7":    "Showdown -- Gen 7",
+      "showdown-gen8":    "Showdown -- Gen 8",
+      "showdown-gen9":    "Showdown -- Gen 9",
+      "showdown-lgpe":    "Showdown -- Let's Go",
+      "showdown-masters": "Showdown -- Masters EX",
+      "showdown-go":      "Showdown -- Pokémon GO",
+      "dreamstone":       "Dreamstone Mysteries (GBA)",
+      "pex":              "pokeemerald-expansion (FRLG)"
+    };
+    allTrainers.sort(function(a, b) {
+      var ai = groupOrder.indexOf(a.group), bi = groupOrder.indexOf(b.group);
+      if (ai !== bi) return ai - bi;
+      return a.label.localeCompare(b.label);
+    });
+
+    // groupTags: extra search keywords per group (region names, game titles, generation aliases)
+    var groupTags = {
+      "showdown-gen1rb":  "kanto gen 1 red blue rb",
+      "showdown-gen1":    "kanto gen 1 yellow",
+      "showdown-gen2":    "johto gen 2 gold silver crystal",
+      "showdown-gen3rs":  "hoenn gen 3 ruby sapphire rs",
+      "showdown-gen3":    "hoenn gen 3 emerald firered leafgreen frlg",
+      "showdown-gen4dp":  "sinnoh gen 4 diamond pearl dp",
+      "showdown-gen4":    "sinnoh gen 4 heartgold soulsilver hgss",
+      "showdown-gen5":    "unova gen 5 black white bw",
+      "showdown-gen6":    "kalos hoenn gen 6 xy oras",
+      "showdown-gen7":    "alola gen 7 sun moon",
+      "showdown-gen8":    "galar gen 8 sword shield",
+      "showdown-gen9":    "paldea gen 9 scarlet violet",
+      "showdown-lgpe":    "kanto gen 1 lets go lgpe pikachu eevee",
+      "showdown-masters": "masters ex",
+      "showdown-go":      "go pokemon go team"
     };
 
-    // Extra search tags per slug -- allows "researcher" / "professor" to find all relevant sprites
+    // tagMap: extra search keywords per slug (type, role, region, gender)
     var tagMap = {
-      "elm": "researcher professor", "birch": "researcher professor",
-      "rowan": "researcher professor", "sycamore": "researcher professor",
-      "kukui": "researcher professor", "burnet": "researcher professor",
-      "juniper": "researcher professor", "magnolia": "researcher professor",
-      "laventon": "researcher professor", "turo": "researcher professor",
-      "sada": "researcher professor", "willow": "researcher professor",
-      "scientist": "researcher", "super-nerd": "researcher",
-      "doctor": "researcher", "nurse": "researcher",
-      "faba": "researcher", "colress": "researcher", "molayne": "researcher",
-      "pex-professor_oak_frlg": "researcher professor",
-      "pex-scientist_frlg": "researcher", "pex-engineer_frlg": "researcher",
-      "pex-super_nerd_frlg": "researcher"
+      // ── PROFESSORS / RESEARCHERS ────────────────────────────────────────────
+      "elm":        "professor researcher johto gen 2 male man",
+      "birch":      "professor researcher hoenn gen 3 male man",
+      "rowan":      "professor researcher sinnoh gen 4 male man",
+      "sycamore":   "professor researcher kalos gen 6 male man",
+      "kukui":      "professor researcher champion kahuna alola gen 7 male man",
+      "burnet":     "professor researcher alola gen 7 female woman girl",
+      "juniper":    "professor researcher unova gen 5 female woman girl",
+      "magnolia":   "professor researcher galar gen 8 female woman girl",
+      "laventon":   "professor researcher hisui pla male man",
+      "turo":       "professor researcher paldea gen 9 male man",
+      "sada":       "professor researcher paldea gen 9 female woman girl",
+      "willow":     "professor researcher go pokemon go male man",
+      "sonia":      "professor researcher galar gen 8 female woman girl",
+      "scientist":  "researcher",
+      "super-nerd": "researcher",
+      "doctor":     "researcher",
+      "nurse":      "researcher",
+      "faba":       "researcher aether alola gen 7 male man",
+      "colress":    "researcher team plasma unova gen 5 male man",
+      "molayne":    "researcher elite four steel alola gen 7 male man",
+      "pex-professor_oak_frlg": "professor researcher kanto gen 1 male man",
+      "pex-scientist_frlg":     "researcher",
+      "pex-engineer_frlg":      "researcher",
+      "pex-super_nerd_frlg":    "researcher",
+
+      // ── KANTO GYM LEADERS (Gen 1) ───────────────────────────────────────────
+      "brock":    "gym leader rock kanto gen 1 male man",
+      "misty":    "gym leader water kanto gen 1 female woman girl",
+      "lt-surge": "gym leader electric kanto gen 1 male man",
+      "erika":    "gym leader grass kanto gen 1 female woman girl",
+      "koga":     "gym leader poison elite four kanto johto gen 1 gen 2 male man",
+      "sabrina":  "gym leader psychic kanto gen 1 female woman girl",
+      "blaine":   "gym leader fire kanto gen 1 male man",
+      "giovanni": "gym leader ground villain team rocket kanto gen 1 male man",
+      "janine":   "gym leader poison kanto gen 1 female woman girl",
+
+      // ── JOHTO GYM LEADERS (Gen 2) ───────────────────────────────────────────
+      "falkner": "gym leader flying johto gen 2 male man",
+      "bugsy":   "gym leader bug johto gen 2 male man",
+      "whitney": "gym leader normal johto gen 2 female woman girl",
+      "morty":   "gym leader ghost johto gen 2 male man",
+      "chuck":   "gym leader fighting johto gen 2 male man",
+      "jasmine": "gym leader steel johto gen 2 female woman girl",
+      "pryce":   "gym leader ice johto gen 2 male man",
+      "clair":   "gym leader dragon johto gen 2 female woman girl",
+
+      // ── HOENN GYM LEADERS (Gen 3) ───────────────────────────────────────────
+      "roxanne":  "gym leader rock hoenn gen 3 female woman girl",
+      "brawly":   "gym leader fighting hoenn gen 3 male man",
+      "wattson":  "gym leader electric hoenn gen 3 male man",
+      "flannery": "gym leader fire hoenn gen 3 female woman girl",
+      "norman":   "gym leader normal hoenn gen 3 male man",
+      "winona":   "gym leader flying hoenn gen 3 female woman girl",
+      "tate":     "gym leader psychic hoenn gen 3 male man",
+      "liza":     "gym leader psychic hoenn gen 3 female woman girl",
+      "juan":     "gym leader water champion hoenn gen 3 male man",
+      "wallace":  "gym leader water champion hoenn gen 3 male man",
+
+      // ── SINNOH GYM LEADERS (Gen 4) ──────────────────────────────────────────
+      "roark":       "gym leader rock sinnoh gen 4 male man",
+      "gardenia":    "gym leader grass sinnoh gen 4 female woman girl",
+      "maylene":     "gym leader fighting sinnoh gen 4 female woman girl",
+      "crasherwake": "gym leader water sinnoh gen 4 male man",
+      "fantina":     "gym leader ghost sinnoh gen 4 female woman girl",
+      "byron":       "gym leader steel sinnoh gen 4 male man",
+      "candice":     "gym leader ice sinnoh gen 4 female woman girl",
+      "volkner":     "gym leader electric sinnoh gen 4 male man",
+
+      // ── UNOVA GYM LEADERS (Gen 5) ───────────────────────────────────────────
+      "cilan":   "gym leader grass unova gen 5 male man",
+      "chili":   "gym leader fire unova gen 5 male man",
+      "cress":   "gym leader water unova gen 5 male man",
+      "lenora":  "gym leader normal unova gen 5 female woman girl",
+      "burgh":   "gym leader bug unova gen 5 male man",
+      "elesa":   "gym leader electric unova gen 5 female woman girl",
+      "clay":    "gym leader ground unova gen 5 male man",
+      "skyla":   "gym leader flying unova gen 5 female woman girl",
+      "brycen":  "gym leader ice unova gen 5 male man",
+      "drayden": "gym leader dragon unova gen 5 male man",
+      "marlon":  "gym leader water unova gen 5 male man",
+      "roxie":   "gym leader poison unova gen 5 female woman girl",
+      "iris":    "gym leader dragon champion unova gen 5 female woman girl",
+
+      // ── KALOS GYM LEADERS (Gen 6) ───────────────────────────────────────────
+      "viola":   "gym leader bug kalos gen 6 female woman girl",
+      "grant":   "gym leader rock kalos gen 6 male man",
+      "korrina": "gym leader fighting kalos gen 6 female woman girl",
+      "ramos":   "gym leader grass kalos gen 6 male man",
+      "clemont": "gym leader electric kalos gen 6 male man",
+      "valerie": "gym leader fairy kalos gen 6 female woman girl",
+      "olympia": "gym leader psychic kalos gen 6 female woman girl",
+      "wulfric": "gym leader ice kalos gen 6 male man",
+
+      // ── ALOLA KAHUNAS / TRIAL CAPTAINS (Gen 7) ──────────────────────────────
+      "hala":      "gym leader kahuna fighting alola gen 7 male man",
+      "olivia":    "gym leader kahuna rock alola gen 7 female woman girl",
+      "nanu":      "gym leader kahuna dark alola gen 7 male man",
+      "hapu":      "gym leader kahuna elite four ground alola gen 7 female woman girl",
+      "ilima":     "trial captain normal alola gen 7 male man",
+      "lana":      "trial captain water alola gen 7 female woman girl",
+      "kiawe":     "trial captain fire alola gen 7 male man",
+      "mallow":    "trial captain grass alola gen 7 female woman girl",
+      "sophocles": "trial captain electric alola gen 7 male man",
+      "acerola":   "trial captain elite four ghost alola gen 7 female woman girl",
+      "mina":      "trial captain fairy alola gen 7 female woman girl",
+      "kahili":    "elite four flying alola gen 7 female woman girl",
+
+      // ── GALAR GYM LEADERS (Gen 8) ───────────────────────────────────────────
+      "milo":     "gym leader grass galar gen 8 male man",
+      "nessa":    "gym leader water galar gen 8 female woman girl",
+      "kabu":     "gym leader fire galar gen 8 male man",
+      "bea":      "gym leader fighting galar gen 8 female woman girl",
+      "allister": "gym leader ghost galar gen 8 male man",
+      "opal":     "gym leader fairy galar gen 8 female woman girl",
+      "gordie":   "gym leader rock galar gen 8 male man",
+      "melony":   "gym leader ice galar gen 8 female woman girl",
+      "piers":    "gym leader dark galar gen 8 male man",
+      "raihan":   "gym leader dragon galar gen 8 male man",
+
+      // ── PALDEA GYM LEADERS / ELITE FOUR (Gen 9) ─────────────────────────────
+      "katy":     "gym leader bug paldea gen 9 female woman girl",
+      "brassius": "gym leader grass paldea gen 9 male man",
+      "iono":     "gym leader electric paldea gen 9 female woman girl",
+      "kofu":     "gym leader water paldea gen 9 male man",
+      "larry":    "gym leader flying elite four normal paldea gen 9 male man",
+      "ryme":     "gym leader ghost paldea gen 9 female woman girl",
+      "tulip":    "gym leader psychic paldea gen 9 female woman girl",
+      "grusha":   "gym leader ice paldea gen 9 male man",
+      "hassel":   "gym leader elite four dragon paldea gen 9 male man",
+      "poppy":    "gym leader elite four steel paldea gen 9 female woman girl",
+      "rika":     "elite four ground paldea gen 9 female woman girl",
+
+      // ── KANTO ELITE FOUR (Gen 1) ────────────────────────────────────────────
+      "lorelei": "elite four ice kanto gen 1 female woman girl",
+      "bruno":   "elite four fighting kanto johto gen 1 gen 2 male man",
+      "agatha":  "elite four ghost poison kanto gen 1 female woman girl",
+      "lance":   "elite four dragon champion kanto johto gen 1 gen 2 male man",
+
+      // ── JOHTO ELITE FOUR (Gen 2) ────────────────────────────────────────────
+      "will":  "elite four psychic johto gen 2 male man",
+      "karen": "elite four dark johto gen 2 female woman girl",
+
+      // ── HOENN ELITE FOUR (Gen 3) ────────────────────────────────────────────
+      "sidney": "elite four dark hoenn gen 3 male man",
+      "phoebe": "elite four ghost hoenn gen 3 female woman girl",
+      "glacia": "elite four ice hoenn gen 3 female woman girl",
+      "drake":  "elite four dragon hoenn gen 3 male man",
+
+      // ── SINNOH ELITE FOUR (Gen 4) ───────────────────────────────────────────
+      "aaron":  "elite four bug sinnoh gen 4 male man",
+      "bertha": "elite four ground sinnoh gen 4 female woman girl",
+      "flint":  "elite four fire sinnoh gen 4 male man",
+      "lucian": "elite four psychic sinnoh gen 4 male man",
+
+      // ── UNOVA ELITE FOUR (Gen 5) ────────────────────────────────────────────
+      "shauntal": "elite four ghost unova gen 5 female woman girl",
+      "marshal":  "elite four fighting unova gen 5 male man",
+      "grimsley": "elite four dark unova gen 5 male man",
+      "caitlin":  "elite four psychic unova gen 5 female woman girl",
+
+      // ── KALOS ELITE FOUR (Gen 6) ────────────────────────────────────────────
+      "malva":    "elite four fire kalos gen 6 female woman girl",
+      "wikstrom": "elite four steel kalos gen 6 male man",
+      "siebold":  "elite four water kalos gen 6 male man",
+      "drasna":   "elite four dragon kalos gen 6 female woman girl",
+
+      // ── CHAMPIONS ───────────────────────────────────────────────────────────
+      "blue":    "champion rival kanto gen 1 male man",
+      "red":     "champion protagonist kanto gen 1 male man",
+      "leaf":    "rival protagonist kanto gen 1 female woman girl",
+      "steven":  "champion steel hoenn gen 3 male man",
+      "cynthia": "champion dragon sinnoh gen 4 female woman girl",
+      "alder":   "champion unova gen 5 male man",
+      "diantha": "champion fairy kalos gen 6 female woman girl",
+      "leon":    "champion dragon galar gen 8 male man",
+      "nemona":  "champion rival paldea gen 9 female woman girl",
+      "geeta":   "champion paldea gen 9 female woman girl",
+
+      // ── RIVALS ──────────────────────────────────────────────────────────────
+      "silver":  "rival johto gen 2 male man",
+      "wally":   "rival hoenn gen 3 male man",
+      "barry":   "rival sinnoh gen 4 male man",
+      "cheren":  "rival unova gen 5 male man",
+      "bianca":  "rival unova gen 5 female woman girl",
+      "n":       "rival unova gen 5 male man",
+      "hugh":    "rival unova gen 5 male man",
+      "calem":   "rival protagonist kalos gen 6 male man",
+      "serena":  "rival protagonist kalos gen 6 female woman girl",
+      "hau":     "rival alola gen 7 male man",
+      "gladion": "rival dark aether alola gen 7 male man",
+      "hop":     "rival galar gen 8 male man",
+      "marnie":  "rival dark galar gen 8 female woman girl",
+      "bede":    "rival fairy galar gen 8 male man",
+      "kieran":  "rival paldea gen 9 male man",
+      "arven":   "rival paldea gen 9 male man",
+
+      // ── PLAYABLE PROTAGONISTS ───────────────────────────────────────────────
+      "ethan":   "protagonist johto gen 2 male man",
+      "kris":    "protagonist johto gen 2 female woman girl",
+      "lyra":    "protagonist johto gen 2 female woman girl",
+      "brendan": "protagonist hoenn gen 3 male man",
+      "may":     "protagonist hoenn gen 3 female woman girl",
+      "lucas":   "protagonist sinnoh gen 4 male man",
+      "dawn":    "protagonist sinnoh gen 4 female woman girl",
+      "hilbert": "protagonist unova gen 5 male man",
+      "hilda":   "protagonist unova gen 5 female woman girl",
+      "nate":    "protagonist unova gen 5 male man",
+      "rosa":    "protagonist unova gen 5 female woman girl",
+      "elio":    "protagonist alola gen 7 male man",
+      "selene":  "protagonist alola gen 7 female woman girl",
+      "victor":  "protagonist galar gen 8 male man",
+      "gloria":  "protagonist galar gen 8 female woman girl",
+      "florian": "protagonist paldea gen 9 male man",
+      "juliana": "protagonist paldea gen 9 female woman girl",
+      "rei":     "protagonist hisui pla male man",
+      "akari":   "protagonist hisui pla female woman girl",
+
+      // ── VILLAINS / EVIL TEAM LEADERS ────────────────────────────────────────
+      "archie":   "villain team aqua dark hoenn gen 3 male man",
+      "maxie":    "villain team magma dark hoenn gen 3 male man",
+      "cyrus":    "villain team galactic sinnoh gen 4 male man",
+      "ghetsis":  "villain team plasma unova gen 5 male man",
+      "lysandre": "villain team flare kalos gen 6 male man",
+      "lusamine": "villain aether alola gen 7 female woman girl",
+      "guzma":    "villain team skull bug alola gen 7 male man",
+      "plumeria": "villain team skull poison alola gen 7 female woman girl",
+      "rose":     "villain macro cosmos steel galar gen 8 male man",
+      "volo":     "villain hisui pla male man",
+      "penny":    "rival villain team star paldea gen 9 female woman girl",
+
+      // ── GO ROCKET ───────────────────────────────────────────────────────────
+      "arlo":   "go rocket team rocket villain male man bug",
+      "cliff":  "go rocket team rocket villain male man rock",
+      "sierra": "go rocket team rocket villain female woman girl",
+
+      // ── GO TEAM LEADERS ─────────────────────────────────────────────────────
+      "blanche": "go team mystic team leader female woman girl",
+      "candela": "go team valor team leader female woman girl",
+      "spark":   "go team instinct team leader male man",
+
+      // ── HISUI / PLA ─────────────────────────────────────────────────────────
+      "adaman":  "hisui pla male man",
+      "irida":   "hisui pla female woman girl",
+      "kamado":  "hisui pla male man",
+      "cogita":  "hisui pla female woman girl",
+      "arezu":   "hisui pla female woman girl",
+
+      // ── ALOLA NOTABLE ───────────────────────────────────────────────────────
+      "lillie": "alola gen 7 aether female woman girl",
+
+      // ── GALAR NOTABLE ───────────────────────────────────────────────────────
+      "sonia": "professor researcher galar gen 8 female woman girl",
+
+      // ── GENERIC TRAINER CLASSES -- GENDER ───────────────────────────────────
+      "lass":             "female girl",
+      "beauty":           "female woman girl",
+      "picnicker":        "female girl",
+      "aromalady":        "female woman girl",
+      "acetrainerf":      "female woman girl ace trainer",
+      "swimmerf":         "female woman girl",
+      "cooltrainerf":     "female woman girl cool trainer",
+      "pokefanf":         "female woman girl",
+      "pokemonbreederf":  "female woman girl",
+      "pokemonrangerf":   "female woman girl",
+      "schoolkidf":       "female girl",
+      "acetrainersnowf":  "female woman girl",
+      "jrtrainerf":       "female woman girl",
+      "parasollady":      "female woman girl",
+      "kimonogirl":       "female girl",
+      "battlegirl":       "female woman girl",
+      "youngster":        "male boy",
+      "bugcatcher":       "male boy",
+      "biker":            "male man",
+      "hiker":            "male man",
+      "fisherman":        "male man",
+      "sailor":           "male man",
+      "firebreather":     "male man",
+      "juggler":          "male man",
+      "gambler":          "male man",
+      "burglar":          "male man",
+      "camper":           "male boy man",
+      "blackbelt":        "male man",
+      "pokemaniac":       "male man",
+      "supernerd":        "male man",
+      "richboy":          "male boy man",
+      "ninjaboy":         "male boy",
+      "ruinmaniac":       "male man",
+      "acetrainer":       "male man ace trainer",
+      "acetrainerm":      "male man ace trainer",
+      "cooltrainer":      "male man cool trainer",
+      "cooltrainerm":     "male man cool trainer",
+      "pokefanm":         "male man",
+      "pokemonbreedern":  "male man",
+      "schoolboy":        "male boy",
+      "jrtrainer":        "male boy",
+      "jrtrainerm":       "male boy",
+      "oldcouple":        "male female man woman",
+      "youngcouple":      "male female man woman boy girl",
+      "acetrainercouple": "male female man woman"
     };
 
     var hiddenInput    = document.getElementById('avatar-val');
@@ -400,10 +734,11 @@
         matches = allTrainers.map(function(t) {
           var l = norm(t.label), s = norm(t.slug), g = norm(groupLabels[t.group] || t.group);
           var tags = tagMap[t.slug] || '';
+          var gtags = groupTags[t.group] || '';
           if (l === q)                                   return {t:t, r:0};
           if (l.startsWith(q))                          return {t:t, r:1};
           if (l.includes(q))                            return {t:t, r:2};
-          if (s.includes(q)||g.includes(q)||tags.includes(q)) return {t:t, r:3};
+          if (s.includes(q)||g.includes(q)||tags.includes(q)||gtags.includes(q)) return {t:t, r:3};
           return null;
         }).filter(Boolean).sort(function(a,b){return a.r-b.r;}).slice(0,25).map(function(m){return m.t;});
       }
@@ -452,7 +787,8 @@
 
     searchInput.addEventListener('input',  function(){ buildDropdown(searchInput.value); });
     searchInput.addEventListener('focus',  function(){ buildDropdown(searchInput.value); });
-    searchInput.addEventListener('blur',   function(){ setTimeout(function(){ dropdown.hidden=true; }, 150); });
+    var blurTimer = null;
+    searchInput.addEventListener('blur',   function(){ blurTimer = setTimeout(function(){ dropdown.hidden=true; }, 150); });
     searchInput.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') { dropdown.hidden = true; }
       if (e.key === 'Enter' && !dropdown.hidden) {
@@ -465,7 +801,7 @@
         if (f) f.focus();
       }
     });
-    clearBtn.addEventListener('click', function(){ pick(null); searchInput.focus(); });
+    clearBtn.addEventListener('click', function(){ clearTimeout(blurTimer); pick(null); searchInput.focus(); buildDropdown(''); });
     document.addEventListener('click', function(e) {
       if (!document.getElementById('avatar-combo-wrap').contains(e.target)) dropdown.hidden = true;
     });

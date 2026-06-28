@@ -82,6 +82,7 @@
       {{if and .Data.IsFollowing .Data.FollowsMe}}<span style="font-size:0.8rem;color:var(--text-2);align-self:center">{{T "trainer.is_friends"}}</span>{{end}}
       <button class="btn-secondary social-btn social-btn-block" id="btn-block">{{T "trainer.block"}}</button>
       {{end}}
+      <button type="button" class="btn-secondary social-btn social-btn-report" data-report-user="{{.Data.Trainer.Username}}">{{T "playerreport.title"}}</button>
     </div>
     {{end}}
     {{end}}
@@ -128,10 +129,13 @@
       {{if .Data.RecentFriends}}
       <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
         {{range .Data.RecentFriends}}
-        <a href="/trainer/{{.Username}}" style="display:flex;align-items:center;gap:0.4rem;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.6rem;text-decoration:none;color:inherit;font-size:0.82rem;white-space:nowrap">
-          {{if .AvatarURL}}<img src="{{.AvatarURL}}" alt="" style="width:22px;height:22px;flex-shrink:0">{{end}}
-          <span>{{if .TrainerName}}{{.TrainerName}}{{else}}{{.Username}}{{end}}</span>
-        </a>
+        <span style="display:inline-flex;align-items:center;gap:0.2rem">
+          <a href="/trainer/{{.Username}}" style="display:flex;align-items:center;gap:0.4rem;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.6rem;text-decoration:none;color:inherit;font-size:0.82rem;white-space:nowrap">
+            {{if .AvatarURL}}<img src="{{.AvatarURL}}" alt="" style="width:22px;height:22px;flex-shrink:0">{{end}}
+            <span>{{if .TrainerName}}{{.TrainerName}}{{else}}{{.Username}}{{end}}</span>
+          </a>
+          {{if and $.User (ne .Username $.User.Username)}}<button type="button" class="report-flag" data-report-user="{{.Username}}" title="{{T "playerreport.flag"}}" aria-label="{{T "playerreport.flag"}}">⚑</button>{{end}}
+        </span>
         {{end}}
       </div>
       {{else}}
@@ -194,6 +198,7 @@
           <a href="/trainer/{{.AuthorUsername}}" class="feedback-author">
             {{if .AuthorName}}{{.AuthorName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.AuthorUsername}})</span>{{else}}{{.AuthorUsername}}{{end}}
           </a>
+          {{if and $.User (ne .AuthorUsername $.User.Username)}}<button type="button" class="report-flag" data-report-user="{{.AuthorUsername}}" title="{{T "playerreport.flag"}}" aria-label="{{T "playerreport.flag"}}">⚑</button>{{end}}
           <span class="feedback-date">{{.UpdatedAt.Format "Jan 2, 2006"}}</span>
         </div>
         <p class="feedback-label">{{.Label}}</p>

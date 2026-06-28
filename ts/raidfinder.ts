@@ -122,6 +122,15 @@ function fmtCode(c: string): string {
   return c && c.length === 12 ? c.slice(0, 4) + ' ' + c.slice(4, 8) + ' ' + c.slice(8) : c;
 }
 
+// reportFlagHTML returns a "report player" flag for a username, or '' for self/empty.
+// The global player-report modal (ts/playerreport.ts) handles clicks via delegation.
+function reportFlagHTML(username: string): string {
+  const me = (window as unknown as { ME_USERNAME?: string }).ME_USERNAME;
+  if (!username || username === me) return '';
+  return ' <button type="button" class="report-flag" data-report-user="' + esc(username) +
+    '" title="Report player" aria-label="Report player">⚑</button>';
+}
+
 function api(method: string, url: string, body?: unknown): Promise<any> {
   const headers: Dict = { 'X-CSRF-Token': CSRF_TOKEN };
   if (body) headers['Content-Type'] = 'application/json';
@@ -794,7 +803,7 @@ function renderMemberLobby(st: RaidState): void {
   const hostRow = document.createElement('div');
   hostRow.className = 'raid-host-code-row';
   hostRow.innerHTML = esc(RF2.addHost) + ' <strong>' + esc(lb.host.trainer_name || lb.host.username) + '</strong>' +
-    memberBadges(lb.host) + ' ' + esc(RF2.addHost2) + '&nbsp;' +
+    memberBadges(lb.host) + reportFlagHTML(lb.host.username) + ' ' + esc(RF2.addHost2) + '&nbsp;' +
     '<span class="trainer-code">' + esc(fmtCode(lb.host.trainer_code || '')) + '</span>&nbsp;';
   if (lb.host.trainer_code) hostRow.appendChild(copyButton(lb.host.trainer_code));
   card.appendChild(hostRow);
@@ -869,7 +878,7 @@ function buildMemberList(lb: Lobby, isHost: boolean): HTMLElement {
 
     const name = document.createElement('span');
     name.className = 'raid-joiner-name';
-    name.innerHTML = esc(m.username) + memberBadges(m);
+    name.innerHTML = esc(m.username) + memberBadges(m) + reportFlagHTML(m.username);
     row.appendChild(name);
 
     if (m.state === 'matched') {
@@ -983,7 +992,7 @@ function buildReportForm(lb: Lobby): HTMLElement {
     row.className = 'raid-joiner-row';
     const name = document.createElement('span');
     name.className = 'raid-joiner-name';
-    name.innerHTML = esc(m.username) + memberBadges(m);
+    name.innerHTML = esc(m.username) + memberBadges(m) + reportFlagHTML(m.username);
     row.appendChild(name);
 
     const attLabel = document.createElement('label');

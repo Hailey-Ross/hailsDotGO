@@ -35,12 +35,17 @@ const showdownBase = "https://play.pokemonshowdown.com/sprites/trainers/"
 var showdownSources = map[string]string{}
 
 func init() {
-	for _, tc := range builtinTrainerClasses {
+	for _, tc := range showdownModernClasses {
 		showdownSources[tc.Slug] = tc.SpriteURL
+	}
+	for _, slice := range showdownNewSlices {
+		for _, tc := range slice {
+			showdownSources[tc.Slug] = showdownBase + tc.Slug + ".png"
+		}
 	}
 }
 
-var builtinTrainerClasses = []TrainerClass{
+var showdownModernClasses = []TrainerClass{
 	{Slug: "youngster",    Label: "Youngster",    SpriteURL: showdownBase + "youngster.png"},
 	{Slug: "lass",         Label: "Lass",          SpriteURL: showdownBase + "lass.png"},
 	{Slug: "bug-catcher",  Label: "Bug Catcher",   SpriteURL: showdownBase + "bugcatcher.png"},
@@ -522,9 +527,18 @@ type Store struct {
 }
 
 func New() *Store {
-	classes := make([]TrainerClass, 0, len(builtinTrainerClasses)+len(dreamstoneTrainerClasses)+len(pexTrainerClasses))
-	for _, tc := range builtinTrainerClasses {
-		classes = append(classes, TrainerClass{Slug: tc.Slug, Label: tc.Label, SpriteURL: "/api/trainer-sprite/" + tc.Slug, Group: "classic"})
+	newSlicesLen := 0
+	for _, s := range showdownNewSlices {
+		newSlicesLen += len(s)
+	}
+	classes := make([]TrainerClass, 0, len(showdownModernClasses)+newSlicesLen+len(dreamstoneTrainerClasses)+len(pexTrainerClasses))
+	for _, tc := range showdownModernClasses {
+		classes = append(classes, TrainerClass{Slug: tc.Slug, Label: tc.Label, SpriteURL: "/api/trainer-sprite/" + tc.Slug, Group: "showdown-modern"})
+	}
+	for _, slice := range showdownNewSlices {
+		for _, tc := range slice {
+			classes = append(classes, TrainerClass{Slug: tc.Slug, Label: tc.Label, SpriteURL: "/api/trainer-sprite/" + tc.Slug, Group: tc.Group})
+		}
 	}
 	for _, tc := range dreamstoneTrainerClasses {
 		tc.Group = "dreamstone"

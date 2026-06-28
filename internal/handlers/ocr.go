@@ -1,32 +1,30 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	_ "image/png"
+	"io"
+	"log"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ocrRegion is a percentage-based crop of a full screenshot (fractions 0-1).
 type ocrRegion struct{ x1, y1, x2, y2 float64 }
 
 var (
-	ocrRegionTop25  = ocrRegion{0.00, 0.00, 1.00, 0.25} // CP pass 1
-	ocrRegionTop18  = ocrRegion{0.00, 0.00, 1.00, 0.18} // CP pass 2 (contrast-enhanced)
-	ocrRegionName   = ocrRegion{0.10, 0.37, 0.90, 0.52} // name card-zone (below sprite, ~37-52%)
-	ocrRegionFooter = ocrRegion{0.00, 0.80, 1.00, 1.00} // "This X was caught in..."
-	ocrRegionHP     = ocrRegion{0.35, 0.43, 0.75, 0.54} // HP bar below name (~43-54%)
-	ocrRegionDust           = ocrRegion{0.28, 0.68, 0.72, 0.77}
-	ocrRegionPowerUp        = ocrRegion{0.38, 0.73, 0.78, 0.88} // POWER UP cost row (dust cost appears here on info screens)
-	ocrRegionStars          = ocrRegion{0.60, 0.38, 0.92, 0.52} // standard-screen dots (right of name row -- estimated, calibrate from screenshot)
+	// Only pixel-scan crops remain; text now comes from the neural OCR service.
 	ocrRegionAppraisalScreen = ocrRegion{0.00, 0.00, 0.25, 1.00} // appraisal-results screen bars (mobile app coordinates)
 )
 
@@ -63,7 +61,8 @@ func cropPct(img image.Image, reg ocrRegion) image.Image {
 	return out
 }
 
-// contrastEnhance converts an image to grayscale with contrast x1.5.
+// contrastEnhance converts an image to grayscale with contrast x1.5 (matches the
+// mobile app's grayscaleContrast used on the CP retry pass).
 func contrastEnhance(img image.Image) image.Image {
 	b := img.Bounds()
 	out := image.NewGray(image.Rectangle{Max: image.Point{X: b.Max.X - b.Min.X, Y: b.Max.Y - b.Min.Y}})
@@ -84,70 +83,167 @@ func contrastEnhance(img image.Image) image.Image {
 	return out
 }
 
-// runTesseract writes an image to a temp JPEG, runs tesseract, and returns trimmed stdout.
-func runTesseract(img image.Image, psm, allowlist string) (string, error) {
-	f, err := os.CreateTemp("", "pogo-ocr-*.jpg")
-	if err != nil {
-		return "", err
-	}
-	name := f.Name()
-	defer os.Remove(name)
-	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 95}); err != nil {
-		f.Close()
-		return "", err
-	}
-	f.Close()
+// ---- Neural OCR service client ----
+//
+// The Go backend posts the screenshot to a self-hosted RapidOCR microservice
+// (see ocr-service/) and receives recognised text plus a bounding box per line.
+// This mirrors the mobile app, which reads the same screenshots with Google
+// ML Kit and filters lines by position. The engine can be swapped to PaddleOCR
+// service-side without any change here.
 
-	args := []string{name, "stdout", "--psm", psm, "-l", "eng"}
-	if allowlist != "" {
-		args = append(args, "-c", "tessedit_char_whitelist="+allowlist)
-	}
-	out, err := exec.Command("tesseract", args...).Output()
-	return strings.TrimSpace(string(out)), err
+type ocrLine struct {
+	Text  string  `json:"text"`
+	X1    int     `json:"x1"`
+	Y1    int     `json:"y1"`
+	X2    int     `json:"x2"`
+	Y2    int     `json:"y2"`
+	Score float64 `json:"score"`
 }
 
-// ---- CP extraction ----
+func (l ocrLine) midY() int      { return (l.Y1 + l.Y2) / 2 }
+func (l ocrLine) boxHeight() int { return l.Y2 - l.Y1 }
+
+type ocrResult struct {
+	FullText string    `json:"full_text"`
+	Lines    []ocrLine `json:"lines"`
+}
+
+func ocrServiceURL() string {
+	if v := os.Getenv("OCR_SERVICE_URL"); v != "" {
+		return v
+	}
+	return "http://127.0.0.1:18265/ocr"
+}
+
+// recognizeText posts image bytes to the OCR service and decodes the response.
+func recognizeText(imgBytes []byte) (*ocrResult, error) {
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("image", "scan.jpg")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := fw.Write(imgBytes); err != nil {
+		return nil, err
+	}
+	if err := mw.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, ocrServiceURL(), &body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ocr service status %d", resp.StatusCode)
+	}
+	var out ocrResult
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func encodeJPEG(img image.Image) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// ---- CP extraction (mobile extractCP parity) ----
 
 var (
-	reAllNums        = regexp.MustCompile(`\d{2,5}`)
 	reAllNumsBounded = regexp.MustCompile(`\b\d{2,5}\b`)
 	reCPMisread      = regexp.MustCompile(`(?i)[co0][ph]\s*(\d{1,5})`)
 	reNonDigits      = regexp.MustCompile(`\D+`)
 )
 
-func extractCPPass1(img image.Image) int {
-	text, _ := runTesseract(cropPct(img, ocrRegionTop25), "6", "")
+// cpNumsFromLine strips a line to a single integer candidate in [10,50000].
+// Lines that look like a clock ("10:27") are skipped so the device status bar
+// can never be read as CP.
+func cpNumsFromLine(text string) int {
+	if strings.Contains(text, ":") {
+		return 0
+	}
+	digits := reNonDigits.ReplaceAllString(text, "")
+	if digits == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(digits)
+	if err != nil || v < 10 || v > 50000 {
+		return 0
+	}
+	return v
+}
+
+// extractCP reads the big "CP2717" number from the top 25% of the screen.
+func extractCP(lines []ocrLine, fullText string, h int) int {
+	topZone := float64(h) * 0.25
+	var top []ocrLine
+	for _, l := range lines {
+		if float64(l.midY()) < topZone {
+			top = append(top, l)
+		}
+	}
+
+	// Strategy 1: prefer lines containing "CP".
 	best := 0
-	for _, line := range strings.Split(text, "\n") {
-		if strings.Contains(strings.ToUpper(line), "CP") {
-			for _, tok := range strings.Fields(reNonDigits.ReplaceAllString(line, " ")) {
-				if v, err := strconv.Atoi(tok); err == nil && v >= 10 && v <= 50000 && v > best {
-					best = v
-				}
+	for _, l := range top {
+		if strings.Contains(strings.ToUpper(l.Text), "CP") {
+			if v := cpNumsFromLine(l.Text); v > best {
+				best = v
 			}
 		}
 	}
 	if best > 0 {
 		return best
 	}
-	for _, m := range reAllNums.FindAllString(text, -1) {
-		if v, err := strconv.Atoi(m); err == nil && v >= 10 && v <= 50000 && v > best {
+
+	// Strategy 2: any number in the top zone (CP dwarfs status-bar digits).
+	for _, l := range top {
+		if v := cpNumsFromLine(l.Text); v > best {
 			best = v
 		}
 	}
-	if m := reCPMisread.FindStringSubmatch(text); len(m) > 1 {
-		if v, err := strconv.Atoi(m[1]); err == nil && v >= 10 && v <= 50000 && v > best {
-			best = v
+	if best > 0 {
+		return best
+	}
+
+	// Strategy 3: OCR misread fallback (C->O, P->H).
+	if m := reCPMisread.FindStringSubmatch(fullText); len(m) > 1 {
+		if v, err := strconv.Atoi(m[1]); err == nil && v >= 10 && v <= 50000 {
+			return v
 		}
 	}
-	return best
+	return 0
 }
 
-func extractCPPass2(img image.Image) int {
-	enhanced := contrastEnhance(cropPct(img, ocrRegionTop18))
-	text, _ := runTesseract(enhanced, "6", "")
+// retryCP re-runs OCR on a grayscale, contrast-boosted top-18% crop. Large
+// Pokemon models occlude the CP digits and the first pass can underread; taking
+// max(primary, retry) recovers the higher value (mobile parity).
+func retryCP(img image.Image) int {
+	crop := cropPct(img, ocrRegion{0.00, 0.00, 1.00, 0.18})
+	enhanced := contrastEnhance(crop)
+	b, err := encodeJPEG(enhanced)
+	if err != nil {
+		return 0
+	}
+	res, err := recognizeText(b)
+	if err != nil || res == nil {
+		return 0
+	}
 	best := 0
-	for _, m := range reAllNumsBounded.FindAllString(text, -1) {
+	for _, m := range reAllNumsBounded.FindAllString(res.FullText, -1) {
 		if v, err := strconv.Atoi(m); err == nil && v >= 10 && v <= 50000 && v > best {
 			best = v
 		}
@@ -155,7 +251,7 @@ func extractCPPass2(img image.Image) int {
 	return best
 }
 
-// ---- Arc detection ----
+// ---- Arc detection (mobile CPArcDetector parity -- fallback only) ----
 
 const (
 	arcCXFrac    = 0.500
@@ -179,12 +275,13 @@ func detectArcCP(img image.Image, maxCP int) int {
 	r := fw * arcRFrac
 
 	endpointDeg := arcEmptyDeg
+	endpointStep := arcSpanDeg + 1
 	for step := 0; step <= arcSpanDeg; step++ {
-		deg := ((arcFullDeg - step) % 360 + 360) % 360
+		deg := ((arcFullDeg-step)%360 + 360) % 360
 		rad := float64(deg-90) * math.Pi / 180
 		x := math.Round(cx + r*math.Cos(rad))
 		y := math.Round(cy + r*math.Sin(rad))
-		if x/fw > 0.83 && y/fh < 0.18 { // camera icon exclusion
+		if x/fw > 0.83 && y/fh < 0.18 { // camera icon exclusion (mobile-exact)
 			continue
 		}
 		px := b.Min.X + int(x)
@@ -193,8 +290,9 @@ func detectArcCP(img image.Image, maxCP int) int {
 			continue
 		}
 		rr, gg, bb, _ := img.At(px, py).RGBA()
-		if int(rr>>8)+int(gg>>8)+int(bb>>8) > arcBrightMin {
+		if int(rr>>8)+int(gg>>8)+int(bb>>8) > arcBrightMin { // sum-based brightness (mobile-exact)
 			endpointDeg = deg
+			endpointStep = step
 			break
 		}
 	}
@@ -202,6 +300,11 @@ func detectArcCP(img image.Image, maxCP int) int {
 	dist := ((endpointDeg - arcEmptyDeg) + 360) % 360
 	fillPct := math.Min(float64(dist)/float64(arcSpanDeg), 1.0)
 	arcCP := int(math.Round(fillPct * float64(maxCP)))
+	log.Printf("OCR arc: maxCP=%d endpointStep=%d endpointDeg=%d xFrac=%.3f yFrac=%.3f fillPct=%.4f arcCP=%d",
+		maxCP, endpointStep, endpointDeg,
+		math.Round(cx+r*math.Cos(float64(endpointDeg-90)*math.Pi/180))/fw,
+		math.Round(cy+r*math.Sin(float64(endpointDeg-90)*math.Pi/180))/fh,
+		fillPct, arcCP)
 	if arcCP <= 10 {
 		return 0
 	}
@@ -230,7 +333,7 @@ func computeMaxCP(poke pokemonStatEntry, trainerLevel int, cpms []cpmEntry) int 
 	return int(math.Floor(atk * math.Sqrt(def) * math.Sqrt(sta) * bestCPM * bestCPM / 10))
 }
 
-// ---- Name detection ----
+// ---- Name detection (mobile extractName parity) ----
 
 var (
 	reFooterName   = regexp.MustCompile(`This\s+([A-Z][a-z]+(?:[- ][A-Z][a-z]+)?)\s+was\s+caught`)
@@ -261,9 +364,8 @@ func titleCase(s string) string {
 	return strings.Join(words, " ")
 }
 
-func detectName(img image.Image, fullText string) (string, string) {
-	footerText, _ := runTesseract(cropPct(img, ocrRegionFooter), "6", "")
-	if m := reFooterName.FindStringSubmatch(footerText); len(m) > 1 {
+func detectName(lines []ocrLine, fullText string, h int) (string, string) {
+	if m := reFooterName.FindStringSubmatch(fullText); len(m) > 1 {
 		if name := strings.TrimSpace(m[1]); name != "" {
 			return titleCase(name), "footer"
 		}
@@ -273,10 +375,40 @@ func detectName(img image.Image, fullText string) (string, string) {
 			return titleCase(name), "mega"
 		}
 	}
-	cardText, _ := runTesseract(cropPct(img, ocrRegionName), "6", "")
-	name := cleanOCRName(cardText)
-	if name != "" && !nameExclusions[strings.ToLower(name)] {
-		return name, "card"
+
+	// Card zone: tallest text line between 35% and 65% height that looks like a name.
+	cardTop := float64(h) * 0.35
+	cardBot := float64(h) * 0.65
+	bestName, bestH := "", 0
+	for _, l := range lines {
+		my := float64(l.midY())
+		if my < cardTop || my > cardBot {
+			continue
+		}
+		name := cleanOCRName(l.Text)
+		if name == "" || len(name) < 2 || len(name) > 20 {
+			continue
+		}
+		if nameExclusions[strings.ToLower(name)] {
+			continue
+		}
+		skip := false
+		for _, w := range strings.Fields(strings.ToLower(name)) {
+			if nameExclusions[w] {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+		if l.boxHeight() > bestH {
+			bestH = l.boxHeight()
+			bestName = name
+		}
+	}
+	if bestName != "" {
+		return bestName, "card"
 	}
 	return "", ""
 }
@@ -297,7 +429,6 @@ var (
 	reOCRDigitFix = regexp.MustCompile(`(\d)[Oo](\d)`)
 	reOCRSlashFix = regexp.MustCompile(`([\s/])[Oo](\d)`)
 	reHPFraction  = regexp.MustCompile(`(?i)(\d{1,4})\s*/\s*\d{1,4}\s*HP`)
-	reDigitsComma = regexp.MustCompile(`[\d,]+`)
 )
 
 func fixOCRDigits(s string) string {
@@ -306,32 +437,23 @@ func fixOCRDigits(s string) string {
 	return s
 }
 
-func extractHP(img image.Image) int {
-	raw, _ := runTesseract(cropPct(img, ocrRegionHP), "7", "0123456789/HP ")
-	fixed := fixOCRDigits(raw)
+// extractHP pulls the current HP from "104 / 104 HP" anywhere in the OCR text.
+func extractHP(fullText string) int {
+	fixed := fixOCRDigits(fullText)
 	if m := reHPFraction.FindStringSubmatch(fixed); len(m) > 1 {
 		if v, err := strconv.Atoi(m[1]); err == nil {
 			return v
 		}
 	}
-	return firstIntOCR(fixed)
+	return 0
 }
 
-func firstIntOCR(text string) int {
-	m := reDigitsComma.FindString(text)
-	if m == "" {
-		return 0
-	}
-	v, _ := strconv.Atoi(strings.ReplaceAll(m, ",", ""))
-	return v
-}
-
-// ---- Dust detection + normalisation ----
+// ---- Dust detection + normalisation (mobile parity) ----
 
 var standardDust = []int{
-	200, 400, 600, 800, 1000, 1300, 1600, 1900, 2200, 2500,
+	200, 400, 800, 1000, 1300, 1600, 1900, 2200, 2500,
 	3000, 3500, 4000, 4500, 5000, 6000, 7000, 8000, 9000,
-	10000, 12000, 15000, 17500, 20000,
+	10000, 12000, 15000, 20000,
 }
 
 func standardDustSet() map[int]bool {
@@ -374,9 +496,10 @@ var (
 )
 
 func detectRawDust(text string) int {
-	// Normalize Tesseract quirk: "4 000" → "4000" before comma removal
+	// Normalize Tesseract/OCR quirk: "4 000" -> "4000" before comma removal
 	normalized := reSpacedThousands.ReplaceAllString(text, "$1$2")
 	clean := strings.ReplaceAll(normalized, ",", "")
+	clean = strings.ReplaceAll(clean, ".", "")
 	nums := make(map[int]bool)
 	for _, m := range reDustNum.FindAllString(clean, -1) {
 		if v, err := strconv.Atoi(m); err == nil {
@@ -412,7 +535,7 @@ func inferDustFlags(rawDust int, isLucky, isPurified, isShadow bool) (bool, bool
 	if stdSet[rawDust] {
 		return false, false, false
 	}
-	// Lucky: displayed cost = standard ÷ 2
+	// Lucky: displayed cost = standard / 2
 	if stdSet[rawDust*2] {
 		return true, false, false
 	}
@@ -426,7 +549,7 @@ func inferDustFlags(rawDust int, isLucky, isPurified, isShadow bool) (bool, bool
 	return false, false, false
 }
 
-// ---- Appraisal star detection (gap-based) ----
+// ---- Appraisal star detection (gap-based, mobile AppraisalBarDetector parity) ----
 
 func isOrangePixel(r, g, b uint8) bool {
 	return r > 180 && g > 80 && b < 120 && r > g && (int(r)-int(b)) > 100
@@ -590,28 +713,24 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	buf := make([]byte, 512)
-	n, _ := file.Read(buf)
-	sniffed := http.DetectContentType(buf[:n])
+	imgBytes, err := io.ReadAll(file)
+	if err != nil {
+		writeJSONError(w, "could not read image", http.StatusBadRequest)
+		return
+	}
+	sniffed := http.DetectContentType(imgBytes)
 	if sniffed != "image/jpeg" && sniffed != "image/png" {
 		writeJSONError(w, "unsupported format; send JPEG or PNG", http.StatusBadRequest)
 		return
 	}
-	if _, err := file.Seek(0, 0); err != nil {
-		writeJSONError(w, "could not rewind image", http.StatusInternalServerError)
-		return
-	}
 
-	img, _, err := image.Decode(file)
+	img, _, err := image.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
 		writeJSONError(w, "could not decode image", http.StatusBadRequest)
 		return
 	}
-
-	if _, err := exec.LookPath("tesseract"); err != nil {
-		writeJSONError(w, "OCR service unavailable", http.StatusServiceUnavailable)
-		return
-	}
+	bounds := img.Bounds()
+	imgH := bounds.Max.Y - bounds.Min.Y
 
 	// Trainer level: DB value takes precedence for authenticated users;
 	// query param only applies for unauthenticated requests.
@@ -629,21 +748,34 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Single full-image OCR pass reused for name strategies + status keywords + dust
-	fullText, _ := runTesseract(img, "6", "")
+	// Neural OCR pass (RapidOCR service). Degrade gracefully if unreachable.
+	var lines []ocrLine
+	fullText := ""
+	if res, err := recognizeText(imgBytes); err != nil {
+		log.Printf("OCR service error: %v", err)
+	} else {
+		lines = res.Lines
+		fullText = res.FullText
+	}
 
 	isLucky := containsWordCI(fullText, "lucky")
 	isShadow := containsWordCI(fullText, "shadow")
 	isPurified := containsWordCI(fullText, "purified")
 
-	pokemonName, nameSource := detectName(img, fullText)
+	pokemonName, nameSource := detectName(lines, fullText, imgH)
 
-	cp1 := extractCPPass1(img)
-	cp2 := extractCPPass2(img)
-	bestTextCP := cp1
-	if cp2 > bestTextCP {
-		bestTextCP = cp2
+	cpText := extractCP(lines, fullText, imgH)
+	bestTextCP := cpText
+	// Only pay for the contrast retry pass when the primary read found no CP
+	// (the neural OCR almost always gets it first try; retry is the occlusion safety net).
+	cpRetry := 0
+	if cpText < 10 {
+		cpRetry = retryCP(img)
+		if cpRetry > bestTextCP {
+			bestTextCP = cpRetry
+		}
 	}
+	log.Printf("OCR CP text: primary=%d retry=%d bestTextCP=%d", cpText, cpRetry, bestTextCP)
 
 	// Load game data
 	var pokeList []pokemonStatEntry
@@ -671,8 +803,7 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fallback: scan full-image OCR text for the earliest-appearing known Pokémon name.
-	// Handles screenshots where the card region mis-reads (e.g. wrong aspect ratio).
+	// Fallback: scan full OCR text for the earliest-appearing known Pokémon name.
 	if poke == nil && len(pokeList) > 0 {
 		lft := strings.ToLower(fullText)
 		bestPos := len(lft) + 1
@@ -694,7 +825,7 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 				poke = &pokeList[i]
 			}
 		}
-		// Prefer Normal form over regional variants when multiple forms share the same name.
+		// Prefer Normal form over regional variants when names collide.
 		if poke != nil && !strings.EqualFold(poke.Form, "Normal") {
 			for i := range pokeList {
 				if strings.EqualFold(pokeList[i].PokemonName, pokemonName) &&
@@ -720,33 +851,14 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		} else {
 			cpSource = "none"
 		}
-	} else if arcCP > 0 {
-		diff := bestCP - arcCP
-		if diff < 0 {
-			diff = -diff
-		}
-		if float64(diff)/float64(bestCP) > 0.10 {
-			bestCP = arcCP
-			cpSource = "arc"
-		}
 	}
+	log.Printf("OCR result: pokemon=%q trainerLevel=%d arcCP=%d bestCP=%d source=%s",
+		pokemonName, trainerLevel, arcCP, bestCP, cpSource)
 
-	hp := extractHP(img)
-	// Fallback: try the HP fraction pattern anywhere in the full image OCR text.
-	if hp == 0 {
-		if m := reHPFraction.FindStringSubmatch(fixOCRDigits(fullText)); len(m) > 1 {
-			if v, err2 := strconv.Atoi(m[1]); err2 == nil {
-				hp = v
-			}
-		}
-	}
+	hp := extractHP(fullText)
 
-	dustText, _    := runTesseract(cropPct(img, ocrRegionDust),    "7", "0123456789,")
-	powerUpText, _ := runTesseract(cropPct(img, ocrRegionPowerUp), "7", "0123456789,")
-	rawDust := detectRawDust(fullText + " " + dustText + " " + powerUpText)
-	if rawDust == 0 {
-		rawDust = firstIntOCR(dustText)
-	}
+	rawDust := detectRawDust(fullText)
+	log.Printf("OCR dust: rawDust=%d", rawDust)
 	isLucky, isPurified, isShadow = inferDustFlags(rawDust, isLucky, isPurified, isShadow)
 	normDust := normaliseDust(rawDust, isLucky, isPurified, isShadow)
 	if normDust == 0 {
@@ -773,7 +885,7 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		IsLucky:        isLucky,
 		IsShadow:       isShadow,
 		IsPurified:     isPurified,
-		RawCP:          strconv.Itoa(cp1) + "/" + strconv.Itoa(cp2),
+		RawCP:          strconv.Itoa(cpText) + "/" + strconv.Itoa(cpRetry),
 	}
 
 	resp := map[string]any{

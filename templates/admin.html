@@ -24,6 +24,8 @@
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
   {{if .User.IsAdmin}}<button class="tab-btn" data-tab="sprites">Trainer Avatars</button>{{end}}
+  <button class="tab-btn" data-tab="bugreports">Bug Reports</button>
+  <button class="tab-btn" data-tab="playerreports">Player Reports</button>
   <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
 </div>
 
@@ -137,6 +139,208 @@
 
 </div>
 {{end}}
+
+<div id="tab-bugreports" class="tab-panel">
+  <div class="admin-card">
+    <h2>Bug Reports</h2>
+    <p class="admin-desc">Triage and respond to user bug reports. Internal notes are visible to staff only. Reporters see public replies in their Reports page.</p>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+      <input type="text" id="br-search" class="auth-input" placeholder="Search tickets..." style="max-width:190px" autocomplete="off">
+      <select id="br-filter-status" class="move-select" style="max-width:150px">
+        <option value="">All statuses</option>
+        <option value="open">Open</option>
+        <option value="pending">Pending</option>
+        <option value="resolved">Resolved</option>
+        <option value="closed">Closed</option>
+      </select>
+      <select id="br-filter-label" class="move-select" style="max-width:160px">
+        <option value="">All labels</option>
+      </select>
+      <select id="br-filter-assignee" class="move-select" style="max-width:170px">
+        <option value="">All assignees</option>
+        <option value="me">Assigned to me</option>
+      </select>
+      <select id="br-sort" class="move-select" style="max-width:165px">
+        <option value="recent">Sort: Recent</option>
+        <option value="status">Sort: Status</option>
+        <option value="opener">Sort: Opener</option>
+        <option value="awaiting">Sort: Awaiting reply</option>
+        <option value="priority">Sort: Priority</option>
+      </select>
+      <button type="button" id="br-manage-labels-btn" class="btn-secondary" style="font-size:0.8rem">Manage labels</button>
+      <button type="button" id="br-manage-macros-btn" class="btn-secondary" style="font-size:0.8rem">Canned responses</button>
+    </div>
+
+    <div id="br-labels-manager" style="display:none;margin-bottom:1.25rem;padding:1rem;border:1px solid var(--border);border-radius:var(--r-sm)">
+      <h3 style="font-size:0.9rem;margin-bottom:0.6rem">Labels</h3>
+      <div id="br-labels-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.85rem"></div>
+      {{if .User.IsAdmin}}
+      <form id="br-label-add-form" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+        <input type="text" id="br-label-name" class="auth-input" placeholder="Label name" maxlength="40" required style="flex:2;min-width:150px">
+        <input type="color" id="br-label-color" value="#5b9cf6" style="width:46px;height:38px;border:none;background:none;cursor:pointer">
+        <button type="submit" class="btn-primary" style="font-size:0.8rem">Add label</button>
+        <span id="br-label-status" style="font-size:0.8rem"></span>
+      </form>
+      {{else}}
+      <p style="color:var(--text-3);font-size:0.8rem">Only admins can create or delete labels.</p>
+      {{end}}
+    </div>
+
+    <div id="br-macros-manager" style="display:none;margin-bottom:1.25rem;padding:1rem;border:1px solid var(--border);border-radius:var(--r-sm)">
+      <h3 style="font-size:0.9rem;margin-bottom:0.6rem">Canned responses</h3>
+      <div id="br-macros-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.85rem"></div>
+      {{if .User.IsAdmin}}
+      <form id="br-macro-add-form" style="display:flex;flex-direction:column;gap:0.5rem;max-width:520px">
+        <input type="text" id="br-macro-title" class="auth-input" placeholder="Title (e.g. Thanks, investigating)" maxlength="80" required>
+        <textarea id="br-macro-body" class="auth-input" placeholder="Response text..." rows="3" required style="resize:vertical;font-family:var(--font)"></textarea>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <button type="submit" class="btn-primary" style="font-size:0.8rem">Add canned response</button>
+          <span id="br-macro-status" style="font-size:0.8rem"></span>
+        </div>
+      </form>
+      {{else}}
+      <p style="color:var(--text-3);font-size:0.8rem">Only admins can create or delete canned responses.</p>
+      {{end}}
+    </div>
+
+    <div class="reports-shell" id="admin-br-shell" data-staff="1">
+      <aside class="reports-list">
+        <div class="reports-list-body" id="br-list">
+          <div class="reports-empty" id="br-list-empty" style="display:none">No reports match.</div>
+        </div>
+      </aside>
+      <section class="reports-thread">
+        <div class="reports-thread-empty" id="br-empty">Select a report to view the conversation.</div>
+        <div class="reports-thread-inner" id="br-inner" style="display:none">
+          <header class="reports-thread-head">
+            <button class="reports-back" id="br-back" aria-label="Back">&larr;</button>
+            <div class="reports-thread-title">
+              <h2 id="br-subject"></h2>
+              <div class="reports-thread-meta">
+                <select id="br-status-select" class="move-select" style="max-width:130px;font-size:0.75rem;padding:0.2rem 0.4rem">
+                  <option value="open">Open</option>
+                  <option value="pending">Pending</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <select id="br-priority-select" class="move-select" style="max-width:130px;font-size:0.75rem;padding:0.2rem 0.4rem">
+                  <option value="low">Priority: Low</option>
+                  <option value="normal">Priority: Normal</option>
+                  <option value="high">Priority: High</option>
+                  <option value="urgent">Priority: Urgent</option>
+                </select>
+                <select id="br-assignee-select" class="move-select" style="max-width:150px;font-size:0.75rem;padding:0.2rem 0.4rem">
+                  <option value="">Unassigned</option>
+                </select>
+                <span class="report-rating" id="br-rating"></span>
+                <span class="report-labels" id="br-labels"></span>
+                <select id="br-label-pick" class="move-select" style="max-width:130px;font-size:0.75rem;padding:0.2rem 0.4rem">
+                  <option value="">+ Add label</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn-secondary reports-invite-btn" id="br-invite-btn">Invite</button>
+          </header>
+
+          <div class="reports-invite-row" id="br-invite-row" style="display:none">
+            <input type="text" id="br-invite-input" class="auth-input" placeholder="Username to invite" autocomplete="off" list="br-invite-list">
+            <datalist id="br-invite-list"></datalist>
+            <button class="btn-secondary" id="br-invite-add" type="button">Add</button>
+            <span class="reports-invite-error" id="br-invite-error"></span>
+          </div>
+
+          <div class="reports-participants" id="br-participants"></div>
+          <div class="reports-messages" id="br-messages"></div>
+
+          <form class="reports-reply" id="br-reply-form">
+            <select id="br-canned" class="move-select" style="max-width:240px;font-size:0.78rem;padding:0.25rem 0.5rem">
+              <option value="">Insert canned response...</option>
+            </select>
+            <textarea id="br-reply-body" rows="2" placeholder="Write a reply..." required></textarea>
+            <div class="reports-reply-actions">
+              <label class="reports-internal-toggle">
+                <input type="checkbox" id="br-internal"> Internal note (staff only)
+              </label>
+              <button class="btn-primary" type="submit">Send</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="tab-playerreports" class="tab-panel">
+  <div class="admin-card">
+    <h2>Player Reports</h2>
+    <p class="admin-desc">Reports of bad-actor players land in the shared moderator bucket -- every moderator sees them. Self-assign to take ownership; "Assigned to me" is your queue. Use "Resolve (action taken)" once a player has been dealt with (in the Users tab) to close the report and thank the reporter.</p>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+      <input type="text" id="pr-search" class="auth-input" placeholder="Search reports..." style="max-width:190px" autocomplete="off">
+      <select id="pr-filter-status" class="move-select" style="max-width:150px">
+        <option value="">All statuses</option>
+        <option value="open">Open</option>
+        <option value="pending">Pending</option>
+        <option value="resolved">Resolved</option>
+        <option value="closed">Closed</option>
+      </select>
+      <select id="pr-filter-assignee" class="move-select" style="max-width:185px">
+        <option value="">All</option>
+        <option value="unassigned">Unassigned (bucket)</option>
+        <option value="me">Assigned to me</option>
+      </select>
+      <select id="pr-sort" class="move-select" style="max-width:170px">
+        <option value="recent">Sort: Recent</option>
+        <option value="status">Sort: Status</option>
+        <option value="opener">Sort: Reporter</option>
+        <option value="awaiting">Sort: Awaiting reply</option>
+      </select>
+    </div>
+
+    <div class="reports-shell" id="admin-pr-shell" data-staff="1">
+      <aside class="reports-list">
+        <div class="reports-list-body" id="pr-list">
+          <div class="reports-empty" id="pr-list-empty" style="display:none">No reports match.</div>
+        </div>
+      </aside>
+      <section class="reports-thread">
+        <div class="reports-thread-empty" id="pr-empty">Select a report to view the conversation.</div>
+        <div class="reports-thread-inner" id="pr-inner" style="display:none">
+          <header class="reports-thread-head">
+            <button class="reports-back" id="pr-back" aria-label="Back">&larr;</button>
+            <div class="reports-thread-title">
+              <h2 id="pr-subject"></h2>
+              <div class="reports-thread-meta">
+                <span class="report-reported" id="pr-reported"></span>
+                <span class="report-reason-chip" id="pr-reason" style="display:none"></span>
+                <select id="pr-status-select" class="move-select" style="max-width:130px;font-size:0.75rem;padding:0.2rem 0.4rem">
+                  <option value="open">Open</option>
+                  <option value="pending">Pending</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <select id="pr-assignee-select" class="move-select" style="max-width:150px;font-size:0.75rem;padding:0.2rem 0.4rem">
+                  <option value="">Unassigned</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn-primary" id="pr-actioned-btn" style="font-size:0.78rem;white-space:nowrap" title="Close and thank the reporter">Resolve (action taken)</button>
+          </header>
+
+          <div class="reports-participants" id="pr-participants"></div>
+          <div class="reports-messages" id="pr-messages"></div>
+
+          <form class="reports-reply" id="pr-reply-form">
+            <textarea id="pr-reply-body" rows="2" placeholder="Reply to the reporter..." required></textarea>
+            <div class="reports-reply-actions">
+              <span style="font-size:0.78rem;color:var(--text-3)">Replies are visible to the reporter.</span>
+              <button class="btn-primary" type="submit">Send</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
 
 <div id="tab-stats" class="tab-panel">
   {{if .User.IsSuperAdmin}}
@@ -705,6 +909,8 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     if (btn.dataset.tab === 'users' && !usersLoaded) loadUsers();
     if (btn.dataset.tab === 'stats' && !statsLoaded) loadStats();
     if (btn.dataset.tab === 'tags'  && !tagsLoaded)  loadTags();
+    if (btn.dataset.tab === 'bugreports' && !brLoaded) initBugReports();
+    if (btn.dataset.tab === 'playerreports' && !prLoaded) initPlayerReports();
   });
 })();
 
@@ -2583,5 +2789,624 @@ function renderSpriteTable() {
     document.getElementById('sprite-lock-filter')?.addEventListener('change', renderSpriteTable);
   });
 })();
+
+// ── Bug Reports ────────────────────────────────────────────────
+var brLoaded = false;
+var brCurrentId = 0;
+var brLabels = [];
+var brStaff = [];
+var brMacros = [];
+var brSearchTimer = null;
+const BR_CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+function brEl(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function brStatusLabel(s) {
+  return { open: 'Open', pending: 'Pending', resolved: 'Resolved', closed: 'Closed' }[s] || s;
+}
+function brChip(l) {
+  const chip = brEl('span', 'report-label-chip', l.name);
+  chip.style.setProperty('--chip', l.color);
+  return chip;
+}
+function brPriorityChip(p) {
+  return brEl('span', 'report-priority-chip prio-' + p, brStatusLabel(p) === p ? p : p.charAt(0).toUpperCase() + p.slice(1));
+}
+function brAwaitingChip(a) {
+  if (a === 'staff') return brEl('span', 'report-awaiting-chip awaiting-staff', 'Awaiting staff');
+  return brEl('span', 'report-awaiting-chip awaiting-user', 'Awaiting user');
+}
+
+function initBugReports() {
+  brLoaded = true;
+  brLoadLabels();
+  brLoadStaff();
+  brLoadMacros();
+  brLoadList();
+
+  document.getElementById('br-filter-status').addEventListener('change', brLoadList);
+  document.getElementById('br-filter-label').addEventListener('change', brLoadList);
+  document.getElementById('br-filter-assignee').addEventListener('change', brLoadList);
+  document.getElementById('br-sort').addEventListener('change', brLoadList);
+  document.getElementById('br-search').addEventListener('input', function() {
+    if (brSearchTimer) clearTimeout(brSearchTimer);
+    brSearchTimer = setTimeout(brLoadList, 300);
+  });
+  document.getElementById('br-manage-labels-btn').addEventListener('click', function() {
+    const m = document.getElementById('br-labels-manager');
+    m.style.display = m.style.display === 'none' ? '' : 'none';
+  });
+  document.getElementById('br-manage-macros-btn').addEventListener('click', function() {
+    const m = document.getElementById('br-macros-manager');
+    m.style.display = m.style.display === 'none' ? '' : 'none';
+  });
+  document.getElementById('br-label-add-form')?.addEventListener('submit', brAddLabelDef);
+  document.getElementById('br-macro-add-form')?.addEventListener('submit', brAddMacroDef);
+  document.getElementById('br-reply-form').addEventListener('submit', brReply);
+  document.getElementById('br-status-select').addEventListener('change', brSetStatus);
+  document.getElementById('br-priority-select').addEventListener('change', brSetPriority);
+  document.getElementById('br-assignee-select').addEventListener('change', brSetAssignee);
+  document.getElementById('br-label-pick').addEventListener('change', brAttachLabel);
+  document.getElementById('br-canned').addEventListener('change', brInsertCanned);
+  document.getElementById('br-invite-btn').addEventListener('click', function() {
+    const row = document.getElementById('br-invite-row');
+    row.style.display = row.style.display === 'none' ? '' : 'none';
+  });
+  document.getElementById('br-invite-add').addEventListener('click', brInvite);
+  document.getElementById('br-invite-input').addEventListener('input', brInviteSearch);
+  document.getElementById('br-back').addEventListener('click', function() {
+    document.getElementById('admin-br-shell').classList.remove('thread-open');
+    brCurrentId = 0;
+  });
+}
+
+function brLoadStaff() {
+  fetch('/api/admin/staff', { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(staff) {
+      brStaff = staff || [];
+      const filter = document.getElementById('br-filter-assignee');
+      const pick = document.getElementById('br-assignee-select');
+      // filter keeps its first two options (All, Assigned to me); pick keeps Unassigned
+      filter.length = 2;
+      pick.length = 1;
+      brStaff.forEach(function(s) {
+        filter.appendChild(new Option('@' + s.username, s.username));
+        pick.appendChild(new Option('@' + s.username, s.username));
+      });
+    }).catch(function() {});
+}
+
+function brLoadMacros() {
+  fetch('/api/admin/bug-report-macros', { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(macros) {
+      brMacros = macros || [];
+      const sel = document.getElementById('br-canned');
+      sel.length = 1;
+      brMacros.forEach(function(m) { sel.appendChild(new Option(m.title, m.id)); });
+      brRenderMacroManager();
+    }).catch(function() {});
+}
+
+function brRenderMacroManager() {
+  const list = document.getElementById('br-macros-list');
+  if (!list) return;
+  list.textContent = '';
+  if (!brMacros.length) {
+    list.appendChild(brEl('p', null, 'No canned responses yet.')).style.color = 'var(--text-3)';
+    return;
+  }
+  brMacros.forEach(function(m) {
+    const row = brEl('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '0.5rem';
+    const title = brEl('strong', null, m.title);
+    title.style.fontSize = '0.82rem';
+    row.appendChild(title);
+    const preview = brEl('span', null, m.body.length > 60 ? m.body.slice(0, 60) + '...' : m.body);
+    preview.style.color = 'var(--text-2)';
+    preview.style.fontSize = '0.78rem';
+    preview.style.flex = '1';
+    row.appendChild(preview);
+    if (IS_ADMIN) {
+      const del = brEl('button', 'btn-secondary', 'Delete');
+      del.style.fontSize = '0.72rem';
+      del.style.padding = '0.2rem 0.5rem';
+      del.addEventListener('click', function() {
+        fetch('/api/admin/bug-report-macros/' + m.id, { method: 'DELETE', headers: { 'X-CSRF-Token': BR_CSRF } })
+          .then(function(r) { return r.json(); }).then(function() { brLoadMacros(); });
+      });
+      row.appendChild(del);
+    }
+    list.appendChild(row);
+  });
+}
+
+function brAddMacroDef(e) {
+  e.preventDefault();
+  const title = document.getElementById('br-macro-title').value.trim();
+  const body = document.getElementById('br-macro-body').value.trim();
+  const status = document.getElementById('br-macro-status');
+  if (!title || !body) return;
+  fetch('/api/admin/bug-report-macros', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ title: title, body: body })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      document.getElementById('br-macro-title').value = '';
+      document.getElementById('br-macro-body').value = '';
+      status.textContent = '';
+      brLoadMacros();
+    } else {
+      status.textContent = d.error || 'Failed';
+      status.style.color = '#fc8181';
+    }
+  });
+}
+
+function brInsertCanned() {
+  const sel = document.getElementById('br-canned');
+  const id = sel.value;
+  sel.value = '';
+  if (!id) return;
+  const macro = brMacros.find(function(m) { return String(m.id) === String(id); });
+  if (!macro) return;
+  const ta = document.getElementById('br-reply-body');
+  ta.value = ta.value ? (ta.value + '\n\n' + macro.body) : macro.body;
+  ta.focus();
+}
+
+function brLoadLabels() {
+  fetch('/api/admin/bug-report-labels', { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(labels) {
+      brLabels = labels || [];
+      const filter = document.getElementById('br-filter-label');
+      const pick = document.getElementById('br-label-pick');
+      filter.length = 1;
+      pick.length = 1;
+      brLabels.forEach(function(l) {
+        filter.appendChild(new Option(l.name, l.id));
+        pick.appendChild(new Option(l.name, l.id));
+      });
+      brRenderLabelManager();
+    }).catch(function() {});
+}
+
+function brRenderLabelManager() {
+  const list = document.getElementById('br-labels-list');
+  list.textContent = '';
+  brLabels.forEach(function(l) {
+    const row = brEl('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '0.5rem';
+    row.appendChild(brChip(l));
+    if (l.builtin) {
+      const tag = brEl('span', null, 'built-in');
+      tag.style.color = 'var(--text-3)';
+      tag.style.fontSize = '0.72rem';
+      row.appendChild(tag);
+    } else if (IS_ADMIN) {
+      const del = brEl('button', 'btn-secondary', 'Delete');
+      del.style.fontSize = '0.72rem';
+      del.style.padding = '0.2rem 0.5rem';
+      del.addEventListener('click', function() {
+        fetch('/api/admin/bug-report-labels/' + l.id, { method: 'DELETE', headers: { 'X-CSRF-Token': BR_CSRF } })
+          .then(function(r) { return r.json(); })
+          .then(function() { brLoadLabels(); });
+      });
+      row.appendChild(del);
+    }
+    list.appendChild(row);
+  });
+}
+
+function brAddLabelDef(e) {
+  e.preventDefault();
+  const name = document.getElementById('br-label-name').value.trim();
+  const color = document.getElementById('br-label-color').value;
+  const status = document.getElementById('br-label-status');
+  if (!name) return;
+  fetch('/api/admin/bug-report-labels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ name: name, color: color })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      document.getElementById('br-label-name').value = '';
+      status.textContent = '';
+      brLoadLabels();
+    } else {
+      status.textContent = d.error || 'Failed';
+      status.style.color = '#fc8181';
+    }
+  });
+}
+
+function brLoadList() {
+  const params = new URLSearchParams();
+  params.set('type', 'bug');
+  const s = document.getElementById('br-filter-status').value;
+  const l = document.getElementById('br-filter-label').value;
+  const a = document.getElementById('br-filter-assignee').value;
+  const sort = document.getElementById('br-sort').value;
+  const q = document.getElementById('br-search').value.trim();
+  if (s) params.set('status', s);
+  if (l) params.set('label', l);
+  if (a) params.set('assignee', a);
+  if (sort && sort !== 'recent') params.set('sort', sort);
+  if (q) params.set('q', q);
+  fetch('/api/admin/bug-reports?' + params.toString(), { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(items) {
+      const body = document.getElementById('br-list');
+      body.querySelectorAll('.report-list-item').forEach(function(n) { n.remove(); });
+      document.getElementById('br-list-empty').style.display = (items && items.length) ? 'none' : '';
+      (items || []).forEach(function(it) {
+        const btn = brEl('button', 'report-list-item');
+        btn.setAttribute('data-id', it.id);
+        if (it.id === brCurrentId) btn.classList.add('active');
+        const top = brEl('div', 'report-list-item-top');
+        const subj = brEl('span', 'report-list-subject');
+        subj.appendChild(brEl('span', 'report-ref', '#' + it.id + ' '));
+        subj.appendChild(document.createTextNode(it.subject));
+        top.appendChild(subj);
+        btn.appendChild(top);
+        const meta = brEl('div', 'report-list-item-meta');
+        meta.appendChild(brEl('span', 'report-status-chip status-' + it.status, brStatusLabel(it.status)));
+        if (it.priority && it.priority !== 'normal') meta.appendChild(brPriorityChip(it.priority));
+        meta.appendChild(brAwaitingChip(it.awaiting));
+        meta.appendChild(brEl('span', 'report-opener', '@' + it.reporter));
+        if (it.assignee) meta.appendChild(brEl('span', 'report-assignee', '→ @' + it.assignee));
+        (it.labels || []).forEach(function(lb) { meta.appendChild(brChip(lb)); });
+        btn.appendChild(meta);
+        btn.addEventListener('click', function() { brOpen(it.id); });
+        body.appendChild(btn);
+      });
+    }).catch(function() {});
+}
+
+function brOpen(id) {
+  fetch('/api/bug-reports/' + id, { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      brCurrentId = id;
+      document.getElementById('br-empty').style.display = 'none';
+      document.getElementById('br-inner').style.display = '';
+      document.getElementById('admin-br-shell').classList.add('thread-open');
+      document.getElementById('br-subject').textContent = '#' + d.id + ' ' + d.subject;
+      document.getElementById('br-status-select').value = d.status;
+      document.getElementById('br-priority-select').value = d.priority || 'normal';
+      document.getElementById('br-assignee-select').value = d.assignee || '';
+
+      const ratingEl = document.getElementById('br-rating');
+      ratingEl.textContent = '';
+      if (d.rating === 'good' || d.rating === 'bad') {
+        ratingEl.appendChild(brEl('span', 'report-rating-chip rating-' + d.rating, d.rating === 'good' ? '👍 Rated good' : '👎 Rated bad'));
+        if (d.rating_comment) ratingEl.title = d.rating_comment;
+      }
+
+      const labelsEl = document.getElementById('br-labels');
+      labelsEl.textContent = '';
+      (d.labels || []).forEach(function(l) {
+        const chip = brChip(l);
+        const x = brEl('button', null, ' ×');
+        x.style.background = 'none';
+        x.style.border = 'none';
+        x.style.color = 'inherit';
+        x.style.cursor = 'pointer';
+        x.addEventListener('click', function() { brRemoveLabel(l.id); });
+        chip.appendChild(x);
+        labelsEl.appendChild(chip);
+      });
+
+      const partEl = document.getElementById('br-participants');
+      partEl.textContent = '';
+      (d.participants || []).forEach(function(p) {
+        partEl.appendChild(brEl('span', 'report-participant role-' + p.role, '@' + p.username));
+      });
+
+      const msgs = document.getElementById('br-messages');
+      msgs.textContent = '';
+      (d.messages || []).forEach(function(m) {
+        if (m.is_system) { msgs.appendChild(brEl('div', 'report-system', m.body)); return; }
+        const bubble = brEl('div', 'report-bubble ' + (m.is_mine ? 'mine' : 'theirs'));
+        if (m.is_internal) bubble.classList.add('internal');
+        const head = brEl('div', 'report-bubble-head');
+        head.appendChild(brEl('span', 'report-bubble-author', m.is_mine ? 'You' : m.author_username));
+        if (m.is_staff) head.appendChild(brEl('span', 'report-staff-badge', 'Staff'));
+        if (m.is_internal) head.appendChild(brEl('span', 'report-internal-badge', 'Internal'));
+        head.appendChild(brEl('span', 'report-bubble-time', new Date(m.created_at).toLocaleString()));
+        bubble.appendChild(head);
+        bubble.appendChild(brEl('div', 'report-bubble-body', m.body));
+        msgs.appendChild(bubble);
+      });
+      msgs.scrollTop = msgs.scrollHeight;
+
+      document.getElementById('br-list').querySelectorAll('.report-list-item').forEach(function(n) {
+        n.classList.toggle('active', n.getAttribute('data-id') === String(id));
+      });
+    }).catch(function() {});
+}
+
+function brReply(e) {
+  e.preventDefault();
+  const bodyEl = document.getElementById('br-reply-body');
+  const body = bodyEl.value.trim();
+  if (!body || !brCurrentId) return;
+  const visibility = document.getElementById('br-internal').checked ? 'internal' : 'public';
+  fetch('/api/bug-reports/' + brCurrentId + '/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ body: body, visibility: visibility })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) { bodyEl.value = ''; document.getElementById('br-internal').checked = false; brOpen(brCurrentId); }
+  });
+}
+
+function brSetStatus() {
+  if (!brCurrentId) return;
+  const status = document.getElementById('br-status-select').value;
+  fetch('/api/admin/bug-reports/' + brCurrentId + '/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ status: status })
+  }).then(function(r) { return r.json(); }).then(function() { brOpen(brCurrentId); brLoadList(); });
+}
+
+function brSetPriority() {
+  if (!brCurrentId) return;
+  const priority = document.getElementById('br-priority-select').value;
+  fetch('/api/admin/bug-reports/' + brCurrentId + '/priority', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ priority: priority })
+  }).then(function(r) { return r.json(); }).then(function() { brLoadList(); });
+}
+
+function brSetAssignee() {
+  if (!brCurrentId) return;
+  const username = document.getElementById('br-assignee-select').value;
+  fetch('/api/admin/bug-reports/' + brCurrentId + '/assign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ username: username })
+  }).then(function(r) { return r.json(); }).then(function() { brLoadList(); });
+}
+
+function brAttachLabel() {
+  const pick = document.getElementById('br-label-pick');
+  const labelId = pick.value;
+  pick.value = '';
+  if (!labelId || !brCurrentId) return;
+  fetch('/api/admin/bug-reports/' + brCurrentId + '/labels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ label_id: parseInt(labelId, 10) })
+  }).then(function(r) { return r.json(); }).then(function() { brOpen(brCurrentId); brLoadList(); });
+}
+
+function brRemoveLabel(labelId) {
+  if (!brCurrentId) return;
+  fetch('/api/admin/bug-reports/' + brCurrentId + '/labels/' + labelId, {
+    method: 'DELETE', headers: { 'X-CSRF-Token': BR_CSRF }
+  }).then(function(r) { return r.json(); }).then(function() { brOpen(brCurrentId); brLoadList(); });
+}
+
+function brInviteSearch() {
+  const q = document.getElementById('br-invite-input').value.trim();
+  if (q.length < 2) return;
+  fetch('/api/users/search?q=' + encodeURIComponent(q), { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(users) {
+      const list = document.getElementById('br-invite-list');
+      list.textContent = '';
+      (users || []).forEach(function(u) { list.appendChild(new Option(u.username)); });
+    }).catch(function() {});
+}
+
+function brInvite() {
+  const input = document.getElementById('br-invite-input');
+  const username = input.value.trim();
+  const err = document.getElementById('br-invite-error');
+  err.textContent = '';
+  if (!username || !brCurrentId) return;
+  fetch('/api/bug-reports/' + brCurrentId + '/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ username: username })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) { input.value = ''; document.getElementById('br-invite-row').style.display = 'none'; brOpen(brCurrentId); }
+    else { err.textContent = d.error || 'Failed'; }
+  });
+}
+
+// ── Player Reports ─────────────────────────────────────────────
+var prLoaded = false;
+var prCurrentId = 0;
+var prSearchTimer = null;
+var prReasonLabels = {
+  spoofing: 'GPS spoofing', botting: 'Botting', harassment: 'Harassment', hate: 'Hate speech',
+  threats: 'Threats / safety', scam: 'Scam / fraud', impersonation: 'Impersonation',
+  inappropriate_username: 'Inappropriate username', inappropriate_profile: 'Inappropriate profile',
+  spam: 'Spam', other: 'Other'
+};
+
+function initPlayerReports() {
+  prLoaded = true;
+  prLoadStaff();
+  prLoadList();
+  document.getElementById('pr-filter-status').addEventListener('change', prLoadList);
+  document.getElementById('pr-filter-assignee').addEventListener('change', prLoadList);
+  document.getElementById('pr-sort').addEventListener('change', prLoadList);
+  document.getElementById('pr-search').addEventListener('input', function() {
+    if (prSearchTimer) clearTimeout(prSearchTimer);
+    prSearchTimer = setTimeout(prLoadList, 300);
+  });
+  document.getElementById('pr-reply-form').addEventListener('submit', prReply);
+  document.getElementById('pr-status-select').addEventListener('change', prSetStatus);
+  document.getElementById('pr-assignee-select').addEventListener('change', prSetAssignee);
+  document.getElementById('pr-actioned-btn').addEventListener('click', prActioned);
+  document.getElementById('pr-back').addEventListener('click', function() {
+    document.getElementById('admin-pr-shell').classList.remove('thread-open');
+    prCurrentId = 0;
+  });
+}
+
+function prLoadStaff() {
+  fetch('/api/admin/staff', { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(staff) {
+      const pick = document.getElementById('pr-assignee-select');
+      pick.length = 1;
+      (staff || []).forEach(function(s) { pick.appendChild(new Option('@' + s.username, s.username)); });
+    }).catch(function() {});
+}
+
+function prLoadList() {
+  const params = new URLSearchParams();
+  params.set('type', 'player');
+  const s = document.getElementById('pr-filter-status').value;
+  const a = document.getElementById('pr-filter-assignee').value;
+  const sort = document.getElementById('pr-sort').value;
+  const q = document.getElementById('pr-search').value.trim();
+  if (s) params.set('status', s);
+  if (a) params.set('assignee', a);
+  if (sort && sort !== 'recent') params.set('sort', sort);
+  if (q) params.set('q', q);
+  fetch('/api/admin/bug-reports?' + params.toString(), { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(items) {
+      const body = document.getElementById('pr-list');
+      body.querySelectorAll('.report-list-item').forEach(function(n) { n.remove(); });
+      document.getElementById('pr-list-empty').style.display = (items && items.length) ? 'none' : '';
+      (items || []).forEach(function(it) {
+        const btn = brEl('button', 'report-list-item');
+        btn.setAttribute('data-id', it.id);
+        if (it.id === prCurrentId) btn.classList.add('active');
+        const top = brEl('div', 'report-list-item-top');
+        const subj = brEl('span', 'report-list-subject');
+        subj.appendChild(brEl('span', 'report-ref', '#' + it.id + ' '));
+        subj.appendChild(document.createTextNode(it.reported_user ? '@' + it.reported_user : it.subject));
+        top.appendChild(subj);
+        btn.appendChild(top);
+        const meta = brEl('div', 'report-list-item-meta');
+        meta.appendChild(brEl('span', 'report-status-chip status-' + it.status, brStatusLabel(it.status)));
+        if (it.reason) meta.appendChild(brEl('span', 'report-reason-chip', prReasonLabels[it.reason] || it.reason));
+        meta.appendChild(brAwaitingChip(it.awaiting));
+        meta.appendChild(brEl('span', 'report-opener', 'by @' + it.reporter));
+        if (it.assignee) meta.appendChild(brEl('span', 'report-assignee', '→ @' + it.assignee));
+        btn.appendChild(meta);
+        btn.addEventListener('click', function() { prOpen(it.id); });
+        body.appendChild(btn);
+      });
+    }).catch(function() {});
+}
+
+function prOpen(id) {
+  fetch('/api/bug-reports/' + id, { headers: { 'X-CSRF-Token': BR_CSRF } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      prCurrentId = id;
+      document.getElementById('pr-empty').style.display = 'none';
+      document.getElementById('pr-inner').style.display = '';
+      document.getElementById('admin-pr-shell').classList.add('thread-open');
+      document.getElementById('pr-subject').textContent = '#' + d.id + ' ' + d.subject;
+      document.getElementById('pr-status-select').value = d.status;
+      document.getElementById('pr-assignee-select').value = d.assignee || '';
+
+      const reportedEl = document.getElementById('pr-reported');
+      reportedEl.textContent = '';
+      if (d.reported_username) {
+        reportedEl.appendChild(document.createTextNode('Reported: '));
+        const link = brEl('a', null, '@' + d.reported_username);
+        link.href = '/trainer/' + encodeURIComponent(d.reported_username);
+        link.target = '_blank';
+        reportedEl.appendChild(link);
+      }
+      const reasonEl = document.getElementById('pr-reason');
+      if (d.reason) {
+        reasonEl.textContent = prReasonLabels[d.reason] || d.reason;
+        reasonEl.style.display = '';
+      } else {
+        reasonEl.style.display = 'none';
+      }
+
+      const partEl = document.getElementById('pr-participants');
+      partEl.textContent = '';
+      (d.participants || []).forEach(function(p) {
+        partEl.appendChild(brEl('span', 'report-participant role-' + p.role, '@' + p.username));
+      });
+
+      const msgs = document.getElementById('pr-messages');
+      msgs.textContent = '';
+      (d.messages || []).forEach(function(m) {
+        if (m.is_system) { msgs.appendChild(brEl('div', 'report-system', m.body)); return; }
+        const bubble = brEl('div', 'report-bubble ' + (m.is_mine ? 'mine' : 'theirs'));
+        if (m.is_internal) bubble.classList.add('internal');
+        const head = brEl('div', 'report-bubble-head');
+        head.appendChild(brEl('span', 'report-bubble-author', m.is_mine ? 'You' : m.author_username));
+        if (m.is_staff) head.appendChild(brEl('span', 'report-staff-badge', 'Staff'));
+        head.appendChild(brEl('span', 'report-bubble-time', new Date(m.created_at).toLocaleString()));
+        bubble.appendChild(head);
+        bubble.appendChild(brEl('div', 'report-bubble-body', m.body));
+        msgs.appendChild(bubble);
+      });
+      msgs.scrollTop = msgs.scrollHeight;
+
+      document.getElementById('pr-list').querySelectorAll('.report-list-item').forEach(function(n) {
+        n.classList.toggle('active', n.getAttribute('data-id') === String(id));
+      });
+    }).catch(function() {});
+}
+
+function prReply(e) {
+  e.preventDefault();
+  const bodyEl = document.getElementById('pr-reply-body');
+  const body = bodyEl.value.trim();
+  if (!body || !prCurrentId) return;
+  fetch('/api/bug-reports/' + prCurrentId + '/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ body: body, visibility: 'public' })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) { bodyEl.value = ''; prOpen(prCurrentId); }
+  });
+}
+
+function prSetStatus() {
+  if (!prCurrentId) return;
+  fetch('/api/admin/bug-reports/' + prCurrentId + '/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ status: document.getElementById('pr-status-select').value })
+  }).then(function(r) { return r.json(); }).then(function() { prOpen(prCurrentId); prLoadList(); });
+}
+
+function prSetAssignee() {
+  if (!prCurrentId) return;
+  fetch('/api/admin/bug-reports/' + prCurrentId + '/assign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
+    body: JSON.stringify({ username: document.getElementById('pr-assignee-select').value })
+  }).then(function(r) { return r.json(); }).then(function() { prLoadList(); });
+}
+
+function prActioned() {
+  if (!prCurrentId) return;
+  if (!confirm('Close this report as actioned and notify the reporter that their report helped remove a bad actor?')) return;
+  fetch('/api/admin/bug-reports/' + prCurrentId + '/actioned', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF }
+  }).then(function(r) { return r.json(); }).then(function() { prOpen(prCurrentId); prLoadList(); });
+}
 </script>
 {{end}}

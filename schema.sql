@@ -480,5 +480,161 @@ CREATE TABLE IF NOT EXISTS sprite_locks (
   PRIMARY KEY (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Bug report system ("Report Me Not"): lightweight ticketing with threaded
+-- messaging between reporters and staff, labels, invites, and private notes.
+-- reporter_id NULL and anon_token are reserved for the deferred anonymous flow;
+-- this round always sets reporter_id and leaves the anon columns empty.
+CREATE TABLE IF NOT EXISTS bug_reports (
+  id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  type             ENUM('bug','player') NOT NULL DEFAULT 'bug',
+  reporter_id      INT UNSIGNED NULL,
+  reported_user_id INT UNSIGNED NULL,
+  reporter_email   VARCHAR(255) NULL,
+  subject          VARCHAR(160) NOT NULL,
+  reason           VARCHAR(64)  NOT NULL DEFAULT '',
+  status           ENUM('open','pending','resolved','closed') NOT NULL DEFAULT 'open',
+  priority         ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal',
+  assignee_id      INT UNSIGNED NULL,
+  rating           ENUM('','good','bad') NOT NULL DEFAULT '',
+  rating_comment   VARCHAR(500) NOT NULL DEFAULT '',
+  rated_at         DATETIME     NULL,
+  anon_token       CHAR(64)     NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  last_activity_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_br_status (status),
+  KEY idx_br_reporter (reporter_id),
+  KEY idx_br_assignee (assignee_id),
+  KEY idx_br_priority (priority),
+  KEY idx_br_type (type, status),
+  KEY idx_br_reported (reported_user_id),
+  UNIQUE KEY uk_br_anon_token (anon_token),
+  CONSTRAINT fk_br_reporter FOREIGN KEY (reporter_id) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_br_assignee FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_br_reported FOREIGN KEY (reported_user_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Canned responses (macros) for staff replies.
+CREATE TABLE IF NOT EXISTS bug_report_macros (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  title      VARCHAR(80)  NOT NULL,
+  body       TEXT         NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_brmac_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- visibility 'internal' = staff-only private note (never shown to the reporter).
+-- is_system = 1 for generated events (label/status changes). author_id NULL = anon or system.
+CREATE TABLE IF NOT EXISTS bug_report_messages (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  report_id  INT UNSIGNED NOT NULL,
+  author_id  INT UNSIGNED NULL,
+  body       TEXT NOT NULL,
+  visibility ENUM('public','internal') NOT NULL DEFAULT 'public',
+  is_system  TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_brm_report (report_id, created_at),
+  CONSTRAINT fk_brm_report FOREIGN KEY (report_id) REFERENCES bug_reports (id) ON DELETE CASCADE,
+  CONSTRAINT fk_brm_author FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Participants drive access control and the red "Reports" nav link.
+-- role: reporter (opener), collaborator (invited user), staff (assigned/invited staff).
+CREATE TABLE IF NOT EXISTS bug_report_participants (
+  report_id  INT UNSIGNED NOT NULL,
+  user_id    INT UNSIGNED NOT NULL,
+  role       ENUM('reporter','collaborator','staff') NOT NULL DEFAULT 'collaborator',
+  added_by   INT UNSIGNED NULL,
+  last_seen_at DATETIME   NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (report_id, user_id),
+  KEY idx_brp_user (user_id),
+  CONSTRAINT fk_brp_report FOREIGN KEY (report_id) REFERENCES bug_reports (id) ON DELETE CASCADE,
+  CONSTRAINT fk_brp_user   FOREIGN KEY (user_id)   REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bug_report_labels (
+  id      INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name    VARCHAR(40)  NOT NULL,
+  color   VARCHAR(7)   NOT NULL DEFAULT '#cccccc',
+  builtin TINYINT(1)   NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_brl_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO bug_report_labels (name, color, builtin) VALUES
+  ('Bug',             '#e53935', 1),
+  ('Crash',           '#b71c1c', 1),
+  ('UI',              '#5b9cf6', 1),
+  ('Feature Request', '#00d68f', 1),
+  ('Question',        '#a78bfa', 1),
+  ('Duplicate',       '#8888b8', 1),
+  ('Wontfix',         '#55558a', 1);
+
+CREATE TABLE IF NOT EXISTS bug_report_label_map (
+  report_id INT UNSIGNED NOT NULL,
+  label_id  INT UNSIGNED NOT NULL,
+  PRIMARY KEY (report_id, label_id),
+  CONSTRAINT fk_brlm_report FOREIGN KEY (report_id) REFERENCES bug_reports (id) ON DELETE CASCADE,
+  CONSTRAINT fk_brlm_label  FOREIGN KEY (label_id)  REFERENCES bug_report_labels (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration history baseline (regenerate with: go run ./cmd/migrate -dump-seed)
+-- A fresh install is current, so every migrate.sql section is recorded as
+-- applied. The migrate tool reads this to know what is already in place.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  section    INT UNSIGNED NOT NULL,
+  name       VARCHAR(160) NOT NULL DEFAULT '',
+  applied_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (section)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO schema_migrations (section, name) VALUES
+  (1, 'Role expansion + disabled flag'),
+  (2, 'Trainer profile'),
+  (3, 'Granular location fields'),
+  (4, 'Pronouns'),
+  (5, 'Directory hidden flag'),
+  (6, 'Raid ban flag'),
+  (7, 'Favourite Pokemon'),
+  (8, 'User strikes'),
+  (9, 'Legacy raid finder tables (v1)'),
+  (10, 'raid_joins status column'),
+  (11, 'Invite token length (supports both old 64-char and new shorter codes)'),
+  (12, 'Invite role assignment, multi-use codes, pending role confirmation'),
+  (13, 'API access permission'),
+  (14, 'Tag system'),
+  (15, 'Raid XP and activity tracking'),
+  (16, 'User language preference'),
+  (17, 'Store system'),
+  (18, 'Boss tier on raid posts'),
+  (19, 'Custom tag cooldown + color rate limiting'),
+  (20, 'Account suspension reason'),
+  (21, 'Translator permission + translation edits'),
+  (22, 'Raid Finder v2: lobbies, trust events, awards'),
+  (23, 'Locale registry'),
+  (24, 'Host unfulfilled trust event (2026-06-11)'),
+  (25, 'Translator applications (2026-06-11)'),
+  (26, 'Shiny collection privacy flag (2026-06-18)'),
+  (27, 'Friends and blocks (2026-06-22)'),
+  (28, 'Feedback options -- staff-curated list of Pokemon-themed phrases (2026-06-22)'),
+  (29, 'User feedback -- one review per author/target pair; updatable via ON DUPLICATE KEY (2026-06-22)'),
+  (30, 'Mobile companion app tables (2026-06-22)'),
+  (31, 'Event Pokémon support in shiny collection (2026-06-23)'),
+  (32, 'Trainer level field (2026-06-23)'),
+  (33, 'Drop unique constraint on user_shinies to allow true duplicate shiny entries (2026-06-23)'),
+  (34, 'Rename user_friends to user_follows (2026-06-23)'),
+  (35, 'Confirm timeout warning flag on raid_lobby_members (2026-06-25)'),
+  (36, 'Per-award minimum grant rank (2026-06-25)'),
+  (37, 'Trainer avatar sprite locks (2026-06-26)'),
+  (38, 'Shiny evolved_at (2026-06-26)'),
+  (39, 'Bug report system "Report Me Not" (2026-06-28)'),
+  (40, 'Bug reports triage enhancements (2026-06-28)'),
+  (41, 'Player ("bad actor") report system (2026-06-28)');
+
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';
