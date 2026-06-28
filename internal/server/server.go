@@ -36,6 +36,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 	h := handlers.New(store, db)
 	h.StartRaidSweeper()
+	h.StartTranslationAutoSync()
 
 	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
 	// Counts aggregate bytes across all seven public API endpoints for the same IP.
