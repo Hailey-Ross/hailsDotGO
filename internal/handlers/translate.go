@@ -444,6 +444,10 @@ func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Mirror the new approved override to GitHub so it is not stranded only on
+	// this server's disk. Debounced and best-effort; never blocks the response.
+	triggerTranslationSync()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }

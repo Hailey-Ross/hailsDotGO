@@ -196,6 +196,7 @@ Get-ChildItem (Join-Path $root "static\js") -Filter *.js -File | Sort-Object Nam
 $trackedDirs = @(
     @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" },
     @{ src = "static\sprites\pex";        dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/pex" },
+    @{ src = "static\sprites\platinum";   dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/platinum" },
     # OCR microservice: syncs file CONTENTS into /opt/hailsdotgo-ocr and restarts the OCR
     # service. NOTE: a requirements.txt change still needs a manual `pip install` on the VPS.
     @{ src = "ocr-service"; dst = "/opt/hailsdotgo-ocr"; key = "ocr-service"; stripTop = $true; restartOcr = $true }

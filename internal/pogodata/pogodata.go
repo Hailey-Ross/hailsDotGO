@@ -531,7 +531,7 @@ func New() *Store {
 	for _, s := range showdownNewSlices {
 		newSlicesLen += len(s)
 	}
-	classes := make([]TrainerClass, 0, len(showdownModernClasses)+newSlicesLen+len(dreamstoneTrainerClasses)+len(pexTrainerClasses))
+	classes := make([]TrainerClass, 0, len(showdownModernClasses)+newSlicesLen+len(dreamstoneTrainerClasses)+len(pexTrainerClasses)+len(platinumTrainerClasses))
 	for _, tc := range showdownModernClasses {
 		classes = append(classes, TrainerClass{Slug: tc.Slug, Label: tc.Label, SpriteURL: "/api/trainer-sprite/" + tc.Slug, Group: "showdown-modern"})
 	}
@@ -546,6 +546,10 @@ func New() *Store {
 	}
 	for _, tc := range pexTrainerClasses {
 		tc.Group = "pex"
+		classes = append(classes, tc)
+	}
+	for _, tc := range platinumTrainerClasses {
+		tc.Group = "platinum"
 		classes = append(classes, tc)
 	}
 	cacheDir := os.Getenv("CACHE_DIR")

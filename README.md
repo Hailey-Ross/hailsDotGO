@@ -14,7 +14,7 @@ A fan-made Pokémon GO companion web app built in Go.
 - Player reporting for bad actors (spoofing, harassment, and more) routed to a shared moderator queue
 - User accounts (open or invite-only registration), staff roles, strikes, tags, and awards
 - Supporter store with optional donation perks (PayPal)
-- Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and GitHub sync
+- Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates
 - Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
 
 ---

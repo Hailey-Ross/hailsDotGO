@@ -114,13 +114,20 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   border-bottom: 1px solid var(--border);
 }
 .nav-sidebar-brand {
-  font-size: 1.05rem; font-weight: 800;
-  color: #f472b6; letter-spacing: -0.3px;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 1.1rem; font-weight: 400; letter-spacing: -0.3px;
+  color: #f472b6;
+  transition: filter var(--trans);
 }
 .nav-sidebar-brand sup {
-  font-size: 0.55em; font-weight: 700; vertical-align: super; letter-spacing: 0;
+  font-size: 0.5rem; font-weight: 800; vertical-align: top; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.32rem; border-radius: var(--r-pill);
+  background: rgba(244, 114, 182, 0.16); color: #f9a8d4;
+  -webkit-text-fill-color: #f9a8d4;
+  border: 1px solid rgba(244, 114, 182, 0.3);
 }
-.nav-sidebar-brand:hover { color: #f9a8d4; }
+.nav-sidebar-brand:hover { filter: brightness(1.12); }
 .nav-sidebar-close {
   background: none; border: none; cursor: pointer;
   color: var(--text-2); font-size: 1.6rem; line-height: 1;
@@ -130,23 +137,80 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .nav-sidebar-close:hover { color: var(--text); }
 
+.nav-footer {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem; line-height: 1.55;
+  color: var(--text-3);
+}
+.nav-footer p { margin: 0; }
+.nav-footer a { color: var(--text-2); transition: color var(--trans); }
+.nav-footer a:hover { color: var(--text); }
+
 .nav-links {
   display: flex; flex-direction: column;
-  padding: 0.5rem 0; flex: 1; overflow-y: auto;
+  padding: 0.55rem 0.55rem 0.75rem; flex: 1; overflow-y: auto;
 }
-.nav-links a {
-  color: var(--text-2); font-size: 0.95rem; font-weight: 500;
-  padding: 0.78rem 1.5rem; display: block;
+.nav-links::-webkit-scrollbar { width: 9px; }
+.nav-links::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: var(--r-pill);
+  border: 3px solid transparent; background-clip: padding-box;
+}
+.nav-links::-webkit-scrollbar-thumb:hover {
+  background: var(--border-h); background-clip: padding-box;
+}
+
+/* ── Nav groups + section labels ───────────────────────────── */
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-group + .nav-group {
+  margin-top: 0.4rem; padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+.nav-group-label {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--text-3);
+  padding: 0.2rem 0.85rem 0.35rem;
+}
+
+/* ── Nav items (icon + label) ──────────────────────────────── */
+.nav-item {
+  position: relative;
+  display: flex; align-items: center; gap: 0.7rem;
+  color: var(--text-2); font-size: 0.92rem; font-weight: 500;
+  padding: 0.6rem 0.75rem; border-radius: var(--r-sm);
   transition: color var(--trans), background var(--trans);
-  border-left: 2px solid transparent;
 }
-.nav-links a:hover { color: var(--text); background: var(--surface); }
-.nav-links a.active {
+.nav-item:hover { color: var(--text); background: var(--surface); }
+.nav-item:hover .nav-ico { opacity: 1; }
+
+.nav-ico {
+  width: 18px; height: 18px; flex-shrink: 0;
+  opacity: 0.68; transition: opacity var(--trans), color var(--trans);
+}
+
+.nav-item.active {
   color: var(--text);
-  background: var(--surface);
-  border-left-color: var(--blue);
-  padding-left: calc(1.5rem - 2px);
+  background: linear-gradient(90deg, rgba(91, 156, 246, 0.20), rgba(91, 156, 246, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(91, 156, 246, 0.24);
 }
+.nav-item.active .nav-ico { opacity: 1; color: var(--blue); }
+.nav-item.active::before {
+  content: ""; position: absolute; left: 0; top: 50%;
+  width: 3px; height: 1.15rem; border-radius: 0 3px 3px 0;
+  background: var(--blue); transform: translateY(-50%);
+  box-shadow: 0 0 8px var(--blue);
+}
+/* Keep gold-accent items (Collection, Social, Sign Up) on-brand when active */
+.nav-link-highlight.active .nav-ico { color: var(--gold); }
+.nav-link-highlight.active {
+  background: linear-gradient(90deg, rgba(255, 179, 64, 0.18), rgba(255, 179, 64, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(255, 179, 64, 0.22);
+}
+.nav-link-highlight.active::before { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+/* Push report unread-count to the trailing edge of its pill */
+.nav-item .nav-reports-badge { margin-left: auto; }
 
 .nav-overlay {
   position: fixed; inset: 0;
@@ -163,15 +227,13 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   margin: 0 auto; padding: 4rem 1.75rem 2.25rem;
   flex: 1;
 }
-.footer {
-  text-align: center; padding: 1.1rem;
-  color: var(--text-3); font-size: 0.78rem;
-  background: rgba(7,7,26,0.7);
-  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
-  border-top: 1px solid var(--border);
+.page-disclaimer {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.5rem 1.25rem 1.5rem;
+  color: var(--text-3); font-size: 0.72rem;
 }
-.footer a { color: var(--text-3); }
-.footer a:hover { color: var(--text-2); }
+.page-disclaimer p { margin: 0; }
 
 /* ── Animations ─────────────────────────────────────────────── */
 @keyframes fadeUp {
@@ -2778,6 +2840,9 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.4rem 0.2rem;
+  border-top: 1px solid var(--border);
 }
 .nav-notif-link {
   position: relative;
@@ -3090,6 +3155,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
     margin-right: 0;
     padding: 1.75rem 2.5rem;
   }
+  /* Keep the page disclaimer aligned with the content column, not the sidebar */
+  .page-disclaimer { margin-left: 280px; }
 
   /* Home page hero */
   .hero h1 { font-size: 3.75rem; }
@@ -3153,26 +3220,17 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 
 /* ===== Bug report system ("Report Me Not") ===== */
 
-/* Nav: bug link (forced under the locale switcher) */
+/* Nav: bug link (Report Bug, in the Account group) */
 .nav-bug-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 0.7rem;
   width: 100%;
   text-align: left;
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-2);
   font-family: var(--font);
-  font-size: 0.95rem;
-  font-weight: 500;
-  padding: 0.78rem 1.5rem;
-  border-left: 2px solid transparent;
-  transition: color var(--trans), background var(--trans);
 }
 .nav-bug-link:hover { color: var(--text); background: var(--surface); }
-.nav-bug-icon { font-size: 1rem; line-height: 1; filter: drop-shadow(0 0 4px var(--red-glow)); }
 
 /* Nav: red Reports link (forced above Social) */
 .nav-reports-link {

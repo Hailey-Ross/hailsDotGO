@@ -200,10 +200,21 @@ func Init(localesDir string) {
 			log.Printf("i18n: parse overlay %s: %v (skipped)", path, err)
 			continue
 		}
+		stale := bundle{}
 		for key := range b {
 			if _, ok := en[key]; !ok {
-				log.Printf("i18n: overlay %s: dropping stale key %q (not in embedded en)", path, key)
+				stale[key] = b[key]
 				delete(b, key)
+			}
+		}
+		if len(stale) > 0 {
+			// A key vanished from embedded en (usually an English-source
+			// rename). Archive the translated text instead of silently losing
+			// it, then rewrite the overlay so the same keys are not archived
+			// again on every restart.
+			archiveStaleKeys(lang, stale)
+			if err := writeOverlayFile(path, b); err != nil {
+				log.Printf("i18n: overlay %s: rewrite after archiving %d stale key(s): %v", path, len(stale), err)
 			}
 		}
 		overlay[lang] = b
@@ -334,19 +345,57 @@ func ApplyOverride(lang, key, value string) error {
 		return fmt.Errorf("i18n: read current overlay: %w", err)
 	}
 
-	data, err := json.MarshalIndent(next, "", "  ")
-	if err != nil {
-		return fmt.Errorf("i18n: marshal overlay: %w", err)
-	}
-	tmpPath := filepath.Join(dir, "."+lang+".json.tmp")
-	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
-		return fmt.Errorf("i18n: write overlay temp file: %w", err)
-	}
-	if err := os.Rename(tmpPath, livePath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("i18n: replace overlay file: %w", err)
+	if err := writeOverlayFile(livePath, next); err != nil {
+		return err
 	}
 
 	overlay[lang] = next
 	return nil
+}
+
+// writeOverlayFile atomically writes a sparse overlay bundle to path via a temp
+// file and rename, so a crash mid-write never leaves a truncated overlay.
+func writeOverlayFile(path string, b bundle) error {
+	data, err := json.MarshalIndent(b, "", "  ")
+	if err != nil {
+		return fmt.Errorf("i18n: marshal overlay: %w", err)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("i18n: write overlay temp file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("i18n: replace overlay file: %w", err)
+	}
+	return nil
+}
+
+// archiveStaleKeys saves overlay keys that no longer exist in embedded en to a
+// timestamped file under dir/backup, so a renamed or removed English key never
+// destroys translated text without a recoverable copy. Errors are logged, not
+// returned: archiving must never block a locale from loading. Caller holds mu.
+func archiveStaleKeys(lang string, stale bundle) {
+	backupDir := filepath.Join(dir, "backup")
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		log.Printf("i18n: archive stale %s: create backup dir: %v", lang, err)
+		return
+	}
+	data, err := json.MarshalIndent(stale, "", "  ")
+	if err != nil {
+		log.Printf("i18n: archive stale %s: marshal: %v", lang, err)
+		return
+	}
+	path := filepath.Join(backupDir, fmt.Sprintf("%s_stale_%s.json", lang, time.Now().Format("20060102-150405")))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		log.Printf("i18n: archive stale %s: write: %v", lang, err)
+		return
+	}
+	keys := make([]string, 0, len(stale))
+	for k := range stale {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	log.Printf("i18n: WARNING %q overlay had %d key(s) not in embedded en; archived to %s (keys: %s)",
+		lang, len(stale), path, strings.Join(keys, ", "))
 }
