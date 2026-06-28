@@ -40,9 +40,19 @@
     {{if .User.IsMod}}<a href="/admin"{{if pathActive .Path "/admin"}} class="active"{{end}}>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
     <div class="nav-user-row">
       <a href="/notifications" class="nav-notif-link" id="nav-notif-btn" title="{{T "nav.notifications"}}">🔔<span class="nav-notif-badge" id="nav-notif-badge" style="display:none"></span></a>
+      <a href="/trainer/{{.User.Username}}" class="nav-username-link">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}}</a>
       <form method="POST" action="/logout" style="display:block;margin:0">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="nav-logout-btn" onclick="return confirm({{T "nav.logout_confirm"}})">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}} &times;</button>
+        <button type="submit" class="nav-logout-icon" onclick="return confirm({{T "nav.logout_confirm"}})">×</button>
+      </form>
+    </div>
+    <div class="nav-user-links">
+      <a href="/social/{{.User.Username}}" class="nav-user-link-social{{if pathActive .Path "/social/"}} active{{end}}">Social</a>
+      <a href="/friends"{{if pathActive .Path "/friends"}} class="active"{{end}}>Friends</a>
+      <a href="/trainer/{{.User.Username}}"{{if eq .Path (printf "/trainer/%s" .User.Username)}} class="active"{{end}}>My Profile</a>
+      <form method="POST" action="/logout" style="display:block;margin:0">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <button type="submit" class="nav-user-link-logout" onclick="return confirm({{T "nav.logout_confirm"}})">Logout</button>
       </form>
     </div>
     {{else}}

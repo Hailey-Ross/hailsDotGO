@@ -164,7 +164,7 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
   fetch('/api/shinies/of/' + encodeURIComponent(TRAINER_CTX.username))
     .then((r) => r.ok ? r.json() as Promise<ShinyItem[]> : Promise.resolve([] as ShinyItem[]))
     .then((all) => {
-      const LIMIT = 9;
+      const LIMIT = 6;
       renderItems(all.slice(0, LIMIT));
       if (all.length > LIMIT) {
         const btn = document.createElement('button');
