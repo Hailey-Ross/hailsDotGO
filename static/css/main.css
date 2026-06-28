@@ -1457,8 +1457,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   /* Result cards */
   .result-card { max-width: 100%; }
 
-  /* Trainer shiny grid */
-  .trainer-shiny-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 380px) {
@@ -2247,8 +2245,8 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .trainer-modal-collection { margin-top: 0.25rem; }
 .trainer-shiny-grid {
-  display: grid; grid-template-columns: repeat(9, 1fr);
-  gap: 0.5rem; margin-top: 0.4rem;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+  gap: 0.75rem; margin-top: 0.4rem;
 }
 .trainer-shiny-item {
   position: relative; display: flex; flex-direction: column; align-items: center;
@@ -2814,6 +2812,66 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   font-weight: 800;
   line-height: 1;
 }
+
+/* ── Username link in user row ───────────────────────────────── */
+.nav-username-link {
+  flex: 1;
+  color: var(--text-2);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.4rem 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  transition: color var(--trans);
+}
+.nav-username-link:hover { color: var(--text); }
+
+/* ── Logout icon button (x in user row) ─────────────────────── */
+.nav-logout-icon {
+  background: none; border: none; outline: none; cursor: pointer;
+  color: var(--text-2);
+  font-size: 1.1rem;
+  padding: 0.4rem 0.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color var(--trans);
+}
+.nav-logout-icon:hover { color: var(--red); }
+
+/* ── User quick-links (Social / Friends / My Profile / Logout) ── */
+.nav-user-links {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+.nav-user-links a,
+.nav-user-link-logout {
+  display: block;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 0.55rem 1.5rem;
+  text-decoration: none;
+  background: none; border: none; outline: none; cursor: pointer;
+  text-align: left; width: 100%;
+  transition: color var(--trans), background var(--trans);
+}
+.nav-user-links a:hover,
+.nav-user-link-logout:hover { color: var(--text); background: var(--surface); }
+.nav-user-links a.active {
+  color: var(--text);
+  border-left: 3px solid var(--blue);
+  padding-left: calc(1.5rem - 3px);
+}
+.nav-user-link-social { color: var(--gold) !important; font-weight: 600; }
+.nav-user-link-social:hover { color: #ffd080 !important; }
+.nav-user-link-logout { color: var(--text-2) !important; }
+.nav-user-link-logout:hover { color: var(--red) !important; }
 
 /* ── Notification toast container ───────────────────────────── */
 #notif-toast-container {

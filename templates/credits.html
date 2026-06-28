@@ -133,6 +133,14 @@
       <div class="cl-body">
 
         <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(115)</span> Sidebar: user section overhaul</h2>
+          <ul class="cl-list">
+            <li>Username in the nav user row now links to your trainer profile instead of logging you out; a small &times; icon button beside it handles logout</li>
+            <li>New quick-links section below the user row: Social (your social page), Friends, My Profile, and Logout -- visually separated from the main nav links with a divider</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
           <h2 class="cl-title"><span class="cl-num">(111)</span> IV Calculator: design alignment</h2>
           <ul class="cl-list">
             <li>Restructured the Manual and OCR tab containers to match the site-wide calc page pattern -- form inputs now live in their own glass card (column 1 on desktop) separate from the results panel (column 2), matching how the DPS and Raid counters are laid out</li>
@@ -143,10 +151,25 @@
         </div>
 
         <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(114)</span> Trainer profile: shiny grid responsive columns</h2>
+          <ul class="cl-list">
+            <li>Shiny collection grid now uses <code>auto-fill</code> with a 95px minimum column width, so it naturally shows 6 columns on desktop and shrinks to 5, 4, 3, or 2 as the viewport narrows -- no fixed breakpoint overrides needed and no overflow at any screen size</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title"><span class="cl-num">(113)</span> Trainer profile: shiny grid layout</h2>
+          <ul class="cl-list">
+            <li>Shiny collection now shows 6 sprites per row instead of 9, giving each entry more room and reducing visual cramping</li>
+            <li>Gap between items bumped from 0.5rem to 0.75rem for additional breathing room</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
           <h2 class="cl-title"><span class="cl-num">(112)</span> Trainer profile: shiny collection sort on expand</h2>
           <ul class="cl-list">
             <li>Expanding the shiny collection on a trainer profile now re-orders the full list by Pokédex number (ascending) instead of keeping entry order</li>
-            <li>The initial 9-item preview still shows the most recently caught first</li>
+            <li>The initial preview still shows the most recently caught first</li>
           </ul>
         </div>
 

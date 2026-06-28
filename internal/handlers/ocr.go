@@ -243,6 +243,11 @@ var (
 		"hp": true, "cp": true, "candy": true, "stardust": true, "mega": true,
 		"energy": true, "lucky": true, "weather": true, "boosted": true, "purified": true,
 		"shadow": true, "height": true, "weight": true, "evolve": true, "power": true,
+		"shortest": true, "shorter": true, "short": true,
+		"tall": true, "taller": true, "tallest": true,
+		"lightest": true, "lighter": true, "light": true,
+		"heavy": true, "heavier": true, "heaviest": true,
+		"average": true,
 	}
 )
 
