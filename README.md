@@ -10,6 +10,8 @@ A fan-made Pokémon GO companion web app built in Go.
 - Trainer Directory with dedicated profile pages, a real-time Raid Finder with matchmaking, lobbies, and a trust system
 - Friends list, real-time raid notifications with 🔔 badge and optional ding sound, and blocked-user management
 - Community feedback (positive/neutral/negative trainer reviews) visible on every trainer profile
+- In-app bug reports ("Report Me Not") with a threaded reporter and staff messenger, labels, assignments, canned responses, and satisfaction ratings
+- Player reporting for bad actors (spoofing, harassment, and more) routed to a shared moderator queue
 - User accounts (open or invite-only registration), staff roles, strikes, tags, and awards
 - Supporter store with optional donation perks (PayPal)
 - Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and GitHub sync
@@ -31,6 +33,7 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 | Use the JSON API | [API Reference](https://github.com/Hailey-Ross/hailsDotGO/wiki/API-Reference) |
 | Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
 | Understand roles and permissions | [Accounts and Roles](https://github.com/Hailey-Ross/hailsDotGO/wiki/Accounts-and-Roles), [Admin Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Admin-Guide) |
+| Report a bug or a player, and triage reports | [Bug Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Bug-Reports), [Player Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Player-Reports) |
 | Translate the site or add a language | [Localization](https://github.com/Hailey-Ross/hailsDotGO/wiki/Localization), [Translator Workspace](https://github.com/Hailey-Ross/hailsDotGO/wiki/Translator-Workspace) |
 | Hack on the code | [Architecture](https://github.com/Hailey-Ross/hailsDotGO/wiki/Architecture), [Building and Development](https://github.com/Hailey-Ross/hailsDotGO/wiki/Building-and-Development), [Frontend Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Frontend-Guide) |
 
@@ -74,7 +77,14 @@ go run .        # terminal 2: run the Go server
 
 Visit [http://localhost:8080](http://localhost:8080).
 
-The [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) wiki page covers the rest: creating the first admin account, the CSRF key, migration blocks for existing installs, and platform notes. When you are ready to put it on a server, see [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment).
+The [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) wiki page covers the rest: creating the first admin account, the CSRF key, and platform notes. Upgrading an existing install? Use the migrate tool instead of `schema.sql`:
+
+```bash
+go run ./cmd/migrate -from v0.1.3a   # baseline at your version, then apply what is pending
+go run ./cmd/migrate                 # every upgrade after that
+```
+
+When you are ready to put it on a server, see [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment).
 
 If you fork the repo, copy the provided `.gitignore` template so build output and secrets never get committed:
 

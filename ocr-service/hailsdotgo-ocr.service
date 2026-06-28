@@ -1,0 +1,18 @@
+[Unit]
+Description=hailsDotGO OCR microservice (RapidOCR)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hailsdotgo-ocr
+Environment=OCR_PORT=18265
+# onnxruntime is multi-threaded internally; cap threads so it shares the 4-core box politely
+Environment=OMP_NUM_THREADS=2
+ExecStart=/opt/hailsdotgo-ocr/venv/bin/uvicorn server:app --host 127.0.0.1 --port 18265 --workers 1
+Restart=always
+RestartSec=3
+# memory ceiling well above RapidOCR's ~0.5-1GB peak; kills runaway, never starves the box
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

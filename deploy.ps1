@@ -116,6 +116,21 @@ function PutDir([string]$relDir, [string]$remoteDst) {
     Remove-Item $tmpTar -ErrorAction SilentlyContinue
 }
 
+# Like PutDir but uploads the dir's CONTENTS into $remoteDst (no leaf subdir),
+# excluding the server-side python venv/cache. Used for ocr-service -> /opt/hailsdotgo-ocr.
+function PutDirContents([string]$relDir, [string]$remoteDst) {
+    $srcPath = Join-Path $root $relDir
+    $tmpTar  = Join-Path $env:TEMP "hailsdotgo-dir.tar.gz"
+    & tar -czf $tmpTar -C $srcPath --exclude=venv --exclude=__pycache__ .
+    if ($LASTEXITCODE -ne 0) { throw "tar failed: $relDir" }
+    Run "mkdir -p $remoteDst"
+    $keyPath = "$env:USERPROFILE\.ssh\hailsdotgo"
+    $cmdStr  = "ssh -i ""$keyPath"" -C -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=60 $target ""tar -xzf - -C $remoteDst"" < ""$tmpTar"""
+    cmd /c $cmdStr
+    if ($LASTEXITCODE -ne 0) { throw "Dir upload failed: $relDir" }
+    Remove-Item $tmpTar -ErrorAction SilentlyContinue
+}
+
 # -- Build -----------------------------------------------------------
 Write-Host "==> Building" -ForegroundColor Cyan
 
@@ -162,29 +177,15 @@ $trackedFiles = @(
     @{ src = "hailsDotGO-linux";           dst = "/opt/hailsdotgo/hailsDotGO";            binary = $true  },
     @{ src = "static\css\main.css";        dst = "/opt/hailsdotgo/static/css/";           binary = $false },
     @{ src = "static\maintenance.html";    dst = "/opt/hailsdotgo/static/";               binary = $false },
-    @{ src = "templates\base.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\home.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\raids.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\dps.html";         dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\pvp.html";         dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\events.html";      dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\iv.html";          dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\credits.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\login.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\maintenance.html"; dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\register.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\shinies.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\admin.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\settings.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\trainers.html";    dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\trainer.html";     dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\friends.html";        dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\notifications.html"; dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\raidfinder.html";  dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\store.html";       dst = "/opt/hailsdotgo/templates/";            binary = $false },
-    @{ src = "templates\translate.html";   dst = "/opt/hailsdotgo/templates/";            binary = $false },
     @{ src = "hailsdotgo.service";         dst = "/opt/hailsdotgo/hailsdotgo.service";    binary = $false }
 )
+
+# Track every template dynamically so a newly added page template can never be
+# silently skipped (reports.html was missed by the old hardcoded list, which
+# crashed the service on boot when the binary tried to load a missing template).
+Get-ChildItem (Join-Path $root "templates") -Filter *.html -File | Sort-Object Name | ForEach-Object {
+    $trackedFiles += @{ src = "templates\$($_.Name)"; dst = "/opt/hailsdotgo/templates/"; binary = $false }
+}
 
 # Track every built JS bundle dynamically so a new esbuild entry point can
 # never be silently skipped (raidfinder.js was missed by the old hardcoded list).
@@ -194,7 +195,10 @@ Get-ChildItem (Join-Path $root "static\js") -Filter *.js -File | Sort-Object Nam
 
 $trackedDirs = @(
     @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" },
-    @{ src = "static\sprites\pex";        dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/pex" }
+    @{ src = "static\sprites\pex";        dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/pex" },
+    # OCR microservice: syncs file CONTENTS into /opt/hailsdotgo-ocr and restarts the OCR
+    # service. NOTE: a requirements.txt change still needs a manual `pip install` on the VPS.
+    @{ src = "ocr-service"; dst = "/opt/hailsdotgo-ocr"; key = "ocr-service"; stripTop = $true; restartOcr = $true }
 )
 
 $pending    = [System.Collections.Generic.List[object]]::new()
@@ -260,7 +264,7 @@ foreach ($d in $pendingDirs) {
     $idx++
     $fileCount = (Get-ChildItem (Join-Path $root $d.src) -Recurse -File).Count
     Write-Host "    [$idx/$uploadCount] $($d.src.Replace('\','/'))/ ($fileCount files)" -ForegroundColor Cyan
-    PutDir $d.src $d.dst
+    if ($d.stripTop) { PutDirContents $d.src $d.dst } else { PutDir $d.src $d.dst }
 }
 
 Write-Host "    [app.env]" -ForegroundColor Cyan
@@ -271,6 +275,12 @@ $serviceChanged = $pending | Where-Object { $_.src -eq "hailsdotgo.service" }
 if ($serviceChanged) {
     Write-Host "    [systemd reload]" -ForegroundColor Cyan
     Run "cp /opt/hailsdotgo/hailsdotgo.service /etc/systemd/system/hailsdotgo.service && systemctl daemon-reload"
+}
+
+$ocrChanged = $pendingDirs | Where-Object { $_.restartOcr }
+if ($ocrChanged) {
+    Write-Host "    [ocr service restart]" -ForegroundColor Cyan
+    Run "cp /opt/hailsdotgo-ocr/hailsdotgo-ocr.service /etc/systemd/system/ && systemctl daemon-reload && systemctl restart hailsdotgo-ocr.service"
 }
 
 Remove-Item $appEnvPath -ErrorAction SilentlyContinue

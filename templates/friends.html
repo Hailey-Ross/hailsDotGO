@@ -22,9 +22,10 @@
           {{if .TrainerName}}{{.TrainerName}} <span style="color:var(--text-3);font-size:0.8rem">(@{{.Username}})</span>{{else}}{{.Username}}{{end}}
         </a>
       </div>
-      <div style="display:flex;gap:0.5rem;flex-shrink:0">
+      <div style="display:flex;gap:0.5rem;flex-shrink:0;align-items:center">
         <a href="/trainer/{{.Username}}" class="btn-secondary" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "trainers.view_profile"}}</a>
         <button class="btn-secondary social-btn friends-remove-btn" data-username="{{.Username}}" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "trainer.remove_friend"}}</button>
+        {{if and $.User (ne .Username $.User.Username)}}<button type="button" class="report-flag" data-report-user="{{.Username}}" title="{{T "playerreport.flag"}}" aria-label="{{T "playerreport.flag"}}">⚑</button>{{end}}
       </div>
     </div>
   </div>

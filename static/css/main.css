@@ -1365,11 +1365,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   margin-top: 0.85rem;
 }
 
-.cl-num {
-  font-size: 0.72rem; color: var(--text-3); font-weight: 700;
-  margin-right: 0.3rem; letter-spacing: 0.3px;
-}
-
 @media (max-width: 640px) {
   .cl-entry { grid-template-columns: 1fr; gap: 0.5rem; }
 }
@@ -3155,3 +3150,427 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
     grid-row: 1 / 3;
   }
 }
+
+/* ===== Bug report system ("Report Me Not") ===== */
+
+/* Nav: bug link (forced under the locale switcher) */
+.nav-bug-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.78rem 1.5rem;
+  border-left: 2px solid transparent;
+  transition: color var(--trans), background var(--trans);
+}
+.nav-bug-link:hover { color: var(--text); background: var(--surface); }
+.nav-bug-icon { font-size: 1rem; line-height: 1; filter: drop-shadow(0 0 4px var(--red-glow)); }
+
+/* Nav: red Reports link (forced above Social) */
+.nav-reports-link {
+  position: relative;
+  color: var(--red) !important;
+  font-weight: 700 !important;
+}
+.nav-reports-link:hover { color: #ff6b67 !important; background: var(--surface); }
+.nav-reports-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  margin-left: 0.45rem;
+  padding: 0 0.3rem;
+  border-radius: var(--r-pill);
+  background: var(--red);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Bug report modal */
+.bug-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.bug-modal-overlay.open { display: flex; animation: fadeUp 0.18s ease both; }
+.bug-modal {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: rgba(8,8,28,0.95);
+  border: 1px solid var(--border-h);
+  border-radius: var(--r);
+  padding: 1.75rem 1.6rem 1.5rem;
+}
+.bug-modal h2 { font-size: 1.3rem; font-weight: 800; }
+.bug-modal-sub { color: var(--text-2); font-size: 0.875rem; margin: 0.35rem 0 1rem; }
+.bug-modal-close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.85rem;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--trans);
+}
+.bug-modal-close:hover { color: var(--text); }
+.bug-modal textarea.auth-input { resize: vertical; min-height: 5rem; font-family: var(--font); }
+.bug-success { text-align: center; padding: 1rem 0 0.25rem; }
+.bug-success p { color: var(--green); font-weight: 600; margin-bottom: 0.85rem; }
+
+/* Reports messenger: dual-frame shell */
+.reports-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+.reports-list {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.reports-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.reports-new-btn { padding: 0.4rem 0.9rem; font-size: 0.8rem; }
+.reports-list-body { overflow-y: auto; flex: 1; }
+.reports-empty { padding: 1.5rem 1rem; color: var(--text-2); font-size: 0.9rem; text-align: center; }
+.report-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  padding: 0.8rem 1rem;
+  font-family: var(--font);
+  transition: background var(--trans);
+}
+.report-list-item:hover { background: var(--surface); }
+.report-list-item.active { background: var(--surface-h); border-left-color: var(--red); }
+.report-list-item.unread .report-list-subject { font-weight: 700; color: var(--text); }
+.report-list-item-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.report-list-subject { color: var(--text); font-size: 0.9rem; font-weight: 500; }
+.report-unread-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+.report-list-item-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+
+/* Status chips + label chips */
+.report-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid var(--border-h);
+  color: var(--text-2);
+}
+.report-status-chip.status-open     { color: var(--green);  border-color: rgba(0,214,143,0.4); }
+.report-status-chip.status-pending  { color: var(--gold);   border-color: rgba(255,179,64,0.4); }
+.report-status-chip.status-resolved { color: var(--blue);   border-color: rgba(91,156,246,0.4); }
+.report-status-chip.status-closed   { color: var(--text-3); border-color: var(--border); }
+.report-label-chip {
+  --chip: #cccccc;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--chip);
+  border: 1px solid var(--chip);
+  background: color-mix(in srgb, var(--chip) 14%, transparent);
+}
+
+/* Reports messenger: thread pane */
+.reports-thread {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+}
+.reports-thread-empty {
+  margin: auto;
+  color: var(--text-2);
+  font-size: 0.95rem;
+  padding: 2rem;
+  text-align: center;
+}
+.reports-thread-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.reports-thread-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.reports-thread-title { flex: 1; min-width: 0; }
+.reports-thread-title h2 { font-size: 1.15rem; font-weight: 700; }
+.reports-thread-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem; }
+.reports-invite-btn { padding: 0.35rem 0.8rem; font-size: 0.8rem; white-space: nowrap; }
+.reports-back { display: none; background: none; border: none; color: var(--text-2); font-size: 1.4rem; cursor: pointer; line-height: 1; }
+
+.reports-invite-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.reports-invite-row .auth-input { flex: 1; min-width: 10rem; }
+.reports-invite-error { color: #fc8181; font-size: 0.8rem; flex-basis: 100%; }
+
+.reports-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.report-participant { font-size: 0.72rem; color: var(--text-2); padding: 0.1rem 0.5rem; border-radius: var(--r-pill); border: 1px solid var(--border); }
+.report-participant.role-reporter { color: var(--text); border-color: var(--border-h); }
+.report-participant.role-staff { color: var(--gold); border-color: rgba(255,179,64,0.4); }
+
+.reports-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 12rem;
+}
+.report-system { text-align: center; color: var(--text-3); font-size: 0.72rem; font-style: italic; }
+.report-bubble {
+  max-width: 80%;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.report-bubble.mine { align-self: flex-end; background: rgba(91,156,246,0.12); border-color: rgba(91,156,246,0.3); }
+.report-bubble.theirs { align-self: flex-start; }
+.report-bubble.internal { background: rgba(255,179,64,0.1); border-color: rgba(255,179,64,0.35); border-style: dashed; }
+.report-bubble-head { display: flex; align-items: center; gap: 0.45rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+.report-bubble-author { font-size: 0.78rem; font-weight: 700; color: var(--text); }
+.report-staff-badge { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; color: var(--gold); border: 1px solid rgba(255,179,64,0.4); border-radius: var(--r-pill); padding: 0 0.35rem; }
+.report-internal-badge { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; color: var(--gold); }
+.report-bubble-time { font-size: 0.68rem; color: var(--text-3); margin-left: auto; }
+.report-bubble-body { font-size: 0.9rem; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+
+.reports-reply {
+  border-top: 1px solid var(--border);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.reports-reply textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.6rem;
+  background: #0d0d1e;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 0.55rem 0.75rem;
+  font-family: var(--font);
+  font-size: 0.9rem;
+}
+.reports-reply textarea:focus { outline: none; border-color: var(--blue); }
+.reports-reply-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.reports-internal-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--text-2); cursor: pointer; }
+
+/* Desktop: side-by-side frames */
+@media (min-width: 880px) {
+  .reports-shell { grid-template-columns: 340px 1fr; align-items: start; }
+}
+
+/* Mobile: one pane at a time */
+@media (max-width: 879px) {
+  .reports-shell.thread-open .reports-list { display: none; }
+  .reports-shell:not(.thread-open) .reports-thread { display: none; }
+  .reports-back { display: block; }
+}
+
+/* ===== Bug reports: triage enhancements (Round 2) ===== */
+
+/* List section headers (Active / Closed) on the user page */
+.reports-section-head {
+  padding: 0.65rem 1rem 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Ticket reference number */
+.report-ref { color: var(--text-3); font-weight: 700; }
+
+/* Opener / assignee in the staff list meta */
+.report-opener  { font-size: 0.72rem; color: var(--text-2); }
+.report-assignee { font-size: 0.72rem; color: var(--gold); }
+
+/* Priority chips */
+.report-priority-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid var(--border-h);
+  color: var(--text-2);
+}
+.report-priority-chip.prio-low    { color: var(--text-3); border-color: var(--border); }
+.report-priority-chip.prio-normal { color: var(--text-2); }
+.report-priority-chip.prio-high   { color: var(--gold);  border-color: rgba(255,179,64,0.45); }
+.report-priority-chip.prio-urgent { color: #fff; background: var(--red); border-color: var(--red); }
+
+/* Awaiting-reply chips */
+.report-awaiting-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.64rem;
+  font-weight: 700;
+  border: 1px solid var(--border-h);
+}
+.report-awaiting-chip.awaiting-staff { color: var(--red);   border-color: rgba(229,57,53,0.4); }
+.report-awaiting-chip.awaiting-user  { color: var(--text-3); border-color: var(--border); }
+
+/* CSAT rating chip in the staff thread header */
+.report-rating-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.report-rating-chip.rating-good { color: var(--green); border: 1px solid rgba(0,214,143,0.4); }
+.report-rating-chip.rating-bad  { color: #fc8181; border: 1px solid rgba(229,57,53,0.4); }
+
+/* Thread header action cluster */
+.reports-thread-head-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.reports-resolve-btn, .reports-invite-btn { padding: 0.35rem 0.8rem; font-size: 0.8rem; white-space: nowrap; }
+
+/* CSAT widget (reporter view) */
+.reports-csat {
+  margin: 0 1.25rem 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.reports-csat-prompt { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.6rem; }
+.reports-csat-btns { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+.reports-csat-btn { font-size: 0.85rem; padding: 0.35rem 0.9rem; }
+.reports-csat-btn.active { border-color: var(--blue); color: var(--text); background: rgba(91,156,246,0.15); }
+.reports-csat-comment {
+  width: 100%;
+  background: #0d0d1e;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 0.5rem 0.7rem;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  resize: vertical;
+  margin-bottom: 0.6rem;
+}
+.reports-csat-comment:focus { outline: none; border-color: var(--blue); }
+.reports-csat-submit { font-size: 0.82rem; padding: 0.4rem 1rem; }
+.reports-csat-hint { color: var(--text-3); font-size: 0.76rem; }
+.reports-csat-done { color: var(--green); font-size: 0.9rem; font-weight: 600; }
+
+/* Canned-response picker sits above the staff reply textarea */
+#br-canned { align-self: flex-start; }
+
+/* ===== Player ("bad actor") reports (Round 3) ===== */
+
+/* Small inline "report player" flag next to usernames */
+.report-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.1rem 0.25rem;
+  border-radius: var(--r-sm);
+  vertical-align: middle;
+  transition: color var(--trans), background var(--trans);
+}
+.report-flag:hover { color: var(--red); background: rgba(229,57,53,0.1); }
+
+/* The Trainer Profile "Report Player" button keeps the muted style but reads red on hover */
+.social-btn-report:hover { color: var(--red); border-color: rgba(229,57,53,0.4); }
+
+/* Reason chip in the admin player-report list/thread */
+.report-reason-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--purple);
+  border: 1px solid rgba(167,139,250,0.4);
+}
+
+/* Reported-user line in the admin player thread header */
+.report-reported {
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.report-reported a { color: var(--red); font-weight: 600; }

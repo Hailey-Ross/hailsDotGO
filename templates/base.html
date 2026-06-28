@@ -38,21 +38,14 @@
     {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-link-highlight{{if pathActive .Path "/shinies"}} active{{end}}">{{T "nav.collection"}}</a>{{end}}
     <a href="/settings"{{if pathActive .Path "/settings"}} class="active"{{end}}>{{T "nav.settings"}}</a>
     {{if .User.IsMod}}<a href="/admin"{{if pathActive .Path "/admin"}} class="active"{{end}}>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}
+    {{if gt .ReportCount 0}}<a href="/reports" class="nav-reports-link{{if pathActive .Path "/reports"}} active{{end}}">{{T "nav.reports"}}{{if gt .ReportUnread 0}}<span class="nav-reports-badge">{{.ReportUnread}}</span>{{end}}</a>{{end}}
+    <a href="/social/{{.User.Username}}" class="nav-link-highlight{{if pathActive .Path "/social/"}} active{{end}}">Social</a>
     <div class="nav-user-row">
       <a href="/notifications" class="nav-notif-link" id="nav-notif-btn" title="{{T "nav.notifications"}}">🔔<span class="nav-notif-badge" id="nav-notif-badge" style="display:none"></span></a>
       <a href="/trainer/{{.User.Username}}" class="nav-username-link">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}}</a>
       <form method="POST" action="/logout" style="display:block;margin:0">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <button type="submit" class="nav-logout-icon" onclick="return confirm({{T "nav.logout_confirm"}})">×</button>
-      </form>
-    </div>
-    <div class="nav-user-links">
-      <a href="/social/{{.User.Username}}" class="nav-user-link-social{{if pathActive .Path "/social/"}} active{{end}}">Social</a>
-      <a href="/friends"{{if pathActive .Path "/friends"}} class="active"{{end}}>Friends</a>
-      <a href="/trainer/{{.User.Username}}"{{if eq .Path (printf "/trainer/%s" .User.Username)}} class="active"{{end}}>My Profile</a>
-      <form method="POST" action="/logout" style="display:block;margin:0">
-        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="nav-user-link-logout" onclick="return confirm({{T "nav.logout_confirm"}})">Logout</button>
       </form>
     </div>
     {{else}}
@@ -63,9 +56,64 @@
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
       {{range .Langs}}<button name="code" value="{{.}}" class="lang-btn{{if eq $.Lang .}} active{{end}}">{{upper .}}</button>{{end}}
     </form>
+    {{if .User}}<button type="button" class="nav-bug-link" id="nav-bug-btn"><span class="nav-bug-icon">🐛</span>{{T "nav.bug"}}</button>{{else}}<a href="/login?next=/" class="nav-bug-link"><span class="nav-bug-icon">🐛</span>{{T "nav.bug"}}</a>{{end}}
   </div>
 </div>
 <div class="nav-overlay" id="nav-overlay"></div>
+
+{{if .User}}
+<div class="bug-modal-overlay" id="bug-modal-overlay" aria-hidden="true">
+  <div class="bug-modal" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
+    <button class="bug-modal-close" id="bug-modal-close" aria-label="Close">&times;</button>
+    <h2 id="bug-modal-title">{{T "bug.title"}}</h2>
+    <p class="bug-modal-sub">{{T "bug.subtitle"}}</p>
+    <form id="bug-form" class="auth-form">
+      <label class="auth-label" for="bug-subject">{{T "bug.subject"}}</label>
+      <input class="auth-input" id="bug-subject" maxlength="160" required>
+      <label class="auth-label" for="bug-body">{{T "bug.details"}}</label>
+      <textarea class="auth-input" id="bug-body" rows="5" required></textarea>
+      <div class="auth-error" id="bug-error" style="display:none"></div>
+      <button class="btn-primary" type="submit" style="margin-top:1rem">{{T "bug.submit"}}</button>
+    </form>
+    <div class="bug-success" id="bug-success" style="display:none">
+      <p>{{T "bug.success"}}</p>
+      <a href="/reports" class="btn-secondary">{{T "bug.view_reports"}}</a>
+    </div>
+  </div>
+</div>
+
+<div class="bug-modal-overlay" id="pr-modal-overlay" aria-hidden="true">
+  <div class="bug-modal" role="dialog" aria-modal="true" aria-labelledby="pr-modal-title">
+    <button class="bug-modal-close" id="pr-modal-close" aria-label="Close">&times;</button>
+    <h2 id="pr-modal-title">{{T "playerreport.title"}}</h2>
+    <p class="bug-modal-sub" id="pr-modal-sub">{{T "playerreport.subtitle"}}</p>
+    <form id="pr-form" class="auth-form">
+      <label class="auth-label" for="pr-reason">{{T "playerreport.reason"}}</label>
+      <select class="auth-input" id="pr-reason" required>
+        <option value="spoofing">{{T "playerreport.reason.spoofing"}}</option>
+        <option value="botting">{{T "playerreport.reason.botting"}}</option>
+        <option value="harassment">{{T "playerreport.reason.harassment"}}</option>
+        <option value="hate">{{T "playerreport.reason.hate"}}</option>
+        <option value="threats">{{T "playerreport.reason.threats"}}</option>
+        <option value="scam">{{T "playerreport.reason.scam"}}</option>
+        <option value="impersonation">{{T "playerreport.reason.impersonation"}}</option>
+        <option value="inappropriate_username">{{T "playerreport.reason.inappropriate_username"}}</option>
+        <option value="inappropriate_profile">{{T "playerreport.reason.inappropriate_profile"}}</option>
+        <option value="spam">{{T "playerreport.reason.spam"}}</option>
+        <option value="other">{{T "playerreport.reason.other"}}</option>
+      </select>
+      <label class="auth-label" for="pr-details">{{T "playerreport.details"}}</label>
+      <textarea class="auth-input" id="pr-details" rows="5" required></textarea>
+      <div class="auth-error" id="pr-error" style="display:none"></div>
+      <button class="btn-primary" type="submit" style="margin-top:1rem">{{T "playerreport.submit"}}</button>
+    </form>
+    <div class="bug-success" id="pr-success" style="display:none">
+      <p>{{T "playerreport.success"}}</p>
+      <a href="/reports" class="btn-secondary">{{T "bug.view_reports"}}</a>
+    </div>
+  </div>
+</div>
+{{end}}
 
 <main class="container">
   {{block "content" .}}{{end}}
@@ -191,7 +239,24 @@ if (typeof particlesJS !== 'undefined') {
 </script>
 
 {{block "scripts" .}}{{end}}
-{{if .User}}<script src="/static/js/notifications.js?v={{.AssetVersion}}"></script>{{end}}
+{{if .User}}
+<script>
+window.ME_USERNAME = {{.User.Username}};
+window.BUG_I18N = {
+  errSubject: {{T "bug.err_subject"}},
+  errDetails: {{T "bug.err_details"}},
+  failed:     {{T "js.common.something_wrong"}}
+};
+window.PR_I18N = {
+  subtitle:   {{T "playerreport.subtitle"}},
+  errDetails: {{T "playerreport.err_details"}},
+  failed:     {{T "js.common.something_wrong"}}
+};
+</script>
+<script src="/static/js/notifications.js?v={{.AssetVersion}}"></script>
+<script src="/static/js/bugreport.js?v={{.AssetVersion}}"></script>
+<script src="/static/js/playerreport.js?v={{.AssetVersion}}"></script>
+{{end}}
 <div id="notif-toast-container" aria-live="polite"></div>
 </body>
 </html>

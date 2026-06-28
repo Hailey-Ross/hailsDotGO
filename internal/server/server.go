@@ -228,6 +228,37 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Put("/api/admin/feedback-options/{id}", h.RequireAdmin(h.APIAdminFeedbackOption))
 		r.Delete("/api/admin/feedback-options/{id}", h.RequireAdmin(h.APIAdminFeedbackOption))
 
+		// Bug reports ("Report Me Not"): reporter/participant-facing.
+		r.Get("/reports", h.RequireAuth(h.ReportsPage))
+		r.With(httprate.LimitByIP(6, time.Minute)).Post("/api/bug-reports", h.RequireAuthAPI(h.CreateBugReport))
+		r.Get("/api/bug-reports", h.RequireAuthAPI(h.APIListBugReports))
+		r.Get("/api/bug-reports/{id}", h.RequireAuthAPI(h.APIGetBugReport))
+		r.Post("/api/bug-reports/{id}/messages", h.RequireAuthAPI(h.APIPostBugMessage))
+		r.Post("/api/bug-reports/{id}/invite", h.RequireAuthAPI(h.APIBugInvite))
+		r.Post("/api/bug-reports/{id}/status", h.RequireAuthAPI(h.APIBugReportStatus))
+		r.Post("/api/bug-reports/{id}/rating", h.RequireAuthAPI(h.APIBugReportRating))
+
+		// Player ("bad actor") reports: share the ticket tables via type='player'.
+		r.With(httprate.LimitByIP(6, time.Minute)).Post("/api/player-reports", h.RequireAuthAPI(h.CreatePlayerReport))
+		r.Post("/api/admin/bug-reports/{id}/actioned", h.RequireMod(h.AdminPlayerReportActioned))
+
+		// Bug reports: staff/admin management (thread view + reply + invite reuse the endpoints above).
+		r.Get("/api/admin/bug-reports", h.RequireMod(h.AdminBugReportsList))
+		r.Get("/api/admin/staff", h.RequireMod(h.AdminStaffList))
+		r.Post("/api/admin/bug-reports/{id}/status", h.RequireMod(h.AdminBugReportStatus))
+		r.Post("/api/admin/bug-reports/{id}/priority", h.RequireMod(h.AdminBugReportPriority))
+		r.Post("/api/admin/bug-reports/{id}/assign", h.RequireMod(h.AdminBugReportAssign))
+		r.Post("/api/admin/bug-reports/{id}/labels", h.RequireMod(h.AdminBugReportLabelAdd))
+		r.Delete("/api/admin/bug-reports/{id}/labels/{labelId}", h.RequireMod(h.AdminBugReportLabelRemove))
+		r.Get("/api/admin/bug-report-labels", h.RequireMod(h.AdminBugLabels))
+		r.Post("/api/admin/bug-report-labels", h.RequireAdmin(h.AdminBugLabels))
+		r.Put("/api/admin/bug-report-labels/{id}", h.RequireAdmin(h.AdminBugLabel))
+		r.Delete("/api/admin/bug-report-labels/{id}", h.RequireAdmin(h.AdminBugLabel))
+		r.Get("/api/admin/bug-report-macros", h.RequireMod(h.AdminBugMacros))
+		r.Post("/api/admin/bug-report-macros", h.RequireAdmin(h.AdminBugMacros))
+		r.Put("/api/admin/bug-report-macros/{id}", h.RequireAdmin(h.AdminBugMacro))
+		r.Delete("/api/admin/bug-report-macros/{id}", h.RequireAdmin(h.AdminBugMacro))
+
 		r.Get("/api/raid/overview", h.APIRaidOverview)
 		r.Get("/api/raid/state", h.RequireAuth(h.APIRaidState))
 		r.Post("/api/raid/queue", h.RequireAuth(h.APIRaidQueueJoin))
@@ -282,6 +313,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Post("/api/iv/calculate", h.IVCalculate)
 		r.With(httprate.LimitByIP(10, time.Minute)).Post("/api/iv/ocr", h.RequireAuthAPI(h.IVFromOCR))
+		r.Get("/api/iv/pokemon", h.RequireAuthAPI(h.ListPokemonIV))
+		r.Post("/api/iv/pokemon", h.RequireAuthAPI(h.SavePokemonIV))
+		r.Delete("/api/iv/pokemon/{id}", h.RequireAuthAPI(h.DeletePokemonIV))
 
 		r.With(httprate.LimitAll(2, 10*time.Minute)).Post("/api/refresh", h.RequireAPIAccess(h.APIRefresh))
 

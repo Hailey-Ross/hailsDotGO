@@ -58,15 +58,17 @@ type PageMaintenance struct {
 // PageData is the root template data passed to every page.
 // User is nil for unauthenticated requests.
 type PageData struct {
-	User         *auth.User
-	Data         any
-	CSRFToken    string
-	StoreEnabled bool
-	Maintenance  PageMaintenance
-	Lang         string
-	Langs        []string
-	AssetVersion string
-	Path         string
+	User            *auth.User
+	Data            any
+	CSRFToken       string
+	StoreEnabled    bool
+	Maintenance     PageMaintenance
+	Lang            string
+	Langs           []string
+	AssetVersion    string
+	Path            string
+	ReportCount     int // bug reports the user participates in, any status (drives the persistent Reports nav link)
+	ReportUnread    int // of those, how many have unseen activity (drives the badge)
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
@@ -160,7 +162,7 @@ func (h *Handlers) loadTemplates() {
 	pages := []string{
 		"home", "raids", "dps", "pvp", "events", "iv", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
-		"translate", "raidfinder", "trainer", "social", "notifications",
+		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(
@@ -260,6 +262,9 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, Langs: h.publicLangs(), AssetVersion: h.assetVersion, Path: r.URL.Path}
+	if u != nil {
+		pd.ReportCount, pd.ReportUnread = h.reportCounts(u.ID)
+	}
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)
 	}

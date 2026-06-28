@@ -1,0 +1,94 @@
+{{define "title"}}{{T "reports.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{T "reports.title"}}</h1>
+  <p class="page-subtitle">{{T "reports.subtitle"}}</p>
+</div>
+
+<div class="reports-shell" id="reports-shell" data-staff="{{if and .User .User.IsMod}}1{{else}}0{{end}}">
+  <aside class="reports-list">
+    <div class="reports-list-head">
+      <span>{{T "reports.your_reports"}}</span>
+      <button class="btn-primary reports-new-btn" id="reports-new-btn">{{T "reports.new"}}</button>
+    </div>
+    <div class="reports-list-body" id="reports-list-body">
+      <div class="reports-empty" id="reports-list-empty" style="display:none">{{T "reports.none"}}</div>
+    </div>
+  </aside>
+
+  <section class="reports-thread">
+    <div class="reports-thread-empty" id="reports-thread-empty">{{T "reports.select_prompt"}}</div>
+    <div class="reports-thread-inner" id="reports-thread-inner" style="display:none">
+      <header class="reports-thread-head">
+        <button class="reports-back" id="rt-back" aria-label="Back">&larr;</button>
+        <div class="reports-thread-title">
+          <h2 id="rt-subject"></h2>
+          <div class="reports-thread-meta">
+            <span class="report-status-chip" id="rt-status"></span>
+            <span class="report-labels" id="rt-labels"></span>
+          </div>
+        </div>
+        <div class="reports-thread-head-actions">
+          <button class="btn-secondary reports-resolve-btn" id="rt-resolve-btn" style="display:none"></button>
+          <button class="btn-secondary reports-invite-btn" id="rt-invite-btn">{{T "reports.invite"}}</button>
+        </div>
+      </header>
+
+      <div class="reports-invite-row" id="rt-invite-row" style="display:none">
+        <input type="text" id="rt-invite-input" class="auth-input" placeholder="{{T "reports.invite_placeholder"}}" autocomplete="off" list="rt-invite-list">
+        <datalist id="rt-invite-list"></datalist>
+        <button class="btn-secondary" id="rt-invite-add">{{T "reports.invite_add"}}</button>
+        <span class="reports-invite-error" id="rt-invite-error"></span>
+      </div>
+
+      <div class="reports-participants" id="rt-participants"></div>
+      <div class="reports-messages" id="rt-messages"></div>
+
+      <div class="reports-csat" id="rt-csat" style="display:none"></div>
+
+      <form class="reports-reply" id="rt-reply-form">
+        <textarea id="rt-reply-body" rows="2" placeholder="{{T "reports.reply_placeholder"}}" required></textarea>
+        <div class="reports-reply-actions">
+          <label class="reports-internal-toggle" id="rt-internal-wrap" style="display:none">
+            <input type="checkbox" id="rt-internal"> {{T "reports.internal_note"}}
+          </label>
+          <button class="btn-primary" type="submit">{{T "reports.send"}}</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+window.REPORTS_I18N = {
+  none:            {{T "reports.none"}},
+  selectPrompt:    {{T "reports.select_prompt"}},
+  you:             {{T "reports.you"}},
+  staff:           {{T "reports.staff_badge"}},
+  system:          {{T "reports.system"}},
+  internalNote:    {{T "reports.internal_note"}},
+  invitePrompt:    {{T "reports.invite_placeholder"}},
+  inviteLimit:     {{T "reports.invite_limit"}},
+  failed:          {{T "js.common.failed_load"}},
+  statusOpen:      {{T "reports.status.open"}},
+  statusPending:   {{T "reports.status.pending"}},
+  statusResolved:  {{T "reports.status.resolved"}},
+  statusClosed:    {{T "reports.status.closed"}},
+  sectionActive:   {{T "reports.section_active"}},
+  sectionClosed:   {{T "reports.section_closed"}},
+  markResolved:    {{T "reports.mark_resolved"}},
+  reopen:          {{T "reports.reopen"}},
+  ratePrompt:      {{T "reports.rate_prompt"}},
+  rateGood:        {{T "reports.rate_good"}},
+  rateBad:         {{T "reports.rate_bad"}},
+  rateComment:     {{T "reports.rate_comment"}},
+  rateSubmit:      {{T "reports.rate_submit"}},
+  rateThanks:      {{T "reports.rate_thanks"}},
+  rateChangeUntil: {{T "reports.rate_change_until"}}
+};
+</script>
+<script src="/static/js/reports.js?v={{.AssetVersion}}"></script>
+{{end}}

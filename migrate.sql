@@ -1,10 +1,22 @@
 -- hailsdotgo migrate.sql -- upgrade path for existing installs
 -- New installs: run schema.sql only. Do not run this file on a fresh database.
 --
--- Apply each numbered section you have not yet run, in order.
+-- RECOMMENDED: let the migrate tool apply the right sections for you:
+--   go run ./cmd/migrate -from <your version>   (first time, e.g. -from v0.1.3a)
+--   go run ./cmd/migrate                         (every upgrade after that)
+--   go run ./cmd/migrate -status                 (see applied vs pending)
+-- The tool tracks applied sections in a schema_migrations table and only runs
+-- what is pending, tolerating sections that were already applied by hand.
+--
+-- MANUAL fallback: apply each numbered section you have not yet run, in order.
 -- CREATE TABLE IF NOT EXISTS and INSERT IGNORE lines are safe to re-run.
 -- ALTER TABLE and MODIFY COLUMN lines will error if already applied --
 -- skip them once done, or check your schema first.
+--
+-- Section headers MUST stay `-- N. Title` with contiguous numbering: the tool
+-- parses them. To add a migration, append the next `-- N. ...` section here and
+-- mirror it in schema.sql, then run `go run ./cmd/migrate -dump-seed` to refresh
+-- the schema_migrations seed block in schema.sql.
 
 -- 1. Role expansion + disabled flag
 ALTER TABLE users MODIFY COLUMN role ENUM('user','moderator','admin') NOT NULL DEFAULT 'user';
@@ -565,4 +577,112 @@ CREATE TABLE IF NOT EXISTS sprite_locks (
 
 -- 38. Shiny evolved_at (2026-06-26)
 ALTER TABLE user_shinies ADD COLUMN evolved_at DATETIME NULL DEFAULT NULL;
+
+-- 39. Bug report system "Report Me Not" (2026-06-28)
+-- Lightweight ticketing: threaded messaging between reporters and staff, labels,
+-- multi-user invites, and private staff-only notes. reporter_id NULL / anon_token
+-- are reserved for the deferred anonymous (logged-out) flow.
+CREATE TABLE IF NOT EXISTS bug_reports (
+  id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  reporter_id      INT UNSIGNED NULL,
+  reporter_email   VARCHAR(255) NULL,
+  subject          VARCHAR(160) NOT NULL,
+  status           ENUM('open','pending','resolved','closed') NOT NULL DEFAULT 'open',
+  anon_token       CHAR(64)     NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  last_activity_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_br_status (status),
+  KEY idx_br_reporter (reporter_id),
+  UNIQUE KEY uk_br_anon_token (anon_token),
+  CONSTRAINT fk_br_reporter FOREIGN KEY (reporter_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bug_report_messages (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  report_id  INT UNSIGNED NOT NULL,
+  author_id  INT UNSIGNED NULL,
+  body       TEXT NOT NULL,
+  visibility ENUM('public','internal') NOT NULL DEFAULT 'public',
+  is_system  TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_brm_report (report_id, created_at),
+  CONSTRAINT fk_brm_report FOREIGN KEY (report_id) REFERENCES bug_reports (id) ON DELETE CASCADE,
+  CONSTRAINT fk_brm_author FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bug_report_participants (
+  report_id    INT UNSIGNED NOT NULL,
+  user_id      INT UNSIGNED NOT NULL,
+  role         ENUM('reporter','collaborator','staff') NOT NULL DEFAULT 'collaborator',
+  added_by     INT UNSIGNED NULL,
+  last_seen_at DATETIME   NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (report_id, user_id),
+  KEY idx_brp_user (user_id),
+  CONSTRAINT fk_brp_report FOREIGN KEY (report_id) REFERENCES bug_reports (id) ON DELETE CASCADE,
+  CONSTRAINT fk_brp_user   FOREIGN KEY (user_id)   REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bug_report_labels (
+  id      INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name    VARCHAR(40)  NOT NULL,
+  color   VARCHAR(7)   NOT NULL DEFAULT '#cccccc',
+  builtin TINYINT(1)   NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_brl_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO bug_report_labels (name, color, builtin) VALUES
+  ('Bug',             '#e53935', 1),
+  ('Crash',           '#b71c1c', 1),
+  ('UI',              '#5b9cf6', 1),
+  ('Feature Request', '#00d68f', 1),
+  ('Question',        '#a78bfa', 1),
+  ('Duplicate',       '#8888b8', 1),
+  ('Wontfix',         '#55558a', 1);
+
+CREATE TABLE IF NOT EXISTS bug_report_label_map (
+  report_id INT UNSIGNED NOT NULL,
+  label_id  INT UNSIGNED NOT NULL,
+  PRIMARY KEY (report_id, label_id),
+  CONSTRAINT fk_brlm_report FOREIGN KEY (report_id) REFERENCES bug_reports (id) ON DELETE CASCADE,
+  CONSTRAINT fk_brlm_label  FOREIGN KEY (label_id)  REFERENCES bug_report_labels (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 40. Bug reports triage enhancements (2026-06-28)
+-- Adds priority, assignee, and CSAT rating to reports, plus a canned-responses
+-- (macros) table. The ALTER lines are one-time -- skip any that already applied.
+ALTER TABLE bug_reports
+  ADD COLUMN priority       ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal' AFTER status,
+  ADD COLUMN assignee_id    INT UNSIGNED NULL AFTER priority,
+  ADD COLUMN rating         ENUM('','good','bad') NOT NULL DEFAULT '' AFTER assignee_id,
+  ADD COLUMN rating_comment VARCHAR(500) NOT NULL DEFAULT '' AFTER rating,
+  ADD COLUMN rated_at       DATETIME NULL AFTER rating_comment,
+  ADD KEY idx_br_assignee (assignee_id),
+  ADD KEY idx_br_priority (priority),
+  ADD CONSTRAINT fk_br_assignee FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS bug_report_macros (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  title      VARCHAR(80)  NOT NULL,
+  body       TEXT         NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_brmac_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 41. Player ("bad actor") report system (2026-06-28)
+-- Adds a type discriminator, reported-user reference, and reason so player
+-- reports share the ticket tables. ALTER lines are one-time -- skip if applied.
+ALTER TABLE bug_reports
+  ADD COLUMN type             ENUM('bug','player') NOT NULL DEFAULT 'bug' AFTER id,
+  ADD COLUMN reported_user_id INT UNSIGNED NULL AFTER reporter_id,
+  ADD COLUMN reason           VARCHAR(64) NOT NULL DEFAULT '' AFTER subject,
+  ADD KEY idx_br_type (type, status),
+  ADD KEY idx_br_reported (reported_user_id),
+  ADD CONSTRAINT fk_br_reported FOREIGN KEY (reported_user_id) REFERENCES users (id) ON DELETE SET NULL;
 
