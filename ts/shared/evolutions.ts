@@ -456,3 +456,28 @@ export const EVOLUTION_NEXT: Record<string, string[]> = {
   "Arctibax":     ["Baxcalibur"],
   "Gimmighoul":   ["Gholdengo"],
 };
+
+// Reverse map: each Pokemon name -> the name(s) it evolves from. Built once by
+// inverting EVOLUTION_NEXT.
+const EVOLUTION_PREV: Record<string, string[]> = {};
+for (const [from, tos] of Object.entries(EVOLUTION_NEXT)) {
+  for (const to of tos) (EVOLUTION_PREV[to] ??= []).push(from);
+}
+
+// Returns the full evolution family for a name: every pre-evolution, evolution,
+// and branch in its connected component (e.g. Deino/Zweilous/Hydreigon, or Eevee
+// plus all eeveelutions). A name with no evolution links returns just itself.
+export function getEvolutionFamily(name: string): Set<string> {
+  const seen = new Set<string>([name]);
+  const queue = [name];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const next of [...(EVOLUTION_NEXT[cur] ?? []), ...(EVOLUTION_PREV[cur] ?? [])]) {
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return seen;
+}

@@ -299,7 +299,7 @@ func (h *Handlers) AdminBugLabels(w http.ResponseWriter, r *http.Request) {
 }
 
 // AdminBugLabel handles PUT (update) and DELETE for a single label. Built-in
-// labels may be recolored/renamed but not deleted.
+// labels are protected: they can be neither edited nor deleted.
 func (h *Handlers) AdminBugLabel(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || id == 0 {
@@ -309,6 +309,15 @@ func (h *Handlers) AdminBugLabel(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPut:
+		var builtin int
+		if err := h.db.QueryRow(`SELECT builtin FROM bug_report_labels WHERE id = ?`, id).Scan(&builtin); err != nil {
+			writeJSONError(w, "label not found", http.StatusNotFound)
+			return
+		}
+		if builtin == 1 {
+			writeJSONError(w, "built-in labels cannot be edited", http.StatusBadRequest)
+			return
+		}
 		name, color, ok := decodeLabelBody(w, r)
 		if !ok {
 			return
