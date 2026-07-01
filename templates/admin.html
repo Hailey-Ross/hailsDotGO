@@ -178,7 +178,8 @@
       <form id="br-label-add-form" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
         <input type="text" id="br-label-name" class="auth-input" placeholder="Label name" maxlength="40" required style="flex:2;min-width:150px">
         <input type="color" id="br-label-color" value="#5b9cf6" style="width:46px;height:38px;border:none;background:none;cursor:pointer">
-        <button type="submit" class="btn-primary" style="font-size:0.8rem">Add label</button>
+        <button type="submit" id="br-label-submit" class="btn-primary" style="font-size:0.8rem">Add label</button>
+        <a href="#" id="br-label-cancel" style="display:none;font-size:0.8rem;color:var(--text-3)">Cancel</a>
         <span id="br-label-status" style="font-size:0.8rem"></span>
       </form>
       {{else}}
@@ -194,7 +195,8 @@
         <input type="text" id="br-macro-title" class="auth-input" placeholder="Title (e.g. Thanks, investigating)" maxlength="80" required>
         <textarea id="br-macro-body" class="auth-input" placeholder="Response text..." rows="3" required style="resize:vertical;font-family:var(--font)"></textarea>
         <div style="display:flex;gap:0.5rem;align-items:center">
-          <button type="submit" class="btn-primary" style="font-size:0.8rem">Add canned response</button>
+          <button type="submit" id="br-macro-submit" class="btn-primary" style="font-size:0.8rem">Add canned response</button>
+          <a href="#" id="br-macro-cancel" style="display:none;font-size:0.8rem;color:var(--text-3)">Cancel</a>
           <span id="br-macro-status" style="font-size:0.8rem"></span>
         </div>
       </form>
@@ -349,8 +351,11 @@
     <p class="admin-desc">{{T "admin.data_refresh.desc"}}</p>
     <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
       <button id="btn-force-refresh" class="btn-primary">{{T "admin.data_refresh.btn"}}</button>
+      <button id="btn-check-scrapers" class="btn-secondary">{{T "admin.scrapers.btn"}}</button>
       <span id="refresh-status" style="font-size:0.85rem;color:var(--text-2)"></span>
     </div>
+    <p class="admin-desc" style="margin-top:0.75rem;margin-bottom:0">{{T "admin.scrapers.desc"}}</p>
+    <div id="scrapers-results" style="margin-top:0.75rem"></div>
   </div>
   {{end}}
   <div id="stats-container">
@@ -838,6 +843,11 @@ const STRINGS = {
   itemDisable:      {{T "admin.js.item_disable"}},
   refreshOk:        {{T "admin.js.refresh_ok"}},
   refreshFail:      {{T "admin.js.refresh_fail"}},
+  scrapersRunning:  {{T "admin.js.scrapers_running"}},
+  scrapersOk:       {{T "admin.js.scrapers_ok"}},
+  scrapersFail:     {{T "admin.js.scrapers_fail"}},
+  scrapersInSync:   {{T "admin.js.scrapers_in_sync"}},
+  scrapersApplied:  {{T "admin.js.scrapers_applied"}},
   translator:           {{T "admin.js.translator"}},
   btnGrantTranslator:   {{T "admin.js.btn_grant_translator"}},
   btnRevokeTranslator:  {{T "admin.js.btn_revoke_translator"}},
@@ -931,6 +941,70 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
       status.textContent = d.ok ? STRINGS.refreshOk : STRINGS.refreshFail;
     })
     .catch(function() { status.textContent = STRINGS.refreshFail; })
+    .finally(function() { btn.disabled = false; });
+  });
+})();
+
+// ── Check/Run scrapers (superadmin only) ──────────────────────
+(function() {
+  var btn = document.getElementById('btn-check-scrapers');
+  if (!btn) return;
+  var status = document.getElementById('refresh-status');
+  var results = document.getElementById('scrapers-results');
+
+  function render(list) {
+    if (!list || !list.length) { results.innerHTML = ''; return; }
+    var rows = list.map(function(c) {
+      var badge = c.ok
+        ? '<span style="color:#3fb950;font-weight:600">OK</span>'
+        : '<span style="color:#f85149;font-weight:600">ERROR</span>';
+      var detail;
+      if (!c.ok) {
+        detail = '<span style="color:#f85149">' + escapeHtml(c.error || '') + '</span>';
+      } else {
+        var count = c.count ? (c.count + ' items, ') : '';
+        detail = (c.changed ? STRINGS.scrapersApplied : STRINGS.scrapersInSync)
+          + ' · ' + count + fmtBytes(c.bytes) + ' · ' + c.duration_ms + 'ms';
+      }
+      return '<tr>'
+        + '<td style="padding:0.2rem 0.6rem 0.2rem 0;font-family:monospace">' + escapeHtml(c.key) + '</td>'
+        + '<td style="padding:0.2rem 0.6rem 0.2rem 0">' + badge + '</td>'
+        + '<td style="padding:0.2rem 0;color:var(--text-2)">' + detail + '</td>'
+        + '</tr>';
+    }).join('');
+    results.innerHTML = '<table style="font-size:0.82rem;border-collapse:collapse">' + rows + '</table>';
+  }
+
+  function fmtBytes(n) {
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+    return n + ' B';
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(ch) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    status.textContent = STRINGS.scrapersRunning;
+    results.innerHTML = '';
+    fetch('/admin/check-scrapers', {
+      method: 'POST',
+      headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        var failed = (d.results || []).some(function(c) { return !c.ok; });
+        status.textContent = failed ? STRINGS.scrapersFail : STRINGS.scrapersOk;
+        render(d.results);
+      } else {
+        status.textContent = STRINGS.scrapersFail;
+      }
+    })
+    .catch(function() { status.textContent = STRINGS.scrapersFail; })
     .finally(function() { btn.disabled = false; });
   });
 })();
@@ -2794,8 +2868,10 @@ function renderSpriteTable() {
 var brLoaded = false;
 var brCurrentId = 0;
 var brLabels = [];
+var brLabelEditId = null;
 var brStaff = [];
 var brMacros = [];
+var brMacroEditId = null;
 var brSearchTimer = null;
 const BR_CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
@@ -2845,7 +2921,9 @@ function initBugReports() {
     m.style.display = m.style.display === 'none' ? '' : 'none';
   });
   document.getElementById('br-label-add-form')?.addEventListener('submit', brAddLabelDef);
+  document.getElementById('br-label-cancel')?.addEventListener('click', function(e) { e.preventDefault(); brResetLabelForm(); });
   document.getElementById('br-macro-add-form')?.addEventListener('submit', brAddMacroDef);
+  document.getElementById('br-macro-cancel')?.addEventListener('click', function(e) { e.preventDefault(); brResetMacroForm(); });
   document.getElementById('br-reply-form').addEventListener('submit', brReply);
   document.getElementById('br-status-select').addEventListener('change', brSetStatus);
   document.getElementById('br-priority-select').addEventListener('change', brSetPriority);
@@ -2915,17 +2993,42 @@ function brRenderMacroManager() {
     preview.style.flex = '1';
     row.appendChild(preview);
     if (IS_ADMIN) {
+      const edit = brEl('button', 'btn-secondary', 'Edit');
+      edit.style.fontSize = '0.72rem';
+      edit.style.padding = '0.2rem 0.5rem';
+      edit.addEventListener('click', function() {
+        brMacroEditId = m.id;
+        document.getElementById('br-macro-title').value = m.title;
+        document.getElementById('br-macro-body').value = m.body;
+        document.getElementById('br-macro-submit').textContent = 'Save changes';
+        document.getElementById('br-macro-cancel').style.display = '';
+        document.getElementById('br-macro-status').textContent = '';
+        document.getElementById('br-macro-title').focus();
+      });
+      row.appendChild(edit);
       const del = brEl('button', 'btn-secondary', 'Delete');
       del.style.fontSize = '0.72rem';
       del.style.padding = '0.2rem 0.5rem';
       del.addEventListener('click', function() {
         fetch('/api/admin/bug-report-macros/' + m.id, { method: 'DELETE', headers: { 'X-CSRF-Token': BR_CSRF } })
-          .then(function(r) { return r.json(); }).then(function() { brLoadMacros(); });
+          .then(function(r) { return r.json(); }).then(function() {
+            if (brMacroEditId === m.id) brResetMacroForm();
+            brLoadMacros();
+          });
       });
       row.appendChild(del);
     }
     list.appendChild(row);
   });
+}
+
+function brResetMacroForm() {
+  brMacroEditId = null;
+  document.getElementById('br-macro-title').value = '';
+  document.getElementById('br-macro-body').value = '';
+  document.getElementById('br-macro-submit').textContent = 'Add canned response';
+  document.getElementById('br-macro-cancel').style.display = 'none';
+  document.getElementById('br-macro-status').textContent = '';
 }
 
 function brAddMacroDef(e) {
@@ -2934,15 +3037,15 @@ function brAddMacroDef(e) {
   const body = document.getElementById('br-macro-body').value.trim();
   const status = document.getElementById('br-macro-status');
   if (!title || !body) return;
-  fetch('/api/admin/bug-report-macros', {
-    method: 'POST',
+  const editing = brMacroEditId != null;
+  const url = editing ? '/api/admin/bug-report-macros/' + brMacroEditId : '/api/admin/bug-report-macros';
+  fetch(url, {
+    method: editing ? 'PUT' : 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
     body: JSON.stringify({ title: title, body: body })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.ok) {
-      document.getElementById('br-macro-title').value = '';
-      document.getElementById('br-macro-body').value = '';
-      status.textContent = '';
+      brResetMacroForm();
       brLoadMacros();
     } else {
       status.textContent = d.error || 'Failed';
@@ -2994,19 +3097,56 @@ function brRenderLabelManager() {
       tag.style.color = 'var(--text-3)';
       tag.style.fontSize = '0.72rem';
       row.appendChild(tag);
+      if (IS_ADMIN) {
+        const dup = brEl('button', 'btn-secondary', 'Duplicate');
+        dup.style.fontSize = '0.72rem';
+        dup.style.padding = '0.2rem 0.5rem';
+        dup.addEventListener('click', function() {
+          brResetLabelForm();
+          document.getElementById('br-label-name').value = l.name;
+          document.getElementById('br-label-color').value = l.color;
+          document.getElementById('br-label-name').focus();
+        });
+        row.appendChild(dup);
+      }
     } else if (IS_ADMIN) {
+      const edit = brEl('button', 'btn-secondary', 'Edit');
+      edit.style.fontSize = '0.72rem';
+      edit.style.padding = '0.2rem 0.5rem';
+      edit.addEventListener('click', function() {
+        brLabelEditId = l.id;
+        document.getElementById('br-label-name').value = l.name;
+        document.getElementById('br-label-color').value = l.color;
+        document.getElementById('br-label-submit').textContent = 'Save changes';
+        document.getElementById('br-label-cancel').style.display = '';
+        document.getElementById('br-label-status').textContent = '';
+        document.getElementById('br-label-name').focus();
+      });
+      row.appendChild(edit);
       const del = brEl('button', 'btn-secondary', 'Delete');
       del.style.fontSize = '0.72rem';
       del.style.padding = '0.2rem 0.5rem';
       del.addEventListener('click', function() {
         fetch('/api/admin/bug-report-labels/' + l.id, { method: 'DELETE', headers: { 'X-CSRF-Token': BR_CSRF } })
           .then(function(r) { return r.json(); })
-          .then(function() { brLoadLabels(); });
+          .then(function() {
+            if (brLabelEditId === l.id) brResetLabelForm();
+            brLoadLabels();
+          });
       });
       row.appendChild(del);
     }
     list.appendChild(row);
   });
+}
+
+function brResetLabelForm() {
+  brLabelEditId = null;
+  document.getElementById('br-label-name').value = '';
+  document.getElementById('br-label-color').value = '#5b9cf6';
+  document.getElementById('br-label-submit').textContent = 'Add label';
+  document.getElementById('br-label-cancel').style.display = 'none';
+  document.getElementById('br-label-status').textContent = '';
 }
 
 function brAddLabelDef(e) {
@@ -3015,14 +3155,15 @@ function brAddLabelDef(e) {
   const color = document.getElementById('br-label-color').value;
   const status = document.getElementById('br-label-status');
   if (!name) return;
-  fetch('/api/admin/bug-report-labels', {
-    method: 'POST',
+  const editing = brLabelEditId != null;
+  const url = editing ? '/api/admin/bug-report-labels/' + brLabelEditId : '/api/admin/bug-report-labels';
+  fetch(url, {
+    method: editing ? 'PUT' : 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': BR_CSRF },
     body: JSON.stringify({ name: name, color: color })
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.ok) {
-      document.getElementById('br-label-name').value = '';
-      status.textContent = '';
+      brResetLabelForm();
       brLoadLabels();
     } else {
       status.textContent = d.error || 'Failed';

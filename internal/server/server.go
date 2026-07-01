@@ -60,15 +60,18 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(httprate.LimitByIP(5, time.Minute)).Post("/auth/login", h.MobileLogin)
 
 		// Public game data aliases with stable versioned URLs for mobile clients.
-		r.Get("/pokemon", h.APIPokemon)
-		r.Get("/raids", h.APIRaids)
-		r.Get("/events", h.APIEvents)
-		r.Get("/data", h.APIData)
-		r.Get("/raid/overview", h.MobileRaidOverview)
+		// Rate-limited to match the legacy web API (server.go ~line 305).
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/pokemon", h.APIPokemon)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/raids", h.APIRaids)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/events", h.APIEvents)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/data", h.APIData)
+		// Dynamic and polled by the app, so a looser standalone limit.
+		r.With(httprate.LimitByIP(20, time.Minute)).Get("/raid/overview", h.MobileRaidOverview)
 
 		// All remaining endpoints require authentication.
 		r.Group(func(r chi.Router) {
 			r.Use(h.MobileAuthMiddleware())
+			r.Use(httprate.LimitByIP(120, time.Minute)) // baseline abuse ceiling
 			r.Delete("/auth/session", h.MobileLogout)
 			r.Get("/auth/me", h.MobileMe)
 			r.Put("/profile", h.MobilePutProfile)
@@ -196,6 +199,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/admin/users/{id}/api-access", h.RequireSuperAdmin(h.AdminToggleAPIAccess))
 		r.Post("/admin/users/{id}/translator", h.RequireSuperAdmin(h.AdminToggleTranslator))
 		r.Post("/admin/refresh-data", h.RequireSuperAdmin(h.AdminRefreshData))
+		r.Post("/admin/check-scrapers", h.RequireSuperAdmin(h.AdminRunScrapers))
 		r.Post("/admin/users/{id}/confirm-role", h.RequireAdmin(h.AdminConfirmRole))
 		r.Post("/admin/users/{id}/reject-role", h.RequireAdmin(h.AdminRejectRole))
 		r.Post("/admin/users/{id}/directory-hide", h.RequireMod(h.AdminToggleDirectoryHide))

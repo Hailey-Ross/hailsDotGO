@@ -897,25 +897,37 @@ func (s *Store) refreshEvents() {
 // so this is the sole source of translated Pokémon names. On failure the last
 // good payload is kept.
 func (s *Store) refreshPokemonNames() {
-	const url = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species_names.csv"
-	resp, err := s.client.Get(url)
+	data, n, err := s.fetchPokemonNames()
 	if err != nil {
 		log.Printf("pogodata: pokemon names refresh: %v", err)
 		return
 	}
+	os.WriteFile(filepath.Join(s.cacheDir, "pokemon_names.json"), data, 0644)
+	s.mu.Lock()
+	s.applyResult("pokemon_names", data)
+	s.mu.Unlock()
+	log.Printf("pogodata: pokemon names: fetched %d species from PokeAPI", n)
+}
+
+// fetchPokemonNames fetches localized species names from PokeAPI's CSV dataset and
+// returns them as the JSON shape {"1":{"fr":"Bulbizarre",...},...} plus the species
+// count. It does not touch the store; callers persist/apply the result.
+func (s *Store) fetchPokemonNames() (json.RawMessage, int, error) {
+	const url = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species_names.csv"
+	resp, err := s.client.Get(url)
+	if err != nil {
+		return nil, 0, err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("pogodata: pokemon names refresh: HTTP %d", resp.StatusCode)
-		return
+		return nil, 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	names, err := parsePokemonNamesCSV(resp.Body)
 	if err != nil {
-		log.Printf("pogodata: pokemon names refresh: parse: %v", err)
-		return
+		return nil, 0, fmt.Errorf("parse: %w", err)
 	}
 	if len(names) == 0 {
-		log.Printf("pogodata: pokemon names refresh: no names parsed")
-		return
+		return nil, 0, fmt.Errorf("no names parsed")
 	}
 	keyed := make(map[string]map[string]string, len(names))
 	for id, langs := range names {
@@ -923,14 +935,9 @@ func (s *Store) refreshPokemonNames() {
 	}
 	data, err := json.Marshal(keyed)
 	if err != nil {
-		log.Printf("pogodata: pokemon names refresh: marshal: %v", err)
-		return
+		return nil, 0, fmt.Errorf("marshal: %w", err)
 	}
-	os.WriteFile(filepath.Join(s.cacheDir, "pokemon_names.json"), data, 0644)
-	s.mu.Lock()
-	s.applyResult("pokemon_names", json.RawMessage(data))
-	s.mu.Unlock()
-	log.Printf("pogodata: pokemon names: fetched %d species from PokeAPI", len(names))
+	return data, len(names), nil
 }
 
 // parsePokemonNamesCSV parses PokeAPI's pokemon_species_names.csv
@@ -1125,6 +1132,115 @@ func (s *Store) fetch(url string) (json.RawMessage, error) {
 func (s *Store) Refresh() {
 	go s.refresh()
 	go s.refreshPokemonNames()
+}
+
+// ScraperCheck is the per-source result of CheckScrapers.
+type ScraperCheck struct {
+	Key        string `json:"key"`
+	OK         bool   `json:"ok"`
+	Error      string `json:"error,omitempty"`
+	Count      int    `json:"count"`   // item count where meaningful (raids/max_battles), else 0
+	Bytes      int    `json:"bytes"`   // size of the fetched payload
+	Changed    bool   `json:"changed"` // fresh data differs from what was already stored
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// CheckScrapers synchronously fetches every scraped source fresh, compares it against
+// what is currently cached, applies any changed data, and returns a per-source report.
+// It fills the gap left by Refresh(), which skips raids/max_battles/events. Unlike the
+// background refreshers it blocks until every source is fetched, so it is intended for a
+// deliberate admin action rather than the normal schedule.
+func (s *Store) CheckScrapers() []ScraperCheck {
+	var out []ScraperCheck
+
+	// run fetches one source, compares to the on-disk cache to detect drift, applies the
+	// result on success, and records a ScraperCheck. after (optional) runs post-apply.
+	run := func(key string, fetch func() (json.RawMessage, int, error), after func(json.RawMessage)) {
+		start := time.Now()
+		res := ScraperCheck{Key: key}
+		data, count, err := fetch()
+		res.DurationMs = time.Since(start).Milliseconds()
+		if err != nil {
+			res.Error = err.Error()
+			out = append(out, res)
+			return
+		}
+		old, _ := os.ReadFile(filepath.Join(s.cacheDir, key+".json"))
+		res.Changed = !bytes.Equal(bytes.TrimSpace(old), bytes.TrimSpace(data))
+		s.persistAndApply(key, data)
+		if after != nil {
+			after(data)
+		}
+		res.OK, res.Count, res.Bytes = true, count, len(data)
+		out = append(out, res)
+	}
+
+	// Raids and max battles are shown first (the sources Refresh() cannot reach).
+	run("raids", func() (json.RawMessage, int, error) {
+		d, err := s.fetchPGAPIRaids()
+		if err != nil {
+			return nil, 0, err
+		}
+		return d, groupedCount(d), nil
+	}, nil)
+	run("max_battles", func() (json.RawMessage, int, error) {
+		d, err := s.fetchMaxBattles()
+		if err != nil {
+			return nil, 0, err
+		}
+		return d, groupedCount(d), nil
+	}, nil)
+	run("events", func() (json.RawMessage, int, error) {
+		d, err := s.fetch("https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json")
+		return d, 0, err
+	}, func(d json.RawMessage) { s.refreshEventDetails(d) })
+	run("pokemon_names", func() (json.RawMessage, int, error) { return s.fetchPokemonNames() }, nil)
+
+	// PoGoAPI endpoints: sequential with a 400 ms delay to avoid rate limiting, matching refresh().
+	pogoAPI := []struct{ key, url string }{
+		{"pokemon", "https://pogoapi.net/api/v1/pokemon_stats.json"},
+		{"pokemon_moves", "https://pogoapi.net/api/v1/current_pokemon_moves.json"},
+		{"fast_moves", "https://pogoapi.net/api/v1/fast_moves.json"},
+		{"charged_moves", "https://pogoapi.net/api/v1/charged_moves.json"},
+		{"shinies", "https://pogoapi.net/api/v1/shiny_pokemon.json"},
+		{"shadow_pokemon", "https://pogoapi.net/api/v1/shadow_pokemon.json"},
+		{"type_chart", "https://pogoapi.net/api/v1/type_effectiveness.json"},
+		{"cp_multipliers", "https://pogoapi.net/api/v1/cp_multiplier.json"},
+		{"pokemon_types", "https://pogoapi.net/api/v1/pokemon_types.json"},
+	}
+	for i, e := range pogoAPI {
+		if i > 0 {
+			time.Sleep(400 * time.Millisecond)
+		}
+		url := e.url
+		run(e.key, func() (json.RawMessage, int, error) {
+			d, err := s.fetch(url)
+			return d, 0, err
+		}, nil)
+	}
+	return out
+}
+
+// persistAndApply writes a data blob to the disk cache and into the in-memory store,
+// mirroring what the individual refresh functions do.
+func (s *Store) persistAndApply(key string, data json.RawMessage) {
+	os.WriteFile(filepath.Join(s.cacheDir, key+".json"), data, 0644)
+	s.mu.Lock()
+	s.applyResult(key, data)
+	s.mu.Unlock()
+}
+
+// groupedCount sums the boss counts across tiers in a grouped raids/max_battles payload.
+func groupedCount(data json.RawMessage) int {
+	var m map[string][]json.RawMessage
+	if json.Unmarshal(data, &m) != nil {
+		return 0
+	}
+	n := 0
+	for _, v := range m {
+		n += len(v)
+	}
+	return n
 }
 
 func (s *Store) Raids() json.RawMessage {

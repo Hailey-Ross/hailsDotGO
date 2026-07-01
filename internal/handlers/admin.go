@@ -54,6 +54,15 @@ func (h *Handlers) AdminRefreshData(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+// AdminRunScrapers fetches every scraped source fresh, compares it to what is stored,
+// applies any changes, and returns a per-source report so an admin can confirm the
+// scrapers are reachable, parse cleanly, and match the current upstream data.
+func (h *Handlers) AdminRunScrapers(w http.ResponseWriter, r *http.Request) {
+	results := h.store.CheckScrapers()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "results": results})
+}
+
 func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)

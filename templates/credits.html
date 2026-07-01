@@ -112,6 +112,27 @@
   {{end}}{{end}}
 
   <div class="credits-card">
+    <h2>{{T "credits.api.mobile_title"}}</h2>
+    <p>{{T "credits.api.mobile_body"}}</p>
+    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>Authorization: Bearer &lt;your-token&gt;</code></pre>
+    <table class="api-table">
+      <thead><tr><th>{{T "credits.api.col_endpoint"}}</th><th>{{T "credits.api.col_desc"}}</th><th>{{T "credits.api.mobile_col_auth"}}</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST /api/mobile/v1/auth/login</code></td><td>{{T "credits.api.mobile_login_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
+        <tr><td><code>DELETE /api/mobile/v1/auth/session</code></td><td>{{T "credits.api.mobile_logout_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET /api/mobile/v1/auth/me</code></td><td>{{T "credits.api.mobile_me_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>PUT /api/mobile/v1/profile</code></td><td>{{T "credits.api.mobile_profile_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>POST/DELETE /api/mobile/v1/push/token</code></td><td>{{T "credits.api.mobile_push_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET /api/mobile/v1/data</code>, <code>/pokemon</code>, <code>/raids</code>, <code>/events</code>, <code>/raid/overview</code></td><td>{{T "credits.api.mobile_data_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
+        <tr><td><code>POST /api/mobile/v1/iv/calculate</code>, <code>/iv/ocr</code></td><td>{{T "credits.api.mobile_iv_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET/POST/DELETE /api/mobile/v1/iv/pokemon</code></td><td>{{T "credits.api.mobile_box_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>/api/mobile/v1/raid/*</code></td><td>{{T "credits.api.mobile_raid_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:1rem">{{T "credits.api.mobile_note"}}</p>
+  </div>
+
+  <div class="credits-card">
     <h2>{{T "credits.api.notes_title"}}</h2>
     <ul class="credits-list">
       <li>{{T "credits.api.note_json"}} <code>application/json</code>.</li>
@@ -130,8 +151,64 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-07-01</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Admin: Check/Run Scrapers button</h2>
+          <ul class="cl-list">
+            <li>The Site Stats tab has a new <strong>Check/Run Scrapers</strong> button beside Force Data Refresh that fetches every scraped source right now (raids, max battles, events, and all PoGoAPI/PokeAPI data) and reports per source whether it is reachable, parses without errors, and matches the live upstream data</li>
+            <li>Unlike Force Data Refresh (which only covers the PoGoAPI game data and Pokémon names), this also runs the raids, max battles, and events scrapers, and applies any changed data immediately</li>
+            <li>Results show inline as a table: an OK/ERROR badge per source plus item count, payload size, and whether the data was already in sync or freshly updated</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-06-29</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Admin: edit canned responses and labels for bug reports</h2>
+          <ul class="cl-list">
+            <li>Admins can now <strong>edit</strong> existing canned responses and custom labels in the Bug Reports tools, not just create or delete them -- click Edit to reuse the add form, then Save changes</li>
+            <li>Built-in labels stay protected: they cannot be edited or deleted, but a new <strong>Duplicate</strong> button copies a built-in's name and colour into the add form so you can spin off your own variant</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Mobile API: rate limiting on all endpoints</h2>
+          <ul class="cl-list">
+            <li>The <code>/api/mobile/v1</code> public game-data endpoints (<code>/pokemon</code>, <code>/raids</code>, <code>/events</code>, <code>/data</code>) now carry the same per-IP rate limit as the legacy web API; <code>/raid/overview</code> gets a looser polling-friendly limit</li>
+            <li>Authenticated mobile endpoints gained a baseline per-IP abuse ceiling on top of the existing token auth, closing the gap where only the OCR endpoint was throttled</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-28</div>
       <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: search now finds the whole evolution line</h2>
+          <ul class="cl-list">
+            <li>Searching any member of an evolution family now shows the entire line, not just the one you typed -- searching "Deino", "Zweilous", or "Hydreigon" returns all three</li>
+            <li>Branching families work too: searching "Eevee" surfaces Eevee and every Eeveelution</li>
+            <li>Applies to both the full grid and your caught list</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">API docs: Mobile API now listed on the Credits page</h2>
+          <ul class="cl-list">
+            <li>The Credits page API tab now documents the versioned <code>/api/mobile/v1</code> companion-app endpoints alongside the public, community, and private tiers</li>
+            <li>Corrected the project wiki's API Reference to name the CSRF cookie <code>_pogo_csrf</code></li>
+          </ul>
+        </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Translations: your edits are kept across updates</h2>

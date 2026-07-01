@@ -1,7 +1,7 @@
 import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import { costumeShinyUrl, TINY_POKEMON } from "./shared/costumes";
-import { EVOLUTION_NEXT } from "./shared/evolutions";
+import { EVOLUTION_NEXT, getEvolutionFamily } from "./shared/evolutions";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
 declare const JSC: Record<string, string>;
@@ -565,9 +565,24 @@ async function init() {
       (chipsHtml ? `<span class="sc-stat-chips">${chipsHtml}</span>` : "");
   }
 
+  // Builds the set of names to keep for a search query: any candidate whose name
+  // matches the query is kept, and so is its whole evolution family. This makes
+  // searching any family member (e.g. "Deino", "Zweilous", or "Hydreigon") show
+  // the entire line, even when the names share no common substring.
+  function familyMatchSet(q: string, names: string[]): Set<string> {
+    const keep = new Set<string>();
+    for (const n of names) {
+      if (n.toLowerCase().includes(q)) {
+        for (const m of getEvolutionFamily(n)) keep.add(m);
+      }
+    }
+    return keep;
+  }
+
   function renderGrid(source: ShinyPokemon[]) {
     const q = searchEl.value.trim().toLowerCase();
-    const filtered = q ? source.filter((s) => s.name.toLowerCase().includes(q)) : source;
+    const keep = q ? familyMatchSet(q, source.map((s) => s.name)) : null;
+    const filtered = keep ? source.filter((s) => keep.has(s.name)) : source;
 
     if (!filtered.length) {
       contentEl.innerHTML = `<p class="empty-state">${JSC.noResults}</p>`;
@@ -897,7 +912,8 @@ async function init() {
   function renderCaughtList(evolvedOnly = false) {
     const source = evolvedOnly ? evolvedShinies : userShinies;
     const q = searchEl.value.trim().toLowerCase();
-    const entries = source.filter((s) => !q || s.pokemon_id.toLowerCase().includes(q));
+    const keep = q ? familyMatchSet(q, source.map((s) => s.pokemon_id)) : null;
+    const entries = keep ? source.filter((s) => keep.has(s.pokemon_id)) : source;
 
     contentEl.innerHTML = "";
 
