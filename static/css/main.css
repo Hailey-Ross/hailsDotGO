@@ -2204,7 +2204,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .user-tag-wrapper:hover .user-tag-edit-btn { opacity: 0.7; }
 .user-tag-edit-btn:hover { opacity: 1 !important; }
 .trainer-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.2rem; }
-.trainer-modal-body .trainer-tags { justify-content: center; }
 .um-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.4rem 1rem 0; }
 
 /* Trainer card name + pronouns */
@@ -2310,73 +2309,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   padding: 1.1rem 1.5rem 1.4rem;
   text-align: center;
 }
-.trainer-modal-sprites {
-  display: flex; justify-content: center;
-  margin-bottom: 0.9rem;
-}
-.trainer-modal-sprite-wrap {
-  position: relative;
-  width: 150px; height: 110px;
-}
-.trainer-modal-avatar-sprite {
-  width: 110px; height: 110px;
-  object-fit: contain; image-rendering: pixelated;
-  position: absolute; right: 0; bottom: 0; z-index: 1;
-}
-.trainer-modal-avatar-default {
-  width: 110px; height: 110px;
-  border-radius: 50%;
-  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 1;
-}
-.trainer-modal-fav-sprite {
-  width: 101px; height: 101px;
-  object-fit: contain; image-rendering: pixelated;
-  position: absolute; left: 0; bottom: 0;
-  z-index: 0; opacity: 0.9;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.9));
-}
-.trainer-modal-name-line {
-  display: flex; align-items: center; justify-content: center;
-  gap: 0.3rem; margin-bottom: 0.2rem;
-}
-.trainer-modal-name { font-size: 1.25rem; font-weight: 700; }
-.trainer-modal-meta {
-  font-size: 0.83rem; color: var(--text-2);
-  text-shadow: none; margin-top: 0.15rem;
-}
-.trainer-modal-code-row {
-  display: flex; align-items: center; justify-content: center;
-  gap: 0.5rem; margin: 0.65rem 0;
-  padding: 0.45rem 0.75rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border); border-radius: var(--r-sm);
-}
-.trainer-modal-code {
-  font-family: 'Courier New', monospace;
-  font-size: 0.95rem; font-weight: 600;
-  color: var(--blue); letter-spacing: 0.5px;
-}
-.trainer-modal-footer {
-  font-size: 0.78rem; color: var(--text-3);
-  text-shadow: none; margin-top: 0.55rem;
-}
-.trainer-collection-link {
-  display: block; width: 100%; margin-top: 0.6rem;
-  background: none; border: none; cursor: pointer;
-  font-size: 0.82rem; color: var(--text-2);
-  text-align: center; padding: 0.3rem 0;
-  transition: color 0.15s;
-}
-.trainer-collection-link:hover { color: var(--blue); }
-.trainer-collection-loading {
-  display: block; text-align: center;
-  font-size: 0.82rem; color: var(--text-2); padding: 0.5rem 0;
-}
-.trainer-collection-empty {
-  text-align: center; font-size: 0.82rem;
-  color: var(--text-2); margin: 0.4rem 0 0;
-}
-.trainer-modal-collection { margin-top: 0.25rem; }
 .trainer-shiny-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
   gap: 0.75rem; margin-top: 0.4rem;
@@ -2458,11 +2390,6 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .rank-pkmn-scientist   { background: rgba(0,180,140,0.10); color: #00b88a; border: 1px solid rgba(0,180,140,0.28); font-weight: 800; }
 
 /* ── Online indicator ────────────────────────────────────────── */
-.trainer-online-dot {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: #00d68f; box-shadow: 0 0 5px rgba(0,214,143,0.6);
-  margin-right: 5px; vertical-align: middle; flex-shrink: 0;
-}
 
 /* ── Raid finder ─────────────────────────────────────────────── */
 .raid-own-notice {
