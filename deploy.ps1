@@ -67,7 +67,12 @@ function Put([string]$src, [string]$dst) {
     for ($r = 1; $r -le $rounds; $r++) {
         for ($i = 1; $i -le $attempts; $i++) {
             & scp @ssh (Join-Path $root $src) "${target}:${dst}"
-            if ($LASTEXITCODE -eq 0) { return }
+            if ($LASTEXITCODE -eq 0) {
+                if ($r -gt 1 -or $i -gt 1) {
+                    Write-Host "    succeeded on attempt $i (round $r)" -ForegroundColor Green
+                }
+                return
+            }
             Write-Host "    attempt $i/$attempts failed (round $r)" -ForegroundColor Yellow
         }
         if ($r -lt $rounds) {
@@ -91,7 +96,12 @@ function PutBinary([string]$src, [string]$dst) {
     for ($r = 1; $r -le $rounds; $r++) {
         for ($i = 1; $i -le $attempts; $i++) {
             cmd /c $cmdStr
-            if ($LASTEXITCODE -eq 0) { return }
+            if ($LASTEXITCODE -eq 0) {
+                if ($r -gt 1 -or $i -gt 1) {
+                    Write-Host "    succeeded on attempt $i (round $r)" -ForegroundColor Green
+                }
+                return
+            }
             Write-Host "    attempt $i/$attempts failed (round $r)" -ForegroundColor Yellow
         }
         if ($r -lt $rounds) {

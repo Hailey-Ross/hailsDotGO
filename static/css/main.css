@@ -3708,3 +3708,18 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   color: var(--text-2);
 }
 .report-reported a { color: var(--red); font-weight: 600; }
+
+/* Unverified-email banner (base.html, shown until the address is confirmed) */
+.verify-banner {
+  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  flex-wrap: wrap; padding: 0.5rem 1rem;
+  background: rgba(91,156,246,0.1); border-bottom: 1px solid rgba(91,156,246,0.3);
+  color: #9cc3fa; font-size: 0.85rem;
+}
+.verify-banner-form { display: inline; margin: 0; }
+.verify-banner-btn {
+  background: none; border: 1px solid rgba(91,156,246,0.5); border-radius: var(--r-sm);
+  color: #9cc3fa; font-size: 0.8rem; font-weight: 600;
+  padding: 0.2rem 0.7rem; cursor: pointer;
+}
+.verify-banner-btn:hover { background: rgba(91,156,246,0.2); }

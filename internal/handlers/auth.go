@@ -222,6 +222,9 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Soft verify: confirmation email only; nothing is gated on it.
+	h.sendVerificationEmail(uint(id), username, email)
+
 	token, err := auth.CreateSession(h.db, uint(id))
 	if err != nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)

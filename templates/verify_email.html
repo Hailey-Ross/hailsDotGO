@@ -1,0 +1,25 @@
+{{define "title"}}{{T "verify.title"}}{{end}}
+
+{{define "content"}}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1 class="auth-title">{{T "verify.title"}}</h1>
+
+    {{if .Data.Success}}
+    <div class="auth-info">{{T "verify.success"}}</div>
+    {{else if .Data.Sent}}
+    <div class="auth-info">{{T "verify.sent"}}</div>
+    {{else}}
+    <div class="auth-error">{{T "verify.invalid"}}</div>
+    {{if .User}}
+    <form method="POST" action="/resend-verification" class="auth-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn-primary auth-btn">{{T "verify.resend"}}</button>
+    </form>
+    {{end}}
+    {{end}}
+
+    <p class="auth-alt"><a href="/">{{T "verify.back_home"}}</a></p>
+  </div>
+</div>
+{{end}}

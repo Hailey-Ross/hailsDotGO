@@ -73,6 +73,25 @@ func (m *Mailer) Send(to, subject, htmlBody, textBody string) error {
 	return nil
 }
 
+// VerificationEmail builds the address confirmation message sent at signup
+// and on resend. link must be an absolute https URL. The 24 hour wording
+// matches the verify token TTL.
+func VerificationEmail(username, link string) (subject, htmlBody, textBody string) {
+	subject = "Confirm your hailsDotGO email address"
+	u := html.EscapeString(username)
+	l := html.EscapeString(link)
+	htmlBody = fmt.Sprintf(`<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+<h2 style="color:#333">Confirm your email</h2>
+<p>Hi %s,</p>
+<p>Welcome to hailsDotGO! Click the button below within 24 hours to confirm this email address belongs to you:</p>
+<p style="text-align:center;margin:24px 0"><a href="%s" style="background:#5b9cf6;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;display:inline-block">Confirm email</a></p>
+<p style="font-size:13px;color:#666">Or copy this link into your browser:<br>%s</p>
+<p style="font-size:13px;color:#666">If you did not create a hailsDotGO account, you can ignore this email.</p>
+</div>`, u, l, l)
+	textBody = fmt.Sprintf("Hi %s,\n\nWelcome to hailsDotGO! Open this link within 24 hours to confirm this email address belongs to you:\n\n%s\n\nIf you did not create a hailsDotGO account, you can ignore this email.\n", username, link)
+	return subject, htmlBody, textBody
+}
+
 // PasswordResetEmail builds the password reset message. link must be an
 // absolute https URL. The one hour wording matches the reset token TTL.
 func PasswordResetEmail(username, link string) (subject, htmlBody, textBody string) {

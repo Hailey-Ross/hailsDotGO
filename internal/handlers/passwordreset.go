@@ -199,6 +199,11 @@ func (h *Handlers) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.db.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID); err != nil {
 		log.Printf("reset password: clear sessions for user %d: %v", userID, err)
 	}
+	// Retire any other outstanding reset tokens; a completed reset must leave
+	// no live recovery path behind.
+	if _, err := h.db.Exec(`UPDATE email_tokens SET used_at = NOW() WHERE user_id = ? AND purpose = ? AND used_at IS NULL`, userID, purposeReset); err != nil {
+		log.Printf("reset password: retire tokens for user %d: %v", userID, err)
+	}
 
 	h.render(w, r, "reset_password", resetPageData{Success: true})
 }
