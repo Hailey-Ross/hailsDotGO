@@ -6,7 +6,7 @@
 // Usage:
 //
 //	migrate -status                 show applied vs pending sections
-//	migrate -from v0.1.3a           baseline an untracked install, then apply the rest
+//	migrate -from v0.1.4a           baseline an untracked install, then apply the rest
 //	migrate -dry-run                show what would run, change nothing
 //	migrate -to 40                  apply only up to section 40
 //	migrate -baseline current       record all sections as applied without running them
@@ -33,8 +33,8 @@ func main() {
 		file     = flag.String("file", "migrate.sql", "path to migrate.sql")
 		status   = flag.Bool("status", false, "show applied vs pending sections and exit")
 		dryRun   = flag.Bool("dry-run", false, "show what would be applied without changing anything")
-		from     = flag.String("from", "", "baseline an untracked install at this version (e.g. v0.1.3a), then apply the rest")
-		baseline = flag.String("baseline", "", "record sections as applied WITHOUT running them: a version (e.g. v0.1.3a) or 'current'")
+		from     = flag.String("from", "", "baseline an untracked install at this version (e.g. v0.1.4a), then apply the rest")
+		baseline = flag.String("baseline", "", "record sections as applied WITHOUT running them: a version (e.g. v0.1.4a) or 'current'")
 		to       = flag.Int("to", 0, "apply only up to and including this section number (0 = all)")
 		yes      = flag.Bool("yes", false, "skip the confirmation prompt")
 		dumpSeed = flag.Bool("dump-seed", false, "print the schema_migrations seed INSERT for schema.sql and exit")
@@ -97,7 +97,7 @@ func main() {
 	if len(applied) == 0 && *from == "" {
 		fmt.Fprintln(os.Stderr, "This database has no migration history yet.")
 		fmt.Fprintln(os.Stderr, "Re-run with -from <your installed version> so the tool knows what is already applied, e.g.:")
-		fmt.Fprintln(os.Stderr, "    migrate -from v0.1.3a")
+		fmt.Fprintln(os.Stderr, "    migrate -from v0.1.4a")
 		fmt.Fprintln(os.Stderr, "\nKnown versions and the highest section each had applied:")
 		for _, v := range migrate.KnownVersions() {
 			fmt.Fprintf(os.Stderr, "    %-8s -> through section %d\n", v, migrate.BaselineVersions[v])
