@@ -127,6 +127,16 @@
 </div>
 {{end}}
 
+{{if and .User (not .User.EmailVerified)}}
+<div class="verify-banner">
+  <span>{{T "verify.banner_text"}}</span>
+  <form method="POST" action="/resend-verification" class="verify-banner-form">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    <button type="submit" class="verify-banner-btn">{{T "verify.banner_resend"}}</button>
+  </form>
+</div>
+{{end}}
+
 <main class="container">
   {{block "content" .}}{{end}}
 </main>

@@ -131,6 +131,8 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(httprate.LimitByIP(3, time.Minute)).Post("/forgot-password", h.ForgotPassword)
 		r.Get("/reset-password", h.ResetPasswordPage)
 		r.With(httprate.LimitByIP(5, time.Minute)).Post("/reset-password", h.ResetPassword)
+		r.Get("/verify-email", h.VerifyEmail)
+		r.With(httprate.LimitByIP(2, time.Minute)).Post("/resend-verification", h.RequireAuth(h.ResendVerification))
 		r.Post("/logout", h.Logout)
 		r.Post("/lang", h.SetLang)
 

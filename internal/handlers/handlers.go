@@ -166,7 +166,7 @@ func (h *Handlers) loadTemplates() {
 		"home", "raids", "dps", "pvp", "events", "iv", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
-		"forgot_password", "reset_password",
+		"forgot_password", "reset_password", "verify_email",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(

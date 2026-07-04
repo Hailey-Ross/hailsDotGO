@@ -196,6 +196,15 @@
   "reset.success":     "Your password has been updated and all devices have been logged out. Log in with your new password.",
   "reset.login_link":  "Go to login",
 
+  "verify.title":         "Email confirmation",
+  "verify.success":       "Your email address is confirmed. Thanks!",
+  "verify.sent":          "A confirmation email is on its way to your address. The link is valid for 24 hours.",
+  "verify.invalid":       "This confirmation link is invalid or has expired.",
+  "verify.resend":        "Send a new confirmation email",
+  "verify.back_home":     "Back to home",
+  "verify.banner_text":   "Please confirm your email address. Check your inbox for the confirmation link.",
+  "verify.banner_resend": "Resend email",
+
   "register.title":        "Create account",
   "register.subtitle":     "Your Pokémon GO hub: raids, shiny collection, trainer profiles, and more to come.",
   "register.username":     "Username",
