@@ -12,7 +12,7 @@ A fan-made Pokémon GO companion web app built in Go.
 - Community feedback (positive/neutral/negative trainer reviews) visible on every trainer profile
 - In-app bug reports ("Report Me Not") with a threaded reporter and staff messenger, labels, assignments, canned responses, and satisfaction ratings
 - Player reporting for bad actors (spoofing, harassment, and more) routed to a shared moderator queue
-- User accounts (open or invite-only registration), staff roles, strikes, tags, and awards
+- User accounts (open or invite-only registration) with signup email confirmation and self-service password reset by email, plus staff roles, strikes, tags, and awards
 - Supporter store with optional donation perks (PayPal)
 - Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates
 - Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
@@ -66,6 +66,8 @@ make setup
 # 2. Configure environment
 cp .env.example .env
 # edit .env with your database credentials and SUPERADMIN_USER
+# optional: RESEND_API_KEY and MAIL_FROM enable transactional email
+# (password reset, signup confirmation); everything works without them
 
 # 3. Create the database
 mysql -u youruser -p yourdbname < schema.sql
@@ -80,7 +82,7 @@ Visit [http://localhost:8080](http://localhost:8080).
 The [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) wiki page covers the rest: creating the first admin account, the CSRF key, and platform notes. Upgrading an existing install? Use the migrate tool instead of `schema.sql`:
 
 ```bash
-go run ./cmd/migrate -from v0.1.3a   # baseline at your version, then apply what is pending
+go run ./cmd/migrate -from v0.1.4a   # baseline at your version, then apply what is pending
 go run ./cmd/migrate                 # every upgrade after that
 ```
 

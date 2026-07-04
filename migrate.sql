@@ -2,7 +2,7 @@
 -- New installs: run schema.sql only. Do not run this file on a fresh database.
 --
 -- RECOMMENDED: let the migrate tool apply the right sections for you:
---   go run ./cmd/migrate -from <your version>   (first time, e.g. -from v0.1.3a)
+--   go run ./cmd/migrate -from <your version>   (first time, e.g. -from v0.1.4a)
 --   go run ./cmd/migrate                         (every upgrade after that)
 --   go run ./cmd/migrate -status                 (see applied vs pending)
 -- The tool tracks applied sections in a schema_migrations table and only runs

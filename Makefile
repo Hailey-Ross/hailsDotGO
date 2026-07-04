@@ -22,7 +22,7 @@ clean:
 	rm -f hailsDotGO static/js/*.js migrate
 
 # Upgrade an existing database to the latest schema (reads env: DB_HOST/DB_USER/DB_PASS/DB_NAME).
-# Pass extra flags via ARGS, e.g.: make migrate ARGS="-from v0.1.3a"
+# Pass extra flags via ARGS, e.g.: make migrate ARGS="-from v0.1.4a"
 migrate:
 	go run ./cmd/migrate $(ARGS)
 
