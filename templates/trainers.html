@@ -37,29 +37,7 @@
     {{$noProfile := and (eq .TrainerName "") (eq .TrainerCode "")}}
     <div class="trainer-card fade-up"
          data-name="{{$displayName}}"
-         data-username="{{.Username}}"
-         data-asterisk="{{if $noProfile}}1{{else}}0{{end}}"
-         data-has-profile="{{if .ProfilePublic}}1{{else}}0{{end}}"
-         data-avatar="{{.AvatarURL}}"
-         data-pronouns="{{if .ProfilePublic}}{{.Pronouns}}{{end}}"
-         data-code="{{if and .ProfilePublic $.User}}{{.TrainerCode}}{{end}}"
-         data-location-display="{{if .ProfilePublic}}{{.LocationDisplay}}{{end}}"
-         data-region="{{if .ProfilePublic}}{{.Region}}{{end}}"
-         data-country="{{if .ProfilePublic}}{{.Country}}{{end}}"
-         data-fav-url="{{.FavSpriteURL}}"
-         data-fav-name="{{.FavPokemon}}"
-         data-fav-form="{{.FavPokemonForm}}"
-         data-badge="{{.StaffBadge}}"
-         data-special="{{.SpecialRank}}"
-         data-rank="{{.RaidRank}}"
-         data-rank-class="{{.RaidRankClass}}"
-         data-xp="{{.RaidXP}}"
-         data-joined="{{.JoinedAt.Format "2006-01-02"}}"
-         data-online="{{if .Online}}1{{else}}0{{end}}"
-         data-tag-names="{{range $i,$t := .Tags}}{{if $i}}|{{end}}{{$t.Name}}{{end}}"
-         data-tag-colors="{{range $i,$t := .Tags}}{{if $i}}|{{end}}{{$t.Color}}{{end}}"
-         data-super-donator="{{if .SuperDonator}}1{{else}}0{{end}}"
-         data-shinies-hidden="{{if .ShiniesHidden}}1{{else}}0{{end}}">
+         data-username="{{.Username}}">
       <div class="trainer-card-header">
         <div class="trainer-sprite-group">
           {{if .FavSpriteURL}}
@@ -131,74 +109,18 @@
 </div>
 {{end}}
 
-<!-- ── Trainer profile modal ─────────────────────────────────── -->
-<div id="trainer-modal-overlay" class="trainer-modal-overlay" style="display:none" aria-modal="true" role="dialog">
-  <div class="trainer-modal" id="trainer-modal">
-    <button class="trainer-modal-close" id="trainer-modal-close" aria-label="{{T "trainers.modal_close"}}">&times;</button>
-    <div class="trainer-modal-header">
-      <div class="trainer-modal-sprites" id="trainer-modal-sprites"></div>
-      <div id="trainer-modal-identity"></div>
-    </div>
-    <div class="trainer-modal-body" id="trainer-modal-body"></div>
-  </div>
-</div>
 {{end}}
 
 {{define "scripts"}}
 <script>
 const RF = {
-  trainerS:      {{T "raidfinder.trainer_s"}},
-  trainerP:      {{T "raidfinder.trainer_p"}},
-  trainerSince:  {{T "raidfinder.trainer_since"}},
-  formShadow:    {{T "raidfinder.form_shadow"}},
-  formShiny:     {{T "raidfinder.form_shiny"}},
-  formPrimal:    {{T "raidfinder.form_primal"}},
-  copy:          {{T "raidfinder.copy"}},
-  copied:        {{T "raidfinder.copied"}},
-  rankTrusted:   {{T "rank.trusted"}},
-  rankCC:        {{T "rank.content_creator"}},
-  roleSuper:     {{T "admin.js.role_superadmin"}},
-  roleAdmin:     {{T "admin.js.role_admin"}},
-  roleMod:       {{T "admin.js.role_mod"}},
-  roleTester:    {{T "admin.js.role_tester"}},
-  avatarAlt:     {{T "trainers.avatar_alt"}},
-  online:        {{T "trainers.online"}},
-  asteriskTitle: {{T "trainers.asterisk_title"}},
-  donator:       {{T "trainers.donator_badge"}},
-  fallbackName:      {{T "trainers.trainer_fallback"}},
-  myCollection:      {{T "trainers.my_collection"}},
-  collectionEmpty:   {{T "trainers.collection_empty"}},
-  collectionLoading: {{T "trainers.collection_loading"}},
-  formPurified:      {{T "raidfinder.form_purified"}},
-  methodWild:        {{T "shinies.js.method_wild"}},
-  methodEgg:         {{T "shinies.js.method_egg"}},
-  methodRaid:        {{T "shinies.js.method_raid"}},
-  methodResearch:    {{T "shinies.js.method_research"}},
-  methodEvolution:   {{T "shinies.js.method_evolution"}},
-  methodPhotobomb:   {{T "shinies.js.method_photobomb"}},
-  methodTrade:       {{T "shinies.js.method_trade"}},
-  methodGoTour:      {{T "shinies.js.method_go_tour"}},
+  trainerS: {{T "raidfinder.trainer_s"}},
+  trainerP: {{T "raidfinder.trainer_p"}},
 };
 
 </script>
 <script>
 (function() {
-
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  function staffIcon(badge) {
-    var icons = {superadmin: '👑', admin: '💎', moderator: '🏅', tester: '🧪'};
-    var labels = {superadmin: RF.roleSuper, admin: RF.roleAdmin, moderator: RF.roleMod, tester: RF.roleTester};
-    return icons[badge] ? '<span class="staff-icon" title="' + labels[badge] + '">' + icons[badge] + '</span>' : '';
-  }
-
-  function specialIcon(rank) {
-    if (rank === 'trusted') return '<span class="staff-icon" title="' + RF.rankTrusted + '">✅</span>';
-    if (rank === 'content_creator') return '<span class="staff-icon" title="' + RF.rankCC + '">🎬</span>';
-    return '';
-  }
 
   // ── Trainer Directory ────────────────────────────────────────
   var cards = Array.from(document.querySelectorAll('.trainer-card'));
@@ -220,261 +142,11 @@ const RF = {
     });
   }
 
-  // ── Trainer profile modal ─────────────────────────────────────
-  var modalOverlay = document.getElementById('trainer-modal-overlay');
-  var modalClose   = document.getElementById('trainer-modal-close');
-  var DEFAULT_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 20a8 8 0 1 0-16 0"/></svg>';
-
-  function closeTrainerModal() {
-    modalOverlay.style.display = 'none';
-    document.body.style.overflow = '';
-  }
-
-  if (modalClose) modalClose.addEventListener('click', closeTrainerModal);
-  if (modalOverlay) modalOverlay.addEventListener('click', function(e) {
-    if (e.target === modalOverlay) closeTrainerModal();
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && modalOverlay && modalOverlay.style.display !== 'none') closeTrainerModal();
-  });
-
-  var METHOD_ICONS = {wild:'🌿',egg:'🥚',raid:'⚔️',research:'📋',evolution:'⬆️',photobomb:'📸',trade:'🤝',go_tour:'🎟️'};
-  var METHOD_LABELS = {wild:RF.methodWild,egg:RF.methodEgg,raid:RF.methodRaid,research:RF.methodResearch,evolution:RF.methodEvolution,photobomb:RF.methodPhotobomb,trade:RF.methodTrade,go_tour:RF.methodGoTour};
-
-  function renderCollection(el, items) {
-    el.innerHTML = '';
-    if (!items || !items.length) {
-      var empty = document.createElement('p');
-      empty.className = 'trainer-collection-empty';
-      empty.textContent = RF.collectionEmpty;
-      el.appendChild(empty);
-      return;
-    }
-    var grid = document.createElement('div');
-    grid.className = 'trainer-shiny-grid';
-    items.forEach(function(item) {
-      if (!item.sprite_url) return;
-      var cell = document.createElement('div');
-      cell.className = 'trainer-shiny-item';
-      var img = document.createElement('img');
-      img.src = item.sprite_url;
-      img.alt = item.pokemon_id;
-      img.width = 48;
-      img.height = 48;
-      cell.appendChild(img);
-      var name = document.createElement('span');
-      name.className = 'trainer-shiny-name';
-      name.textContent = item.pokemon_id;
-      cell.appendChild(name);
-      if (item.form === 'shadow' || item.form === 'purified') {
-        var badge = document.createElement('span');
-        badge.className = 'trainer-shiny-form-badge';
-        badge.textContent = item.form === 'shadow' ? RF.formShadow : RF.formPurified;
-        cell.appendChild(badge);
-      }
-      if (item.costume || item.event_tag) {
-        var sub = document.createElement('span');
-        sub.className = 'trainer-shiny-sub';
-        var subParts = [];
-        if (item.costume)   subParts.push(item.costume);
-        if (item.event_tag) subParts.push(item.event_tag);
-        sub.textContent = subParts.join(' · ');
-        cell.appendChild(sub);
-      }
-      if (item.method) {
-        var method = document.createElement('span');
-        method.className = 'trainer-shiny-method';
-        method.textContent = (METHOD_ICONS[item.method] || '') + ' ' + (METHOD_LABELS[item.method] || item.method);
-        cell.appendChild(method);
-      }
-      grid.appendChild(cell);
-    });
-    el.appendChild(grid);
-  }
-
-  function openTrainerModal(d) {
-    var spritesEl  = document.getElementById('trainer-modal-sprites');
-    var identityEl = document.getElementById('trainer-modal-identity');
-    var bodyEl     = document.getElementById('trainer-modal-body');
-    spritesEl.innerHTML  = '';
-    identityEl.innerHTML = '';
-    bodyEl.innerHTML     = '';
-
-    // Sprites
-    var wrap = document.createElement('div');
-    wrap.className = 'trainer-modal-sprite-wrap';
-
-    if (d.favUrl) {
-      var favImg = document.createElement('img');
-      favImg.className = 'trainer-modal-fav-sprite' + (d.favForm === 'shadow' ? ' poke-shadow' : '');
-      favImg.src = d.favUrl;
-      favImg.alt = d.favName || 'Pokémon';
-      wrap.appendChild(favImg);
-    }
-
-    if (d.avatar) {
-      var avatarImg = document.createElement('img');
-      avatarImg.className = 'trainer-modal-avatar-sprite';
-      avatarImg.src = d.avatar;
-      avatarImg.alt = RF.avatarAlt;
-      wrap.appendChild(avatarImg);
-    } else {
-      var defEl = document.createElement('span');
-      defEl.className = 'trainer-avatar-sm avatar--default trainer-modal-avatar-default';
-      defEl.innerHTML = DEFAULT_SVG;
-      wrap.appendChild(defEl);
-    }
-    spritesEl.appendChild(wrap);
-
-    // Name line → header identity zone
-    var nameLine = document.createElement('div');
-    nameLine.className = 'trainer-modal-name-line';
-    var onlineDot = d.online === '1' ? '<span class="trainer-online-dot" title="' + esc(RF.online) + '"></span>' : '';
-    var hasProfile = d.hasProfile === '1';
-    var nameClass = d.superDonator === '1' ? 'trainer-modal-name rainbow-name' : 'trainer-modal-name';
-    var donatorBadge = d.superDonator === '1' ? '<span class="donator-badge">' + esc(RF.donator) + '</span>' : '';
-    var asterisk = d.asterisk === '1' ? '<span class="trainer-asterisk" title="' + esc(RF.asteriskTitle) + '">*</span>' : '';
-    nameLine.innerHTML = onlineDot + '<span class="' + nameClass + '">' + esc(d.name || d.username || RF.fallbackName) + '</span>' + asterisk + staffIcon(d.badge) + specialIcon(d.special) + donatorBadge;
-    identityEl.appendChild(nameLine);
-
-    // Meta line: pronouns + location combined → header identity zone
-    var metaParts = [];
-    if (d.pronouns) metaParts.push('(' + d.pronouns + ')');
-    var locText = '';
-    if (d.locationDisplay === 'country' && d.country) {
-      locText = '📍 ' + d.country;
-    } else if (d.locationDisplay === 'full') {
-      if (d.region && d.country) locText = '📍 ' + d.region + ', ' + d.country;
-      else if (d.country) locText = '📍 ' + d.country;
-      else if (d.region) locText = '📍 ' + d.region;
-    }
-    if (locText) metaParts.push(locText);
-    if (metaParts.length) {
-      var metaEl = document.createElement('div');
-      metaEl.className = 'trainer-modal-meta';
-      metaEl.textContent = metaParts.join(' · ');
-      identityEl.appendChild(metaEl);
-    }
-
-    // Rank badge + user tags → body (first)
-    if (d.rank || d.tagNames) {
-      var rowEl = document.createElement('div');
-      rowEl.className = 'trainer-tags';
-      if (d.rank) {
-        var rankEl = document.createElement('span');
-        rankEl.className = 'rank-badge rank-' + d.rankClass;
-        rankEl.textContent = d.rank;
-        rowEl.appendChild(rankEl);
-      }
-      if (d.tagNames) {
-        var names  = d.tagNames.split('|');
-        var colors = (d.tagColors || '').split('|');
-        names.forEach(function(name, i) {
-          var pill = document.createElement('span');
-          pill.className = 'user-tag';
-          pill.style.background = colors[i] || '#888';
-          pill.textContent = name;
-          rowEl.appendChild(pill);
-        });
-      }
-      bodyEl.appendChild(rowEl);
-    }
-
-    // Trainer code → body
-    if (d.code) {
-      var codeRow = document.createElement('div');
-      codeRow.className = 'trainer-modal-code-row';
-      var codeDisplay = d.code.length === 12 ? d.code.slice(0,4)+' '+d.code.slice(4,8)+' '+d.code.slice(8) : d.code;
-      var copyBtn = document.createElement('button');
-      copyBtn.className = 'trainer-copy-btn';
-      copyBtn.textContent = RF.copy;
-      copyBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        navigator.clipboard.writeText(d.code).then(function() {
-          copyBtn.textContent = RF.copied; copyBtn.classList.add('trainer-copy-btn--done');
-          setTimeout(function() { copyBtn.textContent = RF.copy; copyBtn.classList.remove('trainer-copy-btn--done'); }, 1500);
-        });
-      });
-      codeRow.innerHTML = '<span class="trainer-modal-code">' + esc(codeDisplay) + '</span>';
-      codeRow.appendChild(copyBtn);
-      bodyEl.appendChild(codeRow);
-    }
-
-    // Footer: fav Pokémon + join date → body
-    var footerParts = [];
-    if (d.favName) {
-      var formLabels = {shadow: RF.formShadow, shiny: RF.formShiny, primal: RF.formPrimal};
-      footerParts.push('❤ ' + (formLabels[d.favForm] ? formLabels[d.favForm] + ' ' : '') + d.favName);
-    }
-    if (d.joined) footerParts.push(RF.trainerSince + ' ' + d.joined);
-    if (footerParts.length) {
-      var footerEl = document.createElement('div');
-      footerEl.className = 'trainer-modal-footer';
-      footerEl.textContent = footerParts.join(' · ');
-      bodyEl.appendChild(footerEl);
-    }
-
-    // Awards (lazy fetch; same award from multiple granters stacks as xN)
-    if (d.username) {
-      fetch('/api/awards/of/' + encodeURIComponent(d.username))
-        .then(function(r) { return r.ok ? r.json() : []; })
-        .then(function(grants) {
-          if (!grants || !grants.length) return;
-          var byAward = {};
-          grants.forEach(function(g) {
-            if (!byAward[g.award_id]) byAward[g.award_id] = { g: g, n: 0 };
-            byAward[g.award_id].n++;
-          });
-          var awardsEl = document.createElement('div');
-          awardsEl.className = 'trainer-tags';
-          Object.keys(byAward).forEach(function(k) {
-            var e = byAward[k];
-            var pill = document.createElement('span');
-            pill.className = 'user-tag';
-            pill.style.background = e.g.color || '#f0b429';
-            pill.textContent = e.g.icon + ' ' + e.g.name + (e.n > 1 ? ' x' + e.n : '');
-            if (e.g.note) pill.title = e.g.note;
-            awardsEl.appendChild(pill);
-          });
-          bodyEl.appendChild(awardsEl);
-        }).catch(function() {});
-    }
-
-    // My Collection toggle (public profiles with collection not hidden)
-    if (hasProfile && d.shiniesHidden !== '1') {
-      var collLink = document.createElement('button');
-      collLink.className = 'trainer-collection-link';
-      collLink.textContent = RF.myCollection;
-      var collSection = document.createElement('div');
-      collSection.className = 'trainer-modal-collection';
-      collSection.style.display = 'none';
-      var collLoaded = false;
-      collLink.addEventListener('click', function() {
-        if (collSection.style.display !== 'none') {
-          collSection.style.display = 'none';
-          return;
-        }
-        collSection.style.display = '';
-        if (!collLoaded) {
-          collLoaded = true;
-          collSection.innerHTML = '<span class="trainer-collection-loading">' + esc(RF.collectionLoading) + '</span>';
-          fetch('/api/shinies/of/' + encodeURIComponent(d.username))
-            .then(function(r) { return r.ok ? r.json() : []; })
-            .then(function(items) { renderCollection(collSection, items); })
-            .catch(function() { renderCollection(collSection, []); });
-        }
-      });
-      bodyEl.appendChild(collLink);
-      bodyEl.appendChild(collSection);
-    }
-
-    modalOverlay.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  }
-
+  // Cards navigate to the trainer's profile page; inner links and buttons keep their own behavior.
   cards.forEach(function(card) {
     card.addEventListener('click', function(e) {
-      openTrainerModal(card.dataset);
+      if (e.target.closest('a, button')) return;
+      window.location.href = '/trainer/' + encodeURIComponent(card.dataset.username);
     });
   });
 
