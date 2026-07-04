@@ -686,3 +686,28 @@ ALTER TABLE bug_reports
   ADD KEY idx_br_reported (reported_user_id),
   ADD CONSTRAINT fk_br_reported FOREIGN KEY (reported_user_id) REFERENCES users (id) ON DELETE SET NULL;
 
+
+-- 42. Transactional email: email_verified_at + email_tokens (2026-07-03)
+-- Soft email verification and password reset tokens. Existing accounts are
+-- grandfathered as verified. Raw tokens are never stored, only SHA-256 hashes;
+-- rows are single-use (used_at) and short-lived (expires_at).
+ALTER TABLE users
+  ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER email;
+
+UPDATE users SET email_verified_at = NOW() WHERE email_verified_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    INT UNSIGNED NOT NULL,
+  token_hash CHAR(64)     NOT NULL,
+  purpose    ENUM('verify','reset') NOT NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME     NOT NULL,
+  used_at    DATETIME     NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_token_hash (token_hash),
+  KEY idx_et_user (user_id, purpose),
+  KEY idx_et_expires (expires_at),
+  CONSTRAINT fk_et_user FOREIGN KEY (user_id)
+    REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

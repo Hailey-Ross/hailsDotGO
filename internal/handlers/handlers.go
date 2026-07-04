@@ -22,6 +22,7 @@ import (
 	"github.com/gorilla/csrf"
 	"pogo.hails.cc/internal/auth"
 	"pogo.hails.cc/internal/i18n"
+	"pogo.hails.cc/internal/mail"
 	"pogo.hails.cc/internal/pogodata"
 )
 
@@ -32,6 +33,7 @@ type Handlers struct {
 	startTime    time.Time
 	assetVersion string
 	notifier     *pushNotifier
+	mailer       *mail.Mailer
 
 	langMu       sync.RWMutex
 	enabledLangs []string // "en" first, then enabled locales rows, sorted
@@ -78,6 +80,7 @@ func New(store *pogodata.Store, db *sql.DB) *Handlers {
 		startTime:    time.Now(),
 		assetVersion: computeAssetVersion(),
 		notifier:     newPushNotifier(),
+		mailer:       mail.New(),
 	}
 	h.loadTemplates()
 	h.reloadLangs()
@@ -163,6 +166,7 @@ func (h *Handlers) loadTemplates() {
 		"home", "raids", "dps", "pvp", "events", "iv", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
+		"forgot_password", "reset_password",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(

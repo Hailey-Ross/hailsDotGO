@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	netmail "net/mail"
 	"net/url"
 	"strings"
 	"time"
@@ -168,6 +169,16 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(password) < 8 {
 		fail(h.t(r, "error.password_length"))
+		return
+	}
+	if len(email) > 254 {
+		fail(h.t(r, "error.email_invalid"))
+		return
+	}
+	// ParseAddress accepts "Name <a@b>" forms; requiring Address == email
+	// limits input to a bare address.
+	if addr, err := netmail.ParseAddress(email); err != nil || addr.Address != email {
+		fail(h.t(r, "error.email_invalid"))
 		return
 	}
 

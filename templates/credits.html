@@ -151,6 +151,23 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-07-03</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Account: self-service password reset by email</h2>
+          <ul class="cl-list">
+            <li>Forgot your password? The login page now links to a reset form: enter your account email and a one-time reset link (valid for one hour) is sent to you</li>
+            <li>Completing a reset signs you out on all devices, so an old or stolen session cannot survive a recovery</li>
+            <li>Reset links are single-use and stored only as secure hashes; requesting a new link invalidates older ones</li>
+            <li>Signup now validates the email address format on the server, so mistyped addresses are caught before the account exists</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-01</div>
       <div class="cl-body">
 
@@ -160,6 +177,15 @@
             <li>The Site Stats tab has a new <strong>Check/Run Scrapers</strong> button beside Force Data Refresh that fetches every scraped source right now (raids, max battles, events, and all PoGoAPI/PokeAPI data) and reports per source whether it is reachable, parses without errors, and matches the live upstream data</li>
             <li>Unlike Force Data Refresh (which only covers the PoGoAPI game data and Pokémon names), this also runs the raids, max battles, and events scrapers, and applies any changed data immediately</li>
             <li>Results show inline as a table: an OK/ERROR badge per source plus item count, payload size, and whether the data was already in sync or freshly updated</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Admin: cleaner, grouped dashboard navigation</h2>
+          <ul class="cl-list">
+            <li>The admin dashboard's long row of tabs is now a grouped sidebar, with related tools organized under named sections: Site Config, Users &amp; Moderation, Community, Localization, Raids, and System</li>
+            <li>On phones the sidebar collapses into a single dropdown that shows the current section and expands to the grouped list when tapped</li>
+            <li>All existing tools and permissions are unchanged; only the layout and navigation were reorganized</li>
           </ul>
         </div>
 

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   id               INT UNSIGNED  NOT NULL AUTO_INCREMENT,
   username         VARCHAR(32)   NOT NULL,
   email            VARCHAR(255)  NOT NULL,
+  email_verified_at DATETIME     NULL DEFAULT NULL,
   lang             VARCHAR(8)    NOT NULL DEFAULT 'en',
   password         VARCHAR(60)   NOT NULL,
   role             ENUM('user','tester','moderator','admin') NOT NULL DEFAULT 'user',
@@ -55,6 +56,24 @@ CREATE TABLE IF NOT EXISTS sessions (
   PRIMARY KEY (token),
   KEY idx_expires (expires_at),
   CONSTRAINT fk_session_user FOREIGN KEY (user_id)
+    REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Email verification / password reset tokens. Raw tokens are emailed to the
+-- user; only the SHA-256 hash is stored. Single-use via used_at.
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    INT UNSIGNED NOT NULL,
+  token_hash CHAR(64)     NOT NULL,
+  purpose    ENUM('verify','reset') NOT NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME     NOT NULL,
+  used_at    DATETIME     NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_token_hash (token_hash),
+  KEY idx_et_user (user_id, purpose),
+  KEY idx_et_expires (expires_at),
+  CONSTRAINT fk_et_user FOREIGN KEY (user_id)
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -634,7 +653,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (38, 'Shiny evolved_at (2026-06-26)'),
   (39, 'Bug report system "Report Me Not" (2026-06-28)'),
   (40, 'Bug reports triage enhancements (2026-06-28)'),
-  (41, 'Player ("bad actor") report system (2026-06-28)');
+  (41, 'Player ("bad actor") report system (2026-06-28)'),
+  (42, 'Transactional email: email_verified_at + email_tokens (2026-07-03)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

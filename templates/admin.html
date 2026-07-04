@@ -11,23 +11,58 @@
 </div>
 {{end}}
 
-<div class="tabs" id="admin-tabs">
-  {{if .User.IsAdmin}}<button class="tab-btn active" data-tab="settings">{{T "admin.tab.settings"}}</button>{{end}}
-  <button class="tab-btn {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
-  <button class="tab-btn" data-tab="raidsv2">{{T "admin.tab.raids"}}</button>
-  <button class="tab-btn" data-tab="awards">{{T "admin.tab.awards"}}</button>
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="tag-requests">{{T "admin.tab.tag_requests"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translator-apps">{{T "admin.tab.translator_apps"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="translations">{{T "admin.tab.translations"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="pages">{{T "admin.tab.pages"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="donations">{{T "admin.tab.donations"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
-  {{if .User.IsAdmin}}<button class="tab-btn" data-tab="sprites">Trainer Avatars</button>{{end}}
-  <button class="tab-btn" data-tab="bugreports">Bug Reports</button>
-  <button class="tab-btn" data-tab="playerreports">Player Reports</button>
-  <button class="tab-btn" data-tab="stats">{{T "admin.tab.stats"}}</button>
-</div>
+<div class="admin-layout">
+  <button type="button" class="admin-nav-toggle" id="admin-nav-toggle" aria-expanded="false">
+    <span class="admin-nav-toggle-label" id="admin-nav-current">{{if .User.IsAdmin}}{{T "admin.tab.settings"}}{{else}}{{T "admin.tab.users"}}{{end}}</span>
+    <span class="admin-nav-caret" aria-hidden="true">&#9662;</span>
+  </button>
+
+  <nav class="admin-nav" id="admin-tabs">
+    {{if .User.IsAdmin}}
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">Site Config</span>
+      <button class="admin-nav-link active" data-tab="settings">{{T "admin.tab.settings"}}</button>
+      <button class="admin-nav-link" data-tab="pages">{{T "admin.tab.pages"}}</button>
+      <button class="admin-nav-link" data-tab="donations">{{T "admin.tab.donations"}}</button>
+    </div>
+    {{end}}
+
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">Users &amp; Moderation</span>
+      <button class="admin-nav-link {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
+      <button class="admin-nav-link" data-tab="bugreports">Bug Reports</button>
+      <button class="admin-nav-link" data-tab="playerreports">Player Reports</button>
+    </div>
+
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">Community</span>
+      <button class="admin-nav-link" data-tab="awards">{{T "admin.tab.awards"}}</button>
+      {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="tags">{{T "admin.tab.tags"}}</button>{{end}}
+      {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="tag-requests">{{T "admin.tab.tag_requests"}}</button>{{end}}
+      {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
+      {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="sprites">Trainer Avatars</button>{{end}}
+    </div>
+
+    {{if .User.IsAdmin}}
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">Localization</span>
+      <button class="admin-nav-link" data-tab="translator-apps">{{T "admin.tab.translator_apps"}}</button>
+      <button class="admin-nav-link" data-tab="translations">{{T "admin.tab.translations"}}</button>
+    </div>
+    {{end}}
+
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">Raids</span>
+      <button class="admin-nav-link" data-tab="raidsv2">{{T "admin.tab.raids"}}</button>
+    </div>
+
+    <div class="admin-nav-group">
+      <span class="admin-nav-heading">System</span>
+      <button class="admin-nav-link" data-tab="stats">{{T "admin.tab.stats"}}</button>
+    </div>
+  </nav>
+
+  <div class="admin-panels">
 
 {{if .User.IsAdmin}}
 <div id="tab-settings" class="tab-panel active">
@@ -710,6 +745,9 @@
   </div>
 </div>
 {{end}}
+
+  </div><!-- .admin-panels -->
+</div><!-- .admin-layout -->
 {{end}}
 
 {{define "scripts"}}
@@ -908,10 +946,12 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
 (function() {
   const tabs = document.getElementById('admin-tabs');
   if (!tabs) return;
+  const navToggle  = document.getElementById('admin-nav-toggle');
+  const navCurrent = document.getElementById('admin-nav-current');
   tabs.addEventListener('click', function(e) {
-    const btn = e.target.closest('.tab-btn');
+    const btn = e.target.closest('.admin-nav-link');
     if (!btn) return;
-    tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    tabs.querySelectorAll('.admin-nav-link').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     const panel = document.getElementById('tab-' + btn.dataset.tab);
@@ -921,7 +961,18 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     if (btn.dataset.tab === 'tags'  && !tagsLoaded)  loadTags();
     if (btn.dataset.tab === 'bugreports' && !brLoaded) initBugReports();
     if (btn.dataset.tab === 'playerreports' && !prLoaded) initPlayerReports();
+    // Mobile: reflect the choice in the collapsed toggle and close the menu
+    if (navCurrent) navCurrent.textContent = btn.textContent.trim();
+    tabs.classList.remove('open');
+    if (navToggle) navToggle.setAttribute('aria-expanded', 'false');
   });
+  // Mobile: toggle the grouped nav open/closed
+  if (navToggle) {
+    navToggle.addEventListener('click', function() {
+      const open = tabs.classList.toggle('open');
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
 })();
 
 // ── Force data refresh (superadmin only) ──────────────────────
@@ -2625,7 +2676,7 @@ async function confirmTaReject(id) {
 const origTabClick = document.getElementById('admin-tabs');
 if (origTabClick) {
   origTabClick.addEventListener('click', function(e) {
-    const btn = e.target.closest('.tab-btn');
+    const btn = e.target.closest('.admin-nav-link');
     if (!btn) return;
     if (btn.dataset.tab === 'tag-requests') loadTagRequests();
     if (btn.dataset.tab === 'translator-apps') loadTranslatorApps();
