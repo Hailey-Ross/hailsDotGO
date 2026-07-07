@@ -15,10 +15,13 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func boolPtr(v bool) *bool { return &v }
 
 // ocrRegion is a percentage-based crop of a full screenshot (fractions 0-1).
 type ocrRegion struct{ x1, y1, x2, y2 float64 }
@@ -116,6 +119,10 @@ func ocrServiceURL() string {
 }
 
 // recognizeText posts image bytes to the OCR service and decodes the response.
+// recognizeTextFn is swappable so tests can inject recorded or synthetic OCR
+// service responses without a live RapidOCR instance.
+var recognizeTextFn = recognizeText
+
 func recognizeText(imgBytes []byte) (*ocrResult, error) {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
@@ -238,7 +245,7 @@ func retryCP(img image.Image) int {
 	if err != nil {
 		return 0
 	}
-	res, err := recognizeText(b)
+	res, err := recognizeTextFn(b)
 	if err != nil || res == nil {
 		return 0
 	}
@@ -251,79 +258,251 @@ func retryCP(img image.Image) int {
 	return best
 }
 
-// ---- Arc detection (mobile CPArcDetector parity -- fallback only) ----
+// ---- Arc detection (GoIV-model level arc) ----
+//
+// The level arc is a semicircle squished vertically by 0.95, centered at
+// (W/2, baselineY) with both endpoints ON the horizontal diameter. The white
+// level dot sits at angle pi*(1+t) where t is LINEAR IN CPM:
+//   t(level) = (CPM(level) - CPM(1)) / (CPM(maxPokeLevel) - CPM(1))
+// Geometry priors were measured from marked 1080x2340 reference screenshots
+// (2026-07-05): endpoints (0.0939W, 0.6172W) and (0.9050W, 0.6172W). All
+// vertical quantities anchor to WIDTH, not height: the arc scales with screen
+// width while total height varies with device aspect ratio. Per-image endpoint
+// auto-detection refines the priors when the arc tips are visible.
 
 const (
-	arcCXFrac    = 0.500
-	arcCYFrac    = 0.259
-	arcRFrac     = 0.452
-	arcEmptyDeg  = 195
-	arcFullDeg   = 96
-	arcSpanDeg   = 261
-	arcBrightMin = 580
+	arcPriorCYW   = 0.6172 // arc baseline (endpoint) y as a fraction of width
+	arcPriorRW    = 0.4056 // arc radius as a fraction of width
+	arcSquish     = 0.95   // vertical squish factor (GoIV LEVEL_ARC_SQUISH_FACTOR)
+	arcTipWinW    = 0.040  // half-size of the endpoint search window, fraction of width
+	arcDotMinW    = 0.010  // min white-run through the level dot, fraction of width
+	arcDotMaxW    = 0.028  // max white-run through the level dot, fraction of width
+	arcStrokeMaxW = 0.008  // runs at or below this are the arc stroke, not the dot
 )
 
-func detectArcCP(img image.Image, maxCP int) int {
-	if maxCP <= 0 {
-		return 0
-	}
+type arcReading struct {
+	Level      float64
+	OK         bool
+	Calibrated bool // endpoint tips auto-detected (vs width-fraction priors)
+	RunPx      int  // white-run length through the accepted dot
+}
+
+func isNearWhiteAt(img image.Image, x, y int) bool {
 	b := img.Bounds()
-	fw := float64(b.Max.X - b.Min.X)
-	fh := float64(b.Max.Y - b.Min.Y)
-	cx := fw * arcCXFrac
-	cy := fh * arcCYFrac
-	r := fw * arcRFrac
+	px, py := b.Min.X+x, b.Min.Y+y
+	if px < b.Min.X || px >= b.Max.X || py < b.Min.Y || py >= b.Max.Y {
+		return false
+	}
+	r, g, bl, _ := img.At(px, py).RGBA()
+	return r>>8 > 230 && g>>8 > 230 && bl>>8 > 230
+}
 
-	endpointDeg := arcEmptyDeg
-	endpointStep := arcSpanDeg + 1
-	for step := 0; step <= arcSpanDeg; step++ {
-		deg := ((arcFullDeg-step)%360 + 360) % 360
-		rad := float64(deg-90) * math.Pi / 180
-		x := math.Round(cx + r*math.Cos(rad))
-		y := math.Round(cy + r*math.Sin(rad))
-		if x/fw > 0.83 && y/fh < 0.18 { // camera icon exclusion (mobile-exact)
-			continue
-		}
-		px := b.Min.X + int(x)
-		py := b.Min.Y + int(y)
-		if px < b.Min.X || px >= b.Max.X || py < b.Min.Y || py >= b.Max.Y {
-			continue
-		}
-		rr, gg, bb, _ := img.At(px, py).RGBA()
-		if int(rr>>8)+int(gg>>8)+int(bb>>8) > arcBrightMin { // sum-based brightness (mobile-exact)
-			endpointDeg = deg
-			endpointStep = step
-			break
+// findArcTip locates the bottom tip of the arc stroke inside a search window:
+// the lowest cluster of near-white pixels. Returns the cluster centroid.
+func findArcTip(img image.Image, xLo, xHi, yLo, yHi int) (float64, float64, bool) {
+	maxY := -1
+	for y := yLo; y <= yHi; y++ {
+		for x := xLo; x <= xHi; x++ {
+			if isNearWhiteAt(img, x, y) && isNearWhiteAt(img, x, y-1) {
+				if y > maxY {
+					maxY = y
+				}
+			}
 		}
 	}
-
-	dist := ((endpointDeg - arcEmptyDeg) + 360) % 360
-	fillPct := math.Min(float64(dist)/float64(arcSpanDeg), 1.0)
-	arcCP := int(math.Round(fillPct * float64(maxCP)))
-	log.Printf("OCR arc: maxCP=%d endpointStep=%d endpointDeg=%d xFrac=%.3f yFrac=%.3f fillPct=%.4f arcCP=%d",
-		maxCP, endpointStep, endpointDeg,
-		math.Round(cx+r*math.Cos(float64(endpointDeg-90)*math.Pi/180))/fw,
-		math.Round(cy+r*math.Sin(float64(endpointDeg-90)*math.Pi/180))/fh,
-		fillPct, arcCP)
-	if arcCP <= 10 {
-		return 0
+	if maxY < 0 {
+		return 0, 0, false
 	}
-	return arcCP
+	// Centroid of white pixels in the bottom rows of the cluster.
+	var sx, sy, n float64
+	for y := maxY - 4; y <= maxY; y++ {
+		for x := xLo; x <= xHi; x++ {
+			if isNearWhiteAt(img, x, y) {
+				sx += float64(x)
+				sy += float64(y)
+				n++
+			}
+		}
+	}
+	if n < 6 {
+		return 0, 0, false
+	}
+	return sx / n, sy / n, true
+}
+
+// detectArcLevel reads the Pokemon's level from the white dot on the level
+// arc. Species-independent: only the trainer level (arc endpoint = max
+// power-up level) and the CPM table are needed.
+func detectArcLevel(img image.Image, trainerLevel int, cpms []cpmEntry) arcReading {
+	b := img.Bounds()
+	fw := float64(b.Dx())
+	fh := float64(b.Dy())
+	if fw < 200 || fh <= fw { // landscape or tiny images are not status screens
+		return arcReading{}
+	}
+
+	maxLvl := maxPowerUpLevel(trainerLevel)
+	cpmByLevel := cpmLookup(cpms)
+	base, okBase := cpmByLevel[1.0]
+	top, okTop := cpmByLevel[maxLvl]
+	if !okBase || !okTop || top <= base {
+		return arcReading{}
+	}
+
+	// Geometry: width-anchored priors, refined by endpoint auto-detection.
+	cx := 0.5 * fw
+	cy := arcPriorCYW * fw
+	radius := arcPriorRW * fw
+	calibrated := false
+	win := int(arcTipWinW * fw)
+	lxp := int((0.5 - arcPriorRW) * fw)
+	rxp := int((0.5 + arcPriorRW) * fw)
+	cyp := int(arcPriorCYW * fw)
+	lx, ly, okL := findArcTip(img, lxp-win, lxp+win, cyp-win, cyp+win)
+	rx, ry, okR := findArcTip(img, rxp-win, rxp+win, cyp-win, cyp+win)
+	if okL && okR {
+		sameRow := math.Abs(ly-ry) <= 0.012*fw
+		centered := math.Abs((lx+rx)/2-0.5*fw) <= 0.02*fw
+		radOK := (rx-lx)/2 >= 0.30*fw && (rx-lx)/2 <= 0.48*fw
+		if sameRow && centered && radOK {
+			cx = (lx + rx) / 2
+			cy = (ly + ry) / 2
+			radius = (rx - lx) / 2
+			calibrated = true
+		}
+	}
+	if cy-arcSquish*radius < 0 || cy >= fh {
+		return arcReading{} // arc would leave the frame; not a status screen
+	}
+
+	dotMin := int(arcDotMinW * fw)
+	dotMax := int(arcDotMaxW * fw)
+	strokeMax := int(arcStrokeMaxW * fw)
+
+	// Walk candidate half-levels from the arc maximum down to 1, probing for
+	// a dot-sized white run along the radial normal. Large white shapes
+	// (buddy bubbles, clouds) exceed dotMax; the bare arc stroke stays under
+	// strokeMax; only the level dot fits between.
+	bestLevel, bestScore, bestRun := 0.0, -1, 0
+	for lvl := maxLvl; lvl >= 1; lvl -= 0.5 {
+		cpm, ok := cpmByLevel[lvl]
+		if !ok {
+			continue
+		}
+		t := (cpm - base) / (top - base)
+		theta := math.Pi * (1 + t)
+		px := cx + radius*math.Cos(theta)
+		py := cy + arcSquish*radius*math.Sin(theta)
+		if !isNearWhiteAt(img, int(math.Round(px)), int(math.Round(py))) {
+			continue
+		}
+		nx, ny := math.Cos(theta), arcSquish*math.Sin(theta)
+		nl := math.Hypot(nx, ny)
+		nx, ny = nx/nl, ny/nl
+		pos, neg := 0, 0
+		for off := 1; off <= dotMax+2; off++ {
+			if !isNearWhiteAt(img, int(math.Round(px+float64(off)*nx)), int(math.Round(py+float64(off)*ny))) {
+				break
+			}
+			pos++
+		}
+		for off := 1; off <= dotMax+2; off++ {
+			if !isNearWhiteAt(img, int(math.Round(px-float64(off)*nx)), int(math.Round(py-float64(off)*ny))) {
+				break
+			}
+			neg++
+		}
+		run := pos + neg + 1
+		if run <= strokeMax || run < dotMin || run > dotMax {
+			continue
+		}
+		// Prefer the probe passing closest to the dot center: long run,
+		// balanced on both sides.
+		score := run - int(math.Abs(float64(pos-neg)))
+		if score > bestScore {
+			bestScore = score
+			bestRun = run
+			bestLevel = lvl
+		}
+	}
+	if bestLevel == 0 {
+		return arcReading{Calibrated: calibrated}
+	}
+
+	// Refine tangentially: at high levels the half-level spacing (a few px)
+	// is far smaller than the dot, so several candidates touch it. Measure
+	// the white run ALONG the arc to locate the dot center, then snap to the
+	// nearest half-level.
+	if cpm, ok := cpmByLevel[bestLevel]; ok {
+		t := (cpm - base) / (top - base)
+		theta := math.Pi * (1 + t)
+		// Probe on lines radially offset from the arc: the stroke (which is
+		// also white and runs along the tangent) is ~strokeMax/2 wide, while
+		// the dot bulges well past it, so at this offset only the dot is hit.
+		radialOff := float64(strokeMax)/2 + 2
+		nx, ny := math.Cos(theta), arcSquish*math.Sin(theta)
+		nl := math.Hypot(nx, ny)
+		nx, ny = nx/nl, ny/nl
+		// Tangent (direction of increasing level).
+		tx, ty := -math.Sin(theta), arcSquish*math.Cos(theta)
+		tl := math.Hypot(tx, ty)
+		tx, ty = tx/tl, ty/tl
+		var offsets []float64
+		for _, side := range []float64{radialOff, -radialOff} {
+			bx := cx + radius*math.Cos(theta) + side*nx
+			by := cy + arcSquish*radius*math.Sin(theta) + side*ny
+			if !isNearWhiteAt(img, int(math.Round(bx)), int(math.Round(by))) {
+				continue
+			}
+			posT, negT := 0, 0
+			for off := 1; off <= dotMax; off++ {
+				if !isNearWhiteAt(img, int(math.Round(bx+float64(off)*tx)), int(math.Round(by+float64(off)*ty))) {
+					break
+				}
+				posT++
+			}
+			for off := 1; off <= dotMax; off++ {
+				if !isNearWhiteAt(img, int(math.Round(bx-float64(off)*tx)), int(math.Round(by-float64(off)*ty))) {
+					break
+				}
+				negT++
+			}
+			offsets = append(offsets, float64(posT-negT)/2)
+		}
+		offsetPx := 0.0
+		for _, o := range offsets {
+			offsetPx += o
+		}
+		if len(offsets) > 0 {
+			offsetPx /= float64(len(offsets))
+		}
+		// Pixels of arc per half-level step around bestLevel.
+		if next, ok2 := cpmByLevel[bestLevel+0.5]; ok2 && offsetPx != 0 {
+			perHalf := radius * math.Pi * (next - cpm) / (top - base)
+			if perHalf > 0.5 {
+				halves := math.Round(offsetPx / perHalf)
+				if halves > 2 {
+					halves = 2
+				}
+				if halves < -2 {
+					halves = -2
+				}
+				refined := bestLevel + 0.5*halves
+				if refined >= 1 && refined <= maxLvl {
+					bestLevel = refined
+				}
+			}
+		}
+	}
+	return arcReading{Level: bestLevel, OK: true, Calibrated: calibrated, RunPx: bestRun}
 }
 
 // computeMaxCP returns the max CP for a Pokemon at all-15 IVs at trainer level.
 func computeMaxCP(poke pokemonStatEntry, trainerLevel int, cpms []cpmEntry) int {
-	pokeLvl := float64(trainerLevel + 2)
-	if pokeLvl > 51 {
-		pokeLvl = 51
-	}
-	bestCPM, bestDist := 0.0, math.MaxFloat64
-	for _, e := range cpms {
-		if d := math.Abs(e.Level - pokeLvl); d < bestDist {
-			bestDist = d
-			bestCPM = e.Multiplier
-		}
-	}
+	// Highest level this trainer could have powered the Pokemon up to.
+	// cpmLookup extends the table to 51 (live upstream stops at 45).
+	pokeLvl := maxPowerUpLevel(trainerLevel)
+	bestCPM := cpmLookup(cpms)[pokeLvl]
 	if bestCPM == 0 {
 		return 0
 	}
@@ -337,7 +516,8 @@ func computeMaxCP(poke pokemonStatEntry, trainerLevel int, cpms []cpmEntry) int 
 
 var (
 	reFooterName   = regexp.MustCompile(`This\s+([A-Z][a-z]+(?:[- ][A-Z][a-z]+)?)\s+was\s+caught`)
-	reMegaName     = regexp.MustCompile(`(?i)([A-Za-z][A-Za-z\-]{2,})\s+MEGA\s+ENERGY`)
+	// RapidOCR often drops the spaces ("ALTARIAMEGAENERGY"), so they are optional.
+	reMegaName     = regexp.MustCompile(`(?i)([A-Za-z][A-Za-z\-]{2,}?)\s*MEGA\s*ENERGY`)
 	nameExclusions = map[string]bool{
 		"normal": true, "fire": true, "water": true, "grass": true, "electric": true,
 		"ice": true, "fighting": true, "poison": true, "ground": true, "flying": true,
@@ -448,44 +628,25 @@ func extractHP(fullText string) int {
 	return 0
 }
 
-// ---- Dust detection + normalisation (mobile parity) ----
+// ---- Dust detection ----
 
-var standardDust = []int{
-	200, 400, 800, 1000, 1300, 1600, 1900, 2200, 2500,
-	3000, 3500, 4000, 4500, 5000, 6000, 7000, 8000, 9000,
-	10000, 12000, 15000, 20000,
-}
-
-func standardDustSet() map[int]bool {
-	s := make(map[int]bool, len(standardDust))
-	for _, d := range standardDust {
-		s[d] = true
-	}
-	return s
-}
-
+// buildDisplayableDust derives every dust value the game can display from the
+// base tiers in dustBrackets (iv.go) crossed with the status modifiers in
+// dustMods. Single source of truth: fixing a tier fixes detection too.
 func buildDisplayableDust() []int {
 	seen := make(map[int]bool)
-	for _, d := range standardDust {
-		seen[d] = true
-		seen[d/2] = true
-		seen[int(float64(d)*0.9)] = true
-		seen[d*6] = true
-	}
-	all := make([]int, 0, len(seen))
-	for v := range seen {
-		if v > 0 {
-			all = append(all, v)
-		}
-	}
-	// sort descending
-	for i := 0; i < len(all); i++ {
-		for j := i + 1; j < len(all); j++ {
-			if all[j] > all[i] {
-				all[i], all[j] = all[j], all[i]
+	for _, b := range dustBrackets {
+		for _, m := range dustMods {
+			if v := int(math.Round(float64(b.Dust) * m.Mult)); v > 0 {
+				seen[v] = true
 			}
 		}
 	}
+	all := make([]int, 0, len(seen))
+	for v := range seen {
+		all = append(all, v)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(all)))
 	return all
 }
 
@@ -514,39 +675,28 @@ func detectRawDust(text string) int {
 	return 0
 }
 
-func normaliseDust(rawDust int, isLucky, isPurified, isShadow bool) int {
-	if isLucky {
-		return rawDust * 2
+// summariseDustInterpretations reduces the fuzzy interpretation set to display
+// values for the extracted card: the base tier when every interpretation
+// agrees on it (else the raw value), and status flags only when unambiguous.
+func summariseDustInterpretations(rawDust int, ranges []levelRange) (normDust int, lucky, shadow, purified bool) {
+	normDust = rawDust
+	if len(ranges) == 0 {
+		return
 	}
-	if isPurified {
-		return int(math.Floor(float64(rawDust) * 10.0 / 9.0))
+	tier := ranges[0].BaseTier
+	lucky, shadow, purified = ranges[0].Lucky, ranges[0].Shadow, ranges[0].Purified
+	for _, lr := range ranges[1:] {
+		if lr.BaseTier != tier {
+			tier = 0
+		}
+		lucky = lucky && lr.Lucky
+		shadow = shadow && lr.Shadow
+		purified = purified && lr.Purified
 	}
-	if isShadow {
-		return rawDust / 6
+	if tier != 0 {
+		normDust = tier
 	}
-	return rawDust
-}
-
-func inferDustFlags(rawDust int, isLucky, isPurified, isShadow bool) (bool, bool, bool) {
-	if isLucky || isPurified || isShadow || rawDust == 0 {
-		return isLucky, isPurified, isShadow
-	}
-	stdSet := standardDustSet()
-	if stdSet[rawDust] {
-		return false, false, false
-	}
-	// Lucky: displayed cost = standard / 2
-	if stdSet[rawDust*2] {
-		return true, false, false
-	}
-	purifiedBase := int(math.Round(float64(rawDust) * 10.0 / 9.0))
-	if stdSet[purifiedBase] {
-		return false, true, false
-	}
-	if rawDust%6 == 0 && stdSet[rawDust/6] {
-		return false, false, true
-	}
-	return false, false, false
+	return
 }
 
 // ---- Appraisal star detection (gap-based, mobile AppraisalBarDetector parity) ----
@@ -691,10 +841,60 @@ type ocrExtracted struct {
 	NameSource     string `json:"name_source"`
 	AppraisalBars  int    `json:"appraisal_bars"`
 	IsHundo        bool   `json:"is_hundo"`
-	IsLucky        bool   `json:"is_lucky"`
-	IsShadow       bool   `json:"is_shadow"`
-	IsPurified     bool   `json:"is_purified"`
-	RawCP          string `json:"raw_cp"`
+	IsLucky        bool    `json:"is_lucky"`
+	IsShadow       bool    `json:"is_shadow"`
+	IsPurified     bool    `json:"is_purified"`
+	RawCP          string  `json:"raw_cp"`
+	ArcLevel       float64 `json:"arc_level"` // 0 = arc not read
+}
+
+// unanimousCP returns the CP shared by every candidate, or 0 when they
+// disagree (or there are none).
+func unanimousCP(candidates []IVCandidate) int {
+	cp := 0
+	for _, c := range candidates {
+		if cp == 0 {
+			cp = c.CP
+		} else if c.CP != cp {
+			return 0
+		}
+	}
+	return cp
+}
+
+// runOCRSearch picks the strongest available constraint set for a scan:
+// exact CP + fuzzy dust (with an arc rescue when the CP digits were likely
+// misread), exact CP over all reachable levels when dust is unreadable, or
+// the arc level (+dust intersection) when no trustworthy CP exists.
+// Returns (candidates, bestBuddyAssumed, arcRescueUsed).
+func runOCRSearch(req ivRequest, dustRanges []levelRange, arc arcReading, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool, bool) {
+	switch {
+	case req.CP > 0 && len(dustRanges) > 0:
+		candidates, buddy := enumerateWithBuddyRetry(req, dustRanges, poke, cpms)
+		// Rescue: exact CP+dust matched nothing but the arc pinned a level;
+		// the CP digits were probably misread.
+		if len(candidates) == 0 && arc.OK {
+			cpFree := req
+			cpFree.CP = 0
+			ranges := intersectRangesWithLevel(dustRanges, arc.Level, 0.5)
+			if rescued, b := enumerateWithBuddyRetry(cpFree, ranges, poke, cpms); len(rescued) > 0 {
+				return rescued, b, true
+			}
+		}
+		return candidates, buddy, false
+	case req.CP > 0:
+		// Dust unreadable: exact CP+HP across every reachable level.
+		full := []levelRange{{MinLvl: 1, MaxLvl: maxPowerUpLevel(req.TrainerLevel)}}
+		candidates, buddy := enumerateWithBuddyRetry(req, full, poke, cpms)
+		return candidates, buddy, false
+	default:
+		// No trustworthy CP: arc level (+dust when readable) with HP.
+		cpFree := req
+		cpFree.CP = 0
+		ranges := intersectRangesWithLevel(dustRanges, arc.Level, 0.5)
+		candidates, buddy := enumerateWithBuddyRetry(cpFree, ranges, poke, cpms)
+		return candidates, buddy, false
+	}
 }
 
 // ---- Handler ----
@@ -751,7 +951,7 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	// Neural OCR pass (RapidOCR service). Degrade gracefully if unreachable.
 	var lines []ocrLine
 	fullText := ""
-	if res, err := recognizeText(imgBytes); err != nil {
+	if res, err := recognizeTextFn(imgBytes); err != nil {
 		log.Printf("OCR service error: %v", err)
 	} else {
 		lines = res.Lines
@@ -837,39 +1037,117 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	arcCP := 0
-	if poke != nil {
-		arcCP = detectArcCP(img, computeMaxCP(*poke, trainerLevel, cpms))
+	arc := arcReading{}
+	if len(cpms) > 0 {
+		arc = detectArcLevel(img, trainerLevel, cpms)
 	}
+	log.Printf("OCR arc: ok=%v level=%.1f calibrated=%v runPx=%d", arc.OK, arc.Level, arc.Calibrated, arc.RunPx)
 
 	bestCP := bestTextCP
 	cpSource := "text"
+	// Plausibility: a text CP above the species' absolute max for this trainer
+	// (plus Best-Buddy headroom) is a misread; fall back to the arc level.
+	if bestCP >= 10 && poke != nil {
+		if maxCP := computeMaxCP(*poke, trainerLevel, cpms); maxCP > 0 && bestCP > maxCP*106/100 {
+			log.Printf("OCR CP implausible: bestCP=%d speciesMax=%d, discarding", bestCP, maxCP)
+			bestCP = 0
+		}
+	}
 	if bestCP < 10 {
-		if arcCP > 0 {
-			bestCP = arcCP
-			cpSource = "arc"
+		bestCP = 0
+		if arc.OK {
+			cpSource = "arc-level"
 		} else {
 			cpSource = "none"
 		}
 	}
-	log.Printf("OCR result: pokemon=%q trainerLevel=%d arcCP=%d bestCP=%d source=%s",
-		pokemonName, trainerLevel, arcCP, bestCP, cpSource)
+	log.Printf("OCR result: pokemon=%q trainerLevel=%d arcLevel=%.1f bestCP=%d source=%s",
+		pokemonName, trainerLevel, arc.Level, bestCP, cpSource)
 
 	hp := extractHP(fullText)
 
 	rawDust := detectRawDust(fullText)
-	log.Printf("OCR dust: rawDust=%d", rawDust)
-	isLucky, isPurified, isShadow = inferDustFlags(rawDust, isLucky, isPurified, isShadow)
-	normDust := normaliseDust(rawDust, isLucky, isPurified, isShadow)
-	if normDust == 0 {
-		normDust = rawDust
+	// Text-detected status flags are trusted only when positive: the lucky
+	// banner or shadow/purified marker can be off-frame, so absence must not
+	// exclude those dust interpretations.
+	var luckyFlag, shadowFlag, purifiedFlag *bool
+	if isLucky {
+		luckyFlag = boolPtr(true)
 	}
+	if isShadow {
+		shadowFlag = boolPtr(true)
+	}
+	if isPurified {
+		purifiedFlag = boolPtr(true)
+	}
+	dustRanges := dustCandidates(rawDust, luckyFlag, shadowFlag, purifiedFlag)
+	normDust, dustLucky, dustShadow, dustPurified := summariseDustInterpretations(rawDust, dustRanges)
+	isLucky = isLucky || dustLucky
+	isShadow = isShadow || dustShadow
+	isPurified = isPurified || dustPurified
+	log.Printf("OCR dust: rawDust=%d interpretations=%d normDust=%d", rawDust, len(dustRanges), normDust)
 
 	stars := countStarsFromText(fullText)
 	isHundo := false
 	if stars < 0 && containsWordCI(fullText, "attack") &&
 		containsWordCI(fullText, "defense") && containsWordCI(fullText, "hp") {
 		stars, isHundo = detectStars(cropPct(img, ocrRegionAppraisalScreen))
+	}
+
+	var appraisalBars *int
+	if stars >= 0 {
+		appraisalBars = &stars
+	}
+	baseReq := ivRequest{
+		CP:            bestCP,
+		HP:            hp,
+		DustCost:      rawDust,
+		TrainerLevel:  trainerLevel,
+		AppraisalBars: appraisalBars,
+		IsLucky:       luckyFlag,
+		IsShadow:      shadowFlag,
+		IsPurified:    purifiedFlag,
+	}
+	searchable := hp > 0 && len(cpms) > 0 && (bestCP > 0 || arc.OK)
+
+	// Nickname fallback: no species matched by name, but the candy line names
+	// the family base ("3 MACHOP CANDY" on a mon nicknamed "John Cena").
+	// Disambiguate by which family member's stats actually fit the scan.
+	var speciesCandidates []string
+	if poke == nil && searchable && len(pokeList) > 0 {
+		knownSet := make(map[string]bool, len(pokeList))
+		for i := range pokeList {
+			knownSet[strings.ToLower(pokeList[i].PokemonName)] = true
+		}
+		base := detectCandyBase(fullText, func(n string) bool { return knownSet[strings.ToLower(n)] })
+		if base != "" {
+			type fit struct {
+				poke  *pokemonStatEntry
+				count int
+			}
+			var fits []fit
+			for _, name := range familySpecies(base, h.store.Evolutions()) {
+				sp := findSpecies(pokeList, name)
+				if sp == nil {
+					continue
+				}
+				req := baseReq
+				req.PokemonName = sp.PokemonName
+				if cands, _, _ := runOCRSearch(req, dustRanges, arc, *sp, cpms); len(cands) > 0 {
+					fits = append(fits, fit{sp, len(cands)})
+				}
+			}
+			sort.Slice(fits, func(i, j int) bool { return fits[i].count < fits[j].count })
+			if len(fits) > 0 {
+				poke = fits[0].poke
+				pokemonName = titleCase(poke.PokemonName)
+				nameSource = "candy"
+				for _, f := range fits {
+					speciesCandidates = append(speciesCandidates, titleCase(f.poke.PokemonName))
+				}
+			}
+			log.Printf("OCR candy: base=%q familyFits=%d", base, len(fits))
+		}
 	}
 
 	ext := ocrExtracted{
@@ -887,6 +1165,9 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		IsPurified:     isPurified,
 		RawCP:          strconv.Itoa(cpText) + "/" + strconv.Itoa(cpRetry),
 	}
+	if arc.OK {
+		ext.ArcLevel = arc.Level
+	}
 
 	resp := map[string]any{
 		"extracted":  ext,
@@ -894,25 +1175,60 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		"count":      0,
 		"definitive": false,
 	}
+	if len(speciesCandidates) > 1 {
+		resp["species_candidates"] = speciesCandidates
+	}
 
-	if bestCP > 0 && hp > 0 && normDust > 0 && poke != nil && len(cpms) > 0 {
+	if searchable && poke != nil {
 		resp["pokemon"] = poke
-		var appraisalBars *int
-		if stars >= 0 {
-			appraisalBars = &stars
+		req := baseReq
+		req.PokemonName = pokemonName
+		candidates, buddyAssumed, arcRescue := runOCRSearch(req, dustRanges, arc, *poke, cpms)
+		// The primary CP read produced no exact match (empty or arc-rescued):
+		// pay for the contrast-enhanced re-OCR of the CP zone before settling.
+		// A partial read like "CP17" for 1790 passes the primary validity
+		// check, so the cheap retry never fired earlier in the handler.
+		if (len(candidates) == 0 || arcRescue) && bestCP > 0 && cpRetry == 0 {
+			if rv := retryCP(img); rv >= 10 && rv != bestCP {
+				retryReq := req
+				retryReq.CP = rv
+				if c2, b2, r2 := runOCRSearch(retryReq, dustRanges, arc, *poke, cpms); len(c2) > 0 && !r2 {
+					log.Printf("OCR CP retry recovered: primary=%d retry=%d candidates=%d", bestCP, rv, len(c2))
+					candidates, buddyAssumed, arcRescue = c2, b2, false
+					bestCP = rv
+					ext.CP = rv
+					ext.RawCP = ext.RawCP + "/" + strconv.Itoa(rv)
+					resp["extracted"] = ext
+				}
+			}
 		}
-		req := ivRequest{
-			PokemonName:   pokemonName,
-			CP:            bestCP,
-			HP:            hp,
-			DustCost:      normDust,
-			TrainerLevel:  trainerLevel,
-			AppraisalBars: appraisalBars,
+		if arcRescue {
+			// The rescue proved the text CP wrong (no IV spread matched it).
+			// Correct the extracted card: show the rescued CP when the
+			// candidates agree on one, else clear it. raw_cp keeps the
+			// misread for debugging.
+			ext.CP = unanimousCP(candidates)
+			ext.CPSource = "arc-level"
+			resp["extracted"] = ext
+			log.Printf("OCR arc rescue: textCP=%d correctedCP=%d candidates=%d", bestCP, ext.CP, len(candidates))
 		}
-		candidates := enumerateIVs(req, *poke, cpms)
+		fullCount := len(candidates)
+		if fullCount > 0 {
+			// Aggregate view for wide (CP-free) result sets.
+			resp["iv_summary"] = map[string]any{
+				"max_pct": candidates[0].IVPct,
+				"min_pct": candidates[fullCount-1].IVPct,
+			}
+		}
+		if fullCount > 100 {
+			resp["truncated_from"] = fullCount
+			candidates = candidates[:100]
+		}
 		resp["candidates"] = candidates
-		resp["count"] = len(candidates)
-		resp["definitive"] = len(candidates) == 1
+		resp["count"] = fullCount
+		resp["definitive"] = fullCount == 1
+		resp["best_buddy_assumed"] = buddyAssumed
+		resp["arc_rescue"] = arcRescue
 	}
 
 	w.Header().Set("Content-Type", "application/json")

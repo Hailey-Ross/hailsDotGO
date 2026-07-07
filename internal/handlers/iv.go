@@ -59,20 +59,88 @@ type ivRequest struct {
 	TrainerLevel  int    `json:"trainer_level"`
 	TopStat       string `json:"top_stat"`        // "atk", "def", "sta", or "" to skip filter
 	AppraisalBars *int   `json:"appraisal_bars"` // nil or absent = skip; 0-3 = apply star filter
+	IsLucky       *bool  `json:"is_lucky"`       // nil = unknown; dust interpretations stay fuzzy
+	IsShadow      *bool  `json:"is_shadow"`
+	IsPurified    *bool  `json:"is_purified"`
 }
 
-// dustBrackets maps stardust power-up cost to the level range it implies.
-// Each bracket covers MinLvl through MaxLvl+0.5 (the loop adds an extra half-step).
-// 10,000 dust appears twice (levels 39-40 and 41-42) to cover both regular and XL candy ranges.
-// Purified Pokémon cost 10% less; 5400 is the purified equivalent of the standard 6000 tier.
+// dustBrackets maps the BASE stardust power-up cost to the level range it implies.
+// Each bracket covers MinLvl through MaxLvl+0.5 (levelRange adds the half-step).
+// Tiers change every 2.0 levels, odd-aligned; 15,000 covers only 49-49.5 because
+// level 50 cannot power up. Status discounts (lucky/shadow/purified) are applied
+// on top of these base tiers by dustCandidates, never baked into this table.
 var dustBrackets = []struct{ Dust, MinLvl, MaxLvl int }{
 	{200, 1, 2}, {400, 3, 4}, {600, 5, 6}, {800, 7, 8},
 	{1000, 9, 10}, {1300, 11, 12}, {1600, 13, 14}, {1900, 15, 16},
 	{2200, 17, 18}, {2500, 19, 20}, {3000, 21, 22}, {3500, 23, 24},
 	{4000, 25, 26}, {4500, 27, 28}, {5000, 29, 30},
-	{5400, 31, 32}, {6000, 31, 32}, {7000, 33, 34}, {8000, 35, 36}, {9000, 37, 38},
-	{10000, 39, 40}, {10000, 41, 42},
-	{12000, 43, 44}, {15000, 45, 46}, {17500, 47, 48}, {20000, 49, 51},
+	{6000, 31, 32}, {7000, 33, 34}, {8000, 35, 36}, {9000, 37, 38},
+	{10000, 39, 40}, {11000, 41, 42}, {12000, 43, 44}, {13000, 45, 46},
+	{14000, 47, 48}, {15000, 49, 49},
+}
+
+// dustMods are the status modifiers that change the DISPLAYED dust cost.
+// Shadow excludes lucky and purified (shadows cannot be traded or stay shadow
+// once purified). Best Buddy and friendship never change power-up costs.
+// Every product is an exact integer because all tiers are multiples of 100.
+var dustMods = []struct {
+	Mult                    float64
+	Lucky, Shadow, Purified bool
+}{
+	{1.0, false, false, false},
+	{0.5, true, false, false},
+	{1.2, false, true, false},
+	{0.9, false, false, true},
+	{0.45, true, false, true}, // purified Pokemon received in a lucky trade
+}
+
+// levelRange is one (dust tier, status modifier) interpretation of a scanned
+// dust cost: the level window to sweep plus the flags that explain it.
+type levelRange struct {
+	MinLvl, MaxLvl          float64 // inclusive bounds, swept in 0.5 steps
+	BaseTier                int     // the base dust tier behind this interpretation
+	Lucky, Shadow, Purified bool
+}
+
+// dustCandidates expands a displayed power-up dust cost into every (tier,
+// modifier) interpretation consistent with the status flags. A nil flag means
+// unknown: the lucky banner or shadow aura may simply be off-frame, so both
+// readings stay in play. A non-nil flag is authoritative in both directions
+// (explicit user input on the manual tab).
+func dustCandidates(displayedDust int, lucky, shadow, purified *bool) []levelRange {
+	if displayedDust <= 0 {
+		return nil
+	}
+	match := func(flag *bool, modHas bool) bool { return flag == nil || *flag == modHas }
+	var out []levelRange
+	for _, m := range dustMods {
+		if !match(lucky, m.Lucky) || !match(shadow, m.Shadow) || !match(purified, m.Purified) {
+			continue
+		}
+		for _, b := range dustBrackets {
+			if int(math.Round(float64(b.Dust)*m.Mult)) != displayedDust {
+				continue
+			}
+			out = append(out, levelRange{
+				MinLvl:   float64(b.MinLvl),
+				MaxLvl:   float64(b.MaxLvl) + 0.5,
+				BaseTier: b.Dust,
+				Lucky:    m.Lucky, Shadow: m.Shadow, Purified: m.Purified,
+			})
+		}
+	}
+	return out
+}
+
+// maxPowerUpLevel is the highest level a Pokemon can be powered up to:
+// trainer level + 10, capped at 50. (An active Best Buddy displays stats one
+// level higher; callers handle that with a +1 retry, up to 51.)
+func maxPowerUpLevel(trainerLevel int) float64 {
+	lvl := float64(trainerLevel + 10)
+	if lvl > 50 {
+		lvl = 50
+	}
+	return lvl
 }
 
 // appraisalRange maps PoGo star rating (0-3) to the total IV sum range it implies.
@@ -81,6 +149,39 @@ var appraisalRange = [4][2]int{
 	{23, 29}, // 1 star
 	{30, 36}, // 2 stars
 	{37, 45}, // 3 stars
+}
+
+// cpmLookup builds a level -> CPM map, extends it to level 51, and re-derives
+// the XL half-levels (40.5-50.5) with the game's rules. Needed because the
+// live upstream (pogoapi cp_multiplier.json) currently stops at level 45.0
+// and rounds half-levels to 4 decimals, which breaks the exact-match CP
+// search and the arc inversion (both need precise values through level 50/51).
+// Rules, verified against GoIV/Silph to within 1e-7 on 2026-07-05:
+//   whole levels above 40:  CPM(L+1) = CPM(L) + 0.005
+//   half levels:            CPM(L+0.5) = sqrt((CPM(L)^2 + CPM(L+1)^2) / 2)
+func cpmLookup(cpms []cpmEntry) map[float64]float64 {
+	m := make(map[float64]float64, len(cpms)+22)
+	for _, e := range cpms {
+		m[e.Level] = e.Multiplier
+	}
+	// Whole XL levels first: fill any gap upward from the last known value.
+	for lvl := 41.0; lvl <= 51.0; lvl++ {
+		if _, ok := m[lvl]; ok {
+			continue
+		}
+		if prev, ok := m[lvl-1]; ok {
+			m[lvl] = prev + 0.005
+		}
+	}
+	// Then the XL half-levels from their whole-level neighbours.
+	for lvl := 40.5; lvl <= 50.5; lvl++ {
+		lo, okLo := m[lvl-0.5]
+		hi, okHi := m[lvl+0.5]
+		if okLo && okHi {
+			m[lvl] = math.Sqrt((lo*lo + hi*hi) / 2)
+		}
+	}
+	return m
 }
 
 func cpForLevelCalc(baseAtk, baseDef, baseSta, atkIV, defIV, staIV int, cpm float64) int {
@@ -102,30 +203,71 @@ func hpForLevel(baseSta, staIV int, cpm float64) int {
 	return hp
 }
 
-func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCandidate {
-	// Collect all dust brackets matching the requested cost (10k dust covers two ranges).
-	var minLvl, maxLvl int
-	for _, b := range dustBrackets {
-		if b.Dust != req.DustCost {
+// enumerateIVs derives candidate level ranges from the displayed dust cost and
+// status flags, then enumerates matching IV combinations.
+func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool) {
+	ranges := dustCandidates(req.DustCost, req.IsLucky, req.IsShadow, req.IsPurified)
+	return enumerateWithBuddyRetry(req, ranges, poke, cpms)
+}
+
+// intersectRangesWithLevel narrows level ranges to those overlapping
+// [lvl-tol, lvl+tol] (arc-derived level with bracket-edge tolerance). When
+// nothing overlaps, or no ranges are known (dust unreadable or absent on a
+// maxed Pokemon), the arc level stands alone.
+func intersectRangesWithLevel(ranges []levelRange, lvl, tol float64) []levelRange {
+	lo, hi := lvl-tol, lvl+tol
+	if lo < 1 {
+		lo = 1
+	}
+	var out []levelRange
+	for _, r := range ranges {
+		if r.MaxLvl < lo || r.MinLvl > hi {
 			continue
 		}
-		if minLvl == 0 || b.MinLvl < minLvl {
-			minLvl = b.MinLvl
+		nr := r
+		if nr.MinLvl < lo {
+			nr.MinLvl = lo
 		}
-		if b.MaxLvl > maxLvl {
-			maxLvl = b.MaxLvl
+		if nr.MaxLvl > hi {
+			nr.MaxLvl = hi
 		}
+		out = append(out, nr)
 	}
-	if minLvl == 0 {
-		return []IVCandidate{}
+	if len(out) == 0 {
+		out = []levelRange{{MinLvl: lo, MaxLvl: hi}}
 	}
+	return out
+}
 
-	// Wild/hatched Pokemon cannot exceed trainer level + 2, capped at 51.
-	if maxAllowed := req.TrainerLevel + 2; maxLvl > maxAllowed {
-		maxLvl = maxAllowed
+// enumerateWithBuddyRetry runs the enumeration and, when the first pass finds
+// nothing, retries one level higher: an active Best Buddy displays CP and HP
+// boosted by one level while the dust cost reflects the true level. The bool
+// result reports whether that Best-Buddy interpretation was used.
+func enumerateWithBuddyRetry(req ivRequest, ranges []levelRange, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool) {
+	levelCap := maxPowerUpLevel(req.TrainerLevel)
+	candidates := enumerateIVsRanges(req, ranges, levelCap, poke, cpms)
+	if len(candidates) > 0 {
+		return candidates, false
 	}
-	if maxLvl > 51 {
-		maxLvl = 51
+	shifted := make([]levelRange, len(ranges))
+	for i, lr := range ranges {
+		shifted[i] = lr
+		shifted[i].MinLvl += 1
+		shifted[i].MaxLvl += 1
+	}
+	if buddy := enumerateIVsRanges(req, shifted, levelCap+1, poke, cpms); len(buddy) > 0 {
+		return buddy, true
+	}
+	return candidates, false
+}
+
+// enumerateIVsRanges brute-forces all IV combinations over the given level
+// ranges. req.CP <= 0 means the CP is unknown (arc-only scan): the CP filter
+// is skipped and each candidate carries its computed CP instead.
+func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, poke pokemonStatEntry, cpms []cpmEntry) []IVCandidate {
+	candidates := make([]IVCandidate, 0)
+	if len(ranges) == 0 {
+		return candidates
 	}
 
 	ivSumMin, ivSumMax := 0, 45
@@ -134,12 +276,26 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 		ivSumMax = appraisalRange[*req.AppraisalBars][1]
 	}
 
-	cpmByLevel := make(map[float64]float64, len(cpms))
-	for _, e := range cpms {
-		cpmByLevel[e.Level] = e.Multiplier
-	}
+	cpmByLevel := cpmLookup(cpms)
 
-	candidates := make([]IVCandidate, 0)
+	// Union the ranges into a deduplicated, sorted set of candidate levels
+	// (interpretations from different modifiers can overlap).
+	levelSet := make(map[float64]bool)
+	for _, lr := range ranges {
+		maxLvl := lr.MaxLvl
+		if maxLvl > levelCap {
+			maxLvl = levelCap
+		}
+		for lvl := lr.MinLvl; lvl <= maxLvl; lvl += 0.5 {
+			levelSet[lvl] = true
+		}
+	}
+	levels := make([]float64, 0, len(levelSet))
+	for lvl := range levelSet {
+		levels = append(levels, lvl)
+	}
+	sort.Float64s(levels)
+
 	for atkIV := 0; atkIV <= 15; atkIV++ {
 		for defIV := 0; defIV <= 15; defIV++ {
 			for staIV := 0; staIV <= 15; staIV++ {
@@ -161,12 +317,13 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 						continue
 					}
 				}
-				for lvl := float64(minLvl); lvl <= float64(maxLvl)+0.5; lvl += 0.5 {
+				for _, lvl := range levels {
 					cpm, ok := cpmByLevel[lvl]
 					if !ok {
 						continue
 					}
-					if cpForLevelCalc(poke.BaseAttack, poke.BaseDefense, poke.BaseStamina, atkIV, defIV, staIV, cpm) != req.CP {
+					cp := cpForLevelCalc(poke.BaseAttack, poke.BaseDefense, poke.BaseStamina, atkIV, defIV, staIV, cpm)
+					if req.CP > 0 && cp != req.CP {
 						continue
 					}
 					if hpForLevel(poke.BaseStamina, staIV, cpm) != req.HP {
@@ -175,7 +332,7 @@ func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) []IVCan
 					candidates = append(candidates, IVCandidate{
 						AtkIV: atkIV, DefIV: defIV, StaIV: staIV,
 						Level: lvl,
-						CP:    req.CP,
+						CP:    cp,
 						HP:    req.HP,
 						IVPct: math.Round(float64(ivSum)/45.0*1000) / 10,
 					})
@@ -245,13 +402,14 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidates := enumerateIVs(req, *poke, cpms)
+	candidates, buddyAssumed := enumerateIVs(req, *poke, cpms)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"candidates": candidates,
-		"count":      len(candidates),
-		"definitive": len(candidates) == 1,
-		"pokemon":    poke,
+		"candidates":         candidates,
+		"count":              len(candidates),
+		"definitive":         len(candidates) == 1,
+		"pokemon":            poke,
+		"best_buddy_assumed": buddyAssumed,
 	})
 }
 

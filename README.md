@@ -4,9 +4,9 @@ A fan-made Pokémon GO companion web app built in Go.
 
 - Live raid bosses and Max Battles with counter recommendations
 - DPS calculator, moveset comparison, and PvP IV ranker (GL / UL / ML)
-- IV Calculator with manual entry, form and Pokémon status support, and OCR screenshot scanning (CP, HP, dust, appraisal auto-detection)
+- IV Calculator with manual entry, form and Pokémon status support, and OCR screenshot scanning that reads CP, HP, dust, the level arc, and appraisal automatically, and can identify a nicknamed Pokémon from its candy
 - Events page with full details sourced from LeekDuck via ScrapedDuck
-- Shiny Dex plus a personal shiny collection tracker
+- Shiny Dex plus a personal shiny collection tracker with regional forms (Alolan, Galarian, Hisuian, Paldean)
 - Trainer Directory with dedicated profile pages, a real-time Raid Finder with matchmaking, lobbies, and a trust system
 - Friends list, real-time raid notifications with 🔔 badge and optional ding sound, and blocked-user management
 - Community feedback (positive/neutral/negative trainer reviews) visible on every trainer profile
@@ -26,6 +26,7 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 | I want to... | Read this |
 |---|---|
 | Install and run my own instance | [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) |
+| Build from a tagged release or upgrade from a previous one | [Releases and Upgrading](https://github.com/Hailey-Ross/hailsDotGO/wiki/Releases-and-Upgrading) |
 | Look up an environment variable | [Configuration](https://github.com/Hailey-Ross/hailsDotGO/wiki/Configuration) |
 | Understand the database and migrations | [Database Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Database-Guide) |
 | Deploy to a Linux server | [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment) |
@@ -44,6 +45,8 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 **Prefer [Releases](https://github.com/Hailey-Ross/hailsDotGO/releases) over cloning `main` directly.**
 
 `main` reflects active development and is not guaranteed to be stable at all times, particularly during larger rewrites or feature implementations. Tagged releases are tested and represent known-good states of the app.
+
+For how to build from a tagged release and how to upgrade an existing install to a newer one, see [Releases and Upgrading](https://github.com/Hailey-Ross/hailsDotGO/wiki/Releases-and-Upgrading).
 
 ---
 

@@ -14,6 +14,7 @@ type shinyRecord struct {
 	ID        uint       `json:"id"`
 	PokemonID string     `json:"pokemon_id"`
 	Form      string     `json:"form"`
+	Region    string     `json:"region"`
 	Costume   string     `json:"costume"`
 	EventTag  string     `json:"event_tag"`
 	Method    string     `json:"method"`
@@ -33,7 +34,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_id, form, costume, event_tag, method, caught_at, evolved_at
+		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`,
 		u.ID,
 	)
@@ -46,7 +47,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	out := []shinyRecord{}
 	for rows.Next() {
 		var s shinyRecord
-		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
 			continue
 		}
 		out = append(out, s)
@@ -66,6 +67,7 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PokemonID string `json:"pokemon_id"`
 		Form      string `json:"form"`
+		Region    string `json:"region"`
 		Costume   string `json:"costume"`
 		EventTag  string `json:"event_tag"`
 		Method    string `json:"method"`
@@ -79,11 +81,15 @@ func (h *Handlers) APIShiniesAdd(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.shiny_pokemon_required"), http.StatusBadRequest)
 		return
 	}
+	if !validRegions[body.Region] {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
 
 	result, err := h.db.Exec(`
-		INSERT INTO user_shinies (user_id, pokemon_id, form, costume, event_tag, method)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		u.ID, body.PokemonID, body.Form, body.Costume, body.EventTag, body.Method,
+		INSERT INTO user_shinies (user_id, pokemon_id, form, region, costume, event_tag, method)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, body.PokemonID, body.Form, body.Region, body.Costume, body.EventTag, body.Method,
 	)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -110,6 +116,7 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Form     string `json:"form"`
+		Region   string `json:"region"`
 		Costume  string `json:"costume"`
 		EventTag string `json:"event_tag"`
 		Method   string `json:"method"`
@@ -118,10 +125,14 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
+	if !validRegions[body.Region] {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
 
 	_, err = h.db.Exec(
-		`UPDATE user_shinies SET form = ?, costume = ?, event_tag = ?, method = ? WHERE id = ? AND user_id = ?`,
-		body.Form, body.Costume, body.EventTag, body.Method, id, u.ID,
+		`UPDATE user_shinies SET form = ?, region = ?, costume = ?, event_tag = ?, method = ? WHERE id = ? AND user_id = ?`,
+		body.Form, body.Region, body.Costume, body.EventTag, body.Method, id, u.ID,
 	)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -175,7 +186,8 @@ func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Into string `json:"into"`
+		Into   string `json:"into"`
+		Region string `json:"region"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
@@ -186,10 +198,14 @@ func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "missing target form", http.StatusBadRequest)
 		return
 	}
+	if !validRegions[body.Region] {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
 
 	if _, err := h.db.Exec(
-		`UPDATE user_shinies SET pokemon_id = ?, evolved_at = NOW() WHERE id = ? AND user_id = ?`,
-		body.Into, id, u.ID,
+		`UPDATE user_shinies SET pokemon_id = ?, region = ?, evolved_at = NOW() WHERE id = ? AND user_id = ?`,
+		body.Into, body.Region, id, u.ID,
 	); err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
@@ -201,6 +217,7 @@ func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
 type publicShinyRecord struct {
 	PokemonID string     `json:"pokemon_id"`
 	Form      string     `json:"form"`
+	Region    string     `json:"region"`
 	Costume   string     `json:"costume"`
 	EventTag  string     `json:"event_tag"`
 	Method    string     `json:"method"`
@@ -225,7 +242,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT pokemon_id, form, costume, event_tag, method, caught_at, evolved_at
+		SELECT pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`, userID,
 	)
 	if err != nil {
@@ -237,11 +254,21 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	out := []publicShinyRecord{}
 	for rows.Next() {
 		var s publicShinyRecord
-		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
+		if err := rows.Scan(&s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
 			continue
 		}
-		if id := h.store.PokemonDexID(s.PokemonID); id != 0 {
-			s.SpriteURL = pokemonSpriteURL(id, "shiny")
+		// Regional variants have their own PokeAPI sprite ids; the URL shape
+		// stays identical so the client's dex regex keeps working.
+		if vid := regionalSpriteID(s.PokemonID, s.Region); vid != 0 {
+			// Regional variants keep their own shiny sprite; costume art is keyed by
+			// base dex only, matching the client (regional cards ignore the costume).
+			s.SpriteURL = pokemonSpriteURL(vid, "shiny")
+		} else if id := h.store.PokemonDexID(s.PokemonID); id != 0 {
+			if curl, ok := costumeSpriteURL(id, s.PokemonID, s.Costume); ok {
+				s.SpriteURL = curl
+			} else {
+				s.SpriteURL = pokemonSpriteURL(id, "shiny")
+			}
 		}
 		out = append(out, s)
 	}

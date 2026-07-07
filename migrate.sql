@@ -711,3 +711,11 @@ CREATE TABLE IF NOT EXISTS email_tokens (
   CONSTRAINT fk_et_user FOREIGN KEY (user_id)
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- 43. Regional form support in shiny collection (2026-07-05)
+-- Adds a region dimension (alolan, galarian, hisuian, paldean, or '' for the
+-- original form) to user shiny entries. Kept separate from form so combos
+-- like Shadow Alolan stay representable.
+ALTER TABLE user_shinies
+  ADD COLUMN region VARCHAR(16) NOT NULL DEFAULT '' AFTER form;

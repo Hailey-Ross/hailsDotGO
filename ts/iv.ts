@@ -22,18 +22,19 @@ interface IVCandidate {
 
 interface OCRExtracted {
   cp: number;
-  cp_source: "text" | "arc" | "none";
+  cp_source: "text" | "arc-level" | "none";
   hp: number;
   raw_dust: number;
   normalised_dust: number;
   pokemon_name: string;
-  name_source: "footer" | "mega" | "card" | "";
+  name_source: "footer" | "mega" | "card" | "fulltext" | "candy" | "";
   appraisal_bars: number;
   is_hundo: boolean;
   is_lucky: boolean;
   is_shadow: boolean;
   is_purified: boolean;
   raw_cp: string;
+  arc_level: number;
 }
 
 interface CalcResponse {
@@ -42,6 +43,11 @@ interface CalcResponse {
   definitive: boolean;
   pokemon: { pokemon_name: string; form: string; pokemon_id: number };
   extracted?: OCRExtracted;
+  best_buddy_assumed?: boolean;
+  arc_rescue?: boolean;
+  iv_summary?: { min_pct: number; max_pct: number };
+  truncated_from?: number;
+  species_candidates?: string[];
 }
 
 interface BoxEntry {
@@ -95,10 +101,43 @@ function showToast(msg: string, ok: boolean) {
   setTimeout(() => t.remove(), 3000);
 }
 
+// buildResultNotes renders the scan-quality hints the server attaches to a
+// result set (Best Buddy assumption, arc rescue, truncation, IV range).
+function buildResultNotes(result: CalcResponse): HTMLElement | null {
+  const notes: string[] = [];
+  if (result.best_buddy_assumed) notes.push(IV.noteBestBuddy);
+  if (result.arc_rescue) notes.push(IV.noteArcRescue);
+  if (result.truncated_from) {
+    notes.push(
+      IV.noteTruncated
+        .replace("{shown}", String(result.candidates?.length ?? 0))
+        .replace("{n}", String(result.truncated_from))
+    );
+  }
+  if (result.iv_summary && !result.definitive && (result.count ?? 0) > 1) {
+    notes.push(
+      IV.noteIVRange
+        .replace("{min}", result.iv_summary.min_pct.toFixed(1))
+        .replace("{max}", result.iv_summary.max_pct.toFixed(1))
+    );
+  }
+  if (notes.length === 0) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "iv-result-notes";
+  notes.forEach((n) => {
+    const p = document.createElement("p");
+    p.className = "iv-result-note";
+    p.textContent = n;
+    wrap.appendChild(p);
+  });
+  return wrap;
+}
+
 function renderCandidates(
   candidates: IVCandidate[],
   definitive: boolean,
-  onSave?: (c: IVCandidate) => void
+  onSave?: (c: IVCandidate) => void,
+  totalCount?: number
 ): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "iv-results";
@@ -112,7 +151,7 @@ function renderCandidates(
   }
   summary.textContent = definitive
     ? IV.resultDefinitive
-    : IV.resultCount.replace("{n}", String(candidates.length));
+    : IV.resultCount.replace("{n}", String(totalCount ?? candidates.length));
   wrap.appendChild(summary);
 
   const table = document.createElement("table");
@@ -222,29 +261,30 @@ function buildManualTab(data: GameData): HTMLElement {
   dustLabel.appendChild(dustSel);
   wrap.appendChild(dustLabel);
 
-  // Pokémon Status -- normalizes the displayed dust cost to the standard bracket cost.
-  // Shadow costs 1.2×, Purified costs 0.9×, Lucky costs 0.5× the base cost.
+  // Pokémon Status -- sent as explicit flags; the server maps the displayed
+  // dust cost to the right level bracket (lucky 0.5x, shadow 1.2x,
+  // purified 0.9x of the base tier). The user enters dust EXACTLY as shown.
   const statusLabel = document.createElement("label");
   statusLabel.className = "form-label";
   statusLabel.textContent = IV.fieldStatus;
   wrap.appendChild(statusLabel);
   const statusRow = document.createElement("div");
   statusRow.className = "radio-row";
-  let dustMultiplier = 1.0; // multiply displayed dust by this to get standard cost
-  const statusOptions: { v: string; l: string; mult: number }[] = [
-    { v: "normal",   l: IV.statusNormal,   mult: 1.0 },
-    { v: "shadow",   l: IV.statusShadow,   mult: 10 / 12 },
-    { v: "purified", l: IV.statusPurified, mult: 10 / 9 },
-    { v: "lucky",    l: IV.statusLucky,    mult: 2.0 },
+  let selectedStatus = "normal";
+  const statusOptions: { v: string; l: string }[] = [
+    { v: "normal",   l: IV.statusNormal },
+    { v: "shadow",   l: IV.statusShadow },
+    { v: "purified", l: IV.statusPurified },
+    { v: "lucky",    l: IV.statusLucky },
   ];
-  statusOptions.forEach(({ v, l, mult }) => {
+  statusOptions.forEach(({ v, l }) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "radio-btn" + (v === "normal" ? " active" : "");
     btn.textContent = l;
     btn.dataset.value = v;
     btn.addEventListener("click", () => {
-      dustMultiplier = mult;
+      selectedStatus = v;
       statusRow.querySelectorAll<HTMLButtonElement>(".radio-btn")
         .forEach((b) => b.classList.toggle("active", b.dataset.value === v));
     });
@@ -343,10 +383,13 @@ function buildManualTab(data: GameData): HTMLElement {
           form: (entry.data as PokemonStat).form ?? "",
           cp,
           hp,
-          dust_cost: Math.round(dust * dustMultiplier),
+          dust_cost: dust,
           trainer_level: trainerLevel,
           top_stat: selectedTopStat,
           appraisal_bars: parseInt(starsSel.value, 10),
+          is_lucky: selectedStatus === "lucky",
+          is_shadow: selectedStatus === "shadow",
+          is_purified: selectedStatus === "purified",
         }),
       });
       const result: CalcResponse = await resp.json();
@@ -372,7 +415,11 @@ function buildManualTab(data: GameData): HTMLElement {
           }
         : undefined;
 
-      resultsContainer.appendChild(renderCandidates(result.candidates ?? [], result.definitive, onSave));
+      const notes = buildResultNotes(result);
+      if (notes) resultsContainer.appendChild(notes);
+      resultsContainer.appendChild(
+        renderCandidates(result.candidates ?? [], result.definitive, onSave, result.count)
+      );
     } catch {
       resultsContainer.textContent = IV.commonFailed;
     } finally {
@@ -393,17 +440,19 @@ function buildStatusBadges(ext: OCRExtracted): HTMLElement {
     row.appendChild(b);
   };
   if (ext.is_hundo)    add("100% IV", "badge-hundo");
-  if (ext.is_lucky)    add("Lucky",   "badge-lucky");
-  if (ext.is_shadow)   add("Shadow",  "badge-shadow");
-  if (ext.is_purified) add("Purified","badge-purified");
-  if (ext.cp_source === "arc") add("CP: arc scan", "badge-arc");
+  if (ext.is_lucky)    add(IV.statusLucky,    "badge-lucky");
+  if (ext.is_shadow)   add(IV.statusShadow,   "badge-shadow");
+  if (ext.is_purified) add(IV.statusPurified, "badge-purified");
+  if (ext.cp_source === "arc-level") add(IV.badgeArcScan, "badge-arc");
+  if (ext.arc_level > 0) add(IV.badgeArcLevel.replace("{lvl}", String(ext.arc_level)), "badge-arc");
   if (ext.name_source) add("Name: " + ext.name_source, "badge-source");
   return row;
 }
 
 function buildExtractedCard(
   ext: OCRExtracted,
-  onRecalc: (cp: number, hp: number, dust: number, stars: number, name: string) => void
+  onRecalc: (cp: number, hp: number, dust: number, stars: number, name: string) => void,
+  speciesCandidates?: string[]
 ): HTMLElement {
   const card = document.createElement("div");
   card.className = "ocr-extracted-card";
@@ -427,15 +476,51 @@ function buildExtractedCard(
   }
 
   const nameInp  = field("Name",       ext.pokemon_name, "text");
+
+  // Candy-line disambiguation left several plausible species: offer a picker
+  // that fills the name field.
+  if (speciesCandidates && speciesCandidates.length > 1) {
+    const row = document.createElement("label");
+    row.className = "ocr-field-row";
+    const lbl = document.createElement("span");
+    lbl.className = "ocr-field-label";
+    lbl.textContent = IV.fieldSpeciesPick;
+    const sel = document.createElement("select");
+    sel.className = "form-select ocr-field-input";
+    speciesCandidates.forEach((name) => {
+      const o = document.createElement("option");
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    });
+    sel.value = ext.pokemon_name;
+    sel.addEventListener("change", () => {
+      nameInp.value = sel.value;
+    });
+    row.appendChild(lbl);
+    row.appendChild(sel);
+    card.appendChild(row);
+  }
+
   const cpInp    = field("CP",         ext.cp > 0 ? ext.cp : "");
   const hpInp    = field("HP",         ext.hp > 0 ? ext.hp : "");
+  // Dust is entered exactly as shown on screen; the server resolves the
+  // lucky/shadow/purified discount to the base tier.
   const dustInp  = field(
-    ext.normalised_dust !== ext.raw_dust
-      ? `Dust (raw: ${ext.raw_dust})`
+    ext.normalised_dust > 0 && ext.normalised_dust !== ext.raw_dust
+      ? `Dust (base: ${ext.normalised_dust})`
       : "Dust",
-    ext.normalised_dust > 0 ? ext.normalised_dust : ext.raw_dust > 0 ? ext.raw_dust : ""
+    ext.raw_dust > 0 ? ext.raw_dust : ext.normalised_dust > 0 ? ext.normalised_dust : ""
   );
   const starsInp = field("Stars (0-3, -1=unknown)", ext.appraisal_bars);
+
+  // CP unreadable and ambiguous: tell the user how to pin the exact spread.
+  if (ext.cp_source === "arc-level" && ext.cp <= 0) {
+    const hint = document.createElement("p");
+    hint.className = "ocr-cp-hint";
+    hint.textContent = IV.noteEnterCP;
+    card.appendChild(hint);
+  }
 
   const btn = document.createElement("button");
   btn.type = "button";
@@ -499,6 +584,7 @@ function buildOCRTab(): HTMLElement {
 
   let lastPoke = { pokemon_name: "", form: "", pokemon_id: 0 };
   let lastCandidates: IVCandidate[] = [];
+  let lastExt: OCRExtracted | null = null;
 
   async function runRecalc(cp: number, hp: number, dust: number, stars: number, name: string) {
     resultsContainer.innerHTML = "";
@@ -511,6 +597,11 @@ function buildOCRTab(): HTMLElement {
         trainer_level: IV_CTX.trainerLevel || 40,
       };
       if (stars >= 0) body.appraisal_bars = stars;
+      // Positive status flags from the scan carry over; unknown flags stay
+      // absent so the server keeps all dust interpretations in play.
+      if (lastExt?.is_lucky) body.is_lucky = true;
+      if (lastExt?.is_shadow) body.is_shadow = true;
+      if (lastExt?.is_purified) body.is_purified = true;
       const resp = await fetch("/api/iv/calculate", {
         method: "POST",
         headers: jsonHeaders(),
@@ -519,8 +610,10 @@ function buildOCRTab(): HTMLElement {
       const result: CalcResponse = await resp.json();
       lastPoke = result.pokemon ?? lastPoke;
       lastCandidates = result.candidates ?? [];
+      const notes = buildResultNotes(result);
+      if (notes) resultsContainer.appendChild(notes);
       resultsContainer.appendChild(
-        renderCandidates(lastCandidates, result.definitive, makeSaveHandler())
+        renderCandidates(lastCandidates, result.definitive, makeSaveHandler(), result.count)
       );
     } catch {
       status.textContent = IV.ocrFailed;
@@ -571,17 +664,22 @@ function buildOCRTab(): HTMLElement {
       status.textContent = "";
       lastPoke = result.pokemon ?? { pokemon_name: "", form: "", pokemon_id: 0 };
       lastCandidates = result.candidates ?? [];
+      lastExt = result.extracted ?? null;
 
       if (result.extracted) {
         extractedContainer.appendChild(
-          buildExtractedCard(result.extracted, (cp, hp, dust, stars, name) =>
-            runRecalc(cp, hp, dust, stars, name)
+          buildExtractedCard(
+            result.extracted,
+            (cp, hp, dust, stars, name) => runRecalc(cp, hp, dust, stars, name),
+            result.species_candidates
           )
         );
       }
 
+      const notes = buildResultNotes(result);
+      if (notes) resultsContainer.appendChild(notes);
       resultsContainer.appendChild(
-        renderCandidates(lastCandidates, result.definitive, makeSaveHandler())
+        renderCandidates(lastCandidates, result.definitive, makeSaveHandler(), result.count)
       );
     } catch {
       status.textContent = IV.ocrFailed;

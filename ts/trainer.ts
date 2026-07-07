@@ -88,9 +88,22 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
   };
 
   type ShinyItem = {
-    pokemon_id: string; form: string; costume: string;
+    pokemon_id: string; form: string; region: string; costume: string;
     event_tag: string; method: string; sprite_url: string;
     evolved_at: string | null;
+  };
+
+  const REGION_LABELS: Record<string, string> = {
+    alolan: TRAINER_CTX.formAlolan,
+    galarian: TRAINER_CTX.formGalarian,
+    hisuian: TRAINER_CTX.formHisuian,
+    paldean: TRAINER_CTX.formPaldean,
+    therian: TRAINER_CTX.formTherian,
+    origin: TRAINER_CTX.formOrigin,
+    attack: TRAINER_CTX.formAttack,
+    defense: TRAINER_CTX.formDefense,
+    speed: TRAINER_CTX.formSpeed,
+    sky: TRAINER_CTX.formSky,
   };
 
   function renderItems(items: ShinyItem[]): void {
@@ -111,7 +124,9 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       const img = document.createElement('img');
       const dexMatch = /\/shiny\/(\d+)\.png$/.exec(item.sprite_url);
       const dexId = dexMatch ? parseInt(dexMatch[1], 10) : 0;
-      const resolvedSrc = (item.costume && dexId)
+      // Regional entries already point at their variant sprite; costume art is
+      // only keyed by base dex, so skip costume resolution for them.
+      const resolvedSrc = (item.costume && dexId && !item.region)
         ? (costumeShinyUrl(dexId, item.pokemon_id, item.costume) ?? item.sprite_url)
         : item.sprite_url;
       img.src = resolvedSrc;
@@ -131,8 +146,18 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       }
       const name = document.createElement('span');
       name.className = 'trainer-shiny-name';
-      name.textContent = item.pokemon_id;
+      name.textContent = item.region
+        ? TRAINER_CTX.regionalName
+            .replace('{region}', REGION_LABELS[item.region] ?? item.region)
+            .replace('{name}', item.pokemon_id)
+        : item.pokemon_id;
       cell.appendChild(name);
+      if (item.region) {
+        const badge = document.createElement('span');
+        badge.className = 'trainer-shiny-form-badge';
+        badge.textContent = REGION_LABELS[item.region] ?? item.region;
+        cell.appendChild(badge);
+      }
       if (item.form === 'shadow' || item.form === 'purified') {
         const badge = document.createElement('span');
         badge.className = 'trainer-shiny-form-badge';
