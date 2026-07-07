@@ -1,6 +1,9 @@
+import { Region, shinyRegionalForms } from "./regionalForms";
+
 // Maps each Pokemon name (as used in GO/our data) to the name(s) it can evolve into.
 // Only GO-relevant forms included. Branching evolutions list all options.
 // Entries with [] are final forms, legendaries, or have no GO evolution path.
+// Regional variants with different targets live in REGIONAL_EVOLUTION_NEXT below.
 export const EVOLUTION_NEXT: Record<string, string[]> = {
   // Gen 1
   "Bulbasaur":    ["Ivysaur"],
@@ -79,7 +82,7 @@ export const EVOLUTION_NEXT: Record<string, string[]> = {
   "Seadra":       ["Kingdra"],
   "Goldeen":      ["Seaking"],
   "Staryu":       ["Starmie"],
-  "Mr. Mime":     ["Mr. Rime"],
+  "Mr. Mime":     [], // only Galarian Mr. Mime evolves (to Mr. Rime); see REGIONAL_EVOLUTION_NEXT
   "Scyther":      ["Scizor", "Kleavor"],
   "Smoochum":     ["Jynx"],
   "Elekid":       ["Electabuzz"],
@@ -124,7 +127,7 @@ export const EVOLUTION_NEXT: Record<string, string[]> = {
   "Dunsparce":    ["Dudunsparce"],
   "Gligar":       ["Gliscor"],
   "Snubbull":     ["Granbull"],
-  "Qwilfish":     ["Overqwil"],
+  "Qwilfish":     [], // only Hisuian Qwilfish evolves (to Overqwil); see REGIONAL_EVOLUTION_NEXT
   "Sneasel":      ["Weavile"],
   "Teddiursa":    ["Ursaring"],
   "Ursaring":     ["Ursaluna"],
@@ -147,7 +150,7 @@ export const EVOLUTION_NEXT: Record<string, string[]> = {
   "Marshtomp":    ["Swampert"],
   "Poochyena":    ["Mightyena"],
   "Zigzagoon":    ["Linoone"],
-  "Linoone":      ["Obstagoon"],
+  "Linoone":      [], // only Galarian Linoone evolves (to Obstagoon); see REGIONAL_EVOLUTION_NEXT
   "Wurmple":      ["Silcoon", "Cascoon"],
   "Silcoon":      ["Beautifly"],
   "Cascoon":      ["Dustox"],
@@ -457,11 +460,57 @@ export const EVOLUTION_NEXT: Record<string, string[]> = {
   "Gimmighoul":   ["Gholdengo"],
 };
 
+// Regional evolution overrides, keyed by base species then region. A missing
+// region key falls back to EVOLUTION_NEXT for that species. Targets that are
+// standalone species (Perrserker, Sneasler, ...) clear the region via the
+// propagation rule in getEvolveTargets.
+export const REGIONAL_EVOLUTION_NEXT: Record<string, Partial<Record<Region, string[]>>> = {
+  "Meowth":     { galarian: ["Perrserker"] },
+  "Slowpoke":   { galarian: ["Slowbro", "Slowking"] },
+  "Farfetch’d": { galarian: ["Sirfetch’d"] },
+  "Mr. Mime":   { galarian: ["Mr. Rime"] },
+  "Yamask":     { galarian: ["Runerigus"] },
+  "Corsola":    { galarian: ["Cursola"] },
+  "Linoone":    { galarian: ["Obstagoon"] },
+  "Qwilfish":   { hisuian: ["Overqwil"] },
+  "Sneasel":    { hisuian: ["Sneasler"] },
+  "Wooper":     { paldean: ["Clodsire"] },
+};
+
+export interface EvolveTarget {
+  name: string;
+  region: string;
+}
+
+// Region propagation rule: keep the entry's region when the target species
+// itself has that region as a shiny form, otherwise clear it (the target is
+// a standalone species such as Perrserker or Sneasler).
+export function getEvolveTargets(species: string, region: string): EvolveTarget[] {
+  const names =
+    (region && REGIONAL_EVOLUTION_NEXT[species]?.[region as Region]) ||
+    EVOLUTION_NEXT[species] ||
+    [];
+  return names.map((n) => ({
+    name: n,
+    region: shinyRegionalForms(n).some((f) => f.region === region) ? region : "",
+  }));
+}
+
 // Reverse map: each Pokemon name -> the name(s) it evolves from. Built once by
-// inverting EVOLUTION_NEXT.
+// inverting EVOLUTION_NEXT plus the regional overrides, so families such as
+// Mime Jr./Mr. Mime/Mr. Rime stay connected for search.
 const EVOLUTION_PREV: Record<string, string[]> = {};
+const REGIONAL_FAMILY_NEXT: Record<string, string[]> = {};
 for (const [from, tos] of Object.entries(EVOLUTION_NEXT)) {
   for (const to of tos) (EVOLUTION_PREV[to] ??= []).push(from);
+}
+for (const [from, byRegion] of Object.entries(REGIONAL_EVOLUTION_NEXT)) {
+  for (const tos of Object.values(byRegion)) {
+    for (const to of tos ?? []) {
+      (EVOLUTION_PREV[to] ??= []).push(from);
+      (REGIONAL_FAMILY_NEXT[from] ??= []).push(to);
+    }
+  }
 }
 
 // Returns the full evolution family for a name: every pre-evolution, evolution,
@@ -472,7 +521,11 @@ export function getEvolutionFamily(name: string): Set<string> {
   const queue = [name];
   while (queue.length) {
     const cur = queue.shift()!;
-    for (const next of [...(EVOLUTION_NEXT[cur] ?? []), ...(EVOLUTION_PREV[cur] ?? [])]) {
+    for (const next of [
+      ...(EVOLUTION_NEXT[cur] ?? []),
+      ...(REGIONAL_FAMILY_NEXT[cur] ?? []),
+      ...(EVOLUTION_PREV[cur] ?? []),
+    ]) {
       if (!seen.has(next)) {
         seen.add(next);
         queue.push(next);

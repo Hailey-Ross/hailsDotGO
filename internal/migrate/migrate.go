@@ -44,6 +44,7 @@ var BaselineVersions = map[string]int{
 	"v0.1.4a": 41,
 	"v0.1.5a": 42,
 	"v0.1.5b": 42,
+	"v0.1.6a": 43,
 }
 
 // headerRe matches a section header line like "-- 39. Bug report system (2026-06-28)".

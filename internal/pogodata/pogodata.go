@@ -518,6 +518,7 @@ type Store struct {
 	typeChart         json.RawMessage
 	cpMults           json.RawMessage
 	pokemonTypes      json.RawMessage
+	evolutions        json.RawMessage
 	pokemonIDMap      map[string]int
 	pokemonNamesById  map[int]map[string]string // dex ID → {lang_code → translated name}
 	trainerClasses    []TrainerClass
@@ -577,7 +578,7 @@ func (s *Store) cachedFetch(key, url string) (json.RawMessage, error) {
 // loadFromCache reads any previously saved JSON blobs from disk into the store.
 // Fast and synchronous — called before the HTTP server starts listening.
 func (s *Store) loadFromCache() {
-	keys := []string{"raids", "max_battles", "events", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_names"}
+	keys := []string{"raids", "max_battles", "events", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_evolutions", "pokemon_names"}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, key := range keys {
@@ -633,7 +634,7 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 	case "charged_moves":
 		s.chargedMoves = data
 	case "shinies":
-		s.shinies = data
+		s.shinies = mergeShinySupplement(data)
 	case "shadow_pokemon":
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(data, &raw); err == nil {
@@ -649,6 +650,8 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 		s.typeChart = data
 	case "cp_multipliers":
 		s.cpMults = data
+	case "pokemon_evolutions":
+		s.evolutions = data
 	case "pokemon_types":
 		var arr []struct {
 			Form  string   `json:"form"`
@@ -764,6 +767,7 @@ func (s *Store) loadFallback() {
 		"type_chart":     "fallback/type_chart.json",
 		"cp_multipliers": "fallback/cp_multipliers.json",
 		"pokemon_types":  "fallback/pokemon_types.json",
+		"pokemon_evolutions": "fallback/pokemon_evolutions.json",
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -776,6 +780,54 @@ func (s *Store) loadFallback() {
 		s.applyResult(key, json.RawMessage(data))
 	}
 	log.Println("pogodata: loaded embedded fallback data")
+}
+
+// shinySupplement holds locally curated shiny entries that the PogoAPI source is
+// missing or has wrong (verified 2026-07-04: upstream lacks dex 813 to 818, the
+// Scorbunny and Sobble lines, among others). Entries here always OVERRIDE upstream
+// so corrections survive every refresh; delete an entry once upstream is confirmed
+// correct. Merged in memory only: cache/shinies.json stays a pristine upstream
+// mirror so CheckScrapers drift detection keeps working.
+var shinySupplement = loadShinySupplement()
+
+func loadShinySupplement() map[string]json.RawMessage {
+	data, err := fallbackFS.ReadFile("fallback/shinies_supplement.json")
+	if err != nil {
+		log.Printf("pogodata: shinies supplement: %v", err)
+		return nil
+	}
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF}) // Go's JSON parser rejects a BOM
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		log.Printf("pogodata: shinies supplement: parse error: %v", err)
+		return nil
+	}
+	return m
+}
+
+// mergeShinySupplement overlays the embedded supplement onto an upstream shinies
+// blob, preserving the object-keyed-by-dex-string shape the frontend expects.
+// On any parse failure the upstream blob is served unmerged.
+func mergeShinySupplement(data json.RawMessage) json.RawMessage {
+	if len(shinySupplement) == 0 {
+		return data
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF}), &m); err != nil {
+		log.Printf("pogodata: shinies: parse error, serving upstream unmerged: %v", err)
+		return data
+	}
+	if m == nil { // a literal JSON null unmarshals without error but leaves a nil map
+		m = make(map[string]json.RawMessage, len(shinySupplement))
+	}
+	for k, v := range shinySupplement {
+		m[k] = v
+	}
+	merged, err := json.Marshal(m)
+	if err != nil {
+		return data
+	}
+	return merged
 }
 
 func (s *Store) Start() {
@@ -816,6 +868,7 @@ func (s *Store) refresh() {
 		{"type_chart",    []string{"https://pogoapi.net/api/v1/type_effectiveness.json"}},
 		{"cp_multipliers", []string{"https://pogoapi.net/api/v1/cp_multiplier.json"}},
 		{"pokemon_types",  []string{"https://pogoapi.net/api/v1/pokemon_types.json"}},
+		{"pokemon_evolutions", []string{"https://pogoapi.net/api/v1/pokemon_evolutions.json"}},
 	}
 
 	results := make(map[string]json.RawMessage, len(endpoints))
@@ -1207,6 +1260,7 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 		{"type_chart", "https://pogoapi.net/api/v1/type_effectiveness.json"},
 		{"cp_multipliers", "https://pogoapi.net/api/v1/cp_multiplier.json"},
 		{"pokemon_types", "https://pogoapi.net/api/v1/pokemon_types.json"},
+		{"pokemon_evolutions", "https://pogoapi.net/api/v1/pokemon_evolutions.json"},
 	}
 	for i, e := range pogoAPI {
 		if i > 0 {
@@ -1295,6 +1349,9 @@ func (s *Store) PokemonTypes() json.RawMessage {
 }
 func (s *Store) CPMultipliers() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.cpMults
+}
+func (s *Store) Evolutions() json.RawMessage {
+	s.mu.RLock(); defer s.mu.RUnlock(); return s.evolutions
 }
 func (s *Store) SpriteCacheGet(slug string) ([]byte, bool) {
 	v, ok := s.spriteCache.Load(slug)

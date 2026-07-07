@@ -1,0 +1,23 @@
+{
+  "679": {"found_egg": true, "found_evolution": false, "found_photobomb": false, "found_raid": true, "found_research": true, "found_wild": false, "id": 679, "name": "Honedge"},
+  "680": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 680, "name": "Doublade"},
+  "681": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 681, "name": "Aegislash"},
+  "701": {"found_egg": true, "found_evolution": false, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": true, "id": 701, "name": "Hawlucha"},
+  "707": {"found_egg": true, "found_evolution": false, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": true, "id": 707, "name": "Klefki"},
+  "719": {"found_egg": false, "found_evolution": false, "found_photobomb": false, "found_raid": false, "found_research": true, "found_wild": false, "id": 719, "name": "Diancie"},
+  "813": {"found_egg": false, "found_evolution": false, "found_photobomb": true, "found_raid": false, "found_research": true, "found_wild": true, "id": 813, "name": "Scorbunny"},
+  "814": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 814, "name": "Raboot"},
+  "815": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 815, "name": "Cinderace"},
+  "816": {"found_egg": false, "found_evolution": false, "found_photobomb": true, "found_raid": false, "found_research": true, "found_wild": true, "id": 816, "name": "Sobble"},
+  "817": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 817, "name": "Drizzile"},
+  "818": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 818, "name": "Inteleon"},
+  "850": {"found_egg": true, "found_evolution": false, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": true, "id": 850, "name": "Sizzlipede"},
+  "851": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 851, "name": "Centiskorch"},
+  "866": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 866, "name": "Mr. Rime"},
+  "901": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 901, "name": "Ursaluna"},
+  "948": {"found_egg": false, "found_evolution": false, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": true, "id": 948, "name": "Toedscool"},
+  "949": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 949, "name": "Toedscruel"},
+  "965": {"found_egg": true, "found_evolution": false, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 965, "name": "Varoom"},
+  "966": {"found_egg": false, "found_evolution": true, "found_photobomb": false, "found_raid": false, "found_research": false, "found_wild": false, "id": 966, "name": "Revavroom"},
+  "968": {"found_egg": false, "found_evolution": false, "found_photobomb": false, "found_raid": true, "found_research": false, "found_wild": false, "id": 968, "name": "Orthworm"}
+}

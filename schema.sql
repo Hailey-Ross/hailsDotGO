@@ -78,12 +78,15 @@ CREATE TABLE IF NOT EXISTS email_tokens (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- form is '' for the default variant; shadow/purified/etc. are separate rows.
+-- region is '' for the original form, else alolan/galarian/hisuian/paldean;
+-- kept separate from form so combos like Shadow Alolan stay representable.
 -- pokemon_id matches the name key from PoGoAPI shinies (e.g. "Bulbasaur").
 CREATE TABLE IF NOT EXISTS user_shinies (
   id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id    INT UNSIGNED NOT NULL,
   pokemon_id VARCHAR(64)  NOT NULL,
   form       VARCHAR(32)  NOT NULL DEFAULT '',
+  region     VARCHAR(16)  NOT NULL DEFAULT '',
   costume    VARCHAR(64)  NOT NULL DEFAULT '',
   event_tag  VARCHAR(128) NOT NULL DEFAULT '',
   method     VARCHAR(32)  NOT NULL DEFAULT '',
@@ -654,7 +657,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (39, 'Bug report system "Report Me Not" (2026-06-28)'),
   (40, 'Bug reports triage enhancements (2026-06-28)'),
   (41, 'Player ("bad actor") report system (2026-06-28)'),
-  (42, 'Transactional email: email_verified_at + email_tokens (2026-07-03)');
+  (42, 'Transactional email: email_verified_at + email_tokens (2026-07-03)'),
+  (43, 'Regional form support in shiny collection (2026-07-05)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';
