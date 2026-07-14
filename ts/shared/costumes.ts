@@ -127,7 +127,11 @@ export const TINY_POKEMON = new Set<number>([
 // dex lists from the asset tree with scripts/gen-costumes.mjs when new events release.
 // KEEP IN SYNC: scripts/gen-costumes.mjs reads COSTUME_SPRITES + SHARED_COSTUMES from
 // this file to emit internal/handlers/costumes_data.go (used for public profiles).
-export const SHARED_COSTUMES: { label: string; p: "c"|"f"; code: string; dex: number[] }[] = [
+// A pending entry is recorded but inert: it is not offered in the costume picker and does
+// not resolve to a sprite, because pokemon-go-api/assets has not published its art yet.
+// Fill in the real code, confirm the dex list against the asset tree, drop `pending`, and
+// rerun scripts/gen-costumes.mjs to activate it.
+export const SHARED_COSTUMES: { label: string; p: "c"|"f"; code: string; dex: number[]; pending?: boolean }[] = [
   { label: "Party Hat",      p: "c", code: "JAN_2020_NOEVOLVE",    dex: [1,2,3,4,5,6,7,8,9,20,25,33,94,133,202,265] },
   { label: "Flower Crown",   p: "c", code: "NOVEMBER_2018",        dex: [25,26,113,133,134,135,136,172,196,197,242,440,470,471,700] },
   { label: "Cherry Blossom", p: "c", code: "SPRING_2023",          dex: [25,26,133,134,135,136,172,196,197,470,471,700] },
@@ -139,6 +143,9 @@ export const SHARED_COSTUMES: { label: string; p: "c"|"f"; code: string; dex: nu
   { label: "Holiday Attire", p: "c", code: "HOLIDAY_2023",         dex: [25,26,54,55] },
   { label: "Winter Hat",     p: "c", code: "WINTER_2024",          dex: [702,831,832] },
   { label: "Meloetta Hat",   p: "c", code: "GOFEST_2021_NOEVOLVE", dex: [25,282,330] },
+  // GO Fest 2026, Kanto starters and their evolutions (the visor carries through evolution).
+  // Code and dex list are provisional: no visor asset exists upstream yet, hence pending.
+  { label: "Pikachu Visor",  p: "f", code: "GOFEST_2026",          dex: [1,2,3,4,5,6,7,8,9], pending: true },
 ];
 
 function costumeUrl(dexId: number, p: "c"|"f", code: string): string {
@@ -148,7 +155,7 @@ function costumeUrl(dexId: number, p: "c"|"f", code: string): string {
 export function costumeShinyUrl(dexId: number, pokemonName: string, costumeLabel: string): string | null {
   const override = COSTUME_SPRITES[pokemonName]?.[costumeLabel];
   if (override) return costumeUrl(dexId, override.p, override.code);
-  const shared = SHARED_COSTUMES.find((s) => s.label === costumeLabel && s.dex.includes(dexId));
+  const shared = SHARED_COSTUMES.find((s) => !s.pending && s.label === costumeLabel && s.dex.includes(dexId));
   if (shared) return costumeUrl(dexId, shared.p, shared.code);
   return null;
 }
@@ -161,6 +168,7 @@ export function costumeLabelsForDex(dexId: number, pokemonName: string): string[
   const labels = Object.keys(override);
   const usedCodes = new Set(Object.values(override).map((e) => e.code));
   for (const s of SHARED_COSTUMES) {
+    if (s.pending) continue;
     if (s.dex.includes(dexId) && !usedCodes.has(s.code) && !labels.includes(s.label)) {
       labels.push(s.label);
     }

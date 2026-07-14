@@ -19,6 +19,9 @@ func costumeSpriteURL(dex int, pokemonName, costume string) (string, bool) {
 		}
 	}
 	for _, s := range sharedCostumes {
+		if s.pending {
+			continue
+		}
 		if s.label == costume && s.dex[dex] {
 			return costumeURL(dex, s.p, s.code), true
 		}
