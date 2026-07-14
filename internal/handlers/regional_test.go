@@ -27,6 +27,22 @@ func TestRegionalSpriteID(t *testing.T) {
 		{"Dialga", "origin", 10245},
 		{"Palkia", "origin", 10246},
 		{"Shaymin", "sky", 10006},
+		{"Necrozma", "dusk_mane", 10155},
+		{"Necrozma", "dawn_wings", 10156},
+		{"Zacian", "crowned_sword", 10188},
+		{"Zamazenta", "crowned_shield", 10189},
+		{"Kyurem", "black", 10022},
+		{"Kyurem", "white", 10023},
+		{"Keldeo", "resolute", 10024},
+		{"Lycanroc", "midnight", 10126},
+		{"Lycanroc", "dusk", 10152},
+		{"Wormadam", "sandy_cloak", 10004},
+		{"Wormadam", "trash_cloak", 10005},
+		{"Toxtricity", "low_key", 10184},
+		{"Oricorio", "pau", 10124},
+		{"Basculin", "white_striped", 10247},
+		{"Rotom", "wash", 10009},
+		{"Rotom", "heat", 10008},
 		{"Tornadus", "", 0},
 		{"Meowth", "", 0},
 		{"Meowth", "hisuian", 0},
@@ -41,7 +57,7 @@ func TestRegionalSpriteID(t *testing.T) {
 }
 
 func TestValidRegions(t *testing.T) {
-	for _, ok := range []string{"", "alolan", "galarian", "hisuian", "paldean", "therian", "origin", "attack", "defense", "speed", "sky"} {
+	for _, ok := range []string{"", "alolan", "galarian", "hisuian", "paldean", "therian", "origin", "attack", "defense", "speed", "sky", "dusk_mane", "dawn_wings", "crowned_sword", "crowned_shield", "black", "white", "resolute", "midnight", "dusk", "sandy_cloak", "trash_cloak", "low_key", "pom_pom", "pau", "sensu", "blue_striped", "white_striped", "wash", "heat", "frost", "fan", "mow"} {
 		if !validRegions[ok] {
 			t.Errorf("region %q should be valid", ok)
 		}

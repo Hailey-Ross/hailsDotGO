@@ -24,6 +24,31 @@ var validRegions = map[string]bool{
 	"defense": true,
 	"speed":   true,
 	"sky":     true,
+	// Fusion and Crowned formes (base dex card is the default forme).
+	"dusk_mane":      true,
+	"dawn_wings":     true,
+	"crowned_sword":  true,
+	"crowned_shield": true,
+	// Kyurem fusions, Keldeo, and other alternate formes with distinct sprites.
+	"black":         true,
+	"white":         true,
+	"resolute":      true,
+	"midnight":      true,
+	"dusk":          true,
+	"sandy_cloak":   true,
+	"trash_cloak":   true,
+	"low_key":       true,
+	"pom_pom":       true,
+	"pau":           true,
+	"sensu":         true,
+	"blue_striped":  true,
+	"white_striped": true,
+	"wash":          true,
+	// Rotom appliance formes without a released shiny yet (kept for sprite parity).
+	"heat":  true,
+	"frost": true,
+	"fan":   true,
+	"mow":   true,
 }
 
 var regionalVariantID = map[string]map[string]int{
@@ -95,6 +120,21 @@ var regionalVariantID = map[string]map[string]int{
 	"Dialga":   {"origin": 10245},
 	"Palkia":   {"origin": 10246},
 	"Shaymin":  {"sky": 10006},
+	// Fusion formes (base dex sprite is the default forme).
+	"Necrozma": {"dusk_mane": 10155, "dawn_wings": 10156},
+	// Crowned formes (base dex sprite is the Hero of Many Battles forme).
+	"Zacian":    {"crowned_sword": 10188},
+	"Zamazenta": {"crowned_shield": 10189},
+	// Kyurem fusions, Keldeo, Lycanroc, Wormadam, Toxtricity, Oricorio,
+	// Basculin, and Rotom appliance formes (base dex sprite is the default forme).
+	"Kyurem":     {"black": 10022, "white": 10023},
+	"Keldeo":     {"resolute": 10024},
+	"Lycanroc":   {"midnight": 10126, "dusk": 10152},
+	"Wormadam":   {"sandy_cloak": 10004, "trash_cloak": 10005},
+	"Toxtricity": {"low_key": 10184},
+	"Oricorio":   {"pom_pom": 10123, "pau": 10124, "sensu": 10125},
+	"Basculin":   {"blue_striped": 10016, "white_striped": 10247},
+	"Rotom":      {"wash": 10009, "heat": 10008, "frost": 10010, "fan": 10011, "mow": 10012},
 }
 
 // regionalSpriteID returns the PokeAPI variant id for a species plus region,
