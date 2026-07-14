@@ -184,23 +184,26 @@ var costumeOverrides = map[string]map[string]costumeCode{
 }
 
 type sharedCostume struct {
-	label string
-	p     string
-	code  string
-	dex   map[int]bool
+	label   string
+	p       string
+	code    string
+	dex     map[int]bool
+	pending bool
 }
 
-// costumes shared by one code across many species; dex is the eligible set
+// costumes shared by one code across many species; dex is the eligible set.
+// a pending costume has no upstream art yet and never resolves to a sprite.
 var sharedCostumes = []sharedCostume{
-	{"Party Hat", "c", "JAN_2020_NOEVOLVE", map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true, 20: true, 25: true, 33: true, 94: true, 133: true, 202: true, 265: true}},
-	{"Flower Crown", "c", "NOVEMBER_2018", map[int]bool{25: true, 26: true, 113: true, 133: true, 134: true, 135: true, 136: true, 172: true, 196: true, 197: true, 242: true, 440: true, 470: true, 471: true, 700: true}},
-	{"Cherry Blossom", "c", "SPRING_2023", map[int]bool{25: true, 26: true, 133: true, 134: true, 135: true, 136: true, 172: true, 196: true, 197: true, 470: true, 471: true, 700: true}},
-	{"Holiday Wreath", "c", "HOLIDAY_2022", map[int]bool{133: true, 134: true, 135: true, 136: true, 196: true, 197: true, 470: true, 471: true, 700: true}},
-	{"Sunglasses", "c", "SUMMER_2018", map[int]bool{7: true, 8: true, 9: true, 25: true, 26: true, 172: true}},
-	{"Flower Hat", "c", "APRIL_2020_NOEVOLVE", map[int]bool{25: true, 175: true, 176: true, 427: true, 428: true, 468: true}},
-	{"Fashion Outfit", "c", "FALL_2020_NOEVOLVE", map[int]bool{238: true, 281: true, 403: true, 453: true, 454: true}},
-	{"Witch Hat", "c", "HALLOWEEN_2025", map[int]bool{216: true, 217: true, 714: true, 715: true, 901: true}},
-	{"Holiday Attire", "c", "HOLIDAY_2023", map[int]bool{25: true, 26: true, 54: true, 55: true}},
-	{"Winter Hat", "c", "WINTER_2024", map[int]bool{702: true, 831: true, 832: true}},
-	{"Meloetta Hat", "c", "GOFEST_2021_NOEVOLVE", map[int]bool{25: true, 282: true, 330: true}},
+	{"Party Hat", "c", "JAN_2020_NOEVOLVE", map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true, 20: true, 25: true, 33: true, 94: true, 133: true, 202: true, 265: true}, false},
+	{"Flower Crown", "c", "NOVEMBER_2018", map[int]bool{25: true, 26: true, 113: true, 133: true, 134: true, 135: true, 136: true, 172: true, 196: true, 197: true, 242: true, 440: true, 470: true, 471: true, 700: true}, false},
+	{"Cherry Blossom", "c", "SPRING_2023", map[int]bool{25: true, 26: true, 133: true, 134: true, 135: true, 136: true, 172: true, 196: true, 197: true, 470: true, 471: true, 700: true}, false},
+	{"Holiday Wreath", "c", "HOLIDAY_2022", map[int]bool{133: true, 134: true, 135: true, 136: true, 196: true, 197: true, 470: true, 471: true, 700: true}, false},
+	{"Sunglasses", "c", "SUMMER_2018", map[int]bool{7: true, 8: true, 9: true, 25: true, 26: true, 172: true}, false},
+	{"Flower Hat", "c", "APRIL_2020_NOEVOLVE", map[int]bool{25: true, 175: true, 176: true, 427: true, 428: true, 468: true}, false},
+	{"Fashion Outfit", "c", "FALL_2020_NOEVOLVE", map[int]bool{238: true, 281: true, 403: true, 453: true, 454: true}, false},
+	{"Witch Hat", "c", "HALLOWEEN_2025", map[int]bool{216: true, 217: true, 714: true, 715: true, 901: true}, false},
+	{"Holiday Attire", "c", "HOLIDAY_2023", map[int]bool{25: true, 26: true, 54: true, 55: true}, false},
+	{"Winter Hat", "c", "WINTER_2024", map[int]bool{702: true, 831: true, 832: true}, false},
+	{"Meloetta Hat", "c", "GOFEST_2021_NOEVOLVE", map[int]bool{25: true, 282: true, 330: true}, false},
+	{"Pikachu Visor", "f", "GOFEST_2026", map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true}, true},
 }

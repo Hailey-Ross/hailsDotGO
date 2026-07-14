@@ -45,12 +45,13 @@ for (const [name, labels] of Object.entries(COSTUME_SPRITES)) {
 }
 out += "}\n\n";
 
-out += "type sharedCostume struct {\n\tlabel string\n\tp     string\n\tcode  string\n\tdex   map[int]bool\n}\n\n";
-out += "// costumes shared by one code across many species; dex is the eligible set\n";
+out += "type sharedCostume struct {\n\tlabel   string\n\tp       string\n\tcode    string\n\tdex     map[int]bool\n\tpending bool\n}\n\n";
+out += "// costumes shared by one code across many species; dex is the eligible set.\n";
+out += "// a pending costume has no upstream art yet and never resolves to a sprite.\n";
 out += "var sharedCostumes = []sharedCostume{\n";
 for (const sc of SHARED_COSTUMES) {
   const dex = sc.dex.map((d) => `${d}: true`).join(", ");
-  out += `\t{${s(sc.label)}, ${s(sc.p)}, ${s(sc.code)}, map[int]bool{${dex}}},\n`;
+  out += `\t{${s(sc.label)}, ${s(sc.p)}, ${s(sc.code)}, map[int]bool{${dex}}, ${sc.pending === true}},\n`;
 }
 out += "}\n";
 
