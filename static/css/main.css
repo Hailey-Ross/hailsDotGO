@@ -1047,11 +1047,13 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .shiny-modal {
   display: none; position: fixed; inset: 0; z-index: 1000;
   background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  align-items: center; justify-content: center;
+  align-items: center; justify-content: center; padding: 1rem;
 }
 .shiny-modal.open { display: flex; animation: fadeUp 0.18s ease both; }
 .shiny-modal-inner {
   display: flex; flex-direction: column; align-items: center; gap: 1rem;
+  max-height: calc(100dvh - 2rem); overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   background: rgba(0,0,0,0.7); border: 1px solid var(--border);
   border-radius: var(--r); padding: 2rem;
 }
@@ -1696,9 +1698,29 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .sc-modal.open { display: flex; animation: fadeUp 0.18s ease both; }
 .sc-modal-inner {
   position: relative; width: 100%; max-width: 360px;
+  max-height: calc(100dvh - 2rem); overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   background: rgba(8,8,28,0.95); border: 1px solid var(--border-h);
   border-radius: var(--r); padding: 1.75rem 1.5rem 1.5rem;
   display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+}
+/* Collapsible extra forms (Primal, etc.) inside the add modal */
+.sc-form-details {
+  width: 100%; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.03);
+}
+.sc-form-summary {
+  list-style: none; cursor: pointer; user-select: none;
+  padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 600;
+  color: var(--text-2); display: flex; align-items: center; gap: 0.4rem;
+}
+.sc-form-summary::-webkit-details-marker { display: none; }
+.sc-form-summary::before { content: "\25B8"; transition: transform var(--trans); }
+.sc-form-details[open] .sc-form-summary::before { transform: rotate(90deg); }
+.sc-form-summary:hover { color: var(--text); }
+.sc-form-body {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem;
+  padding: 0.25rem 0.75rem 0.85rem;
 }
 .sc-modal-close {
   position: absolute; top: 0.7rem; right: 0.8rem;

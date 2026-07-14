@@ -109,6 +109,24 @@ const REGION_LABELS: Record<string, string> = {
   defense: JSC.formDefense,
   speed: JSC.formSpeed,
   sky: JSC.formSky,
+  dusk_mane: JSC.formDuskMane,
+  dawn_wings: JSC.formDawnWings,
+  crowned_sword: JSC.formCrownedSword,
+  crowned_shield: JSC.formCrownedShield,
+  black: JSC.formBlack,
+  white: JSC.formWhite,
+  resolute: JSC.formResolute,
+  midnight: JSC.formMidnight,
+  dusk: JSC.formDusk,
+  sandy_cloak: JSC.formSandyCloak,
+  trash_cloak: JSC.formTrashCloak,
+  low_key: JSC.formLowKey,
+  pom_pom: JSC.formPomPom,
+  pau: JSC.formPau,
+  sensu: JSC.formSensu,
+  blue_striped: JSC.formBlueStriped,
+  white_striped: JSC.formWhiteStriped,
+  wash: JSC.formWash,
 };
 
 // Localized display name for a species plus optional region, e.g.
@@ -327,6 +345,10 @@ async function init() {
           <span>✨ ${JSC.shiny}</span>
         </div>
       </div>
+      <details class="sc-form-details" id="sc-form-details" style="display:none">
+        <summary class="sc-form-summary">${JSC.otherForms}</summary>
+        <div class="sc-form-body" id="sc-form-body"></div>
+      </details>
       <div class="shiny-modal-name-row">
         <div class="sc-modal-name"></div>
       </div>
@@ -394,12 +416,15 @@ async function init() {
     const cryBtn     = document.getElementById("sc-modal-cry")     as HTMLButtonElement;
     const volSlider  = document.getElementById("sc-modal-volume")  as HTMLInputElement;
     const volLabel   = document.getElementById("sc-modal-vlabel")  as HTMLElement;
-    const compareWrap = document.getElementById("sc-compare-wrap") as HTMLElement;
     flavorP.textContent = ""; flavorP.style.display = "none";
     genusEl.textContent  = "";
     badgeEl.textContent  = ""; badgeEl.style.display = "none";
     cryPanel.style.display = "none"; cryBtn.onclick = null;
-    compareWrap.querySelectorAll(".shiny-compare-side--extra").forEach(el => el.remove());
+    const formDetails = document.getElementById("sc-form-details") as HTMLDetailsElement;
+    const formBody    = document.getElementById("sc-form-body") as HTMLElement;
+    formBody.innerHTML = "";
+    formDetails.open = false;
+    formDetails.style.display = "none";
 
     volSlider.value = String(Math.round((cryVolume / 0.3) * 100));
     volLabel.textContent = `${volSlider.value}%`;
@@ -423,14 +448,15 @@ async function init() {
             const side = document.createElement("div");
             side.className = "shiny-compare-side shiny-compare-side--extra";
             side.innerHTML = `<img class="shiny-compare-img" src="${sprites.normal}" alt="${JSC.formPrimal}"><span>🌋 ${JSC.formPrimal}</span>`;
-            compareWrap.appendChild(side);
+            formBody.appendChild(side);
           }
           if (sprites.shiny) {
             const side = document.createElement("div");
             side.className = "shiny-compare-side shiny-compare-side--extra";
             side.innerHTML = `<img class="shiny-compare-img" src="${sprites.shiny}" alt="${JSC.primalShiny}"><span>✨ ${JSC.primalShiny}</span>`;
-            compareWrap.appendChild(side);
+            formBody.appendChild(side);
           }
+          if (formBody.childElementCount > 0) formDetails.style.display = "";
         });
       }
     });

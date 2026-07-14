@@ -21,7 +21,29 @@ export type Region =
   | "attack"
   | "defense"
   | "speed"
-  | "sky";
+  | "sky"
+  | "dusk_mane"
+  | "dawn_wings"
+  | "crowned_sword"
+  | "crowned_shield"
+  | "black"
+  | "white"
+  | "resolute"
+  | "midnight"
+  | "dusk"
+  | "sandy_cloak"
+  | "trash_cloak"
+  | "low_key"
+  | "pom_pom"
+  | "pau"
+  | "sensu"
+  | "blue_striped"
+  | "white_striped"
+  | "wash"
+  | "heat"
+  | "frost"
+  | "fan"
+  | "mow";
 
 export interface RegionalForm {
   region: Region;
@@ -32,6 +54,11 @@ export interface RegionalForm {
 export const REGION_ORDER: Region[] = [
   "alolan", "galarian", "hisuian", "paldean",
   "therian", "origin", "attack", "defense", "speed", "sky",
+  "dusk_mane", "dawn_wings", "crowned_sword", "crowned_shield",
+  "black", "white", "resolute", "midnight", "dusk",
+  "sandy_cloak", "trash_cloak", "low_key",
+  "pom_pom", "pau", "sensu", "blue_striped", "white_striped",
+  "wash", "heat", "frost", "fan", "mow",
 ];
 
 export const REGIONAL_FORMS: Record<string, RegionalForm[]> = {
@@ -116,6 +143,54 @@ export const REGIONAL_FORMS: Record<string, RegionalForm[]> = {
   "Dialga":     [{ region: "origin", variantId: 10245, shiny: true }],
   "Palkia":     [{ region: "origin", variantId: 10246, shiny: true }],
   "Shaymin":    [{ region: "sky",    variantId: 10006, shiny: true }],
+  // Fusion forms (base dex card is the default forme). Shiny of the fusion is
+  // obtained by fusing a shiny base, released in Pokemon GO as of 2026-07.
+  "Necrozma": [
+    { region: "dusk_mane",  variantId: 10155, shiny: true },
+    { region: "dawn_wings", variantId: 10156, shiny: true },
+  ],
+  // Crowned formes (base dex card is the Hero of Many Battles forme).
+  "Zacian":    [{ region: "crowned_sword",  variantId: 10188, shiny: true }],
+  "Zamazenta": [{ region: "crowned_shield", variantId: 10189, shiny: true }],
+  // Kyurem fusions (base dex card is plain Kyurem). Shiny released GO Tour Unova.
+  "Kyurem": [
+    { region: "black", variantId: 10022, shiny: true },
+    { region: "white", variantId: 10023, shiny: true },
+  ],
+  // Keldeo Resolute (base dex card is Ordinary). Shiny released Final Justice.
+  "Keldeo":     [{ region: "resolute", variantId: 10024, shiny: true }],
+  // Lycanroc (base dex card is Midday).
+  "Lycanroc": [
+    { region: "midnight", variantId: 10126, shiny: true },
+    { region: "dusk",     variantId: 10152, shiny: true },
+  ],
+  // Wormadam cloaks (base dex card is Plant Cloak).
+  "Wormadam": [
+    { region: "sandy_cloak", variantId: 10004, shiny: true },
+    { region: "trash_cloak", variantId: 10005, shiny: true },
+  ],
+  // Toxtricity (base dex card is Amped).
+  "Toxtricity": [{ region: "low_key", variantId: 10184, shiny: true }],
+  // Oricorio styles (base dex card is Baile).
+  "Oricorio": [
+    { region: "pom_pom", variantId: 10123, shiny: true },
+    { region: "pau",     variantId: 10124, shiny: true },
+    { region: "sensu",   variantId: 10125, shiny: true },
+  ],
+  // Basculin (base dex card is Red-Striped).
+  "Basculin": [
+    { region: "blue_striped",  variantId: 10016, shiny: true },
+    { region: "white_striped", variantId: 10247, shiny: true },
+  ],
+  // Rotom appliance formes (base dex card is Rotom). Only Wash has a released
+  // shiny as of 2026-07; the others are in GO with shiny not yet released.
+  "Rotom": [
+    { region: "wash",  variantId: 10009, shiny: true },
+    { region: "heat",  variantId: 10008, shiny: false },
+    { region: "frost", variantId: 10010, shiny: false },
+    { region: "fan",   variantId: 10011, shiny: false },
+    { region: "mow",   variantId: 10012, shiny: false },
+  ],
 };
 
 // Regional forms whose shiny is released, i.e. the ones that get checklist
