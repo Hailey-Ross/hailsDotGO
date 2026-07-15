@@ -271,34 +271,6 @@ function eventICSUrl(ev: PogoEvent): string {
   return "/events/event.ics?id=" + encodeURIComponent(ev.eventID);
 }
 
-// Android intent link that opens the Google Calendar app's event editor directly,
-// falling back to the Google web page if the app is not installed. beginTime is a
-// UTC-millis instant; new Date(ev.start) gives the right instant for both a
-// floating (device-local) and a "Z" (absolute) start.
-function androidIntentUrl(ev: PogoEvent): string | null {
-  if (!ev.start) return null;
-  const begin = new Date(ev.start).getTime();
-  if (isNaN(begin)) return null;
-  const endMs = ev.end ? new Date(ev.end).getTime() : NaN;
-  const end = !isNaN(endMs) ? endMs : begin + 3600000;
-  let desc = ev.heading || "";
-  if (ev.link) desc = desc ? desc + "\n\n" + ev.link : ev.link;
-  const fallback = googleCalendarUrl(ev) || ("https://" + location.host + "/events");
-  const parts = [
-    "intent:#Intent",
-    "action=android.intent.action.INSERT",
-    "type=vnd.android.cursor.item/event",
-    "package=com.google.android.calendar",
-    "S.title=" + encodeURIComponent(ev.name),
-  ];
-  if (desc) parts.push("S.description=" + encodeURIComponent(desc));
-  parts.push("l.beginTime=" + begin);
-  parts.push("l.endTime=" + end);
-  parts.push("S.browser_fallback_url=" + encodeURIComponent(fallback));
-  parts.push("end");
-  return parts.join(";");
-}
-
 function googleCalendarUrl(ev: PogoEvent): string | null {
   const startStamp = toICSStamp(ev.start);
   if (!ev.start || !startStamp) return null;
@@ -347,15 +319,18 @@ function openModal(ev: PogoEvent) {
   modalInner.appendChild(times);
 
   // Add just this event to a calendar, with the correct time in the viewer's zone.
-  // On a phone the .ics link opens the native calendar app, so it leads there;
-  // on Android the Google button deep-links into the Google Calendar app.
-  const googleHref = start ? (isAndroid ? androidIntentUrl(ev) : googleCalendarUrl(ev)) : null;
+  // The Google button is a plain calendar.google.com web link on every platform
+  // (the same reliable kind the whole-feed Subscribe button uses); a browser
+  // cannot launch the Google Calendar app's event editor via an intent. On a
+  // phone the .ics link is the reliable native-app path, so it leads.
+  const googleHref = start ? googleCalendarUrl(ev) : null;
   if (start) {
     const cal = el("div", "event-cal-actions");
     if (googleHref) {
       const g = el("a", isMobile ? "sub-btn" : "sub-btn sub-btn-primary", EV.calGoogle);
       g.href = googleHref;
-      if (!isAndroid) { g.target = "_blank"; g.rel = "noopener"; }
+      g.target = "_blank";
+      g.rel = "noopener";
       cal.appendChild(g);
     }
     const dl = el("a", isMobile ? "sub-btn sub-btn-primary" : "sub-btn", isMobile ? EV.calAdd : EV.calDownload);
