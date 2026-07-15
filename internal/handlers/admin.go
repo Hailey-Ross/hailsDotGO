@@ -16,6 +16,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 	"pogo.hails.cc/internal/auth"
+	"pogo.hails.cc/internal/costumes"
 )
 
 type inviteRow struct {
@@ -59,6 +60,9 @@ func (h *Handlers) AdminRefreshData(w http.ResponseWriter, r *http.Request) {
 // scrapers are reachable, parse cleanly, and match the current upstream data.
 func (h *Handlers) AdminRunScrapers(w http.ResponseWriter, r *http.Request) {
 	results := h.store.CheckScrapers()
+	// Costumes report drift but never auto-apply it: a new code is unusable until a human gives
+	// it a label trainers would recognise, so this row only ever says "run `make costumes`".
+	results = append(results, costumes.DriftCheck())
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "results": results})
 }

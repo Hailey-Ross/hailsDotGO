@@ -698,6 +698,7 @@
   "js.common.something_wrong": "Etwas ist schiefgelaufen.",
   "js.common.the_genus": "Das {genus}",
   "js.common.top_counters": "Top-Konter für {name} (WP {cp})",
+  "js.common.unown_name": "{name} {letter}",
   "js.common.volume": "Lautstärke",
   "js.common.vs": "vs",
   "pvp.js.col_atk": "ANG-IV",

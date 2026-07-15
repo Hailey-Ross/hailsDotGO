@@ -1,4 +1,4 @@
-.PHONY: dev build run clean migrate migrate-status migrate-build
+.PHONY: dev build run clean migrate migrate-status migrate-build costumes costumes-check
 
 # Install JS deps (run once after cloning)
 setup:
@@ -20,6 +20,17 @@ run:
 
 clean:
 	rm -f hailsDotGO static/js/*.js migrate
+
+# Rebuild internal/costumes/catalog.json from the mined PokeMiners asset tree: which costume
+# codes exist, which species can wear them, and whether the shiny art is there. Run this after
+# an event drops new costumes, then give any REVIEW entries a label in labels.json.
+# Deliberately NOT a dependency of `build`: the build must never need the network.
+costumes:
+	go run ./cmd/synccostumes
+
+# Fail if upstream has costumes the catalog does not know about. For CI or release prep.
+costumes-check:
+	go run ./cmd/synccostumes -check
 
 # Upgrade an existing database to the latest schema (reads env: DB_HOST/DB_USER/DB_PASS/DB_NAME).
 # Pass extra flags via ARGS, e.g.: make migrate ARGS="-from v0.1.4a"

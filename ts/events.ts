@@ -234,6 +234,95 @@ function renderExtraData(container: HTMLElement, ev: PogoEvent) {
   }
 }
 
+// Single-event calendar export. Mirrors internal/handlers/events_ics.go: a raw
+// feed time keeps its "Z" (UTC) or stays floating (local wall clock) so calendar
+// apps show it at the right time in the viewer's own zone.
+function toICSStamp(raw: string | null): string | null {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z)?$/);
+  if (!m) return null;
+  return `${m[1]}${m[2]}${m[3]}T${m[4]}${m[5]}${m[6]}${m[7] || ""}`;
+}
+
+function pad2(n: number): string { return n < 10 ? "0" + n : String(n); }
+
+// start + 1 hour in the same flavour (UTC keeps Z, floating stays local); used
+// only for the rare event that has no end time.
+function plusOneHour(raw: string): string {
+  const utc = raw.trim().endsWith("Z");
+  const d = new Date(raw);
+  d.setTime(d.getTime() + 3600000);
+  if (utc) {
+    return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}${pad2(d.getUTCSeconds())}Z`;
+  }
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}T${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+}
+
+// Platform detection drives how the add-to-calendar buttons behave: on a phone
+// the .ics link opens the native calendar app, so it becomes the primary action.
+const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+const isAndroid = /Android/i.test(ua);
+const isIOS = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+const isMobile = isAndroid || isIOS;
+
+// Real URL for a single event's .ics, served with calendar headers so a phone
+// hands it to its native calendar app (Apple Calendar / Google Calendar).
+function eventICSUrl(ev: PogoEvent): string {
+  return "/events/event.ics?id=" + encodeURIComponent(ev.eventID);
+}
+
+// Android intent link that opens the Google Calendar app's event editor directly,
+// falling back to the Google web page if the app is not installed. beginTime is a
+// UTC-millis instant; new Date(ev.start) gives the right instant for both a
+// floating (device-local) and a "Z" (absolute) start.
+function androidIntentUrl(ev: PogoEvent): string | null {
+  if (!ev.start) return null;
+  const begin = new Date(ev.start).getTime();
+  if (isNaN(begin)) return null;
+  const endMs = ev.end ? new Date(ev.end).getTime() : NaN;
+  const end = !isNaN(endMs) ? endMs : begin + 3600000;
+  let desc = ev.heading || "";
+  if (ev.link) desc = desc ? desc + "\n\n" + ev.link : ev.link;
+  const fallback = googleCalendarUrl(ev) || ("https://" + location.host + "/events");
+  const parts = [
+    "intent:#Intent",
+    "action=android.intent.action.INSERT",
+    "type=vnd.android.cursor.item/event",
+    "package=com.google.android.calendar",
+    "S.title=" + encodeURIComponent(ev.name),
+  ];
+  if (desc) parts.push("S.description=" + encodeURIComponent(desc));
+  parts.push("l.beginTime=" + begin);
+  parts.push("l.endTime=" + end);
+  parts.push("S.browser_fallback_url=" + encodeURIComponent(fallback));
+  parts.push("end");
+  return parts.join(";");
+}
+
+function googleCalendarUrl(ev: PogoEvent): string | null {
+  const startStamp = toICSStamp(ev.start);
+  if (!ev.start || !startStamp) return null;
+  const endStamp = toICSStamp(ev.end) || plusOneHour(ev.start);
+  let details = ev.heading || "";
+  if (ev.link) details = details ? details + "\n\n" + ev.link : ev.link;
+  // Stamps are digits + T + optional Z, so the slash between them stays literal.
+  const parts = [
+    "action=TEMPLATE",
+    "text=" + encodeURIComponent(ev.name),
+    "dates=" + startStamp + "/" + endStamp,
+  ];
+  if (details) parts.push("details=" + encodeURIComponent(details));
+  // Floating (no Z) events: tell Google which zone the wall time is in, so it
+  // lands at the same clock time for this user. UTC events are already absolute.
+  if (!startStamp.endsWith("Z")) {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) parts.push("ctz=" + encodeURIComponent(tz));
+    } catch { /* no tz available; Google assumes UTC */ }
+  }
+  return "https://calendar.google.com/calendar/render?" + parts.join("&");
+}
+
 function openModal(ev: PogoEvent) {
   modalInner.innerHTML = "";
 
@@ -256,6 +345,24 @@ function openModal(ev: PogoEvent) {
   if (start) times.appendChild(el("div", undefined, `${EV.starts}: ${dateFmt.format(start)}`));
   if (end) times.appendChild(el("div", undefined, `${EV.ends}: ${dateFmt.format(end)}`));
   modalInner.appendChild(times);
+
+  // Add just this event to a calendar, with the correct time in the viewer's zone.
+  // On a phone the .ics link opens the native calendar app, so it leads there;
+  // on Android the Google button deep-links into the Google Calendar app.
+  const googleHref = start ? (isAndroid ? androidIntentUrl(ev) : googleCalendarUrl(ev)) : null;
+  if (start) {
+    const cal = el("div", "event-cal-actions");
+    if (googleHref) {
+      const g = el("a", isMobile ? "sub-btn" : "sub-btn sub-btn-primary", EV.calGoogle);
+      g.href = googleHref;
+      if (!isAndroid) { g.target = "_blank"; g.rel = "noopener"; }
+      cal.appendChild(g);
+    }
+    const dl = el("a", isMobile ? "sub-btn sub-btn-primary" : "sub-btn", isMobile ? EV.calAdd : EV.calDownload);
+    dl.href = eventICSUrl(ev);
+    cal.appendChild(dl);
+    modalInner.appendChild(cal);
+  }
 
   // Full details: scraped LeekDuck content when available, extraData fallback otherwise.
   const body = el("div", "event-detail-html");
@@ -341,6 +448,72 @@ function tickCountdowns() {
   });
 }
 
+// Calendar subscription panel: build a webcal:// URL for the .ics feed from the
+// checked event-type toggles, wire Copy, and point the "Add to Google Calendar"
+// link at it. The feed itself handles floating-vs-UTC times correctly.
+function initSubscribe() {
+  const panel = document.getElementById("subscribe");
+  if (!panel) return;
+  const boxes = Array.from(panel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+  const allBox = boxes.find((b) => b.dataset.type === "*");
+  const specific = boxes.filter((b) => b.dataset.type !== "*");
+  const maybeUrl = document.getElementById("sub-url") as HTMLInputElement | null;
+  const maybeCopy = document.getElementById("sub-copy") as HTMLButtonElement | null;
+  const maybeGoogle = document.getElementById("sub-google") as HTMLAnchorElement | null;
+  if (!maybeUrl || !maybeCopy || !maybeGoogle) return;
+  // Bind to non-null consts so the narrowing survives into the nested closures.
+  const urlField = maybeUrl, copyBtn = maybeCopy, googleLink = maybeGoogle;
+
+  const host = location.host;
+
+  function update() {
+    const everything = !!allBox && allBox.checked;
+    const types: string[] = [];
+    if (!everything) {
+      for (const b of specific) {
+        if (!b.checked) continue;
+        for (const t of (b.dataset.type || "").split(",")) {
+          const tok = t.trim();
+          if (tok && !types.includes(tok)) types.push(tok);
+        }
+      }
+    }
+    const query = !everything && types.length ? "?types=" + types.join(",") : "";
+    const webcal = "webcal://" + host + "/events/calendar.ics" + query;
+    const https = "https://" + host + "/events/calendar.ics" + query;
+    urlField.value = webcal;
+    googleLink.href = "https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(webcal);
+    // Keep the https form reachable for a plain "download the .ics" fallback.
+    urlField.dataset.https = https;
+  }
+
+  if (allBox) {
+    allBox.addEventListener("change", () => {
+      if (allBox.checked) specific.forEach((b) => (b.checked = false));
+      update();
+    });
+  }
+  for (const b of specific) {
+    b.addEventListener("change", () => {
+      if (b.checked && allBox) allBox.checked = false;
+      update();
+    });
+  }
+
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(urlField.value);
+    } catch {
+      urlField.select();
+      document.execCommand("copy");
+    }
+    copyBtn.textContent = EV.subCopied;
+    setTimeout(() => { copyBtn.textContent = EV.subCopy; }, 1800);
+  });
+
+  update();
+}
+
 async function init() {
   try {
     const res = await fetch("/api/events");
@@ -383,4 +556,5 @@ async function init() {
   }
 }
 
+initSubscribe();
 init();

@@ -25,3 +25,6 @@ cache/
 
 # Runtime translation overrides and their backups (approved via /translate workflow)
 locales/
+
+# Runtime costume labels named in the admin panel
+costumes/

@@ -1,5 +1,7 @@
 package handlers
 
+import "strconv"
+
 // This file mirrors ts/shared/regionalForms.ts. It maps a base species name
 // plus region to the PokeAPI variant pokemon id so public profile sprites
 // resolve at the same shiny/{id}.png URL scheme as base dex ids. Keep the two
@@ -144,4 +146,88 @@ func regionalSpriteID(species, region string) int {
 		return 0
 	}
 	return regionalVariantID[species][region]
+}
+
+// unownSpriteSlug is the one variant family that cannot use a numeric variant id.
+//
+// PokeAPI files the Unown letters as pokemon-FORM records rather than pokemon records, so
+// unlike Alolan Rattata (10091) they have no id of their own: their art is filed under a
+// string slug instead. Letter A is the default form, so it is the plain 201.
+//
+// The region tags mirror UNOWN_LETTERS in ts/shared/regionalForms.ts. Keep them under 16
+// characters: user_shinies.region is VARCHAR(16), which is why ! and ? are spelled excl and
+// qmark rather than exclamation and question.
+var unownSpriteSlug = func() map[string]string {
+	m := map[string]string{
+		"unown_excl":  "201-exclamation",
+		"unown_qmark": "201-question",
+	}
+	for _, c := range "abcdefghijklmnopqrstuvwxyz" {
+		slug := "201-" + string(c)
+		if c == 'a' {
+			slug = "201"
+		}
+		m["unown_"+string(c)] = slug
+	}
+	return m
+}()
+
+// vivillonSpriteSlug maps each viv_* pattern tag to its PokeAPI sprite slug.
+//
+// Like the Unown letters, Vivillon's 20 patterns are filed as pokemon-FORM records of dex 666,
+// so their art lives at a string slug (666-polar) rather than a numeric variant id. The Meadow
+// pattern is the default form, so it is the plain 666. Only Vivillon carries patterns; Scatterbug
+// and Spewpa look identical across every region.
+//
+// The tags mirror VIVILLON_PATTERNS in ts/shared/regionalForms.ts. Keep them under 16 characters:
+// user_shinies.region is VARCHAR(16).
+var vivillonSpriteSlug = map[string]string{
+	"viv_meadow":      "666",
+	"viv_polar":       "666-polar",
+	"viv_tundra":      "666-tundra",
+	"viv_continental": "666-continental",
+	"viv_garden":      "666-garden",
+	"viv_elegant":     "666-elegant",
+	"viv_icy_snow":    "666-icy-snow",
+	"viv_modern":      "666-modern",
+	"viv_marine":      "666-marine",
+	"viv_archipelago": "666-archipelago",
+	"viv_high_plains": "666-high-plains",
+	"viv_sandstorm":   "666-sandstorm",
+	"viv_river":       "666-river",
+	"viv_monsoon":     "666-monsoon",
+	"viv_savanna":     "666-savanna",
+	"viv_sun":         "666-sun",
+	"viv_ocean":       "666-ocean",
+	"viv_jungle":      "666-jungle",
+	"viv_fancy":       "666-fancy",
+	"viv_poke_ball":   "666-poke-ball",
+}
+
+func init() {
+	for region := range unownSpriteSlug {
+		validRegions[region] = true
+	}
+	for region := range vivillonSpriteSlug {
+		validRegions[region] = true
+	}
+}
+
+// regionalSpriteSlug returns the PokeAPI sprite slug for a species plus region, or "" when
+// the pair is unknown or region is empty. Everything except the Unown letters resolves to a
+// plain numeric id.
+func regionalSpriteSlug(species, region string) string {
+	if region == "" {
+		return ""
+	}
+	if species == "Unown" {
+		return unownSpriteSlug[region]
+	}
+	if species == "Vivillon" {
+		return vivillonSpriteSlug[region]
+	}
+	if id := regionalVariantID[species][region]; id != 0 {
+		return strconv.Itoa(id)
+	}
+	return ""
 }

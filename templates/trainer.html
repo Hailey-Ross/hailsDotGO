@@ -218,6 +218,9 @@
 
 {{define "scripts"}}
 <script>
+// See shinies.html: the merged costume labels, so the browser knows about costumes named in the
+// admin panel since the last deploy.
+const COSTUME_LABELS = {{.CostumeLabels}};
 const TRAINER_CTX = {
   username: {{.Data.Trainer.Username}},
   isMod: {{if and .User .User.IsMod}}true{{else}}false{{end}},
@@ -225,6 +228,12 @@ const TRAINER_CTX = {
   isOwnProfile: {{if .Data.IsOwnProfile}}true{{else}}false{{end}},
   csrfToken: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
   shinyShowAll:      {{T "trainer.shiny_show_all"}},
+  shinyDetails:      {{T "trainer.shiny_details"}},
+  shinyEdit:         {{T "trainer.shiny_edit"}},
+  costume:           {{T "shinies.js.costume"}},
+  eventTag:          {{T "shinies.js.event_tag"}},
+  method:            {{T "trainer.shiny_method"}},
+  caught:            {{T "trainer.shiny_caught"}},
   collectionEmpty:   {{T "trainers.collection_empty"}},
   collectionLoading: {{T "trainers.collection_loading"}},
   formShadow:        {{T "raidfinder.form_shadow"}},
@@ -258,6 +267,7 @@ const TRAINER_CTX = {
   formWhiteStriped:  {{T "js.common.form_white_striped"}},
   formWash:          {{T "js.common.form_wash"}},
   regionalName:      {{T "js.common.regional_name"}},
+  unownName:         {{T "js.common.unown_name"}},
   methodWild:        {{T "shinies.js.method_wild"}},
   methodEgg:         {{T "shinies.js.method_egg"}},
   methodRaid:        {{T "shinies.js.method_raid"}},

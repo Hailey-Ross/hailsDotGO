@@ -1,4 +1,5 @@
 import { costumeShinyUrl, TINY_POKEMON } from "./shared/costumes";
+import { unownLetter, UNOWN_LETTERS } from "./shared/regionalForms";
 
 function trainerFetch(path: string, method: string, body?: unknown): Promise<Response> {
   const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
@@ -88,8 +89,12 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
   };
 
   type ShinyItem = {
+    // id is sent only when you are looking at your OWN collection, so the detail view can link
+    // straight to the entry in the shiny checklist. Nobody else's payload carries it.
+    id?: number;
     pokemon_id: string; form: string; region: string; costume: string;
     event_tag: string; method: string; sprite_url: string;
+    caught_at: string;
     evolved_at: string | null;
   };
 
@@ -122,7 +127,148 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     blue_striped: TRAINER_CTX.formBlueStriped,
     white_striped: TRAINER_CTX.formWhiteStriped,
     wash: TRAINER_CTX.formWash,
+    // A letter is the same glyph in every locale, so the Unown letters label themselves.
+    ...Object.fromEntries(UNOWN_LETTERS.map((u) => [u.region, u.letter])),
   };
+
+  // The dex id is only recoverable from the sprite URL: the payload has no dex field.
+  function dexOf(item: ShinyItem): number {
+    const m = /\/shiny\/(\d+)\.png$/.exec(item.sprite_url);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  // Regional entries already point at their variant sprite, and costume art is only keyed by base
+  // dex, so costumes are skipped for them. Resolving on the client (rather than trusting the
+  // server's sprite_url) is what lets a costume named in the admin panel since the last deploy
+  // still render: see COSTUME_LABELS in templates/trainer.html.
+  function spriteFor(item: ShinyItem): { src: string; fallback: string; dexId: number } {
+    const dexId = dexOf(item);
+    const src = (item.costume && dexId && !item.region)
+      ? (costumeShinyUrl(dexId, item.pokemon_id, item.costume) ?? item.sprite_url)
+      : item.sprite_url;
+    return { src, fallback: item.sprite_url, dexId };
+  }
+
+  // An Unown letter reads the other way round ("Unown F", not "F Unown"), so it has its own
+  // template key. Everything else goes through regionalName.
+  function displayName(item: ShinyItem): string {
+    if (!item.region) return item.pokemon_id;
+    const letter = unownLetter(item.region);
+    if (letter) {
+      return TRAINER_CTX.unownName
+        .replace('{name}', item.pokemon_id)
+        .replace('{letter}', letter);
+    }
+    return TRAINER_CTX.regionalName
+      .replace('{region}', REGION_LABELS[item.region] ?? item.region)
+      .replace('{name}', item.pokemon_id);
+  }
+
+  // ── Detail view ───────────────────────────────────────────────
+  // Everything below is already in the payload the page downloads; the grid just never showed it.
+  // Built with textContent throughout: `costume` and `event_tag` are free text the trainer typed.
+  let modal: HTMLDivElement | null = null;
+
+  function ensureModal(): HTMLDivElement {
+    if (modal) return modal;
+    modal = document.createElement('div');
+    // sc-modal is the shiny checklist's modal, already styled globally, and main.css exempts it
+    // from the body blur rule -- which matters because this is appended to <body>.
+    modal.className = 'sc-modal';
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeDetail(); });
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal?.classList.contains('open')) closeDetail();
+    });
+    return modal;
+  }
+
+  function closeDetail(): void { modal?.classList.remove('open'); }
+
+  function detailRow(label: string, value: string): HTMLDivElement {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:0.75rem;width:100%;font-size:0.85rem';
+    const k = document.createElement('span');
+    k.style.cssText = 'color:var(--text-2);flex:0 0 5.5rem';
+    k.textContent = label;
+    const v = document.createElement('span');
+    v.style.cssText = 'color:var(--text);flex:1;word-break:break-word';
+    v.textContent = value;
+    row.appendChild(k);
+    row.appendChild(v);
+    return row;
+  }
+
+  function openDetail(item: ShinyItem): void {
+    const m = ensureModal();
+    m.textContent = '';
+
+    const inner = document.createElement('div');
+    inner.className = 'sc-modal-inner';
+
+    const close = document.createElement('button');
+    close.className = 'sc-modal-close';
+    close.textContent = '×';
+    close.addEventListener('click', closeDetail);
+    inner.appendChild(close);
+
+    const { src, fallback, dexId } = spriteFor(item);
+    const img = document.createElement('img');
+    img.className = 'sc-modal-img' + (dexId && TINY_POKEMON.has(dexId) ? ' sprite-sm-poke' : '');
+    img.src = src;
+    if (src !== fallback) {
+      img.onerror = () => { img.src = fallback; img.onerror = null; };
+    }
+    img.alt = item.pokemon_id;
+    inner.appendChild(img);
+
+    const name = document.createElement('div');
+    name.className = 'sc-modal-name';
+    name.textContent = displayName(item);
+    inner.appendChild(name);
+
+    if (item.form === 'shadow' || item.form === 'purified') {
+      const badge = document.createElement('span');
+      badge.className = 'trainer-shiny-form-badge';
+      badge.textContent = item.form === 'shadow' ? TRAINER_CTX.formShadow : TRAINER_CTX.formPurified;
+      inner.appendChild(badge);
+    }
+
+    const rows = document.createElement('div');
+    rows.style.cssText = 'display:flex;flex-direction:column;gap:0.35rem;width:100%;margin-top:0.5rem';
+
+    // Only what the trainer actually filled in. An empty row is noise, not information.
+    if (item.costume) rows.appendChild(detailRow(TRAINER_CTX.costume, item.costume));
+    if (item.event_tag) rows.appendChild(detailRow(TRAINER_CTX.eventTag, item.event_tag));
+    if (item.method) {
+      const icon = METHOD_ICONS[item.method] ? METHOD_ICONS[item.method] + ' ' : '';
+      rows.appendChild(detailRow(TRAINER_CTX.method, icon + (METHOD_LABELS[item.method] ?? item.method)));
+    }
+    if (item.caught_at) {
+      const d = new Date(item.caught_at);
+      if (!isNaN(d.getTime())) {
+        rows.appendChild(detailRow(
+          TRAINER_CTX.caught,
+          d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
+        ));
+      }
+    }
+    if (item.evolved_at) rows.appendChild(detailRow(TRAINER_CTX.evolved, '⬆'));
+    inner.appendChild(rows);
+
+    // Your own entry, so offer the way to change it. The id is only present on your own profile.
+    if (TRAINER_CTX.isOwnProfile && item.id) {
+      const edit = document.createElement('a');
+      edit.className = 'btn-secondary';
+      edit.style.cssText = 'margin-top:0.75rem;font-size:0.82rem;text-decoration:none';
+      edit.href = '/shinies?entry=' + item.id;
+      edit.textContent = TRAINER_CTX.shinyEdit;
+      inner.appendChild(edit);
+    }
+
+    m.appendChild(inner);
+    m.classList.add('open');
+  }
 
   function renderItems(items: ShinyItem[]): void {
     container.innerHTML = '';
@@ -139,17 +285,17 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       if (!item.sprite_url) continue;
       const cell = document.createElement('div');
       cell.className = 'trainer-shiny-item' + (item.evolved_at ? ' sc-evolved-card' : '');
+      // A 48px sprite cannot show a costume, and the badges below it are only a summary of what the
+      // trainer actually recorded. Click for the rest.
+      cell.style.cursor = 'zoom-in';
+      cell.title = TRAINER_CTX.shinyDetails;
+      cell.addEventListener('click', () => openDetail(item));
+
       const img = document.createElement('img');
-      const dexMatch = /\/shiny\/(\d+)\.png$/.exec(item.sprite_url);
-      const dexId = dexMatch ? parseInt(dexMatch[1], 10) : 0;
-      // Regional entries already point at their variant sprite; costume art is
-      // only keyed by base dex, so skip costume resolution for them.
-      const resolvedSrc = (item.costume && dexId && !item.region)
-        ? (costumeShinyUrl(dexId, item.pokemon_id, item.costume) ?? item.sprite_url)
-        : item.sprite_url;
-      img.src = resolvedSrc;
-      if (resolvedSrc !== item.sprite_url) {
-        img.onerror = () => { img.src = item.sprite_url; img.onerror = null; };
+      const { src, fallback, dexId } = spriteFor(item);
+      img.src = src;
+      if (src !== fallback) {
+        img.onerror = () => { img.src = fallback; img.onerror = null; };
       }
       if (dexId && TINY_POKEMON.has(dexId)) img.classList.add("sprite-sm-poke");
       img.alt = item.pokemon_id;
@@ -164,11 +310,7 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       }
       const name = document.createElement('span');
       name.className = 'trainer-shiny-name';
-      name.textContent = item.region
-        ? TRAINER_CTX.regionalName
-            .replace('{region}', REGION_LABELS[item.region] ?? item.region)
-            .replace('{name}', item.pokemon_id)
-        : item.pokemon_id;
+      name.textContent = displayName(item);
       cell.appendChild(name);
       if (item.region) {
         const badge = document.createElement('span');

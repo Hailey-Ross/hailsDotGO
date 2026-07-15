@@ -1,0 +1,1439 @@
+{
+  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@6280ccb86615fe270fa0c9ba1772660f4bf3e360/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
+  "sourceCommit": "6280ccb86615fe270fa0c9ba1772660f4bf3e360",
+  "codes": {
+    "c:ANNIVERSARY": {
+      "pretty": "Anniversary",
+      "suggested": "Party Hat",
+      "dex": [
+        25,
+        26,
+        172
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:ANNIVERSARY_2022_NOEVOLVE": {
+      "pretty": "Anniversary 2022 Noevolve",
+      "suggested": "Cake Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:ANNIVERSARY_2024": {
+      "pretty": "Anniversary 2024",
+      "suggested": "Party Hat",
+      "dex": [
+        88,
+        89
+      ]
+    },
+    "c:APRIL_2020_NOEVOLVE": {
+      "pretty": "April 2020 Noevolve",
+      "suggested": "Flower Crown",
+      "dex": [
+        25,
+        175,
+        176,
+        427,
+        428,
+        468
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:COSTUME_1": {
+      "pretty": "Costume 1",
+      "suggested": "World Cap",
+      "dex": [
+        25,
+        26
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:COSTUME_2": {
+      "pretty": "Costume 2",
+      "suggested": "New Year's Hat",
+      "dex": [
+        25,
+        26,
+        172
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:FALL_2018": {
+      "pretty": "Fall 2018",
+      "suggested": "Fragment Hat",
+      "dex": [
+        25,
+        26,
+        172
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:FALL_2020_NOEVOLVE": {
+      "pretty": "Fall 2020 Noevolve",
+      "suggested": "Fashionable",
+      "dex": [
+        238,
+        281,
+        403,
+        453,
+        454
+      ],
+      "female": [
+        403,
+        453,
+        454
+      ]
+    },
+    "c:FALL_2022": {
+      "pretty": "Fall 2022",
+      "suggested": "Fashionable",
+      "dex": [
+        37,
+        38,
+        50,
+        51,
+        710,
+        711
+      ]
+    },
+    "c:FALL_2022_NOEVOLVE": {
+      "pretty": "Fall 2022 Noevolve",
+      "suggested": "Cempasúchil Crown",
+      "dex": [
+        94,
+        355,
+        356,
+        359,
+        477
+      ]
+    },
+    "c:FALL_2023": {
+      "pretty": "Fall 2023",
+      "suggested": "Fashionable",
+      "dex": [
+        104,
+        105,
+        149,
+        194,
+        195
+      ],
+      "female": [
+        194,
+        195
+      ]
+    },
+    "c:FALL_2023_NOEVOLVE": {
+      "pretty": "Fall 2023 Noevolve",
+      "suggested": "Trick and Treats",
+      "dex": [
+        25,
+        94
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:FALL_2024": {
+      "pretty": "Fall 2024",
+      "suggested": "Halloween",
+      "dex": [
+        656,
+        657,
+        658,
+        722,
+        723,
+        724
+      ]
+    },
+    "c:FASHION_2021_NOEVOLVE": {
+      "pretty": "Fashion 2021 Noevolve",
+      "suggested": "Fashionable",
+      "dex": [
+        12,
+        215,
+        522
+      ],
+      "female": [
+        12,
+        215
+      ]
+    },
+    "c:FASHION_2025": {
+      "pretty": "Fashion 2025",
+      "suggested": "Fashionable",
+      "dex": [
+        572,
+        573
+      ]
+    },
+    "c:FEB_2019": {
+      "pretty": "Feb 2019",
+      "suggested": "Detective Hat",
+      "dex": [
+        25,
+        26
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:GEMS_1_2021_NOEVOLVE": {
+      "pretty": "Gems 1 2021 Noevolve",
+      "suggested": "Lucas's Hat",
+      "dex": [
+        387,
+        390,
+        393
+      ]
+    },
+    "c:GEMS_2_2021_NOEVOLVE": {
+      "pretty": "Gems 2 2021 Noevolve",
+      "suggested": "Dawn's Hat",
+      "dex": [
+        387,
+        390,
+        393
+      ]
+    },
+    "c:GOFEST_2021_NOEVOLVE": {
+      "pretty": "Gofest 2021 Noevolve",
+      "suggested": "Meloetta Hat",
+      "dex": [
+        25,
+        77,
+        263,
+        282,
+        330
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:GOFEST_2022_NOEVOLVE": {
+      "pretty": "Gofest 2022 Noevolve",
+      "suggested": "Cowboy Hat",
+      "dex": [
+        25,
+        143
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:GOTOUR_2023_BANDANA": {
+      "pretty": "",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:GOTOUR_2023_BANDANA_NOEVOLVE": {
+      "pretty": "Gotour 2023 Bandana Noevolve",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:GOTOUR_2023_HAT": {
+      "pretty": "",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:GOTOUR_2023_HAT_NOEVOLVE": {
+      "pretty": "Gotour 2023 Hat Noevolve",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:HALLOWEEN_2017": {
+      "pretty": "Halloween 2017",
+      "suggested": "Witch Hat",
+      "dex": [
+        25,
+        26,
+        172
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:HALLOWEEN_2021_NOEVOLVE": {
+      "pretty": "Halloween 2021 Noevolve",
+      "suggested": "Halloween Hat",
+      "dex": [
+        25,
+        393,
+        426
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:HALLOWEEN_2025": {
+      "pretty": "Halloween 2025",
+      "suggested": "Witch Hat",
+      "dex": [
+        216,
+        217,
+        714,
+        715,
+        901
+      ],
+      "female": [
+        217
+      ]
+    },
+    "c:HOENN_2020_NOEVOLVE": {
+      "pretty": "Hoenn 2020 Noevolve",
+      "suggested": "Rayquaza Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:HOLIDAY_2016": {
+      "pretty": "Holiday 2016",
+      "suggested": "Santa Hat",
+      "dex": [
+        25,
+        26,
+        172
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:HOLIDAY_2021_NOEVOLVE": {
+      "pretty": "Holiday 2021 Noevolve",
+      "suggested": "Holiday",
+      "dex": [
+        363,
+        471
+      ]
+    },
+    "c:HOLIDAY_2022": {
+      "pretty": "Holiday 2022",
+      "suggested": "Holiday Hat",
+      "dex": [
+        133,
+        134,
+        135,
+        136,
+        196,
+        197,
+        470,
+        471,
+        700
+      ],
+      "female": [
+        133
+      ]
+    },
+    "c:HOLIDAY_2023": {
+      "pretty": "Holiday 2023",
+      "suggested": "Holiday 2023",
+      "dex": [
+        25,
+        26,
+        54,
+        55
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:HORIZONS_2025_NOEVOLVE": {
+      "pretty": "Horizons 2025 Noevolve",
+      "dex": [
+        907
+      ]
+    },
+    "c:INDONESIA_2025_NOEVOLVE": {
+      "pretty": "Indonesia 2025 Noevolve",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:JAN_2020_NOEVOLVE": {
+      "pretty": "Jan 2020 Noevolve",
+      "suggested": "Party Hat",
+      "dex": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        20,
+        25,
+        33,
+        94,
+        133,
+        202,
+        265
+      ],
+      "female": [
+        3,
+        20,
+        25,
+        133,
+        202
+      ]
+    },
+    "c:JAN_2022_NOEVOLVE": {
+      "pretty": "Jan 2022 Noevolve",
+      "suggested": "New Year's",
+      "dex": [
+        163,
+        164
+      ]
+    },
+    "c:JAN_2023_NOEVOLVE": {
+      "pretty": "Jan 2023 Noevolve",
+      "suggested": "Party Top Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:JAN_2024": {
+      "pretty": "Jan 2024",
+      "suggested": "Ribbon",
+      "dex": [
+        39,
+        40
+      ]
+    },
+    "c:JOHTO_2020_NOEVOLVE": {
+      "pretty": "Johto 2020 Noevolve",
+      "suggested": "Umbreon Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:KANTO_2020_NOEVOLVE": {
+      "pretty": "Kanto 2020 Noevolve",
+      "suggested": "Charizard Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:MAY_2019_NOEVOLVE": {
+      "pretty": "May 2019 Noevolve",
+      "suggested": "Straw Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:MAY_2023": {
+      "pretty": "May 2023",
+      "suggested": "Explorer Hat",
+      "dex": [
+        133,
+        134,
+        135,
+        136,
+        196,
+        197,
+        470,
+        471,
+        700
+      ],
+      "female": [
+        133
+      ]
+    },
+    "c:NIGHTCAP": {
+      "pretty": "Nightcap",
+      "suggested": "Nightcap",
+      "dex": [
+        143
+      ]
+    },
+    "c:NOVEMBER_2018": {
+      "pretty": "November 2018",
+      "suggested": "Flower Crown",
+      "dex": [
+        25,
+        26,
+        113,
+        133,
+        134,
+        135,
+        136,
+        172,
+        196,
+        197,
+        242,
+        440,
+        470,
+        471,
+        700
+      ],
+      "female": [
+        25,
+        26,
+        133
+      ]
+    },
+    "c:ONE_YEAR_ANNIVERSARY": {
+      "pretty": "One Year Anniversary",
+      "suggested": "Original Cap",
+      "dex": [
+        25,
+        26,
+        150,
+        172,
+        249
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:PI": {
+      "pretty": "Pi",
+      "suggested": "Detective Hat 2023",
+      "dex": [
+        25,
+        26
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:PI_NOEVOLVE": {
+      "pretty": "Pi Noevolve",
+      "suggested": "Detective Hat",
+      "dex": [
+        79
+      ]
+    },
+    "c:ROYAL_NOEVOLVE": {
+      "pretty": "Royal Noevolve",
+      "dex": [
+        31,
+        34
+      ]
+    },
+    "c:SAFARI_2020_NOEVOLVE": {
+      "pretty": "Safari 2020 Noevolve",
+      "suggested": "Safari Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:SINNOH_2020_NOEVOLVE": {
+      "pretty": "Sinnoh 2020 Noevolve",
+      "suggested": "Lucario Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:SPRING_2020_NOEVOLVE": {
+      "pretty": "Spring 2020 Noevolve",
+      "suggested": "Visor",
+      "dex": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "female": [
+        3
+      ]
+    },
+    "c:SPRING_2023": {
+      "pretty": "Spring 2023",
+      "suggested": "Cherry Blossom",
+      "dex": [
+        25,
+        26,
+        133,
+        134,
+        135,
+        136,
+        172,
+        196,
+        197,
+        470,
+        471,
+        700
+      ],
+      "female": [
+        25,
+        26,
+        133
+      ]
+    },
+    "c:SPRING_2023_INSTINCT": {
+      "pretty": "Spring 2023 Instinct",
+      "suggested": "Spark-themed",
+      "dex": [
+        125,
+        239,
+        466
+      ]
+    },
+    "c:SPRING_2023_MYSTIC": {
+      "pretty": "Spring 2023 Mystic",
+      "suggested": "Blanche-themed",
+      "dex": [
+        131
+      ]
+    },
+    "c:SPRING_2023_VALOR": {
+      "pretty": "Spring 2023 Valor",
+      "suggested": "Candela-themed",
+      "dex": [
+        77,
+        78
+      ]
+    },
+    "c:SPRING_2024": {
+      "pretty": "Spring 2024",
+      "suggested": "Flower Crown",
+      "dex": [
+        546,
+        547
+      ]
+    },
+    "c:SUMMER_2018": {
+      "pretty": "Summer 2018",
+      "suggested": "Summer Hat",
+      "dex": [
+        7,
+        8,
+        9,
+        25,
+        26,
+        172
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:SUMMER_2024": {
+      "pretty": "Summer 2024",
+      "suggested": "Visor",
+      "dex": [
+        287,
+        288,
+        289
+      ]
+    },
+    "c:TCG_2022_NOEVOLVE": {
+      "pretty": "Tcg 2022 Noevolve",
+      "suggested": "TCG Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "c:WINTER_2018": {
+      "pretty": "Winter 2018",
+      "suggested": "Beanie",
+      "dex": [
+        25,
+        26,
+        172,
+        234
+      ],
+      "female": [
+        25,
+        26
+      ]
+    },
+    "c:WINTER_2024": {
+      "pretty": "Winter 2024",
+      "suggested": "Holiday",
+      "dex": [
+        702,
+        831,
+        832
+      ]
+    },
+    "f:2020": {
+      "pretty": "2020",
+      "suggested": "New Year's",
+      "dex": [
+        79
+      ]
+    },
+    "f:2021": {
+      "pretty": "2021",
+      "suggested": "New Year's",
+      "dex": [
+        80
+      ]
+    },
+    "f:2022": {
+      "pretty": "2022",
+      "suggested": "New Year's",
+      "dex": [
+        199
+      ]
+    },
+    "f:A": {
+      "pretty": "A",
+      "suggested": "Armored",
+      "dex": [
+        150
+      ]
+    },
+    "f:ADVENTURE_HAT_2020": {
+      "pretty": "Adventure Hat 2020",
+      "suggested": "Explorer",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:ANNIVERSARY_2026": {
+      "pretty": "Anniversary 2026",
+      "suggested": "Professor Willow’s assistant",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:BB_2026": {
+      "pretty": "Bb 2026",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:COIN_A1": {
+      "pretty": "Coin A1",
+      "dex": [
+        999
+      ]
+    },
+    "f:COIN_A2_2026": {
+      "pretty": "Coin A2 2026",
+      "dex": [
+        999
+      ]
+    },
+    "f:COPY_2019": {
+      "pretty": "",
+      "suggested": "Clone",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ],
+      "unconfirmed": true
+    },
+    "f:COSTUME_2020": {
+      "pretty": "Costume 2020",
+      "suggested": "Flying",
+      "dex": [
+        25,
+        94,
+        131,
+        302
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:DIWALI_2024": {
+      "pretty": "Diwali 2024",
+      "suggested": "Saree",
+      "dex": [
+        25
+      ]
+    },
+    "f:DOCTOR": {
+      "pretty": "Doctor",
+      "suggested": "Ph.D.",
+      "dex": [
+        25
+      ]
+    },
+    "f:FALL_2019": {
+      "pretty": "Fall 2019",
+      "suggested": "Cubone",
+      "dex": [
+        1,
+        4,
+        7,
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FLYING_01": {
+      "pretty": "Flying 01",
+      "suggested": "Flying Green",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FLYING_02": {
+      "pretty": "Flying 02",
+      "suggested": "Flying Purple",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FLYING_03": {
+      "pretty": "Flying 03",
+      "suggested": "Flying Orange",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FLYING_04": {
+      "pretty": "Flying 04",
+      "suggested": "Flying Red",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FLYING_5TH_ANNIV": {
+      "pretty": "Flying 5th Anniv",
+      "suggested": "Flying 5th Anniversary",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FLYING_OKINAWA": {
+      "pretty": "Flying Okinawa",
+      "suggested": "Flying Okinawa",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:FOSSIL_2026": {
+      "pretty": "Fossil 2026",
+      "suggested": "Fossil",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2022": {
+      "pretty": "Gofest 2022",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2024_MSCARF": {
+      "pretty": "Gofest 2024 Mscarf",
+      "suggested": "Night Scarf",
+      "dex": [
+        197
+      ]
+    },
+    "f:GOFEST_2024_MTIARA": {
+      "pretty": "Gofest 2024 Mtiara",
+      "suggested": "Moon Crown",
+      "dex": [
+        25,
+        133
+      ],
+      "female": [
+        25,
+        133
+      ]
+    },
+    "f:GOFEST_2024_SSCARF": {
+      "pretty": "Gofest 2024 Sscarf",
+      "suggested": "Day Scarf",
+      "dex": [
+        196
+      ]
+    },
+    "f:GOFEST_2024_STIARA": {
+      "pretty": "Gofest 2024 Stiara",
+      "suggested": "Sun Crown",
+      "dex": [
+        25,
+        133
+      ],
+      "female": [
+        25,
+        133
+      ]
+    },
+    "f:GOFEST_2025_GOGGLES_BLUE": {
+      "pretty": "Gofest 2025 Goggles Blue",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2025_GOGGLES_RED": {
+      "pretty": "Gofest 2025 Goggles Red",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2025_GOGGLES_YELLOW": {
+      "pretty": "Gofest 2025 Goggles Yellow",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2025_MONOCLE_BLUE": {
+      "pretty": "Gofest 2025 Monocle Blue",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2025_MONOCLE_RED": {
+      "pretty": "Gofest 2025 Monocle Red",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2025_MONOCLE_YELLOW": {
+      "pretty": "Gofest 2025 Monocle Yellow",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2025_TRAIN_CONDUCTOR": {
+      "pretty": "Gofest 2025 Train Conductor",
+      "dex": [
+        870
+      ]
+    },
+    "f:GOFEST_2026": {
+      "pretty": "Gofest 2026",
+      "suggested": "Poké Ball Hat",
+      "dex": [
+        10
+      ]
+    },
+    "f:GOFEST_2026_CAP_BLUE": {
+      "pretty": "Gofest 2026 Cap Blue",
+      "suggested": "Mystic Cap",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2026_CAP_RED": {
+      "pretty": "Gofest 2026 Cap Red",
+      "suggested": "Valor Cap",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOFEST_2026_CAP_YELLOW": {
+      "pretty": "Gofest 2026 Cap Yellow",
+      "suggested": "Instinct Cap",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2024_A": {
+      "pretty": "Gotour 2024 A",
+      "suggested": "Lucas's Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2024_A_02": {
+      "pretty": "Gotour 2024 A 02",
+      "suggested": "Dawn's Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2024_B": {
+      "pretty": "Gotour 2024 B",
+      "suggested": "Rei's Cap",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2024_B_02": {
+      "pretty": "Gotour 2024 B 02",
+      "suggested": "Akari's Kerchief",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2025_A": {
+      "pretty": "Gotour 2025 A",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2025_A_02": {
+      "pretty": "Gotour 2025 A 02",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2025_B": {
+      "pretty": "Gotour 2025 B",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2025_B_02": {
+      "pretty": "Gotour 2025 B 02",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2026_A": {
+      "pretty": "Gotour 2026 A",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2026_A_02": {
+      "pretty": "Gotour 2026 A 02",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2026_B": {
+      "pretty": "Gotour 2026 B",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2026_B_02": {
+      "pretty": "Gotour 2026 B 02",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2026_C": {
+      "pretty": "Gotour 2026 C",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:GOTOUR_2026_C_02": {
+      "pretty": "Gotour 2026 C 02",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:HORIZONS": {
+      "pretty": "Horizons",
+      "suggested": "Cap's Hat",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:JEJU": {
+      "pretty": "Jeju",
+      "suggested": "Blue Shirt",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:KARIYUSHI": {
+      "pretty": "Kariyushi",
+      "suggested": "Kariyushi Shirt",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:KURTA": {
+      "pretty": "Kurta",
+      "suggested": "Kurta",
+      "dex": [
+        25
+      ]
+    },
+    "f:POP_STAR": {
+      "pretty": "Pop Star",
+      "suggested": "Pop Star",
+      "dex": [
+        25
+      ]
+    },
+    "f:ROCK_STAR": {
+      "pretty": "Rock Star",
+      "suggested": "Rock Star",
+      "dex": [
+        25
+      ]
+    },
+    "f:SPRING_2026": {
+      "pretty": "Spring 2026",
+      "dex": [
+        222
+      ]
+    },
+    "f:SPRING_2026_A": {
+      "pretty": "Spring 2026 A",
+      "dex": [
+        132
+      ]
+    },
+    "f:SPRING_2026_B": {
+      "pretty": "Spring 2026 B",
+      "dex": [
+        132
+      ]
+    },
+    "f:SUMMER_2023": {
+      "pretty": "Summer 2023",
+      "suggested": "Satchel",
+      "dex": [
+        142
+      ]
+    },
+    "f:SUMMER_2023_A": {
+      "pretty": "Summer 2023 A",
+      "suggested": "Malachite Crown",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:SUMMER_2023_B": {
+      "pretty": "Summer 2023 B",
+      "suggested": "Aquamarine Crown",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:SUMMER_2023_C": {
+      "pretty": "Summer 2023 C",
+      "suggested": "Quartz Crown",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:SUMMER_2023_D": {
+      "pretty": "Summer 2023 D",
+      "suggested": "Pyrite Crown",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:SUMMER_2023_E": {
+      "pretty": "Summer 2023 E",
+      "suggested": "Amethyst Crown",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:TSHIRT_01": {
+      "pretty": "Tshirt 01",
+      "suggested": "Green Shirt",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:TSHIRT_02": {
+      "pretty": "Tshirt 02",
+      "suggested": "Purple Shirt",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:TSHIRT_03": {
+      "pretty": "Tshirt 03",
+      "suggested": "Batik Shirt",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:VISOR_2026": {
+      "pretty": "Visor 2026",
+      "suggested": "Marathon",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:VS_2019": {
+      "pretty": "Vs 2019",
+      "suggested": "Libre",
+      "dex": [
+        25
+      ]
+    },
+    "f:WCS_2022": {
+      "pretty": "Wcs 2022",
+      "suggested": "World Championships 2022",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:WCS_2023": {
+      "pretty": "Wcs 2023",
+      "suggested": "World Championships 2023",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:WCS_2024": {
+      "pretty": "Wcs 2024",
+      "suggested": "World Championships 2024",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:WCS_2025": {
+      "pretty": "Wcs 2025",
+      "suggested": "World Championships 2025",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:WILDAREA_2024": {
+      "pretty": "Wildarea 2024",
+      "suggested": "Studded Jacket",
+      "dex": [
+        143
+      ]
+    },
+    "f:WILDAREA_2025": {
+      "pretty": "Wildarea 2025",
+      "suggested": "Wilderness Cape",
+      "dex": [
+        760
+      ]
+    },
+    "f:WINTER_2020": {
+      "pretty": "Winter 2020",
+      "suggested": "Holiday Ribbon",
+      "dex": [
+        25,
+        225,
+        613,
+        614
+      ],
+      "female": [
+        25
+      ]
+    },
+    "f:WINTER_2025": {
+      "pretty": "Winter 2025",
+      "dex": [
+        185,
+        737,
+        738
+      ],
+      "female": [
+        185
+      ]
+    }
+  }
+}

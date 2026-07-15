@@ -1,0 +1,486 @@
+{
+  "c:ANNIVERSARY": {
+    "172": "Party Hat",
+    "25": "Party Hat",
+    "26": "Party Hat"
+  },
+  "c:ANNIVERSARY_2022_NOEVOLVE": {
+    "25": "Cake Hat"
+  },
+  "c:ANNIVERSARY_2024": {
+    "88": "Party Hat",
+    "89": "Party Hat Muk"
+  },
+  "c:APRIL_2020_NOEVOLVE": {
+    "175": "Flower Crown",
+    "176": "Flower Crown",
+    "25": "Flower Hat",
+    "427": "Flower Crown",
+    "428": "Flower Crown",
+    "468": "Flower Crown"
+  },
+  "c:COSTUME_1": {
+    "25": "World Cap",
+    "26": "World Cap"
+  },
+  "c:COSTUME_2": {
+    "172": "New Year's Hat",
+    "25": "New Year's Hat",
+    "26": "New Year's Hat"
+  },
+  "c:FALL_2018": {
+    "172": "2018",
+    "25": "Fragment Hat",
+    "26": "Fragment Hat"
+  },
+  "c:FALL_2020_NOEVOLVE": {
+    "238": "Fashionable",
+    "281": "Fashionable",
+    "403": "Fashionable",
+    "453": "Fashionable",
+    "454": "Fashionable"
+  },
+  "c:FALL_2022": {
+    "37": "Spooky Festival",
+    "38": "Spooky Festival",
+    "50": "Fashionable",
+    "51": "Fashionable",
+    "710": "Halloween Pumpkaboo Average Size",
+    "711": "Halloween Gourgeist Average Size"
+  },
+  "c:FALL_2022_NOEVOLVE": {
+    "355": "Cempasúchil Crown",
+    "356": "Cempasúchil Crown",
+    "359": "Fashionable",
+    "477": "Cempasúchil Crown",
+    "94": "Spooky Festival"
+  },
+  "c:FALL_2023": {
+    "104": "Cempasúchil Crown",
+    "105": "Cempasúchil Crown Cubone",
+    "149": "Fashionable",
+    "194": "Fashionable",
+    "195": "Fashionable"
+  },
+  "c:FALL_2023_NOEVOLVE": {
+    "25": "Trick and Treats",
+    "94": "Trick or Treats"
+  },
+  "c:FALL_2024": {
+    "656": "Witch Hat",
+    "657": "Witch Hat",
+    "658": "Witch Hat",
+    "722": "Halloween",
+    "723": "Halloween",
+    "724": "Halloween"
+  },
+  "c:FASHION_2021_NOEVOLVE": {
+    "12": "Fashionable",
+    "215": "Fashionable",
+    "522": "Fashionable"
+  },
+  "c:FASHION_2025": {
+    "572": "Fashionable",
+    "573": "Fashionable"
+  },
+  "c:FEB_2019": {
+    "25": "Detective Hat",
+    "26": "Detective Hat"
+  },
+  "c:GEMS_1_2021_NOEVOLVE": {
+    "387": "Lucas's Hat",
+    "390": "Lucas's Hat",
+    "393": "Lucas's Hat"
+  },
+  "c:GEMS_2_2021_NOEVOLVE": {
+    "387": "Dawn's Hat",
+    "390": "Dawn's Hat",
+    "393": "Dawn's Hat"
+  },
+  "c:GOFEST_2021_NOEVOLVE": {
+    "25": "Meloetta Hat",
+    "263": "Meloetta Hat Galarian",
+    "282": "Meloetta Hat",
+    "330": "Meloetta Hat",
+    "77": "Meloetta Hat Galarian"
+  },
+  "c:GOFEST_2022_NOEVOLVE": {
+    "143": "Cowboy Hat"
+  },
+  "c:HALLOWEEN_2017": {
+    "172": "Witch Hat",
+    "25": "Witch Hat",
+    "26": "Witch Hat"
+  },
+  "c:HALLOWEEN_2021_NOEVOLVE": {
+    "25": "Halloween Hat",
+    "393": "Halloween Hat",
+    "426": "Halloween Hat"
+  },
+  "c:HALLOWEEN_2025": {
+    "216": "Witch Hat",
+    "217": "Witch Hat Usraring",
+    "714": "Noibat Headband",
+    "715": "Noivern Headband",
+    "901": "Witch Hat"
+  },
+  "c:HOENN_2020_NOEVOLVE": {
+    "25": "Rayquaza Hat"
+  },
+  "c:HOLIDAY_2016": {
+    "172": "Santa Hat",
+    "25": "Santa Hat",
+    "26": "Santa Hat"
+  },
+  "c:HOLIDAY_2021_NOEVOLVE": {
+    "363": "Holiday",
+    "471": "Undersea Holiday"
+  },
+  "c:HOLIDAY_2022": {
+    "133": "Holiday Hat",
+    "134": "Holiday Hat",
+    "135": "Holiday Hat",
+    "136": "Holiday Hat",
+    "196": "Holiday Hat",
+    "197": "Holiday Hat",
+    "470": "Holiday Hat",
+    "471": "Holiday Hat",
+    "700": "Holiday Hat"
+  },
+  "c:HOLIDAY_2023": {
+    "25": "Holiday 2023",
+    "26": "Holiday 2023",
+    "54": "Holiday Attire",
+    "55": "Holiday Attire"
+  },
+  "c:JAN_2020_NOEVOLVE": {
+    "1": "Party Hat",
+    "133": "Party Hat",
+    "2": "Party Hat",
+    "20": "Party Hat",
+    "202": "Party Hat",
+    "25": "Red Party Hat",
+    "265": "Party Hat",
+    "3": "Party Hat",
+    "33": "Party Hat",
+    "4": "Party Hat",
+    "5": "Party Hat",
+    "6": "Party Hat",
+    "7": "Party Hat",
+    "8": "Party Hat",
+    "9": "Party Hat",
+    "94": "Party Hat"
+  },
+  "c:JAN_2022_NOEVOLVE": {
+    "163": "New Year's",
+    "164": "New Year's"
+  },
+  "c:JAN_2023_NOEVOLVE": {
+    "25": "Party Top Hat"
+  },
+  "c:JAN_2024": {
+    "39": "Ribbon",
+    "40": "Ribbon"
+  },
+  "c:JOHTO_2020_NOEVOLVE": {
+    "25": "Umbreon Hat"
+  },
+  "c:KANTO_2020_NOEVOLVE": {
+    "25": "Charizard Hat"
+  },
+  "c:MAY_2019_NOEVOLVE": {
+    "25": "Straw Hat"
+  },
+  "c:MAY_2023": {
+    "133": "Explorer Hat",
+    "134": "Explorer Hat",
+    "135": "Explorer Hat",
+    "136": "Explorer Hat",
+    "196": "Explorer Hat",
+    "197": "Explorer Hat",
+    "470": "Explorer Hat",
+    "471": "Explorer Hat",
+    "700": "Explorer Hat"
+  },
+  "c:NIGHTCAP": {
+    "143": "Nightcap"
+  },
+  "c:NOVEMBER_2018": {
+    "113": "Flower Crown",
+    "133": "Flower Crown",
+    "134": "Flower Crown",
+    "135": "Flower Crown",
+    "136": "Flower Crown",
+    "172": "Flower Crown",
+    "196": "Flower Crown",
+    "197": "Flower Crown",
+    "242": "Flower Crown",
+    "25": "Flower Crown",
+    "26": "Flower Crown",
+    "440": "Flower Crown",
+    "470": "Flower Crown",
+    "471": "Flower Crown",
+    "700": "Flower Crown"
+  },
+  "c:ONE_YEAR_ANNIVERSARY": {
+    "150": "Pokémon GO Stadium",
+    "172": "Original Cap",
+    "249": "Go Fest 2017",
+    "25": "Original Cap",
+    "26": "Original Cap"
+  },
+  "c:PI": {
+    "25": "Detective Hat 2023",
+    "26": "Detective Hat 2023"
+  },
+  "c:PI_NOEVOLVE": {
+    "79": "Detective Hat"
+  },
+  "c:SAFARI_2020_NOEVOLVE": {
+    "25": "Safari Hat"
+  },
+  "c:SINNOH_2020_NOEVOLVE": {
+    "25": "Lucario Hat"
+  },
+  "c:SPRING_2020_NOEVOLVE": {
+    "1": "Visor",
+    "2": "Visor",
+    "3": "Visor",
+    "4": "Visor",
+    "5": "Visor",
+    "6": "Visor",
+    "7": "Visor",
+    "8": "Visor",
+    "9": "Visor"
+  },
+  "c:SPRING_2023": {
+    "133": "Cherry Blossom",
+    "134": "Cherry Blossom",
+    "135": "Cherry Blossom",
+    "136": "Cherry Blossom",
+    "172": "Cherry Blossom",
+    "196": "Cherry Blossom",
+    "197": "Cherry Blossom",
+    "25": "Cherry Blossom",
+    "26": "Cherry Blossom",
+    "470": "Cherry Blossom",
+    "471": "Cherry Blossom",
+    "700": "Cherry Blossom"
+  },
+  "c:SPRING_2023_INSTINCT": {
+    "125": "Spark-themed",
+    "239": "Spark-themed",
+    "466": "Spark-themed"
+  },
+  "c:SPRING_2023_MYSTIC": {
+    "131": "Blanche-themed"
+  },
+  "c:SPRING_2023_VALOR": {
+    "77": "Candela-themed",
+    "78": "Candela-themed"
+  },
+  "c:SPRING_2024": {
+    "546": "Flower Crown",
+    "547": "Flower Crown"
+  },
+  "c:SUMMER_2018": {
+    "172": "Summer Hat",
+    "25": "Summer Hat",
+    "26": "Summer Hat",
+    "7": "Sunglasses",
+    "8": "Sunglasses",
+    "9": "Sunglasses"
+  },
+  "c:SUMMER_2024": {
+    "287": "Visor",
+    "288": "Visor",
+    "289": "Visor"
+  },
+  "c:TCG_2022_NOEVOLVE": {
+    "25": "TCG Hat"
+  },
+  "c:WINTER_2018": {
+    "172": "Beanie",
+    "234": "Christmas Bells",
+    "25": "Beanie",
+    "26": "Beanie"
+  },
+  "c:WINTER_2024": {
+    "702": "Holiday",
+    "831": "Holiday",
+    "832": "Holiday"
+  },
+  "f:2020": {
+    "79": "New Year's"
+  },
+  "f:2021": {
+    "80": "New Year's"
+  },
+  "f:2022": {
+    "199": "New Year's"
+  },
+  "f:A": {
+    "150": "Armored"
+  },
+  "f:ADVENTURE_HAT_2020": {
+    "25": "Explorer"
+  },
+  "f:ANNIVERSARY_2026": {
+    "25": "Professor Willow’s assistant"
+  },
+  "f:COPY_2019": {
+    "25": "Clone"
+  },
+  "f:COSTUME_2020": {
+    "131": "Scarf",
+    "25": "Flying",
+    "302": "Litwick Costume",
+    "94": "Mega Banette Costume"
+  },
+  "f:DIWALI_2024": {
+    "25": "Saree"
+  },
+  "f:DOCTOR": {
+    "25": "Ph.D."
+  },
+  "f:FALL_2019": {
+    "1": "Shedinja",
+    "25": "Mimikyu Costume",
+    "4": "Cubone",
+    "7": "Yamask"
+  },
+  "f:FLYING_01": {
+    "25": "Flying Green"
+  },
+  "f:FLYING_02": {
+    "25": "Flying Purple"
+  },
+  "f:FLYING_03": {
+    "25": "Flying Orange"
+  },
+  "f:FLYING_04": {
+    "25": "Flying Red"
+  },
+  "f:FLYING_5TH_ANNIV": {
+    "25": "Flying 5th Anniversary"
+  },
+  "f:FLYING_OKINAWA": {
+    "25": "Flying Okinawa"
+  },
+  "f:FOSSIL_2026": {
+    "25": "Fossil"
+  },
+  "f:GOFEST_2024_MSCARF": {
+    "197": "Night Scarf"
+  },
+  "f:GOFEST_2024_MTIARA": {
+    "133": "Moon Crown",
+    "25": "Moon Crown"
+  },
+  "f:GOFEST_2024_SSCARF": {
+    "196": "Day Scarf"
+  },
+  "f:GOFEST_2024_STIARA": {
+    "133": "Sun Crown",
+    "25": "Sun Crown"
+  },
+  "f:GOFEST_2026": {
+    "10": "Poké Ball Hat"
+  },
+  "f:GOFEST_2026_CAP_BLUE": {
+    "25": "Mystic Cap"
+  },
+  "f:GOFEST_2026_CAP_RED": {
+    "25": "Valor Cap"
+  },
+  "f:GOFEST_2026_CAP_YELLOW": {
+    "25": "Instinct Cap"
+  },
+  "f:GOTOUR_2024_A": {
+    "25": "Lucas's Hat"
+  },
+  "f:GOTOUR_2024_A_02": {
+    "25": "Dawn's Hat"
+  },
+  "f:GOTOUR_2024_B": {
+    "25": "Rei's Cap"
+  },
+  "f:GOTOUR_2024_B_02": {
+    "25": "Akari's Kerchief"
+  },
+  "f:HORIZONS": {
+    "25": "Cap's Hat"
+  },
+  "f:JEJU": {
+    "25": "Blue Shirt"
+  },
+  "f:KARIYUSHI": {
+    "25": "Kariyushi Shirt"
+  },
+  "f:KURTA": {
+    "25": "Kurta"
+  },
+  "f:POP_STAR": {
+    "25": "Pop Star"
+  },
+  "f:ROCK_STAR": {
+    "25": "Rock Star"
+  },
+  "f:SUMMER_2023": {
+    "142": "Satchel"
+  },
+  "f:SUMMER_2023_A": {
+    "25": "Malachite Crown"
+  },
+  "f:SUMMER_2023_B": {
+    "25": "Aquamarine Crown"
+  },
+  "f:SUMMER_2023_C": {
+    "25": "Quartz Crown"
+  },
+  "f:SUMMER_2023_D": {
+    "25": "Pyrite Crown"
+  },
+  "f:SUMMER_2023_E": {
+    "25": "Amethyst Crown"
+  },
+  "f:TSHIRT_01": {
+    "25": "Green Shirt"
+  },
+  "f:TSHIRT_02": {
+    "25": "Purple Shirt"
+  },
+  "f:TSHIRT_03": {
+    "25": "Batik Shirt"
+  },
+  "f:VISOR_2026": {
+    "25": "Marathon"
+  },
+  "f:VS_2019": {
+    "25": "Libre"
+  },
+  "f:WCS_2022": {
+    "25": "World Championships 2022"
+  },
+  "f:WCS_2023": {
+    "25": "World Championships 2023"
+  },
+  "f:WCS_2024": {
+    "25": "World Championships 2024"
+  },
+  "f:WCS_2025": {
+    "25": "World Championships 2025"
+  },
+  "f:WILDAREA_2024": {
+    "143": "Studded Jacket"
+  },
+  "f:WILDAREA_2025": {
+    "760": "Wilderness Cape"
+  },
+  "f:WINTER_2020": {
+    "225": "Holiday Ribbon",
+    "25": "Winter Carnival Outfit",
+    "613": "Holiday Ribbon",
+    "614": "Holiday Ribbon"
+  }
+}

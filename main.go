@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"pogo.hails.cc/internal/auth"
+	"pogo.hails.cc/internal/costumes"
 	appdb "pogo.hails.cc/internal/db"
 	"pogo.hails.cc/internal/i18n"
 	"pogo.hails.cc/internal/pogodata"
@@ -62,6 +63,10 @@ func main() {
 	// Approved translation overrides live outside the binary so they survive
 	// redeploys; defaults to ./locales under the working directory.
 	i18n.Init(os.Getenv("LOCALES_DIR"))
+
+	// Costume labels named in the admin panel, same idea: labels.json is compiled in, so runtime
+	// names live in an overlay merged over it. Defaults to ./costumes.
+	costumes.Init(os.Getenv("COSTUMES_DIR"))
 
 	csrfKey, err := loadCSRFKey()
 	if err != nil {

@@ -1196,6 +1196,9 @@ type ScraperCheck struct {
 	Bytes      int    `json:"bytes"`   // size of the fetched payload
 	Changed    bool   `json:"changed"` // fresh data differs from what was already stored
 	DurationMs int64  `json:"duration_ms"`
+	// Note carries a human-readable follow-up for sources that report drift but deliberately
+	// do NOT auto-apply it, e.g. costumes, where a new code is useless until a human names it.
+	Note string `json:"note,omitempty"`
 }
 
 // CheckScrapers synchronously fetches every scraped source fresh, compares it against
