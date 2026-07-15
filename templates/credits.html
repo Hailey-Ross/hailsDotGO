@@ -23,7 +23,9 @@
     <ul class="credits-list">
       <li><a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a>: {{T "credits.about.source_pogoapi"}}</li>
       <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">pokemon-go-api</a>: {{T "credits.about.source_leekduck"}}</li>
-      <li><a href="https://github.com/pokemon-go-api/assets" target="_blank" rel="noopener">pokemon-go-api/assets</a>: {{T "credits.about.source_pogo_assets"}}</li>
+      <li><a href="https://github.com/PokeMiners/pogo_assets" target="_blank" rel="noopener">PokeMiners</a>: {{T "credits.about.source_pokeminers"}}</li>
+      <li><a href="https://github.com/WatWowMap/Masterfile-Generator" target="_blank" rel="noopener">WatWowMap Masterfile</a>: {{T "credits.about.source_masterfile"}}</li>
+      <li><a href="https://www.dittobase.com" target="_blank" rel="noopener">Dittobase</a>: {{T "credits.about.source_dittobase"}}</li>
       <li><a href="https://www.snacknap.com/max-battles" target="_blank" rel="noopener">snacknap</a> via <a href="https://github.com/pokemon-go-api/pokemon-go-api" target="_blank" rel="noopener">pokemon-go-api</a>: {{T "credits.about.source_snacknap"}}</li>
       <li><a href="https://leekduck.com" target="_blank" rel="noopener">LeekDuck</a> via <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>: {{T "credits.about.source_scrapedduck"}}</li>
       <li><a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>: {{T "credits.about.source_pokeapi"}}</li>
@@ -149,6 +151,116 @@
   </div>
 
   <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-07-14</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: the companion app can now manage your shinies</h2>
+          <ul class="cl-list">
+            <li>The mobile companion app can now read and update your shiny collection directly: list what you have, add a new catch, edit an entry, evolve it, or remove it, all against the same collection you see here on the site</li>
+            <li>Every shiny the app shows carries the right artwork: costume, regional form and Vivillon or Unown pattern sprites are resolved by the site, so what you see in the app always matches your collection and its checklist</li>
+            <li>The app's region and catch method pickers are fed from the site too, so a new region or method added here shows up in the app without an update</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Events: adding an event on your phone opens the calendar app</h2>
+          <ul class="cl-list">
+            <li>On a phone, "Add to calendar" now hands the event straight to your native calendar app (Apple Calendar on iPhone, Google Calendar on Android) instead of opening a website, so saving it and setting an alarm takes a tap or two</li>
+            <li>On Android, the "Add to Google Calendar" button now opens the Google Calendar app directly, falling back to the website only if the app is not installed</li>
+            <li>The time still arrives right for your location, and on desktop the one-tap Google button and .ics download work exactly as before</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Events: add a single event straight to your calendar</h2>
+          <ul class="cl-list">
+            <li>Open any event and you will now see "Add to Google Calendar" and "Download .ics" buttons, so you can drop just that one event (say an upcoming Kyogre raid) onto your calendar and set an alarm, without subscribing to the whole feed</li>
+            <li>The time comes through right for wherever you are, exactly like the full calendar: a local event such as Spotlight Hour lands at 6pm your time, and a worldwide event lands at the correct converted moment</li>
+            <li>The download works in Apple Calendar, Outlook, and any other app that opens .ics files, while the Google button adds it in a single tap</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Events: subscribe to a calendar that keeps the times right</h2>
+          <ul class="cl-list">
+            <li>The Events page can now feed straight into Google Calendar, Apple Calendar or any calendar app. Open the new "Subscribe to calendar" panel, tick the kinds of events you care about (Community Day, Spotlight Hour, Raids, GO Battle League, Research, or simply Everything), then copy the link or add it to Google in one tap</li>
+            <li>Times come through correctly for wherever you are: local events like Spotlight Hour show at 6pm your time, while worldwide events stay pinned to the real global moment, so the alarms you set actually go off when they should. This is the timezone headache that other Pokémon GO calendars never quite got right</li>
+            <li>The calendar refreshes itself as new events are announced, so once you have subscribed you never have to touch it again</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: Scatterbug remembers its pattern through evolution</h2>
+          <ul class="cl-list">
+            <li>A Scatterbug or Spewpa can now be tagged with its Vivillon pattern in your collection, the same way you set a regional form. It still looks like a plain shiny Scatterbug or Spewpa (they are identical whichever region they came from), but the pattern is remembered</li>
+            <li>When you press Evolve on a tagged Spewpa, it turns into the matching Vivillon pattern automatically, so an Elegant Scatterbug you caught from Japan becomes an Elegant Vivillon without you having to pick the pattern again. The pattern carries the whole way up the line</li>
+            <li>Tagging a Scatterbug with a pattern does not split it into its own card: the single Scatterbug card still ticks and counts as before, so nothing you have recorded changes</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: every Vivillon pattern is its own card</h2>
+          <ul class="cl-list">
+            <li>Vivillon now has a card for all 20 of its wing patterns (Meadow, Polar, Elegant, Icy Snow, Continental, and the rest, right through to the event only Fancy and Poke Ball). Each pattern is ticked, counted and searched on its own, so the Missing tab tells a shiny Vivillon hunter exactly which patterns are still out there</li>
+            <li>Every pattern shows its own artwork on the checklist, in your collection and on your public profile, and hovering a card names the real world region that pattern is collected from (Elegant is Japan, Garden is the UK and Ireland, and so on)</li>
+            <li>A plain Vivillon card is still there for a catch whose pattern you never noted, and anything you already recorded is untouched. Scatterbug and Spewpa stay a single card each, because they look the same whichever region they came from: only Vivillon shows the pattern</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: Unown is tracked letter by letter</h2>
+          <ul class="cl-list">
+            <li>Unown now has a card for every form it comes in: A to Z, plus the exclamation mark and the question mark. Each one is ticked, counted and searched on its own, so the Missing tab finally answers the only question a shiny Unown hunter actually has, which is which letters are still out there</li>
+            <li>Every letter shows its own artwork, on the checklist, in your collection and on your public profile, so a shiny Unown F no longer looks exactly like a shiny Unown G</li>
+            <li>A plain Unown card is still there for a catch whose letter you never wrote down, and anything you have already recorded is untouched. If you do remember the letter, you can set it on the entry in your collection at any time and it will move to the right card</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Trainer pages: tap a shiny to see the story behind it</h2>
+          <ul class="cl-list">
+            <li>Clicking any shiny in a Shiny Collection, yours or another trainer's, now opens it larger along with everything that trainer recorded about it: how it was caught, the costume it is wearing, the event it came from, whether it is Shadow or Purified, its regional form, when it was caught, and whether it was evolved. Only the details they actually filled in are shown</li>
+            <li>The catch date is now yours to set, both when you add a shiny and afterwards from your collection. Until now the site quietly recorded the day you added the entry, which is not the same thing at all if you log a catch a few days later. Existing entries keep the date they have unless you change it</li>
+            <li>On your own profile, the detail view has a link that takes you straight to that exact entry in your collection and highlights it, so you do not have to hunt through a long list to fix a typo</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: the Visor costume is live, and costume art now comes from us</h2>
+          <ul class="cl-list">
+            <li>The Visor costume (the Kanto starters and their evolutions, so a visored Charmander evolves into a visored Charizard) is now in the picker. It turns out the art had existed since 2020 all along: we had recorded the wrong internal code for it and were checking an image source that had quietly stopped updating back in April, so the costume was switched off for no reason. If you caught one, it will render properly now</li>
+            <li>Costume art is no longer loaded from someone else's server. Sprites are fetched once, cached here, and served from pogo.hails.live, so browsing the shiny dex no longer sends a request per costumed Pokemon to a third party</li>
+            <li>Costume data is now derived from the game's own mined assets rather than typed in by hand. Which Pokemon can wear a costume, and whether its shiny exists at all, are read straight from the art that Niantic ships, so a costume can no longer be listed for a Pokemon that never had it, and a missing sprite can no longer hide behind a plain shiny</li>
+            <li>Six costumes that had been sitting unlabelled are now available: the Marathon Visor, Fossil and Willow's Lab Coat Pikachu, the three team caps from GO Fest 2026, and Caterpie's Poke Ball Hat</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: four costumes were showing the wrong art, and 43 more are now available</h2>
+          <ul class="cl-list">
+            <li>Costume names are now cross-checked against a second source, and it immediately caught four costumes that had been pointing at the wrong artwork for months. If you recorded a Detective Hat Pikachu you were being shown a straw hat, and a Flower Crown Pikachu was showing the detective hat. Both now render the costume you actually picked. Dawn's Hat was pointing at Rei's cap, so Dawn's Hat has been corrected and Rei's Cap has been added as its own costume</li>
+            <li>Two Pikachu costumes that were sharing a name have been separated: the plain straw hat and the summer hat with sunglasses are now distinct entries</li>
+            <li>43 costumes that the game had but we had never named are now in the picker, including the World Championships caps, the Flying Pikachu balloon set, the GO Fest 2025 goggles and monocles, Armored Mewtwo, Lucas's and Dawn's hats on the Sinnoh starters, and the Day of the Dead crowns</li>
+            <li>Nothing you have already recorded was renamed. Every existing costume label still works exactly as before</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Admin: a Costumes tab, so new costumes stop going unnoticed</h2>
+          <ul class="cl-list">
+            <li>Admins get a new Costumes tab listing every costume the game has that has not been named yet, each shown with its real shiny artwork. A costume with no name cannot appear in the picker, so this list is the backlog of costumes nobody can record yet. Seeing the art matters: the game's internal names are misleading, which is exactly how four costumes ended up pointing at the wrong picture</li>
+            <li>Costumes can now be named right there in the panel, and the new name is available in the shiny checklist immediately, with no update to the site needed. A costume that is not really a costume (the Gimmighoul coins) can be dismissed from the list in the same way</li>
+            <li>Clicking a costume's picture opens it at full size, on every Pokemon that can wear it, without leaving the page. Most costumes are shared across a whole family, and the small preview only ever showed the first one, which is not much to go on when the name you pick is the one everyone will use</li>
+            <li>A "Fetch new costumes" button checks the game's asset data for costumes that have not been picked up at all yet, so a new event no longer has to be spotted by hand</li>
+            <li>The data health panel used to report costumes as in sync while costumes were sitting unnamed and unusable. It now says how many are waiting</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
 
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-13</div>

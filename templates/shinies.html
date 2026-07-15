@@ -8,6 +8,10 @@
 
 {{define "scripts"}}
 <script>
+// The merged costume labels, including any named in the admin panel since the last deploy.
+// ts/shared/costumes.ts compiles labels.json in, so without this the picker would not know about
+// them. It falls back to its compiled-in copy when this is absent or null.
+const COSTUME_LABELS = {{.CostumeLabels}};
 const SH = {
   heading:         {{T "shinies.js.heading"}},
   tabAll:          {{T "shinies.js.tab_all"}},
@@ -42,6 +46,7 @@ const SH = {
   evolvePick:          {{T "shinies.js.evolve_pick"}},
   tabEvolved:          {{T "shinies.js.tab_evolved"}},
   countsEvolved:       {{T "shinies.js.counts_evolved"}},
+  caught:              {{T "shinies.js.caught"}},
   costumeLabel:        {{T "shinies.js.costume"}},
   costumePlaceholder:  {{T "shinies.js.costume_placeholder"}},
   eventLabel:          {{T "shinies.js.event_tag"}},

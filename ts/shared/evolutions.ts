@@ -1,4 +1,4 @@
-import { Region, shinyRegionalForms } from "./regionalForms";
+import { Region, recordableRegions } from "./regionalForms";
 
 // Maps each Pokemon name (as used in GO/our data) to the name(s) it can evolve into.
 // Only GO-relevant forms included. Branching evolutions list all options.
@@ -482,9 +482,11 @@ export interface EvolveTarget {
   region: string;
 }
 
-// Region propagation rule: keep the entry's region when the target species
-// itself has that region as a shiny form, otherwise clear it (the target is
-// a standalone species such as Perrserker or Sneasler).
+// Region propagation rule: keep the entry's region when the target species can
+// itself record that region (a card form like a Vivillon pattern, or a carry-only
+// form like a Spewpa pattern), otherwise clear it (the target is a standalone
+// species such as Perrserker or Sneasler). This is what carries a Scatterbug's
+// pattern up through Spewpa to the matching Vivillon.
 export function getEvolveTargets(species: string, region: string): EvolveTarget[] {
   const names =
     (region && REGIONAL_EVOLUTION_NEXT[species]?.[region as Region]) ||
@@ -492,7 +494,7 @@ export function getEvolveTargets(species: string, region: string): EvolveTarget[
     [];
   return names.map((n) => ({
     name: n,
-    region: shinyRegionalForms(n).some((f) => f.region === region) ? region : "",
+    region: recordableRegions(n).some((f) => f.region === region) ? region : "",
   }));
 }
 

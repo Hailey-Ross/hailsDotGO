@@ -7,6 +7,12 @@ declare const TRAINER_CTX: {
   isOwnProfile: boolean;
   csrfToken: string;
   shinyShowAll: string;
+  shinyDetails: string;
+  shinyEdit: string;
+  costume: string;
+  eventTag: string;
+  method: string;
+  caught: string;
   collectionEmpty: string;
   collectionLoading: string;
   formShadow: string;
@@ -40,6 +46,7 @@ declare const TRAINER_CTX: {
   formWhiteStriped: string;
   formWash: string;
   regionalName: string;
+  unownName: string;
   methodWild: string;
   methodEgg: string;
   methodRaid: string;

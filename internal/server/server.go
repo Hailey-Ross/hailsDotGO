@@ -4,15 +4,25 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/gorilla/csrf"
+	"pogo.hails.cc/internal/costumes"
 	"pogo.hails.cc/internal/handlers"
 	"pogo.hails.cc/internal/pogodata"
 )
+
+// cacheDir mirrors pogodata's: the on-disk cache the costume sprite proxy writes into.
+func cacheDir() string {
+	if dir := os.Getenv("CACHE_DIR"); dir != "" {
+		return dir
+	}
+	return "cache"
+}
 
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +47,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	h := handlers.New(store, db)
 	h.StartRaidSweeper()
 	h.StartTranslationAutoSync()
+	h.StartCostumeAutoSync()
 
 	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
 	// Counts aggregate bytes across all seven public API endpoints for the same IP.
@@ -84,6 +95,15 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/iv/pokemon", h.ListPokemonIV)
 			r.Delete("/iv/pokemon/{id}", h.DeletePokemonIV)
 
+			// Shiny collection: GET/POST need mobile response shapes (sprite_url); the rest
+			// reuse the web handlers verbatim since they already work over Bearer auth.
+			r.Get("/shinies", h.MobileShiniesGet)
+			r.Post("/shinies", h.MobileShiniesAdd)
+			r.Get("/shinies/reference", h.MobileShiniesReference)
+			r.Put("/shinies/{id}", h.APIShiniesUpdate)
+			r.Delete("/shinies/{id}", h.APIShiniesDelete)
+			r.Post("/shinies/{id}/evolve", h.APIShiniesEvolve)
+
 			r.Get("/raid/state", h.MobileRaidState)
 			r.Post("/raid/queue", h.APIRaidQueueJoin)
 			r.Delete("/raid/queue", h.APIRaidQueueLeave)
@@ -117,6 +137,8 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/dps", h.DPS)
 		r.Get("/pvp", h.PVP)
 		r.Get("/events", h.Events)
+		r.With(httprate.LimitByIP(30, time.Minute)).Get("/events/calendar.ics", h.EventsICS)
+		r.With(httprate.LimitByIP(30, time.Minute)).Get("/events/event.ics", h.EventICS)
 		r.Get("/iv", h.GetIVPage)
 		r.Get("/credits", h.Credits)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
@@ -306,8 +328,22 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/api/trainer-sprite/{slug}", h.APITrainerSprite)
 
-		r.Get("/api/admin/sprite-locks",          h.RequireAdmin(h.AdminGetSpriteLocks))
-		r.Post("/api/admin/sprite-lock/{slug}",   h.RequireAdmin(h.AdminSetSpriteLock))
+		// Costume sprites are proxied and cached by us, never hotlinked: the shiny checklist
+		// would otherwise push a request per costumed row onto the mined-asset host.
+		r.Get("/api/costume-sprite/{file}", costumes.SpriteProxy(cacheDir()))
+
+		// The costume review queue, and naming from it. A name lands in an overlay file merged over
+		// the embedded labels, so it is live in the picker at once (same trick as approved
+		// translations). Naming can only ever ADD: costumes.Name refuses a code that already has a
+		// label, because a label is free text trainers have typed and renaming one orphans their art.
+		r.Get("/api/admin/costumes", h.RequireAdmin(h.AdminCostumes))
+		r.Post("/api/admin/costumes/name", h.RequireAdmin(h.AdminNameCostume))
+		r.Post("/api/admin/costumes/hide", h.RequireAdmin(h.AdminHideCostume))
+		r.Delete("/api/admin/costumes/name", h.RequireAdmin(h.AdminUnnameCostume))
+		r.With(httprate.LimitByIP(5, time.Minute)).Post("/admin/check-costumes", h.RequireAdmin(h.AdminCheckCostumes))
+
+		r.Get("/api/admin/sprite-locks", h.RequireAdmin(h.AdminGetSpriteLocks))
+		r.Post("/api/admin/sprite-lock/{slug}", h.RequireAdmin(h.AdminSetSpriteLock))
 		r.Delete("/api/admin/sprite-lock/{slug}", h.RequireAdmin(h.AdminDeleteSpriteLock))
 
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))

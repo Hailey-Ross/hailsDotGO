@@ -64,19 +64,29 @@ func pokemonSpriteURL(id int, form string) string {
 	if id == 0 {
 		return ""
 	}
-	const base = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
-	if form == "shiny" {
-		return base + "shiny/" + strconv.Itoa(id) + ".png"
-	}
 	if form == "primal" {
 		switch id {
 		case 383:
-			return base + "10007.png" // Primal Groudon
+			return spriteURLSlug("10007", "") // Primal Groudon
 		case 382:
-			return base + "10008.png" // Primal Kyogre
+			return spriteURLSlug("10008", "") // Primal Kyogre
 		}
 	}
-	return base + strconv.Itoa(id) + ".png"
+	return spriteURLSlug(strconv.Itoa(id), form)
+}
+
+// spriteURLSlug builds a PokeAPI sprite URL from a slug rather than an id. Nearly every slug
+// is just a number, but the Unown letters are pokemon-form records with no id of their own and
+// so are filed under 201-b, 201-exclamation and friends (see unownSpriteSlug).
+func spriteURLSlug(slug, form string) string {
+	if slug == "" {
+		return ""
+	}
+	const base = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
+	if form == "shiny" {
+		return base + "shiny/" + slug + ".png"
+	}
+	return base + slug + ".png"
 }
 
 func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {

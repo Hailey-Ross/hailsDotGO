@@ -41,6 +41,7 @@
       {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="tag-requests">{{T "admin.tab.tag_requests"}}</button>{{end}}
       {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
       {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="sprites">Trainer Avatars</button>{{end}}
+      {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="costumes">Costumes</button>{{end}}
     </div>
 
     {{if .User.IsAdmin}}
@@ -744,6 +745,39 @@
     </div>
   </div>
 </div>
+
+<div id="tab-costumes" class="tab-panel">
+  <div class="admin-card">
+    <h2>Costumes</h2>
+    <p class="admin-desc">
+      Costumes the game has that nobody has named. Until a costume has a name it cannot be offered
+      in the picker and nobody can record it, so this list is the backlog. Naming one takes effect
+      straight away, no deploy needed, and is mirrored back into the repo automatically.
+      <strong>Look at the artwork before you name it.</strong> The game's own names are misleading
+      (the code called "May 2019" is a straw hat, not the Detective Pikachu hat), which is how four
+      costumes ended up pointing at the wrong picture. A name cannot be changed once trainers start
+      recording it, so it is only removable while nobody has used it yet.
+    </p>
+
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem">
+      <button id="btn-check-costumes" class="btn-secondary">Fetch new costumes</button>
+      <span id="costume-status" style="font-size:0.85rem;color:var(--text-2)"></span>
+    </div>
+
+    <div id="costume-list" style="display:flex;flex-direction:column;gap:0.5rem">
+      <p style="color:var(--text-2);font-size:0.9rem">Loading...</p>
+    </div>
+  </div>
+
+  <!-- Full-size view of a costume, on every species that has it. A 56px thumbnail is not enough to
+       name a costume from, and the name is effectively permanent once trainers record it. -->
+  <div id="costume-zoom-overlay" class="um-modal-overlay" style="display:none">
+    <div class="um-modal" id="costume-zoom">
+      <button class="um-modal-close" id="costume-zoom-close">&times;</button>
+      <div id="costume-zoom-content"></div>
+    </div>
+  </div>
+</div>
 {{end}}
 
   </div><!-- .admin-panels -->
@@ -996,6 +1030,291 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
   });
 })();
 
+// ── Costumes: the review queue for costumes nobody has named ──
+(function() {
+  var list = document.getElementById('costume-list');
+  if (!list) return;
+  var btn = document.getElementById('btn-check-costumes');
+  var status = document.getElementById('costume-status');
+
+  function message(text, color) {
+    list.textContent = '';
+    var p = document.createElement('p');
+    p.style.cssText = 'font-size:0.9rem;color:' + color;
+    p.textContent = text;
+    list.appendChild(p);
+  }
+
+  function post(url, body, method) {
+    return fetch(url, {
+      method: method || 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+      },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r) {
+      return r.json().then(function(d) {
+        if (!r.ok || !d.ok) throw new Error(d.error || ('HTTP ' + r.status));
+        return d;
+      });
+    });
+  }
+
+  // ── Full-size view ──────────────────────────────────────────
+  // You are naming the COSTUME, not one Pokemon, so show it on every species that has it: a code
+  // like c:FALL_2018 covers Pikachu, Raichu and Togepi, and the row only ever shows the first.
+  var zoomOverlay = document.getElementById('costume-zoom-overlay');
+  var zoomContent = document.getElementById('costume-zoom-content');
+
+  function openZoom(c) {
+    zoomContent.textContent = '';
+
+    var code = document.createElement('div');
+    code.textContent = c.code;
+    code.style.cssText = 'font-family:monospace;font-size:0.9rem;color:var(--text-2);margin-bottom:0.25rem';
+    zoomContent.appendChild(code);
+
+    var name = document.createElement('div');
+    name.textContent = c.suggested
+      ? 'Upstream calls this "' + c.suggested + '"'
+      : 'Upstream has no name for this one' + (c.pretty ? ' (' + c.pretty + ')' : '');
+    name.style.cssText = 'font-size:0.95rem;color:var(--text-1);margin-bottom:1rem';
+    zoomContent.appendChild(name);
+
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:1rem;justify-content:center';
+
+    // Fall back to the thumbnail's sprite if an older server has not sent the full set.
+    var sprites = (c.sprites && c.sprites.length)
+      ? c.sprites
+      : [{species: (c.species || [])[0] || '', url: c.sprite_url}];
+
+    sprites.forEach(function(s) {
+      var cell = document.createElement('div');
+      cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:0.35rem';
+
+      var big = document.createElement('img');
+      big.src = s.url;
+      big.alt = '';
+      big.style.cssText = 'width:256px;height:256px;max-width:100%;object-fit:contain';
+      cell.appendChild(big);
+
+      var cap = document.createElement('div');
+      cap.textContent = s.species;
+      cap.style.cssText = 'font-size:0.85rem;color:var(--text-2)';
+      cell.appendChild(cap);
+
+      grid.appendChild(cell);
+    });
+
+    zoomContent.appendChild(grid);
+    zoomOverlay.style.display = 'flex';
+  }
+
+  function closeZoom() { zoomOverlay.style.display = 'none'; }
+
+  if (zoomOverlay) {
+    document.getElementById('costume-zoom-close').addEventListener('click', closeZoom);
+    zoomOverlay.addEventListener('click', function(e) {
+      if (e.target === zoomOverlay) closeZoom();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && zoomOverlay.style.display !== 'none') closeZoom();
+    });
+  }
+
+  // Built with DOM nodes rather than an HTML string: escapeHtml lives inside another IIFE and is
+  // not in scope here, and textContent cannot be tricked into injecting markup in the first place.
+  function row(c) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem;'
+      + 'border:1px solid var(--border);border-radius:6px;flex-wrap:wrap';
+
+    // The sprites are natively 256x256, so the thumbnail is throwing most of the image away. Click
+    // it to see the costume properly, on every species that has it.
+    var img = document.createElement('img');
+    img.src = c.sprite_url;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.title = 'View larger';
+    img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;cursor:zoom-in';
+    img.addEventListener('click', function() { openZoom(c); });
+    wrap.appendChild(img);
+
+    var text = document.createElement('div');
+    text.style.cssText = 'min-width:0;flex:1';
+
+    // The suggested name comes from Dittobase; without one all we have is the game's machine name,
+    // which is exactly why the art matters: "Spring 2020 Noevolve" tells you nothing, the sprite
+    // tells you it is a visor.
+    var name = document.createElement('div');
+    if (c.suggested) {
+      name.textContent = c.suggested;
+      name.style.cssText = 'color:var(--text-1);font-weight:600';
+    } else {
+      name.textContent = 'no name upstream yet' + (c.pretty ? ' (' + c.pretty + ')' : '');
+      name.style.cssText = 'color:var(--text-2);font-style:italic';
+    }
+    text.appendChild(name);
+
+    var code = document.createElement('div');
+    code.textContent = c.code;
+    code.style.cssText = 'font-family:monospace;font-size:0.8rem;color:var(--text-2)';
+    text.appendChild(code);
+
+    var species = document.createElement('div');
+    species.textContent = (c.species || []).join(', ') || ('dex ' + (c.dex || []).join(', '));
+    species.style.cssText = 'font-size:0.8rem;color:var(--text-2)';
+    text.appendChild(species);
+
+    wrap.appendChild(text);
+
+    // Naming is add-only and permanent in practice: once trainers record a costume under a label,
+    // it cannot be renamed without blanking the art on their entries. So make the admin look at the
+    // sprite and confirm, rather than making it a one-click action.
+    var form = document.createElement('div');
+    form.style.cssText = 'display:flex;gap:0.4rem;align-items:center;flex:none';
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'auth-input';
+    input.placeholder = 'Name this costume...';
+    input.value = c.suggested || '';
+    input.maxLength = 64;
+    input.style.cssText = 'max-width:190px';
+    form.appendChild(input);
+
+    var save = document.createElement('button');
+    save.className = 'btn-primary';
+    save.textContent = 'Name';
+    form.appendChild(save);
+
+    var hide = document.createElement('button');
+    hide.className = 'btn-secondary';
+    hide.textContent = 'Not a costume';
+    hide.title = 'Drop this out of the queue (the Gimmighoul coins and similar)';
+    form.appendChild(hide);
+
+    var err = document.createElement('div');
+    err.style.cssText = 'font-size:0.8rem;color:#f85149;flex-basis:100%';
+
+    function act(fn) {
+      save.disabled = hide.disabled = true;
+      err.textContent = '';
+      fn().then(function() { load(); })
+        .catch(function(e) {
+          err.textContent = e.message;
+          save.disabled = hide.disabled = false;
+        });
+    }
+
+    save.addEventListener('click', function() {
+      var label = input.value.trim();
+      if (!label) { err.textContent = 'Give it a name first.'; return; }
+      // A label that shares no word with what the art is actually called is how a costume ends up
+      // pointing at the wrong thing. Warn, do not block: the admin can see the sprite.
+      if (c.suggested && !sharesWord(label, c.suggested)) {
+        if (!confirm('Upstream calls this "' + c.suggested + '", which shares no word with "'
+            + label + '".\n\nLook at the sprite: is this the right costume?\n\nName it anyway?')) return;
+      }
+      act(function() { return post('/api/admin/costumes/name', {code: c.code, label: label}); });
+    });
+
+    hide.addEventListener('click', function() {
+      act(function() { return post('/api/admin/costumes/hide', {code: c.code}); });
+    });
+
+    wrap.appendChild(form);
+    wrap.appendChild(err);
+    return wrap;
+  }
+
+  // Do two names describe the same thing? Compared on 5-character word prefixes so ordinary
+  // morphology ("Fashion" vs "Fashionable") does not trip it. Mirrors cmd/synccostumes/naming.go.
+  function sharesWord(a, b) {
+    var stop = {the:1, a:1, of:1, and:1, s:1, costume:1, outfit:1, hat:1, pokemon:1};
+    function words(s) {
+      return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .split(/[^a-z0-9]+/).filter(function(w) { return w.length >= 3 && !stop[w]; })
+        .map(function(w) { return w.slice(0, 5); });
+    }
+    var x = words(a), y = words(b);
+    if (!x.length || !y.length) return true; // nothing to compare; do not cry wolf
+    return x.some(function(p) {
+      return y.some(function(q) { return p.indexOf(q) === 0 || q.indexOf(p) === 0; });
+    });
+  }
+
+  function render(costumes) {
+    if (!costumes || !costumes.length) {
+      message('Every costume the game has is named.', '#3fb950');
+      return;
+    }
+    list.textContent = '';
+    costumes.forEach(function(c) { list.appendChild(row(c)); });
+  }
+
+  function load() {
+    return fetch('/api/admin/costumes')
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(d) {
+        var costumes = d.costumes || [];
+        // Render outside the catch's blast radius. A .catch() on the end of a chain also swallows
+        // exceptions thrown inside earlier .then() handlers, so a rendering bug would otherwise be
+        // reported as "could not load" -- which is exactly how this tab lied about being broken.
+        try {
+          render(costumes);
+        } catch (e) {
+          console.error('costume tab render failed', e);
+          message('Loaded ' + costumes.length + ' costumes but failed to render them (see console).', '#f85149');
+          return;
+        }
+        status.textContent = costumes.length
+          ? costumes.length + ' costume' + (costumes.length === 1 ? '' : 's') + ' with no name'
+          : '';
+      })
+      .catch(function(e) {
+        console.error('costume tab load failed', e);
+        message('Could not load costumes: ' + e.message, '#f85149');
+      });
+  }
+
+  load();
+
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    status.textContent = 'Checking upstream...';
+    fetch('/admin/check-costumes', {
+      method: 'POST',
+      headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content}
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(d) {
+      var res = d.result || {};
+      if (!d.ok) { status.textContent = 'Check failed: ' + (res.error || 'unknown error'); return; }
+      // The catalog is compiled into the binary, so this can only ever report. Say so rather than
+      // implying the site just picked the new costumes up.
+      status.textContent = res.note
+        ? res.note
+        : 'Up to date with upstream (' + (d.synced || '').slice(0, 7) + ').';
+      return load(); // refresh, so a stale error cannot linger and make a good check look broken
+    })
+    .catch(function(e) {
+      console.error('costume check failed', e);
+      status.textContent = 'Check failed: ' + e.message;
+    })
+    .finally(function() { btn.disabled = false; });
+  });
+})();
+
 // ── Check/Run scrapers (superadmin only) ──────────────────────
 (function() {
   var btn = document.getElementById('btn-check-scrapers');
@@ -1012,6 +1331,11 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
       var detail;
       if (!c.ok) {
         detail = '<span style="color:#f85149">' + escapeHtml(c.error || '') + '</span>';
+      } else if (c.note) {
+        // A source that reports drift but does NOT auto-apply it (costumes): saying "applied"
+        // here would be a lie, so show what actually needs doing instead.
+        detail = '<span style="color:#d29922">' + escapeHtml(c.note) + '</span>'
+          + ' · ' + c.duration_ms + 'ms';
       } else {
         var count = c.count ? (c.count + ' items, ') : '';
         detail = (c.changed ? STRINGS.scrapersApplied : STRINGS.scrapersInSync)

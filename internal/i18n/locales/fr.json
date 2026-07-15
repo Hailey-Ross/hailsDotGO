@@ -698,6 +698,7 @@
   "js.common.something_wrong": "Une erreur s'est produite.",
   "js.common.the_genus": "{genus}",
   "js.common.top_counters": "Meilleurs compteurs contre {name} (PC {cp})",
+  "js.common.unown_name": "{name} {letter}",
   "js.common.volume": "Volume",
   "js.common.vs": "vs",
   "pvp.js.col_atk": "IV Atq",

@@ -1075,6 +1075,58 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .tier-block:last-child { margin-bottom: 0; }
 .empty-state { color: var(--text-2); font-size: 0.9rem; padding: 1rem 0; }
 
+/* Calendar subscription panel (events page) */
+.subscribe-panel {
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: var(--r);
+  margin-bottom: 1.5rem; overflow: hidden;
+  animation: fadeUp 0.3s ease both;
+}
+.subscribe-summary {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.95rem 1.25rem; cursor: pointer; list-style: none;
+  font-weight: 700; font-size: 0.95rem; user-select: none;
+}
+.subscribe-summary::-webkit-details-marker { display: none; }
+.subscribe-ico { width: 20px; height: 20px; color: var(--blue); flex-shrink: 0; }
+.subscribe-chevron { width: 18px; height: 18px; color: var(--text-2); margin-left: auto; transition: transform var(--trans); }
+.subscribe-panel[open] .subscribe-chevron { transform: rotate(180deg); }
+.subscribe-body {
+  padding: 0 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+.subscribe-desc { color: var(--text-2); font-size: 0.85rem; line-height: 1.5; margin-top: 0.9rem; }
+.subscribe-types { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sub-type {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: var(--r-pill);
+  padding: 0.3rem 0.8rem; font-size: 0.8rem; font-weight: 600; color: var(--text-2);
+  cursor: pointer; transition: color var(--trans), border-color var(--trans);
+}
+.sub-type:hover { color: var(--text); border-color: var(--border-h); }
+.sub-type input { accent-color: var(--blue); cursor: pointer; margin: 0; }
+.sub-type-all { border-style: dashed; }
+.subscribe-url-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.subscribe-url {
+  flex: 1 1 260px; min-width: 0;
+  background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: var(--r-sm);
+  color: var(--text); font-family: var(--font); font-size: 0.82rem;
+  padding: 0.5rem 0.7rem;
+}
+.sub-btn {
+  background: rgba(0,0,0,0.5); border: 1px solid var(--border); color: var(--text-2);
+  border-radius: var(--r-sm); padding: 0.5rem 0.95rem; font-size: 0.82rem; font-weight: 600;
+  font-family: var(--font); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+  transition: color var(--trans), background var(--trans), border-color var(--trans);
+}
+.sub-btn:hover { color: var(--text); border-color: var(--border-h); }
+.sub-btn-primary { background: rgba(91,156,246,0.15); border-color: var(--blue); color: var(--text); }
+.subscribe-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.subscribe-hint { color: var(--text-2); font-size: 0.76rem; line-height: 1.5; }
+
+/* Add-to-calendar buttons inside the event detail modal */
+.event-cal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
+
 /* Event cards (events page) */
 .event-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -1417,6 +1469,15 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .sc-caught-date {
   font-size: 0.72rem;
   color: var(--text-3);
+}
+/* Arriving from the detail view on a trainer page (/shinies?entry=<id>): the list can be hundreds
+   of rows, so say which one we brought you to rather than just scrolling near it. */
+.sc-entry-flash {
+  animation: scEntryFlash 2s ease-out;
+}
+@keyframes scEntryFlash {
+  0%, 40% { background: rgba(255, 214, 0, 0.18); box-shadow: 0 0 0 1px rgba(255, 214, 0, 0.5) inset; }
+  100%    { background: transparent; box-shadow: none; }
 }
 .sc-entry-sub {
   font-size: 0.72rem;

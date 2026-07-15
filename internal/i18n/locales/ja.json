@@ -772,6 +772,7 @@
   "js.common.something_wrong": "問題が発生しました。",
   "js.common.the_genus": "{genus}",
   "js.common.top_counters": "{name}（CP {cp}）の最適な対策ポケモン",
+  "js.common.unown_name": "{name} {letter}",
   "js.common.volume": "音量",
   "js.common.vs": "vs",
   "pvp.js.col_atk": "こうげき",

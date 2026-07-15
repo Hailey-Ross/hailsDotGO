@@ -6,6 +6,35 @@
   <p>{{T "events.subtitle"}}</p>
 </div>
 
+<details class="subscribe-panel" id="subscribe">
+  <summary class="subscribe-summary">
+    <svg class="subscribe-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+    </svg>
+    <span>{{T "events.subscribe.title"}}</span>
+    <svg class="subscribe-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+  </summary>
+  <div class="subscribe-body">
+    <p class="subscribe-desc">{{T "events.subscribe.desc"}}</p>
+    <div class="subscribe-types" id="sub-types">
+      <label class="sub-type"><input type="checkbox" data-type="community-day" checked><span>{{T "events.subscribe.type.community_day"}}</span></label>
+      <label class="sub-type"><input type="checkbox" data-type="pokemon-spotlight-hour" checked><span>{{T "events.subscribe.type.spotlight"}}</span></label>
+      <label class="sub-type"><input type="checkbox" data-type="raid-hour,raid-day,raid-battles,raid-weekend,elite-raids,max-battles,max-mondays" checked><span>{{T "events.subscribe.type.raids"}}</span></label>
+      <label class="sub-type"><input type="checkbox" data-type="go-battle-league"><span>{{T "events.subscribe.type.gbl"}}</span></label>
+      <label class="sub-type"><input type="checkbox" data-type="research,timed-research,limited-research,research-breakthrough,special-research,research-day"><span>{{T "events.subscribe.type.research"}}</span></label>
+      <label class="sub-type sub-type-all"><input type="checkbox" data-type="*"><span>{{T "events.subscribe.type.everything"}}</span></label>
+    </div>
+    <div class="subscribe-url-row">
+      <input type="text" id="sub-url" class="subscribe-url" readonly aria-label="{{T "events.subscribe.title"}}">
+      <button type="button" id="sub-copy" class="sub-btn">{{T "events.subscribe.copy"}}</button>
+    </div>
+    <div class="subscribe-actions">
+      <a id="sub-google" class="sub-btn sub-btn-primary" target="_blank" rel="noopener">{{T "events.subscribe.google"}}</a>
+    </div>
+    <p class="subscribe-hint">{{T "events.subscribe.hint"}}</p>
+  </div>
+</details>
+
 <div id="events-app">
   <div class="loading-state">
     <div class="spinner"></div>
@@ -33,7 +62,12 @@ const EV = {
   leekduck:   {{T "events.modal.leekduck"}},
   canBeShiny: {{T "events.modal.can_be_shiny"}},
   loadingDetails: {{T "events.modal.loading_details"}},
-  error:      {{T "events.error"}}
+  error:      {{T "events.error"}},
+  subCopy:    {{T "events.subscribe.copy"}},
+  subCopied:  {{T "events.subscribe.copied"}},
+  calGoogle:  {{T "events.add.google"}},
+  calDownload:{{T "events.add.download"}},
+  calAdd:     {{T "events.add.calendar"}}
 };
 </script>
 <script src="/static/js/events.js?v={{.AssetVersion}}"></script>

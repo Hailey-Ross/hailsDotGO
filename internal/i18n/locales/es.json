@@ -698,6 +698,7 @@
   "js.common.something_wrong": "Algo salió mal.",
   "js.common.the_genus": "El {genus}",
   "js.common.top_counters": "Mejores contadores para {name} (CP {cp})",
+  "js.common.unown_name": "{name} {letter}",
   "js.common.volume": "Volumen",
   "js.common.vs": "vs",
   "pvp.js.col_atk": "IV Atq",

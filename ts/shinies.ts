@@ -2,7 +2,7 @@ import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import { costumeShinyUrl, costumeLabelsForDex, TINY_POKEMON } from "./shared/costumes";
 import { getEvolveTargets, getEvolutionFamily, EvolveTarget } from "./shared/evolutions";
-import { shinyRegionalForms, regionalVariantId, REGION_ORDER } from "./shared/regionalForms";
+import { shinyRegionalForms, recordableRegions, regionalVariantId, isPatternOnlyRegion, unownLetter, vivillonGeo, REGION_ORDER, UNOWN_LETTERS, VIVILLON_PATTERNS } from "./shared/regionalForms";
 import type { GameData, ShinyPokemon } from "./shared/types";
 
 declare const JSC: Record<string, string>;
@@ -127,13 +127,26 @@ const REGION_LABELS: Record<string, string> = {
   blue_striped: JSC.formBlueStriped,
   white_striped: JSC.formWhiteStriped,
   wash: JSC.formWash,
+  // The Unown letters label themselves: a letter is the same glyph in every
+  // locale, so they need no translation and no 28 locale keys.
+  ...Object.fromEntries(UNOWN_LETTERS.map((u) => [u.region, u.letter])),
+  // The Vivillon patterns label themselves too (Meadow, Sun, Ocean), keeping the
+  // 20 pattern names out of the locale files.
+  ...Object.fromEntries(VIVILLON_PATTERNS.map((p) => [p.region, p.label])),
 };
 
 // Localized display name for a species plus optional region, e.g.
 // "Hisuian Growlithe". The template key lets locales reorder the words.
+//
+// An Unown letter reads the other way round ("Unown F", not "F Unown"), so it
+// gets its own template key rather than being forced through regionalName.
 function regionalDisplayName(gameData: GameData, species: string, region: string): string {
   const base = pokeName(gameData, species);
   if (!region) return base;
+  const letter = unownLetter(region);
+  if (letter) {
+    return JSC.unownName.replace("{name}", base).replace("{letter}", letter);
+  }
   return JSC.regionalName
     .replace("{region}", REGION_LABELS[region] ?? region)
     .replace("{name}", base);
@@ -175,7 +188,9 @@ function refreshCostumeDatalist(pokemonName: string, dexId: number) {
   }
 }
 
-function spriteUrl(id: number) {
+// id is usually a dex or variant id, but the Unown letters have no id of their own and are
+// filed under a string slug (201-b) instead. See UNOWN_LETTERS in shared/regionalForms.
+function spriteUrl(id: number | string) {
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`;
 }
 
@@ -185,21 +200,34 @@ async function fetchUserShinies(): Promise<UserShiny[]> {
   return res.json();
 }
 
-async function apiAdd(pokemonId: string, form: string, region: string, costume: string, eventTag: string, method: string): Promise<boolean> {
+async function apiAdd(pokemonId: string, form: string, region: string, costume: string, eventTag: string, method: string, caughtAt: string): Promise<boolean> {
   const res = await fetch("/api/shinies", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
-    body: JSON.stringify({ pokemon_id: pokemonId, form, region, costume, event_tag: eventTag, method }),
+    // caught_at is the day you caught it, which is not always the day you log it. Empty falls back
+    // to now, so leaving it alone behaves exactly as before.
+    body: JSON.stringify({ pokemon_id: pokemonId, form, region, costume, event_tag: eventTag, method, caught_at: caughtAt }),
   });
   return res.ok;
 }
 
-async function apiUpdate(id: number, form: string, region: string, costume: string, eventTag: string, method: string): Promise<Response> {
+async function apiUpdate(id: number, form: string, region: string, costume: string, eventTag: string, method: string, caughtAt: string): Promise<Response> {
   return fetch(`/api/shinies/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
-    body: JSON.stringify({ form, region, costume, event_tag: eventTag, method }),
+    // caught_at is "YYYY-MM-DD" or empty. Empty leaves the stored date alone, so a row whose date
+    // was never set stays as it was.
+    body: JSON.stringify({ form, region, costume, event_tag: eventTag, method, caught_at: caughtAt }),
   });
+}
+
+// The date input wants "YYYY-MM-DD"; the API sends a full timestamp.
+function dateInputValue(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 async function apiRemove(id: number): Promise<boolean> {
@@ -219,8 +247,15 @@ async function apiEvolve(id: number, into: string, region: string): Promise<bool
   return res.ok;
 }
 
+// The region as the checklist sees it. A carry-only pattern (a Scatterbug or
+// Spewpa Vivillon pattern) collapses to "" so it ticks and counts against the
+// single base card, while the entry itself keeps the real region for evolution.
+function cardRegion(species: string, region: string): string {
+  return isPatternOnlyRegion(species, region) ? "" : region;
+}
+
 function entryKey(s: UserShiny): string {
-  return `${s.pokemon_id}:${s.region}:${s.form}:${s.costume}:${s.event_tag}`;
+  return `${s.pokemon_id}:${cardRegion(s.pokemon_id, s.region)}:${s.form}:${s.costume}:${s.event_tag}`;
 }
 
 function buildCaughtIndex(shinies: UserShiny[]): Map<string, UserShiny> {
@@ -276,7 +311,9 @@ async function init() {
   interface ShinyCard {
     species: ShinyPokemon;
     region: string;
-    spriteId: number;
+    // A dex id for most cards, but the Unown letters have no id of their own and carry a
+    // PokeAPI sprite slug ("201-b") instead.
+    spriteId: number | string;
   }
   const allCards: ShinyCard[] = allShinies.flatMap((s) => [
     { species: s, region: "", spriteId: s.id },
@@ -294,7 +331,7 @@ async function init() {
   function buildCountMap(shinies: UserShiny[]): Map<string, number> {
     const m = new Map<string, number>();
     for (const s of shinies) {
-      const k = `${s.pokemon_id}:${s.region}`;
+      const k = `${s.pokemon_id}:${cardRegion(s.pokemon_id, s.region)}`;
       m.set(k, (m.get(k) ?? 0) + 1);
     }
     return m;
@@ -383,6 +420,7 @@ async function init() {
   let modalCostumeInput: HTMLInputElement;
   let modalEventInput: HTMLInputElement;
   let modalMethodSel: HTMLSelectElement;
+  let modalCaughtInput: HTMLInputElement;
   let modalTarget: ShinyCard | null = null;
 
   // Populated per species by refreshCostumeDatalist() when the add modal opens or a
@@ -523,6 +561,21 @@ async function init() {
     modalMethodSel = makeSelect(METHODS, "");
     modalFields.appendChild(modalMethodSel);
 
+    // When you caught it, which is often not the day you get round to logging it.
+    const caughtWrap = document.createElement("div");
+    caughtWrap.className = "sc-field-wrap";
+    const caughtLabel = document.createElement("label");
+    caughtLabel.className = "sc-field-label";
+    caughtLabel.textContent = SH.caught;
+    modalCaughtInput = document.createElement("input");
+    modalCaughtInput.type = "date";
+    modalCaughtInput.className = "move-select";
+    modalCaughtInput.max = dateInputValue(new Date().toISOString());
+    modalCaughtInput.value = modalCaughtInput.max;
+    caughtWrap.appendChild(caughtLabel);
+    caughtWrap.appendChild(modalCaughtInput);
+    modalFields.appendChild(caughtWrap);
+
     refreshCostumeDatalist(s.name, s.id);
     modal.classList.add("open");
   }
@@ -538,7 +591,7 @@ async function init() {
     modalAddBtn.textContent = SH.adding;
     modalStatus.textContent = "";
 
-    const ok = await apiAdd(modalTarget.species.name, form, modalTarget.region, costume, eventTag, method);
+    const ok = await apiAdd(modalTarget.species.name, form, modalTarget.region, costume, eventTag, method, modalCaughtInput.value);
     if (ok) {
       userShinies = await fetchUserShinies();
       rebuildState(userShinies);
@@ -669,6 +722,10 @@ async function init() {
       const label = document.createElement("span");
       label.className = "shiny-label";
       label.textContent = regionalDisplayName(gameData, c.species.name, c.region);
+
+      // Vivillon patterns show their real world collection region on hover.
+      const geo = vivillonGeo(c.region);
+      if (geo) card.setAttribute("title", geo);
 
       card.appendChild(img);
       card.appendChild(label);
@@ -837,9 +894,10 @@ async function init() {
       // Form selector
       const formSel = makeSelect(FORMS, rec.form);
 
-      // Region selector, only for species that have shiny regional forms in
-      // GO. Lets older entries be retroactively marked with their region.
-      const regionalOptions = shinyRegionalForms(rec.pokemon_id);
+      // Region selector, for species that have recordable regional forms in GO
+      // (card forms like Vivillon patterns, plus carry-only forms like the
+      // Scatterbug/Spewpa patterns). Lets older entries be marked retroactively.
+      const regionalOptions = recordableRegions(rec.pokemon_id);
       let regionSel: HTMLSelectElement | null = null;
       if (regionalOptions.length || rec.region) {
         const opts = [
@@ -877,6 +935,16 @@ async function init() {
       // Method selector
       const methodSel = makeSelect(METHODS, rec.method);
 
+      // Caught date. Until now nothing ever wrote this column, so it recorded the day the row was
+      // ADDED rather than the day the Pokemon was caught -- and people log catches late. The trainer
+      // page shows this date now, so it has to be the trainer's to set.
+      const caughtSel = document.createElement("input");
+      caughtSel.type = "date";
+      caughtSel.className = "move-select";
+      caughtSel.title = SH.caught;
+      caughtSel.value = dateInputValue(rec.caught_at);
+      caughtSel.max = dateInputValue(new Date().toISOString());
+
       // Save status
       const statusEl = document.createElement("span");
       statusEl.className = "sc-save-status";
@@ -889,9 +957,10 @@ async function init() {
         const newCostume  = costumeSel.value;
         const newEventTag = eventSel.value;
         const newMethod   = methodSel.value;
+        const newCaughtAt = caughtSel.value;
         let res: Response;
         try {
-          res = await apiUpdate(rec.id, newForm, newRegion, newCostume, newEventTag, newMethod);
+          res = await apiUpdate(rec.id, newForm, newRegion, newCostume, newEventTag, newMethod, newCaughtAt);
         } catch (e) {
           console.error("shiny update failed (network):", e);
           statusEl.textContent = JSC.error;
@@ -903,6 +972,10 @@ async function init() {
           rec.costume   = newCostume;
           rec.event_tag = newEventTag;
           rec.method    = newMethod;
+          if (newCaughtAt) {
+            rec.caught_at = newCaughtAt;
+            dateEl.textContent = timeAgo(rec.caught_at);
+          }
           // Full rebuild rather than incremental delete/set: with duplicate
           // entries sharing a key, an incremental update would drop the
           // surviving duplicate from the index until the next refetch.
@@ -941,6 +1014,7 @@ async function init() {
       });
       eventSel.addEventListener("change", saveUpdate);
       methodSel.addEventListener("change", saveUpdate);
+      caughtSel.addEventListener("change", saveUpdate);
 
       // Evolve button -- transforms entry into next form
       const evolveBtn = document.createElement("button");
@@ -981,6 +1055,9 @@ async function init() {
         }
       });
 
+      // The trainer page's detail view links here with ?entry=<id>, so the row needs to be findable.
+      row.id = `shiny-${rec.id}`;
+
       row.appendChild(img);
       row.appendChild(nameWrap);
       row.appendChild(formSel);
@@ -988,6 +1065,7 @@ async function init() {
       row.appendChild(costumeSel);
       row.appendChild(eventSel);
       row.appendChild(methodSel);
+      row.appendChild(caughtSel);
       row.appendChild(statusEl);
       row.appendChild(evolveBtn);
       row.appendChild(removeBtn);
@@ -1052,6 +1130,21 @@ async function init() {
 
   updateCounter();
   renderTab();
+
+  // Deep link from the detail view on your own trainer page: /shinies?entry=<id>. Switch to the
+  // Caught tab (the entry only exists there), then scroll to it and flash it, because the list can
+  // be hundreds of rows long and "we took you to the right page" is not the same as finding it.
+  const entryId = new URLSearchParams(location.search).get("entry");
+  if (entryId) {
+    const caughtBtn = tabsEl.querySelector('.tab-btn[data-tab="caught"]') as HTMLButtonElement | null;
+    if (caughtBtn) caughtBtn.click();
+    const row = document.getElementById(`shiny-${entryId}`);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.classList.add("sc-entry-flash");
+      setTimeout(() => row.classList.remove("sc-entry-flash"), 2000);
+    }
+  }
 }
 
 init();

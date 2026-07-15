@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/csrf"
 	"pogo.hails.cc/internal/auth"
+	"pogo.hails.cc/internal/costumes"
 	"pogo.hails.cc/internal/i18n"
 	"pogo.hails.cc/internal/mail"
 	"pogo.hails.cc/internal/pogodata"
@@ -60,17 +61,23 @@ type PageMaintenance struct {
 // PageData is the root template data passed to every page.
 // User is nil for unauthenticated requests.
 type PageData struct {
-	User            *auth.User
-	Data            any
-	CSRFToken       string
-	StoreEnabled    bool
-	Maintenance     PageMaintenance
-	Lang            string
-	Langs           []string
-	AssetVersion    string
-	Path            string
-	ReportCount     int // bug reports the user participates in, any status (drives the persistent Reports nav link)
-	ReportUnread    int // of those, how many have unseen activity (drives the badge)
+	User         *auth.User
+	Data         any
+	CSRFToken    string
+	StoreEnabled bool
+	Maintenance  PageMaintenance
+	Lang         string
+	Langs        []string
+	AssetVersion string
+	Path         string
+	ReportCount  int // bug reports the user participates in, any status (drives the persistent Reports nav link)
+	ReportUnread int // of those, how many have unseen activity (drives the badge)
+
+	// CostumeLabels is the merged costume label set, injected into the pages whose JS resolves
+	// costumes client-side. ts/shared/costumes.ts compiles labels.json in, so without this a
+	// costume named in the admin panel would show on public profiles (resolved in Go) but not in
+	// the picker, until a redeploy. Empty on pages that do not need it.
+	CostumeLabels template.JS
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
@@ -268,6 +275,17 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	pd := PageData{User: u, Data: data, CSRFToken: csrf.Token(r), StoreEnabled: h.storeEnabled(), Maintenance: m, Lang: lang, Langs: h.publicLangs(), AssetVersion: h.assetVersion, Path: r.URL.Path}
 	if u != nil {
 		pd.ReportCount, pd.ReportUnread = h.reportCounts(u.ID)
+	}
+	// Only the two pages that resolve costumes in the browser; it is a few KB, so there is no
+	// reason to ship it with every page. "null" rather than empty on failure, so the injected
+	// object is still valid JS and the client falls back to its compiled-in labels.
+	if page == "shinies" || page == "trainer" {
+		pd.CostumeLabels = template.JS("null")
+		if b, err := costumes.LabelsJSON(); err == nil {
+			pd.CostumeLabels = template.JS(b)
+		} else {
+			log.Printf("costumes: marshal labels for %s: %v", page, err)
+		}
 	}
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)
