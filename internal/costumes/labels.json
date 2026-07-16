@@ -1,6 +1,10 @@
 {
   "_comment": [
-    "CURATED, APPEND-ONLY. Hand-edited. Never written by a tool.",
+    "CURATED, APPEND-ONLY, and hand-ordered: the grouping and the order here are for humans,",
+    "nothing reads them. Edit it by hand. One tool appends to it: the admin-panel sync",
+    "(internal/handlers/costumes_github.go) PRs names added in the panel onto the END of the",
+    "'shared' and 'hidden' arrays below, splicing whole lines into these bytes rather than",
+    "re-marshalling the file, so it can never reorder or reformat anything you wrote here.",
     "A costume label is USER DATA: user_shinies.costume is free text that trainers type,",
     "so renaming a label orphans the costume art on entries people have already saved.",
     "Add new labels freely; to rename one, add the old spelling to 'aliases' instead.",
