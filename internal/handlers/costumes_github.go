@@ -73,7 +73,11 @@ func syncCostumeLabels(token, repo string) (changed bool, prURL, step string, er
 		step, err = fail("marshal labels", 0, nil, merr)
 		return false, "", step, err
 	}
-	data = append(data, '\n')
+	// LabelsJSON reproduces the committed file, which already ends in a newline; only add one if a
+	// future edit drops it. Appending unconditionally would push a one-byte diff on every run.
+	if !bytes.HasSuffix(data, []byte("\n")) {
+		data = append(data, '\n')
+	}
 
 	status, body, err := ghRequest(token, "GET", "/repos/"+repo+"/git/ref/heads/"+ghBaseBranch, nil)
 	if err != nil || status != http.StatusOK {
@@ -98,14 +102,39 @@ func syncCostumeLabels(token, repo string) (changed bool, prURL, step string, er
 		return false, "", step, err
 	}
 	var prs []struct {
+		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
 	}
+	prNum := 0
 	if json.Unmarshal(body, &prs) == nil && len(prs) > 0 {
-		prURL = prs[0].HTMLURL
+		prNum, prURL = prs[0].Number, prs[0].HTMLURL
 	}
 
-	// Create the branch, or fast-forward it onto base when no PR is open (so a merged PR does not
-	// leave the branch stranded behind main).
+	// Nothing to sync is decided against BASE, not against the branch: the question is whether main
+	// already carries every name we have. Asking the branch instead would call a branch that already
+	// holds our commit "up to date" and never open a PR for it.
+	baseContent, _, berr := costumeFileOn(token, repo, ghBaseBranch)
+	if berr != nil {
+		step, err = fail("read "+ghCostumePath+" on "+ghBaseBranch, 0, nil, berr)
+		return false, "", step, err
+	}
+	if bytes.Equal(baseContent, data) {
+		if prNum != 0 {
+			closeEmptyCostumePR(token, repo, prNum)
+		} else {
+			deleteCostumeBranch(token, repo)
+		}
+		return false, "", "", nil
+	}
+
+	// Create the branch, or fast-forward it onto base when it has fallen behind. A branch left
+	// sitting on an old base is one merge to main away from an unresolvable conflict; that is what
+	// happened to PR #1.
+	//
+	// But reset ONLY when it is actually stale. A reset makes the branch momentarily identical to
+	// base, and GitHub closes any PR whose head matches its base, so resetting a branch that was
+	// already current would throw the PR away and orphan the commit pushed just below. Being one
+	// commit on top of the current base IS current: nothing to do.
 	status, body, err = ghRequest(token, "GET", "/repos/"+repo+"/git/ref/heads/"+ghCostumeBranch, nil)
 	switch {
 	case err == nil && status == http.StatusNotFound:
@@ -116,53 +145,62 @@ func syncCostumeLabels(token, repo string) (changed bool, prURL, step string, er
 			return false, "", step, err
 		}
 	case err == nil && status == http.StatusOK:
-		if prURL == "" {
+		if json.Unmarshal(body, &ref) != nil || ref.Object.SHA == "" {
+			step, err = fail("parse branch", status, body, nil)
+			return false, "", step, err
+		}
+		if onBase, berr := costumeBranchOnBase(token, repo, ref.Object.SHA, baseSHA); berr != nil {
+			step, err = fail("read branch commit", 0, nil, berr)
+			return false, "", step, err
+		} else if !onBase {
 			status, body, err = ghRequest(token, "PATCH", "/repos/"+repo+"/git/refs/heads/"+ghCostumeBranch,
 				map[string]any{"sha": baseSHA, "force": true})
 			if err != nil || status != http.StatusOK {
 				step, err = fail("reset branch", status, body, err)
 				return false, "", step, err
 			}
+			// The reset just closed any open PR out from under us.
+			prNum, prURL = 0, ""
 		}
 	default:
 		step, err = fail("read branch", status, body, err)
 		return false, "", step, err
 	}
 
-	status, body, err = ghRequest(token, "GET",
-		"/repos/"+repo+"/contents/"+ghCostumePath+"?ref="+ghCostumeBranch, nil)
-	blobSHA := ""
-	if err == nil && status == http.StatusOK {
-		var file struct {
-			SHA     string `json:"sha"`
-			Content string `json:"content"`
-		}
-		if json.Unmarshal(body, &file) == nil {
-			blobSHA = file.SHA
-			existing, decErr := base64.StdEncoding.DecodeString(strings.ReplaceAll(file.Content, "\n", ""))
-			if decErr == nil && bytes.Equal(existing, data) {
-				return false, prURL, "", nil // already up to date
-			}
-		}
-	} else if err != nil || status != http.StatusNotFound {
-		step, err = fail("read "+ghCostumePath, status, body, err)
+	// Main does not have our content, so the branch must. Commit unless it already matches, which
+	// keeps a quiet run from force-pushing an identical commit and churning the PR.
+	branchContent, blobSHA, berr := costumeFileOn(token, repo, ghCostumeBranch)
+	if berr != nil {
+		step, err = fail("read "+ghCostumePath, 0, nil, berr)
 		return false, "", step, err
 	}
+	changed = !bytes.Equal(branchContent, data)
+	if changed {
+		payload := map[string]any{
+			"message": "Sync costume labels named in the admin panel",
+			"content": base64.StdEncoding.EncodeToString(data),
+			"branch":  ghCostumeBranch,
+		}
+		if blobSHA != "" {
+			payload["sha"] = blobSHA
+		}
+		status, body, err = ghRequest(token, "PUT", "/repos/"+repo+"/contents/"+ghCostumePath, payload)
+		if err != nil || (status != http.StatusOK && status != http.StatusCreated) {
+			step, err = fail("commit "+ghCostumePath, status, body, err)
+			return false, "", step, err
+		}
+	}
 
-	payload := map[string]any{
-		"message": "Sync costume labels named in the admin panel",
-		"content": base64.StdEncoding.EncodeToString(data),
-		"branch":  ghCostumeBranch,
+	// Re-check rather than trust the read from before the reset: if the branch was stale, resetting
+	// it closed the PR, and the commit above would otherwise sit on the branch with nothing pointing
+	// at it. Asking again is one request and cannot be stale.
+	if prURL == "" {
+		status, body, err = ghRequest(token, "GET",
+			"/repos/"+repo+"/pulls?state=open&head="+owner+":"+ghCostumeBranch, nil)
+		if err == nil && status == http.StatusOK && json.Unmarshal(body, &prs) == nil && len(prs) > 0 {
+			prNum, prURL = prs[0].Number, prs[0].HTMLURL
+		}
 	}
-	if blobSHA != "" {
-		payload["sha"] = blobSHA
-	}
-	status, body, err = ghRequest(token, "PUT", "/repos/"+repo+"/contents/"+ghCostumePath, payload)
-	if err != nil || (status != http.StatusOK && status != http.StatusCreated) {
-		step, err = fail("commit "+ghCostumePath, status, body, err)
-		return false, "", step, err
-	}
-
 	if prURL == "" {
 		status, body, err = ghRequest(token, "POST", "/repos/"+repo+"/pulls", map[string]string{
 			"title": "Sync costume labels",
@@ -182,8 +220,96 @@ func syncCostumeLabels(token, repo string) (changed bool, prURL, step string, er
 		if json.Unmarshal(body, &pr) == nil {
 			prURL = pr.HTMLURL
 		}
+		changed = true // a PR that did not exist a moment ago is worth reporting even if the
+		// branch already carried the content, which is how a PR closed out from
+		// under a good commit gets one again.
 	}
-	return true, prURL, "", nil
+	return changed, prURL, "", nil
+}
+
+// costumeFileOn reads labels.json off a ref, returning its bytes and blob SHA. A ref that does not
+// have the file yet is not an error: it reads as absent (nil, "", nil), which compares unequal to
+// anything we would push.
+func costumeFileOn(token, repo, ref string) (content []byte, blobSHA string, err error) {
+	status, body, err := ghRequest(token, "GET",
+		"/repos/"+repo+"/contents/"+ghCostumePath+"?ref="+ref, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	if status == http.StatusNotFound {
+		return nil, "", nil
+	}
+	if status != http.StatusOK {
+		return nil, "", fmt.Errorf("read %s on %s: status %d", ghCostumePath, ref, status)
+	}
+	var file struct {
+		SHA     string `json:"sha"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(body, &file); err != nil {
+		return nil, "", err
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(file.Content, "\n", ""))
+	if err != nil {
+		return nil, "", fmt.Errorf("decode %s on %s: %w", ghCostumePath, ref, err)
+	}
+	return b, file.SHA, nil
+}
+
+// deleteCostumeBranch drops the sync branch when there is no PR to close alongside it. Best-effort,
+// and a branch that is already gone is the desired state, not a failure.
+func deleteCostumeBranch(token, repo string) {
+	status, body, err := ghRequest(token, "DELETE",
+		"/repos/"+repo+"/git/refs/heads/"+ghCostumeBranch, nil)
+	if err != nil || (status != http.StatusNoContent && status != http.StatusNotFound) {
+		log.Printf("costume sync: delete stale branch: status %d: %s: %v", status, body, err)
+	}
+}
+
+// costumeBranchOnBase reports whether the sync branch is already sitting directly on base, i.e. is
+// the single sync commit on top of it, or is base itself. Anything else (a stale base, a branch
+// somebody else pushed to) counts as stale and wants a reset.
+func costumeBranchOnBase(token, repo, branchSHA, baseSHA string) (bool, error) {
+	if branchSHA == baseSHA {
+		return true, nil
+	}
+	status, body, err := ghRequest(token, "GET", "/repos/"+repo+"/git/commits/"+branchSHA, nil)
+	if err != nil {
+		return false, err
+	}
+	if status != http.StatusOK {
+		return false, fmt.Errorf("read commit %s: status %d", branchSHA, status)
+	}
+	var commit struct {
+		Parents []struct {
+			SHA string `json:"sha"`
+		} `json:"parents"`
+	}
+	if err := json.Unmarshal(body, &commit); err != nil {
+		return false, err
+	}
+	return len(commit.Parents) == 1 && commit.Parents[0].SHA == baseSHA, nil
+}
+
+// closeEmptyCostumePR closes a sync PR that has nothing left to merge, and drops the branch with it.
+// The next run recreates both from current main the moment a name actually needs mirroring.
+//
+// Best-effort: failing to tidy up is not worth failing the sync over, so this only logs. The PR
+// being left open is untidy, not broken.
+func closeEmptyCostumePR(token, repo string, num int) {
+	status, body, err := ghRequest(token, "PATCH",
+		fmt.Sprintf("/repos/%s/pulls/%d", repo, num), map[string]string{"state": "closed"})
+	if err != nil || status != http.StatusOK {
+		log.Printf("costume sync: close empty PR #%d: status %d: %s: %v", num, status, body, err)
+		return
+	}
+	status, body, err = ghRequest(token, "DELETE", "/repos/"+repo+"/git/refs/heads/"+ghCostumeBranch, nil)
+	if err != nil || (status != http.StatusNoContent && status != http.StatusNotFound) {
+		log.Printf("costume sync: delete branch after closing PR #%d: status %d: %s: %v",
+			num, status, body, err)
+		return
+	}
+	log.Printf("costume sync: closed PR #%d; main already carries every name we have", num)
 }
 
 // StartCostumeAutoSync mirrors admin-named costume labels to GitHub, so a name is never stranded

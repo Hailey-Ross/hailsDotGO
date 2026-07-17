@@ -1,0 +1,6 @@
+# internal/costumes/labels.json is go:embed'ed and PR'd straight back to GitHub byte for byte by
+# the admin-panel costume sync (see costumes.LabelsJSON). deploy.ps1 builds on Windows, where
+# core.autocrlf would otherwise hand the compiler a CRLF copy: the sync would then push CRLF against
+# GitHub's LF blob and rewrite the whole file instead of appending a line to it. Pin it to LF.
+# TestLabelsJSONMatchesTheFileVerbatim fails loudly if a CRLF copy ever reaches the compiler anyway.
+internal/costumes/labels.json text eol=lf

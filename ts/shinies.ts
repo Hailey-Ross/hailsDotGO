@@ -90,7 +90,31 @@ const EVENT_OPTIONS: { value: string; label: string }[] = [
   { value: "Precious Paths",             label: "Precious Paths" },
   { value: "Memories in Motion",         label: "Memories in Motion" },
   { value: "Forever Forward",            label: "Forever Forward" },
+  // Recurring formats the live feed surfaces that the groups above never covered. The feed
+  // only spans the next few weeks, so these stay useful for tagging an older catch.
+  { value: "Ultra Unlock",               label: "Ultra Unlock" },
+  { value: "Hatch Day",                  label: "Hatch Day" },
+  { value: "Max Battle Day",             label: "Max Battle Day" },
+  { value: "Choose Your Path",           label: "Choose Your Path" },
+  { value: "Wild Area",                  label: "Wild Area" },
+  { value: "City Safari",                label: "City Safari" },
 ];
+
+// The curated list above is the stable base, but it only ever named recurring formats and
+// seasons, so a one-off like "Special Anniversary Pikachu Celebration" was unsuggestable
+// until someone hand-edited this file. Those names already reach us in the live LeekDuck
+// feed behind /api/events, the same one the events page and the .ics subscriptions read,
+// so merge them in instead of topping this list up every few weeks.
+const TAGGABLE_EVENT_TYPES = new Set([
+  "event", "community-day", "pokemon-go-fest",
+  "raid-day", "safari-zone", "max-battles", "season",
+]);
+
+// Just the slice of the feed used here; the full shape lives in ts/events.ts.
+interface FeedEvent {
+  name: string;
+  eventType: string;
+}
 
 const FORMS = [
   { value: "", label: JSC.formNormal },
@@ -185,6 +209,41 @@ function refreshCostumeDatalist(pokemonName: string, dexId: number) {
     const opt = document.createElement("option");
     opt.value = c;
     dl.appendChild(opt);
+  }
+}
+
+let liveEventsMerged = false;
+
+// Adds current and upcoming event names from the live feed to the event datalist, ahead of
+// the curated options because a shiny is usually logged during the event that produced it.
+// Fetched at most once per page and only once the field can actually be reached, so the
+// many visits that just browse the checklist pay nothing. Stays silent on failure: the
+// input is free text, so losing the feed costs suggestions, never the ability to record
+// a catch.
+async function mergeLiveEventOptions() {
+  if (liveEventsMerged) return;
+  liveEventsMerged = true;
+  const dl = document.getElementById("sc-event-list") as HTMLDataListElement | null;
+  if (!dl) return;
+  try {
+    const res = await fetch("/api/events");
+    if (!res.ok) return;
+    const events: FeedEvent[] = await res.json();
+    // event_tag is part of the per-user uniqueness key, so a live name that already exists
+    // verbatim in EVENT_OPTIONS ("Forever Forward" is both a live season and curated) must
+    // resolve to one option, not two.
+    const seen = new Set(EVENT_OPTIONS.map((e) => e.value));
+    const frag = document.createDocumentFragment();
+    for (const ev of events) {
+      if (!ev?.name || !TAGGABLE_EVENT_TYPES.has(ev.eventType) || seen.has(ev.name)) continue;
+      seen.add(ev.name);
+      const opt = document.createElement("option");
+      opt.value = ev.name;
+      frag.appendChild(opt);
+    }
+    dl.insertBefore(frag, dl.firstChild);
+  } catch {
+    // Feed unreachable. The curated options are already in the datalist.
   }
 }
 
@@ -441,6 +500,7 @@ async function init() {
   function openAddModal(c: ShinyCard) {
     const s = c.species;
     modalTarget = c;
+    mergeLiveEventOptions();
     (document.getElementById("sc-modal-normal") as HTMLImageElement).src =
       `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${c.spriteId}.png`;
     (document.getElementById("sc-modal-shiny") as HTMLImageElement).src = spriteUrl(c.spriteId);
@@ -931,6 +991,7 @@ async function init() {
       eventSel.value = rec.event_tag;
       eventSel.placeholder = SH.eventPlaceholder;
       eventSel.setAttribute("list", "sc-event-list");
+      eventSel.addEventListener("focus", () => mergeLiveEventOptions());
 
       // Method selector
       const methodSel = makeSelect(METHODS, rec.method);

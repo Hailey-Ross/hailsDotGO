@@ -26,7 +26,7 @@ var baseURL = func() string {
 	if v := strings.TrimRight(os.Getenv("BASE_URL"), "/"); v != "" {
 		return v
 	}
-	return "https://pogo.hails.live"
+	return "https://pogo.hails.app"
 }()
 
 type resetPageData struct {

@@ -114,14 +114,8 @@ func rebuildLocked() {
 		NameCheckIgnoreComment: lab.NameCheckIgnoreComment,
 		NameCheckIgnore:        lab.NameCheckIgnore,
 	}
-	next.Shared = append(append([]shared{}, lab.Shared...), func() []shared {
-		out := make([]shared, 0, len(ov.Shared))
-		for _, e := range ov.Shared {
-			out = append(out, shared{Label: e.Label, Code: e.Code})
-		}
-		return out
-	}()...)
-	next.Hidden = append(append([]string{}, lab.Hidden...), ov.Hidden...)
+	next.Shared = append(append([]shared{}, lab.Shared...), overlayShared(lab.Shared, ov.Shared)...)
+	next.Hidden = append(append([]string{}, lab.Hidden...), overlayHidden(lab.Hidden, ov.Hidden)...)
 
 	effective = &next
 }

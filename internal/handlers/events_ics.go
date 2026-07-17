@@ -71,7 +71,7 @@ func (h *Handlers) EventsICS(w http.ResponseWriter, r *http.Request) {
 	writeICSLine(&b, "CALSCALE:GREGORIAN")
 	writeICSLine(&b, "METHOD:PUBLISH")
 	writeICSLine(&b, "X-WR-CALNAME:Pokémon GO Events")
-	writeICSLine(&b, "X-WR-CALDESC:Pokémon GO events from pogo.hails.live (data by LeekDuck)")
+	writeICSLine(&b, "X-WR-CALDESC:Pokémon GO events from pogo.hails.app (data by LeekDuck)")
 	// Ask subscribers to re-poll roughly as often as the upstream feed refreshes.
 	writeICSLine(&b, "REFRESH-INTERVAL;VALUE=DURATION:PT6H")
 	writeICSLine(&b, "X-PUBLISHED-TTL:PT6H")

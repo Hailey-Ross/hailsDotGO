@@ -35,7 +35,7 @@ const (
 
 	// robots.txt permits /pokemon-go/pokedex/. Be a good guest anyway: identify ourselves, and
 	// only ever fetch pages we have not already cached, so the steady state is zero traffic.
-	dittoUA    = "hailsDotGO/1.0 (+https://pogo.hails.live)"
+	dittoUA    = "hailsDotGO/1.0 (+https://pogo.hails.app)"
 	dittoDelay = 120 * time.Millisecond
 )
 
