@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{block "title" .}}hailsDotGO{{end}} | pogo.hails.live</title>
+  <title>{{block "title" .}}hailsDotGO{{end}} | pogo.hails.app</title>
   <link rel="icon" type="image/png" href="https://assets.hails.cc/assets/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,6 +47,16 @@
       {{if .User.IsMod}}<a href="/admin" class="nav-item{{if pathActive .Path "/admin"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</span></a>{{end}}
       {{if gt .ReportCount 0}}<a href="/reports" class="nav-item nav-reports-link{{if pathActive .Path "/reports"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg><span>{{T "nav.reports"}}</span>{{if gt .ReportUnread 0}}<span class="nav-reports-badge">{{.ReportUnread}}</span>{{end}}</a>{{end}}
     </div>
+    {{else}}
+    <div class="nav-group">
+      <a href="/login" class="nav-item{{if pathActive .Path "/login"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg><span>{{T "nav.login"}}</span></a>
+      <a href="/register" class="nav-item nav-link-highlight{{if pathActive .Path "/register"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg><span>{{T "nav.signup"}}</span></a>
+    </div>
+    {{end}}
+    <div class="nav-group">
+      <a href="https://github.com/Hailey-Ross/hailsDotGO/wiki" class="nav-item" target="_blank" rel="noopener"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg><span>{{T "nav.wiki"}}</span></a>
+    </div>
+    {{if .User}}
     <div class="nav-user-row">
       <a href="/notifications" class="nav-notif-link" id="nav-notif-btn" title="{{T "nav.notifications"}}">🔔<span class="nav-notif-badge" id="nav-notif-badge" style="display:none"></span></a>
       <a href="/trainer/{{.User.Username}}" class="nav-username-link">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}}</a>
@@ -54,11 +64,6 @@
         <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
         <button type="submit" class="nav-logout-icon" onclick="return confirm({{T "nav.logout_confirm"}})">×</button>
       </form>
-    </div>
-    {{else}}
-    <div class="nav-group">
-      <a href="/login" class="nav-item{{if pathActive .Path "/login"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg><span>{{T "nav.login"}}</span></a>
-      <a href="/register" class="nav-item nav-link-highlight{{if pathActive .Path "/register"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg><span>{{T "nav.signup"}}</span></a>
     </div>
     {{end}}
     <form method="POST" action="/lang" class="lang-switcher">

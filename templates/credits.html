@@ -108,7 +108,7 @@
     <p>{{T "credits.api.your_access_cookie_note"}}</p>
     <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>Cookie: hgo_session=&lt;your-token&gt;</code></pre>
     <p>{{T "credits.api.your_access_example_label"}}</p>
-    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>curl -H "Cookie: hgo_session=&lt;your-token&gt;" https://pogo.hails.live/api/private/data</code></pre>
+    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>curl -H "Cookie: hgo_session=&lt;your-token&gt;" https://pogo.hails.app/api/private/data</code></pre>
     <p style="margin-top:0.5rem;color:var(--text-2);font-size:0.82rem">{{T "credits.api.your_access_warning"}}</p>
   </div>
   {{end}}{{end}}
@@ -153,6 +153,58 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-07-17</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">A new home: pogo.hails.app</h2>
+          <ul class="cl-list">
+            <li>The site has a new address, pogo.hails.app. It is the same tools, the same account and the same data, just a tidier name to type</li>
+            <li>Your old bookmarks still work: every pogo.hails.live link now forwards to the matching page on pogo.hails.app, so nothing you saved is lost</li>
+            <li>If you subscribe to the events calendar it keeps working unchanged, and any emails from us (like a password reset) now come from the new address</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-07-16</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Costume names added by staff now make it back into the site</h2>
+          <ul class="cl-list">
+            <li>When a new costume is given a name in the admin panel it goes live straight away, and the site quietly files that name back into its own costume list so it survives the next rebuild. That filing step was rewriting the entire list every time instead of adding the one new line, which left it too tangled to go through at all</li>
+            <li>It now adds just the new name and leaves every other entry byte for byte as it was written, so the list keeps the order and the notes it was curated with</li>
+            <li>A name that has already been filed is no longer filed a second time, and the request tidies itself away once there is nothing left to file</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">A Wiki link in the sidebar</h2>
+          <ul class="cl-list">
+            <li>The sidebar now has a Wiki link that goes straight to the project's documentation, covering everything from setting up your own instance to how roles, translations and the API work</li>
+            <li>It opens in a new tab, so whatever you were in the middle of stays where you left it</li>
+            <li>The link is there whether or not you are signed in, since the guides are just as useful before you make an account</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny Collection: the event box now suggests the events actually running</h2>
+          <ul class="cl-list">
+            <li>The event box on a shiny now suggests real events as they happen, straight from the same live feed the Events page uses, so something like "Special Anniversary Pikachu Celebration" is there to pick the moment it starts instead of waiting for the list to be updated by hand</li>
+            <li>Current and upcoming events are listed first, since a shiny is usually logged during the event that produced it, with the familiar categories like Community Day and GO Fest kept underneath</li>
+            <li>Only events worth tagging a catch with are suggested: Raid Hours, GO Battle League cups and GO Pass are left out to keep the list short, and the general "Raid Hour" and "Spotlight Hour" entries still cover those</li>
+            <li>Added the recurring formats the list never had: Ultra Unlock, Hatch Day, Max Battle Day, Choose Your Path, Wild Area and City Safari</li>
+            <li>The box is still free text, so you can type any event you like, and anything you have already saved keeps exactly the name you gave it</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-14</div>
       <div class="cl-body">
 
@@ -166,29 +218,11 @@
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Events: adding an event on your phone opens the calendar app</h2>
+          <h2 class="cl-title">Events: add events to your calendar</h2>
           <ul class="cl-list">
-            <li>On a phone, "Add to calendar" now hands the event straight to your native calendar app (Apple Calendar on iPhone, Google Calendar on Android) instead of opening a website, so saving it and setting an alarm takes a tap or two</li>
-            <li>The "Add to Google Calendar" button opens Google Calendar on the web on every device (a browser cannot hand an event straight to the Google Calendar app), so on a phone the native "Add to calendar" button above is the one that leads</li>
-            <li>The time still arrives right for your location, and on desktop the one-tap Google button and .ics download work exactly as before</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Events: add a single event straight to your calendar</h2>
-          <ul class="cl-list">
-            <li>Open any event and you will now see "Add to Google Calendar" and "Download .ics" buttons, so you can drop just that one event (say an upcoming Kyogre raid) onto your calendar and set an alarm, without subscribing to the whole feed</li>
-            <li>The time comes through right for wherever you are, exactly like the full calendar: a local event such as Spotlight Hour lands at 6pm your time, and a worldwide event lands at the correct converted moment</li>
-            <li>The download works in Apple Calendar, Outlook, and any other app that opens .ics files, while the Google button adds it in a single tap</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Events: subscribe to a calendar that keeps the times right</h2>
-          <ul class="cl-list">
-            <li>The Events page can now feed straight into Google Calendar, Apple Calendar or any calendar app. Open the new "Subscribe to calendar" panel, tick the kinds of events you care about (Community Day, Spotlight Hour, Raids, GO Battle League, Research, or simply Everything), then copy the link or add it to Google in one tap</li>
-            <li>Times come through correctly for wherever you are: local events like Spotlight Hour show at 6pm your time, while worldwide events stay pinned to the real global moment, so the alarms you set actually go off when they should. This is the timezone headache that other Pokémon GO calendars never quite got right</li>
-            <li>The calendar refreshes itself as new events are announced, so once you have subscribed you never have to touch it again</li>
+            <li>The Events page can now feed straight into Google Calendar, Apple Calendar or any other calendar app. Open the "Subscribe to calendar" panel, tick the kinds of events you care about (Community Day, Spotlight Hour, Raids, GO Battle League, Research, or simply Everything), then copy the link or add it to Google in one tap</li>
+            <li>You can also add a single event on its own, without subscribing to the whole feed. Open any event and use "Add to Google Calendar" or download it to the calendar app on your phone, so an upcoming Kyogre raid takes a tap or two to save and set an alarm for</li>
+            <li>Times come through correctly for wherever you are: local events like Spotlight Hour show at 6pm your time, while worldwide events stay pinned to the real global moment, so the alarms you set actually go off when they should. The calendar refreshes itself as new events are announced, so once you have subscribed you never have to touch it again</li>
           </ul>
         </div>
 
@@ -232,7 +266,7 @@
           <h2 class="cl-title">Shiny Collection: the Visor costume is live, and costume art now comes from us</h2>
           <ul class="cl-list">
             <li>The Visor costume (the Kanto starters and their evolutions, so a visored Charmander evolves into a visored Charizard) is now in the picker. It turns out the art had existed since 2020 all along: we had recorded the wrong internal code for it and were checking an image source that had quietly stopped updating back in April, so the costume was switched off for no reason. If you caught one, it will render properly now</li>
-            <li>Costume art is no longer loaded from someone else's server. Sprites are fetched once, cached here, and served from pogo.hails.live, so browsing the shiny dex no longer sends a request per costumed Pokemon to a third party</li>
+            <li>Costume art is no longer loaded from someone else's server. Sprites are fetched once, cached here, and served from pogo.hails.app, so browsing the shiny dex no longer sends a request per costumed Pokemon to a third party</li>
             <li>Costume data is now derived from the game's own mined assets rather than typed in by hand. Which Pokemon can wear a costume, and whether its shiny exists at all, are read straight from the art that Niantic ships, so a costume can no longer be listed for a Pokemon that never had it, and a missing sprite can no longer hide behind a plain shiny</li>
             <li>Six costumes that had been sitting unlabelled are now available: the Marathon Visor, Fossil and Willow's Lab Coat Pikachu, the three team caps from GO Fest 2026, and Caterpie's Poke Ball Hat</li>
           </ul>

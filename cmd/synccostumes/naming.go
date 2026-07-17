@@ -153,6 +153,11 @@ func significant(s string) []string {
 // database (nothing references a label that does not exist yet), but some costumes need human
 // judgement before they go in the picker, and marshalling that file from Go would reorder its
 // keys and drop its comments.
+//
+// One thing does write it: the admin-panel sync in internal/handlers/costumes_github.go, which PRs
+// names back so they survive a rebuild. It splices whole lines onto the "shared" and "hidden"
+// arrays of the file's own bytes rather than marshalling it, precisely to avoid the reordering
+// above, and a human still reviews the PR. See costumes.LabelsJSON.
 func suggestLabels(cat *catalog, lab *labels, nm names, dexToName map[int]string) {
 	labelled := lab.codes()
 	hidden := map[string]bool{}
