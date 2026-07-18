@@ -1,5 +1,5 @@
 [Unit]
-Description=hailsDotGO — Pokemon GO Tools (pogo.hails.live)
+Description=hailsDotGO, Pokemon GO Tools (pogo.hails.app)
 After=network.target
 
 [Service]
@@ -11,6 +11,9 @@ ExecStart=/opt/hailsdotgo/hailsDotGO
 Restart=always
 RestartSec=5
 Environment=PORT=8080
+# Runtime secrets and config (DB_*, SUPERADMIN_USER, CSRF_KEY, RESEND_API_KEY, etc.).
+# deploy.ps1 writes this file (mode 600); for a manual install create it yourself.
+EnvironmentFile=/opt/hailsdotgo/app.env
 
 # Basic hardening
 NoNewPrivileges=true
