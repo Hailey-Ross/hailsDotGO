@@ -52,7 +52,7 @@ For how to build from a tagged release and how to upgrade an existing install to
 
 ## Preview
 
-**[pogo.hails.live](https://pogo.hails.live)** is live and free to use.
+**[pogo.hails.app](https://pogo.hails.app)** is live and free to use.
 
 ---
 
@@ -85,7 +85,7 @@ Visit [http://localhost:8080](http://localhost:8080).
 The [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) wiki page covers the rest: creating the first admin account, the CSRF key, and platform notes. Upgrading an existing install? Use the migrate tool instead of `schema.sql`:
 
 ```bash
-go run ./cmd/migrate -from v0.1.4a   # baseline at your version, then apply what is pending
+go run ./cmd/migrate -from v0.1.7b   # baseline at v0.1.7b (the supported floor), then apply what is pending
 go run ./cmd/migrate                 # every upgrade after that
 ```
 

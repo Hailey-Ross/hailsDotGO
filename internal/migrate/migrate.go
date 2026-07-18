@@ -33,18 +33,15 @@ type Section struct {
 // BaselineVersions maps a released version to the highest migrate.sql section
 // that was already applied at that release. It lets an existing, untracked
 // install record everything up to its current version without re-running it.
-// Reconstructed from the GitHub release notes; keep it in step as we tag.
+//
+// v0.1.7b is the migration baseline floor: releases before it were intentionally
+// removed, so the migrate tool only recognises v0.1.7b as a `-from` target and
+// migrations run forward from here only. An install older than v0.1.7b is no
+// longer upgradable in place; it reinstalls from schema.sql (which seeds the full
+// history) and carries on from there. Keep this in step as we tag: add the new
+// version each release, mapped to its highest applied section.
 var BaselineVersions = map[string]int{
-	"v0.1.1a": 22,
-	"v0.1.2a": 22,
-	"v0.1.2b": 23,
-	"v0.1.2c": 25,
-	"v0.1.2d": 29,
-	"v0.1.3a": 38,
-	"v0.1.4a": 41,
-	"v0.1.5a": 42,
-	"v0.1.5b": 42,
-	"v0.1.6a": 43,
+	"v0.1.7b": 43,
 }
 
 // headerRe matches a section header line like "-- 39. Bug report system (2026-06-28)".
