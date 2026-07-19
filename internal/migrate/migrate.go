@@ -42,6 +42,7 @@ type Section struct {
 // version each release, mapped to its highest applied section.
 var BaselineVersions = map[string]int{
 	"v0.1.7b": 43,
+	"v0.1.7c": 43, // no schema change: the collection rework is UI and date handling only
 }
 
 // headerRe matches a section header line like "-- 39. Bug report system (2026-06-28)".
