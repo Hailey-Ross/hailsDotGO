@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -38,7 +37,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.Query(`
 		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
-		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`,
+		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC, id DESC`,
 		u.ID,
 	)
 	if err != nil {
@@ -119,20 +118,17 @@ func (h *Handlers) insertShiny(userID uint, body shinyAddInput) (int64, int, str
 		return 0, http.StatusBadRequest, "error.shiny_caught_at"
 	}
 
-	var result sql.Result
-	if hasCaughtAt {
-		result, err = h.db.Exec(`
-			INSERT INTO user_shinies (user_id, pokemon_id, form, region, costume, event_tag, method, caught_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			userID, body.PokemonID, body.Form, body.Region, body.Costume, body.EventTag, body.Method, caughtAt,
-		)
-	} else {
-		result, err = h.db.Exec(`
-			INSERT INTO user_shinies (user_id, pokemon_id, form, region, costume, event_tag, method)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			userID, body.PokemonID, body.Form, body.Region, body.Costume, body.EventTag, body.Method,
-		)
+	// No date given means today. Filling it in here rather than letting the column's
+	// DEFAULT CURRENT_TIMESTAMP do it keeps every row on one clock: a calendar day at UTC midnight,
+	// which is the only thing the client knows how to read back.
+	if !hasCaughtAt {
+		caughtAt = time.Now().UTC().Truncate(24 * time.Hour)
 	}
+	result, err := h.db.Exec(`
+		INSERT INTO user_shinies (user_id, pokemon_id, form, region, costume, event_tag, method, caught_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		userID, body.PokemonID, body.Form, body.Region, body.Costume, body.EventTag, body.Method, caughtAt,
+	)
 	if err != nil {
 		return 0, http.StatusInternalServerError, "error.db"
 	}
@@ -282,7 +278,9 @@ func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.db.Exec(
-		`UPDATE user_shinies SET pokemon_id = ?, region = ?, evolved_at = NOW() WHERE id = ? AND user_id = ?`,
+		// UTC_TIMESTAMP, not NOW: caught_at is written in UTC from Go, and the two dates on one row
+		// should not be on different clocks.
+		`UPDATE user_shinies SET pokemon_id = ?, region = ?, evolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ?`,
 		body.Into, body.Region, id, u.ID,
 	); err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -298,6 +296,10 @@ type publicShinyRecord struct {
 	// nobody needs another trainer's row ids.
 	ID        uint64     `json:"id,omitempty"`
 	PokemonID string     `json:"pokemon_id"`
+	// Dex is the SPECIES dex number, which is what the trainer page sorts the expanded collection
+	// by. It cannot be read back off SpriteURL: costume art is not keyed by dex at all, and a
+	// regional sprite carries its PokeAPI variant id (Alolan Vulpix is 10091, not 37).
+	Dex int `json:"dex"`
 	Form      string     `json:"form"`
 	Region    string     `json:"region"`
 	Costume   string     `json:"costume"`
@@ -330,7 +332,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.Query(`
 		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
-		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`, userID,
+		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC, id DESC`, userID,
 	)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -348,6 +350,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 		if isOwner {
 			s.ID = id
 		}
+		s.Dex = h.store.PokemonDexID(s.PokemonID)
 		s.SpriteURL = h.resolveShinySpriteURL(s.PokemonID, s.Region, s.Costume)
 		out = append(out, s)
 	}
@@ -369,7 +372,7 @@ func (h *Handlers) MobileShiniesGet(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.Query(`
 		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
-		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC`, u.ID,
+		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC, id DESC`, u.ID,
 	)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -383,6 +386,7 @@ func (h *Handlers) MobileShiniesGet(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
 			continue
 		}
+		s.Dex = h.store.PokemonDexID(s.PokemonID)
 		s.SpriteURL = h.resolveShinySpriteURL(s.PokemonID, s.Region, s.Costume)
 		out = append(out, s)
 	}
@@ -483,9 +487,9 @@ func (h *Handlers) MobileShiniesReference(w http.ResponseWriter, r *http.Request
 
 // resolveShinySpriteURL builds the server-side sprite URL for a stored shiny,
 // preferring a regional/forme slug, then a costume sprite, then the plain base shiny.
-// Regional variants keep their own PokeAPI sprite slug (the URL shape stays identical so
-// the client's dex regex keeps working) and intentionally ignore the costume, matching the
-// client where regional cards do not carry costume art. Returns "" when nothing resolves.
+// Regional variants keep their own PokeAPI sprite slug and intentionally ignore the costume,
+// matching the client where regional cards do not carry costume art. Nothing sorts on this
+// string: the species dex travels as publicShinyRecord.Dex. Returns "" when nothing resolves.
 func (h *Handlers) resolveShinySpriteURL(pokemonID, region, costume string) string {
 	if slug := regionalSpriteSlug(pokemonID, region); slug != "" {
 		return spriteURLSlug(slug, "shiny")

@@ -93,7 +93,7 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     // straight to the entry in the shiny checklist. Nobody else's payload carries it.
     id?: number;
     pokemon_id: string; form: string; region: string; costume: string;
-    event_tag: string; method: string; sprite_url: string;
+    event_tag: string; method: string; sprite_url: string; dex: number;
     caught_at: string;
     evolved_at: string | null;
   };
@@ -131,8 +131,11 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     ...Object.fromEntries(UNOWN_LETTERS.map((u) => [u.region, u.letter])),
   };
 
-  // The dex id is only recoverable from the sprite URL: the payload has no dex field.
+  // The server sends the species dex outright. The URL scrape is only a fallback for a payload
+  // cached from before that field existed, and it is wrong for exactly the entries the field
+  // fixes: costume art has no dex in its path, and a regional sprite carries its variant id.
   function dexOf(item: ShinyItem): number {
+    if (item.dex) return item.dex;
     const m = /\/shiny\/(\d+)\.png$/.exec(item.sprite_url);
     return m ? parseInt(m[1], 10) : 0;
   }
@@ -249,7 +252,9 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       if (!isNaN(d.getTime())) {
         rows.appendChild(detailRow(
           TRAINER_CTX.caught,
-          d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
+          // caught_at is a calendar day pinned to UTC midnight, so it is formatted in UTC: the
+          // viewer's own zone must not rename the day the trainer recorded.
+          d.toLocaleDateString(undefined, { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' }),
         ));
       }
     }
@@ -357,11 +362,13 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
         btn.style.cssText = 'margin-top:0.75rem;font-size:0.82rem';
         btn.textContent = TRAINER_CTX.shinyShowAll.replace('{n}', String(all.length));
         btn.addEventListener('click', () => {
-          const byDex = [...all].sort((a, b) => {
-            const dexA = parseInt(/\/shiny\/(\d+)\.png$/.exec(a.sprite_url)?.[1] ?? '0', 10);
-            const dexB = parseInt(/\/shiny\/(\d+)\.png$/.exec(b.sprite_url)?.[1] ?? '0', 10);
-            return dexA - dexB;
-          });
+          // Forms of one species share a dex number, so they tie-break by name then form to keep
+          // duplicates sitting together instead of wherever catch order left them.
+          const byDex = [...all].sort((a, b) =>
+            dexOf(a) - dexOf(b)
+            || a.pokemon_id.localeCompare(b.pokemon_id)
+            || (a.region || '').localeCompare(b.region || '')
+            || (a.costume || '').localeCompare(b.costume || ''));
           renderItems(byDex);
           btn.remove();
         });
