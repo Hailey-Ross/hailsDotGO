@@ -1459,35 +1459,16 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
 }
 
-/* Caught list: name + date stacked */
-.sc-entry-namewrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-.sc-caught-date {
-  font-size: 0.72rem;
-  color: var(--text-3);
-}
-/* Arriving from the detail view on a trainer page (/shinies?entry=<id>): the list can be hundreds
-   of rows, so say which one we brought you to rather than just scrolling near it. */
+/* Arriving from the detail view on a trainer page (/shinies?entry=<id>): the grid can be hundreds
+   of cards, so say which one we brought you to rather than just scrolling near it.
+   Only the outline is animated: a card carries its own background, and fading that to
+   transparent would visibly wash the card out for the whole two seconds. */
 .sc-entry-flash {
   animation: scEntryFlash 2s ease-out;
 }
 @keyframes scEntryFlash {
-  0%, 40% { background: rgba(255, 214, 0, 0.18); box-shadow: 0 0 0 1px rgba(255, 214, 0, 0.5) inset; }
-  100%    { background: transparent; box-shadow: none; }
-}
-.sc-entry-sub {
-  font-size: 0.72rem;
-  color: var(--text-2);
-  font-style: italic;
-}
-.sc-entry-meta {
-  font-size: 0.7rem;
-  color: var(--text-2);
-  font-style: italic;
+  0%, 40% { box-shadow: 0 0 0 1px rgba(255, 214, 0, 0.5) inset, 0 0 14px rgba(255, 214, 0, 0.35); }
+  100%    { box-shadow: none; }
 }
 .sc-field-wrap {
   display: flex;
@@ -1850,11 +1831,14 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   font-size: 0.75rem; color: var(--text-2); background: none; border: none;
   cursor: pointer; padding: 0.2rem 0.4rem; font-family: var(--font);
 }
+/* --accent was never defined in :root, so this button had no background at all. It was easy to
+   miss at the end of a wide row; it is the primary confirm in the edit modal now. */
 .sc-evolve-confirm {
   font-size: 0.8rem; padding: 0.25rem 0.75rem;
-  background: var(--accent); color: #fff; border: none;
+  background: var(--blue); color: #fff; border: none;
   border-radius: var(--r-sm); cursor: pointer; font-family: var(--font);
 }
+.sc-evolve-confirm:hover { background: #7aaef8; }
 .sc-evolve-confirm:disabled { opacity: 0.5; cursor: default; }
 
 /* Evolved counter chip in the header stats */
@@ -1863,18 +1847,19 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   font-size: 0.8rem; color: #b794f4;
   margin-left: 0.5rem;
 }
-/* Evolved rows in caught/evolved tab */
+/* Evolved entry cards in the caught/evolved tabs */
 .sc-row-evolved {
   opacity: 0.75;
-  border-left: 3px solid rgba(150,130,220,0.6);
+  border-color: rgba(150,130,220,0.6);
 }
-/* Evolved chip inside the name/date area */
+/* Evolved marker, pinned to the card corner so it does not push the card taller */
 .sc-evolved-chip {
+  position: absolute; top: 4px; right: 5px; z-index: 2;
   display: inline-flex; align-items: center;
   background: rgba(150,130,220,0.18); color: #b794f4;
-  font-size: 0.7rem; font-weight: 600;
-  padding: 0.1rem 0.45rem; border-radius: 999px;
-  margin-left: 0.4rem;
+  font-size: 0.66rem; font-weight: 600;
+  padding: 0.1rem 0.35rem; border-radius: var(--r-pill);
+  line-height: 1.4;
 }
 
 .sc-add-section { width: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
@@ -1882,25 +1867,121 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .sc-add-section .move-select { width: 100%; }
 .sc-status { font-size: 0.8rem; color: #fc8181; min-height: 1.2em; }
 
-/* Caught list (tab view) */
-.sc-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.sc-entry {
-  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
-  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border); border-radius: var(--r-sm);
-  padding: 0.6rem 0.9rem;
-  animation: fadeUp 0.2s ease both;
-}
-.sc-entry-img  { width: 46px; height: 46px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
 .sprite-sm-poke { transform: scale(1.05); }
-.sc-entry-name { font-size: 0.875rem; font-weight: 600; flex: 1; min-width: 100px; text-transform: capitalize; }
-.sc-entry .move-select { font-size: 0.82rem; padding: 0.3rem 0.6rem; }
 .sc-save-status { font-size: 0.75rem; color: var(--green); min-width: 50px; }
 
-@media (max-width: 560px) {
-  .sc-entry { gap: 0.5rem; }
-  .sc-entry-name { min-width: 80px; font-size: 0.82rem; }
-  .sc-entry .move-select { font-size: 14px; }
+/* ── Caught/Evolved entry cards ──────────────────────────────────
+   One card per recorded entry, click to edit. Deliberately keeps .shiny-tag's surface (glass,
+   border, radius, hover lift) so all four tabs still read as one grid; only what sits INSIDE
+   the card differs, because a checklist card answers "do I have this?" while an entry card
+   answers "which catch is this?".
+
+   Everything here is scoped under .sc-entry-card. .shiny-tag itself must not be touched: the
+   All Shinies and Missing tabs share it. */
+
+/* The pills need room the checklist's 90px track cannot give (68px on a small phone). */
+.shiny-grid--entries { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 0.6rem; }
+
+.sc-entry-card {
+  gap: 0.25rem;
+  /* A floor rather than a line clamp: .boss-card sets the precedent (min-height: 170px) and
+     this file has no line-clamp anywhere. It also keeps a bare entry composed, since the
+     pedestal and badge fill the space instead of leaving a stub of text. */
+  min-height: 172px;
+  justify-content: flex-start;
+  padding: 0.55rem 0.45rem 0.6rem;
+}
+.sc-entry-card .shiny-label {
+  font-weight: 600; text-transform: capitalize;
+  font-size: 0.7rem; line-height: 1.2;
+}
+
+/* The pedestal. A backlight behind the sprite, not a spotlight on it: gold for an ordinary
+   catch, violet once it has been evolved, so the two are separable at a glance without
+   reading anything. Same structural idea as .boss-card's blurred backdrop layer. */
+.sc-card-stage {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 86px;
+}
+.sc-card-stage::before {
+  content: ""; position: absolute; z-index: 0;
+  width: 78px; height: 78px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,179,64,0.28) 0%, rgba(255,179,64,0.10) 45%, transparent 70%);
+  transition: opacity var(--trans);
+}
+.sc-card-stage .shiny-img { position: relative; z-index: 1; }
+.sc-row-evolved .sc-card-stage::before {
+  background: radial-gradient(circle, rgba(167,139,250,0.30) 0%, rgba(167,139,250,0.11) 45%, transparent 70%);
+}
+.sc-entry-card:hover .sc-card-stage::before { opacity: 1.35; }
+
+/* Catch method, top left. Top right belongs to the evolved marker. */
+.sc-method-badge {
+  position: absolute; top: 4px; left: 5px; z-index: 2;
+  font-size: 0.72rem; line-height: 1.4;
+}
+
+/* Always present, on every entry, which is what keeps a bare card from looking truncated. */
+.sc-card-meta {
+  font-size: 0.66rem; color: var(--text-3);
+  letter-spacing: 0.02em; line-height: 1.3;
+}
+
+.sc-card-tags {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 0.2rem; margin-top: 0.1rem; max-width: 100%;
+}
+/* One --chip drives text, border and fill, the same way .report-label-chip does, so each
+   variant below is a single line. */
+.sc-pill {
+  --chip: var(--text-2);
+  max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: var(--r-pill); padding: 0.05rem 0.4rem;
+  font-size: 0.6rem; font-weight: 700; line-height: 1.5;
+  color: var(--chip);
+  border: 1px solid color-mix(in srgb, var(--chip) 55%, transparent);
+  background: color-mix(in srgb, var(--chip) 14%, transparent);
+}
+/* Shadow and Purified borrow the exact hexes the IV calculator uses for the same two game
+   states (.badge-shadow / .badge-purified), so the app names them the same way throughout. */
+.sc-pill--shadow   { --chip: #c084fc; }
+.sc-pill--purified { --chip: #7dd3fc; }
+.sc-pill--costume  { --chip: var(--gold); }
+.sc-pill--event    { --chip: var(--text-2); }
+.sc-pill--more     { --chip: var(--text-3); font-weight: 800; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shiny-tag, .sc-entry-card { transition: none; }
+  .shiny-tag:hover { transform: none; }
+}
+
+/* These sit after the shared .shiny-grid breakpoints higher up the file, which is what lets the
+   entry grid keep its own wider track while the checklist tabs narrow as before. */
+@media (max-width: 640px) {
+  .shiny-grid--entries { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.45rem; }
+  .sc-entry-card { min-height: 156px; }
+  .sc-card-stage { height: 72px; }
+  .sc-card-stage::before { width: 64px; height: 64px; }
+}
+@media (max-width: 380px) {
+  .shiny-grid--entries { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); }
+}
+
+/* Compact per-entry edit modal */
+.sc-edit-head {
+  display: flex; flex-direction: column; align-items: center; gap: 0.35rem;
+}
+.sc-edit-img {
+  width: 96px; height: 96px; object-fit: contain; image-rendering: pixelated;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+}
+.sc-edit-modal .sc-modal-inner { max-width: 320px; }
+.sc-edit-modal .move-select { width: 100%; }
+.sc-edit-actions {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 0.5rem; width: 100%;
 }
 
 /* ── Admin panel ─────────────────────────────────────────────── */

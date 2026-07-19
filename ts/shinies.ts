@@ -280,13 +280,26 @@ async function apiUpdate(id: number, form: string, region: string, costume: stri
   });
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
 // The date input wants "YYYY-MM-DD"; the API sends a full timestamp.
+//
+// A stored caught_at is a calendar DAY pinned to UTC midnight (the server parses "2006-01-02" with
+// no zone), so it has to be read back in UTC. Local getters would report the previous day for
+// everyone west of UTC, and because the row editor saves what the input shows, that shifted day
+// used to be written straight back, walking the catch one day earlier on every edit.
 function dateInputValue(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+}
+
+// Today as the trainer's own calendar reckons it, for defaulting and capping the input. This is the
+// one case that IS local: "today" means the day it is where they are, not where the server is.
+function todayInputValue(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${pad2(n.getMonth() + 1)}-${pad2(n.getDate())}`;
 }
 
 async function apiRemove(id: number): Promise<boolean> {
@@ -471,9 +484,49 @@ async function init() {
 
   modal.querySelector(".sc-modal-close")!.addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    closeModal();
+    closeEditModal();
+  });
 
   function closeModal() { modal.classList.remove("open"); }
+
+  // The edit modal, for one already recorded entry. Deliberately a second element rather than
+  // a mode of the add modal above: that one is a fixed skeleton of sprite comparison, cry
+  // controls, flavour text and an Add button that openAddModal resets piece by piece, and
+  // sharing it would mean hiding half of it on every edit and restoring it on every add.
+  //
+  // It keeps the .sc-modal class because main.css excludes that class from the stacking rule
+  // it puts on every other direct child of body. The class is what is matched, not the
+  // element, so a second one is exempt too (ts/trainer.ts already ships another).
+  const editModal = document.createElement("div");
+  editModal.className = "sc-modal sc-edit-modal";
+  editModal.innerHTML = `
+    <div class="sc-modal-inner">
+      <button class="sc-modal-close">&times;</button>
+      <div class="sc-edit-head">
+        <img class="sc-edit-img" id="sc-edit-img" alt="">
+        <div class="sc-modal-name" id="sc-edit-name"></div>
+      </div>
+      <div id="sc-edit-fields" style="width:100%;display:flex;flex-direction:column;gap:0.5rem"></div>
+      <div class="sc-edit-actions" id="sc-edit-actions"></div>
+    </div>
+  `;
+  document.body.appendChild(editModal);
+
+  editModal.querySelector(".sc-modal-close")!.addEventListener("click", closeEditModal);
+  editModal.addEventListener("click", (e) => { if (e.target === editModal) closeEditModal(); });
+
+  // Bumped on every open and every close. A save that resolves after either has happened is a
+  // save for an entry nobody is looking at any more, so its continuation bails out instead of
+  // writing a status into the modal the next entry is now using.
+  let editGeneration = 0;
+
+  function closeEditModal() {
+    editGeneration++;
+    editModal.classList.remove("open");
+  }
 
   let modalFormSel: HTMLSelectElement;
   let modalCostumeInput: HTMLInputElement;
@@ -630,7 +683,7 @@ async function init() {
     modalCaughtInput = document.createElement("input");
     modalCaughtInput.type = "date";
     modalCaughtInput.className = "move-select";
-    modalCaughtInput.max = dateInputValue(new Date().toISOString());
+    modalCaughtInput.max = todayInputValue();
     modalCaughtInput.value = modalCaughtInput.max;
     caughtWrap.appendChild(caughtLabel);
     caughtWrap.appendChild(modalCaughtInput);
@@ -665,16 +718,25 @@ async function init() {
     }
   });
 
+  // Whole calendar days apart, not elapsed milliseconds: the stored day is UTC midnight while
+  // "today" is the trainer's own day, so subtracting the raw timestamps would call this evening's
+  // catch "Yesterday" for anyone west of UTC. Both sides are reduced to a day number first, and the
+  // absolute dates are formatted in UTC so they name the day that was actually stored.
   function timeAgo(dateStr: string): string {
-    const d    = new Date(dateStr);
-    const diff = Date.now() - d.getTime();
-    const days = Math.floor(diff / 86400000);
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const n = new Date();
+    const days = Math.round(
+      (Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())
+        - Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())) / 86400000,
+    );
     const locale = typeof SITE_LANG !== "undefined" ? SITE_LANG : "en-GB";
-    if (days === 0) return SH.today;
+    const fmt: Intl.DateTimeFormatOptions = { timeZone: "UTC" };
+    if (days <= 0) return SH.today;
     if (days === 1) return SH.yesterday;
     if (days < 30)  return SH.daysAgo.replace("{n}", String(days));
-    if (days < 365) return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
-    return d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+    if (days < 365) return d.toLocaleDateString(locale, { ...fmt, month: "short", day: "numeric" });
+    return d.toLocaleDateString(locale, { ...fmt, year: "numeric", month: "short", day: "numeric" });
   }
 
   const METHOD_ICONS: Record<string, string> = {
@@ -797,11 +859,15 @@ async function init() {
     contentEl.appendChild(grid);
   }
 
+  // The picker is appended into `host` and the trigger button is put back there if it is
+  // cancelled. Evolving succeeds by rebuilding the whole tab, which detaches `host`, so
+  // onEvolved runs synchronously first to let the caller dismiss whatever owns it.
   function showEvolvePicker(
-    row: HTMLElement,
+    host: HTMLElement,
     rec: UserShiny,
     options: EvolveTarget[],
     triggerBtn: HTMLButtonElement,
+    onEvolved: () => void,
   ) {
     triggerBtn.remove();
 
@@ -826,18 +892,19 @@ async function init() {
         cancelBtn.disabled = true;
         const ok = await apiEvolve(rec.id, options[0].name, options[0].region);
         if (ok) {
+          onEvolved();
           userShinies = await fetchUserShinies();
           rebuildState(userShinies);
           updateCounter();
           renderTab();
         } else {
           picker.remove();
-          row.appendChild(triggerBtn);
+          host.appendChild(triggerBtn);
         }
       });
       cancelBtn.addEventListener("click", () => {
         picker.remove();
-        row.appendChild(triggerBtn);
+        host.appendChild(triggerBtn);
       });
 
       picker.appendChild(label);
@@ -871,6 +938,7 @@ async function init() {
           picker.querySelectorAll("button").forEach((b) => { (b as HTMLButtonElement).disabled = true; });
           const ok = await apiEvolve(rec.id, opt.name, opt.region);
           if (ok) {
+            onEvolved();
             userShinies = await fetchUserShinies();
             rebuildState(userShinies);
             updateCounter();
@@ -887,29 +955,70 @@ async function init() {
       cancelBtn.textContent = "✕";
       cancelBtn.addEventListener("click", () => {
         picker.remove();
-        row.appendChild(triggerBtn);
+        host.appendChild(triggerBtn);
       });
       picker.appendChild(cancelBtn);
     }
 
-    row.appendChild(picker);
+    host.appendChild(picker);
   }
 
-  function renderShinyRows(entries: UserShiny[]) {
-    const list = document.createElement("div");
-    list.className = "sc-list";
+  // A rendered entry card, kept so the edit modal can refresh the card underneath it after a
+  // save without rebuilding the whole tab (which would detach the card the modal was opened
+  // from). Invalidated wholesale by any renderTab().
+  interface EntryCard {
+    rec: UserShiny;
+    el: HTMLElement;
+    refreshSprite: () => void;
+    refreshText: () => void;
+  }
+
+  const entryCards = new Map<number, EntryCard>();
+
+  // The Caught and Evolved tabs. One card per recorded entry, in the same grid the checklist
+  // tabs use, with editing moved into a modal. Duplicates therefore get one card each, which
+  // is why the checklist's x2 count badge has no place here.
+  function renderEntryCards(entries: UserShiny[]) {
+    entryCards.clear();
+
+    const grid = document.createElement("div");
+    // Same grid as the checklist tabs, but on a wider track: these cards carry pills, and the
+    // checklist's 90px column (68px on a small phone) cannot hold one legibly.
+    grid.className = "shiny-grid shiny-grid--entries";
 
     for (const rec of entries) {
       const poke = shinyByName.get(rec.pokemon_id);
-      const row  = document.createElement("div");
-      row.className = "sc-entry" + (rec.evolved_at ? " sc-row-evolved" : "");
+      const card = document.createElement("div");
+      card.className = "shiny-tag sc-entry-card" + (rec.evolved_at ? " sc-row-evolved" : "");
+      // The trainer page's detail view links here with ?entry=<id>, so the card needs to be findable.
+      card.id = `shiny-${rec.id}`;
+
+      // Method badge, top left. The icon alone would be a guess, so the method's own label
+      // rides along as the tooltip. Nothing renders for an untagged catch, because
+      // METHOD_ICONS has no "" key.
+      const methodBadge = document.createElement("span");
+      methodBadge.className = "sc-method-badge";
+      card.appendChild(methodBadge);
+
+      // Evolved marker, top right. Top left is the method badge's corner now.
+      if (rec.evolved_at) {
+        const chip = document.createElement("span");
+        chip.className = "sc-evolved-chip";
+        chip.textContent = "⬆️";
+        chip.title = SH.evolved;
+        card.appendChild(chip);
+      }
 
       // Sprite. Regional entries use their variant sprite id and skip costume
       // art, which is only keyed by base dex.
+      const stage = document.createElement("div");
+      stage.className = "sc-card-stage";
       const img = document.createElement("img");
-      img.className = "sc-entry-img";
+      img.className = "shiny-img";
       img.alt = rec.pokemon_id;
-      const refreshRowSprite = () => {
+      img.loading = "lazy";
+      img.decoding = "async";
+      const refreshSprite = () => {
         if (!poke) { img.style.display = "none"; return; }
         img.style.display = "";
         if (rec.region) {
@@ -919,221 +1028,296 @@ async function init() {
           setSprite(img, poke.id, poke.name, rec.costume);
         }
       };
-      refreshRowSprite();
+      refreshSprite();
       if (poke && TINY_POKEMON.has(poke.id)) img.classList.add("sprite-sm-poke");
+      stage.appendChild(img);
 
-      // Name + date + evolved chip + costume/event labels
-      const nameWrap = document.createElement("div");
-      nameWrap.className = "sc-entry-namewrap";
-      const name = document.createElement("span");
-      name.className = "sc-entry-name";
-      name.textContent = regionalDisplayName(gameData, rec.pokemon_id, rec.region);
-      const dateEl = document.createElement("span");
-      dateEl.className = "sc-caught-date";
-      dateEl.textContent = rec.caught_at ? timeAgo(rec.caught_at) : "";
-      nameWrap.appendChild(name);
-      nameWrap.appendChild(dateEl);
-      if (rec.evolved_at) {
-        const chip = document.createElement("span");
-        chip.className = "sc-evolved-chip";
-        chip.textContent = `⬆️ ${SH.evolved}`;
-        nameWrap.appendChild(chip);
-      }
-      const subParts: string[] = [];
-      if (rec.form === "shadow")   subParts.push(JSC.formShadow);
-      if (rec.form === "purified") subParts.push(JSC.formPurified);
-      if (rec.costume)             subParts.push(rec.costume);
-      if (rec.event_tag)           subParts.push(rec.event_tag);
-      if (subParts.length) {
-        const sub = document.createElement("span");
-        sub.className = "sc-entry-sub";
-        sub.textContent = subParts.join(" · ");
-        nameWrap.appendChild(sub);
-      }
+      const label = document.createElement("span");
+      label.className = "shiny-label";
 
-      // Form selector
-      const formSel = makeSelect(FORMS, rec.form);
+      // How long ago it was caught. Every entry has a date, so this is the one line that is
+      // always here, which is what stops a card with no costume or event reading as unfinished.
+      const meta = document.createElement("span");
+      meta.className = "sc-card-meta";
 
-      // Region selector, for species that have recordable regional forms in GO
-      // (card forms like Vivillon patterns, plus carry-only forms like the
-      // Scatterbug/Spewpa patterns). Lets older entries be marked retroactively.
-      const regionalOptions = recordableRegions(rec.pokemon_id);
-      let regionSel: HTMLSelectElement | null = null;
-      if (regionalOptions.length || rec.region) {
-        const opts = [
-          { value: "", label: JSC.formOriginal },
-          ...regionalOptions.map((f) => ({
-            value: f.region as string,
-            label: REGION_LABELS[f.region] ?? f.region,
-          })),
-        ];
-        // An entry may carry a region the constant no longer offers; keep it
-        // selectable so the row does not silently misrepresent the entry.
-        if (rec.region && !opts.some((o) => o.value === rec.region)) {
-          opts.push({ value: rec.region, label: REGION_LABELS[rec.region] ?? rec.region });
+      // Form, costume and event as pills. Capped so a heavily tagged catch cannot grow taller
+      // than a bare one; the editor behind a click has the full detail either way.
+      const tags = document.createElement("span");
+      tags.className = "sc-card-tags";
+      const MAX_PILLS = 2;
+
+      const refreshText = () => {
+        label.textContent = regionalDisplayName(gameData, rec.pokemon_id, rec.region);
+
+        const icon = METHOD_ICONS[rec.method];
+        methodBadge.textContent = icon ?? "";
+        methodBadge.title = icon ? (METHODS.find((m) => m.value === rec.method)?.label ?? "") : "";
+        methodBadge.style.display = icon ? "" : "none";
+
+        const when = rec.caught_at ? timeAgo(rec.caught_at) : "";
+        meta.textContent = when;
+        meta.style.display = when ? "" : "none";
+
+        const pills: { text: string; kind: string }[] = [];
+        if (rec.form === "shadow")   pills.push({ text: JSC.formShadow,   kind: "shadow" });
+        if (rec.form === "purified") pills.push({ text: JSC.formPurified, kind: "purified" });
+        if (rec.costume)             pills.push({ text: rec.costume,      kind: "costume" });
+        if (rec.event_tag)           pills.push({ text: rec.event_tag,    kind: "event" });
+
+        tags.textContent = "";
+        for (const p of pills.slice(0, MAX_PILLS)) {
+          const pill = document.createElement("span");
+          pill.className = `sc-pill sc-pill--${p.kind}`;
+          pill.textContent = p.text;
+          // The pill ellipsises, so the full value has to stay reachable on hover.
+          pill.title = p.text;
+          tags.appendChild(pill);
         }
-        regionSel = makeSelect(opts, rec.region);
-      }
-
-      // Costume input
-      const costumeSel = document.createElement("input");
-      costumeSel.type = "text";
-      costumeSel.className = "move-select";
-      costumeSel.value = rec.costume;
-      costumeSel.placeholder = SH.costumePlaceholder;
-      costumeSel.setAttribute("list", "sc-costume-list");
-      costumeSel.addEventListener("focus", () => refreshCostumeDatalist(rec.pokemon_id, poke?.id ?? 0));
-
-      // Event tag input
-      const eventSel = document.createElement("input");
-      eventSel.type = "text";
-      eventSel.className = "move-select";
-      eventSel.value = rec.event_tag;
-      eventSel.placeholder = SH.eventPlaceholder;
-      eventSel.setAttribute("list", "sc-event-list");
-      eventSel.addEventListener("focus", () => mergeLiveEventOptions());
-
-      // Method selector
-      const methodSel = makeSelect(METHODS, rec.method);
-
-      // Caught date. Until now nothing ever wrote this column, so it recorded the day the row was
-      // ADDED rather than the day the Pokemon was caught -- and people log catches late. The trainer
-      // page shows this date now, so it has to be the trainer's to set.
-      const caughtSel = document.createElement("input");
-      caughtSel.type = "date";
-      caughtSel.className = "move-select";
-      caughtSel.title = SH.caught;
-      caughtSel.value = dateInputValue(rec.caught_at);
-      caughtSel.max = dateInputValue(new Date().toISOString());
-
-      // Save status
-      const statusEl = document.createElement("span");
-      statusEl.className = "sc-save-status";
-
-      let saveTimer: ReturnType<typeof setTimeout>;
-
-      const saveUpdate = async () => {
-        const newForm     = formSel.value;
-        const newRegion   = regionSel ? regionSel.value : rec.region;
-        const newCostume  = costumeSel.value;
-        const newEventTag = eventSel.value;
-        const newMethod   = methodSel.value;
-        const newCaughtAt = caughtSel.value;
-        let res: Response;
-        try {
-          res = await apiUpdate(rec.id, newForm, newRegion, newCostume, newEventTag, newMethod, newCaughtAt);
-        } catch (e) {
-          console.error("shiny update failed (network):", e);
-          statusEl.textContent = JSC.error;
-          return;
+        if (pills.length > MAX_PILLS) {
+          const more = document.createElement("span");
+          more.className = "sc-pill sc-pill--more";
+          more.textContent = `+${pills.length - MAX_PILLS}`;
+          more.title = pills.slice(MAX_PILLS).map((p) => p.text).join(" · ");
+          tags.appendChild(more);
         }
-        if (res.ok) {
-          rec.form      = newForm;
-          rec.region    = newRegion;
-          rec.costume   = newCostume;
-          rec.event_tag = newEventTag;
-          rec.method    = newMethod;
-          if (newCaughtAt) {
-            rec.caught_at = newCaughtAt;
-            dateEl.textContent = timeAgo(rec.caught_at);
-          }
-          // Full rebuild rather than incremental delete/set: with duplicate
-          // entries sharing a key, an incremental update would drop the
-          // surviving duplicate from the index until the next refetch.
-          rebuildState(userShinies);
-          name.textContent = regionalDisplayName(gameData, rec.pokemon_id, rec.region);
-          refreshRowSprite();
-          updateCounter();
-          statusEl.textContent = SH.saved;
-          clearTimeout(saveTimer);
-          saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);
-        } else if (res.status === 409) {
-          formSel.value    = rec.form;
-          if (regionSel) regionSel.value = rec.region;
-          costumeSel.value = rec.costume;
-          eventSel.value   = rec.event_tag;
-          methodSel.value  = rec.method;
-          statusEl.textContent = SH.alreadyCaught;
-          clearTimeout(saveTimer);
-          saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 2000);
-        } else {
-          console.error("shiny update failed:", res.status, rec.pokemon_id);
-          formSel.value    = rec.form;
-          if (regionSel) regionSel.value = rec.region;
-          costumeSel.value = rec.costume;
-          eventSel.value   = rec.event_tag;
-          methodSel.value  = rec.method;
-          statusEl.textContent = JSC.error;
-        }
+        tags.style.display = pills.length ? "" : "none";
       };
+      refreshText();
 
-      formSel.addEventListener("change", saveUpdate);
-      if (regionSel) regionSel.addEventListener("change", saveUpdate);
-      costumeSel.addEventListener("change", saveUpdate);
-      costumeSel.addEventListener("change", () => {
-        if (poke && !rec.region) setSprite(img, poke.id, poke.name, costumeSel.value.trim());
-      });
-      eventSel.addEventListener("change", saveUpdate);
-      methodSel.addEventListener("change", saveUpdate);
-      caughtSel.addEventListener("change", saveUpdate);
+      card.appendChild(stage);
+      card.appendChild(label);
+      card.appendChild(meta);
+      card.appendChild(tags);
 
-      // Evolve button -- transforms entry into next form
-      const evolveBtn = document.createElement("button");
-      evolveBtn.className = "sc-evolve-btn";
-      evolveBtn.textContent = SH.evolveBtn;
-      evolveBtn.title = SH.evolveBtn;
-      evolveBtn.addEventListener("click", () => {
-        const targets = getEvolveTargets(rec.pokemon_id, rec.region);
-        const available = targets.filter((t) => t.name && shinyByName.has(t.name));
-        if (!available.length) {
-          evolveBtn.textContent = SH.evolveNone;
-          evolveBtn.disabled = true;
-          setTimeout(() => {
-            evolveBtn.textContent = SH.evolveBtn;
-            evolveBtn.disabled = false;
-          }, 2000);
-          return;
-        }
-        showEvolvePicker(row, rec, available, evolveBtn);
-      });
-
-      // Remove button
-      const removeBtn = document.createElement("button");
-      removeBtn.className = "sc-remove-btn";
-      removeBtn.textContent = JSC.remove;
-      removeBtn.addEventListener("click", async () => {
-        removeBtn.disabled = true;
-        removeBtn.textContent = "…";
-        const ok = await apiRemove(rec.id);
-        if (ok) {
-          userShinies = await fetchUserShinies();
-          rebuildState(userShinies);
-          updateCounter();
-          renderTab();
-        } else {
-          removeBtn.disabled = false;
-          removeBtn.textContent = JSC.remove;
-        }
-      });
-
-      // The trainer page's detail view links here with ?entry=<id>, so the row needs to be findable.
-      row.id = `shiny-${rec.id}`;
-
-      row.appendChild(img);
-      row.appendChild(nameWrap);
-      row.appendChild(formSel);
-      if (regionSel) row.appendChild(regionSel);
-      row.appendChild(costumeSel);
-      row.appendChild(eventSel);
-      row.appendChild(methodSel);
-      row.appendChild(caughtSel);
-      row.appendChild(statusEl);
-      row.appendChild(evolveBtn);
-      row.appendChild(removeBtn);
-      list.appendChild(row);
+      const handle: EntryCard = { rec, el: card, refreshSprite, refreshText };
+      entryCards.set(rec.id, handle);
+      card.addEventListener("click", () => openEditModal(handle));
+      grid.appendChild(card);
     }
 
-    contentEl.appendChild(list);
+    contentEl.appendChild(grid);
+  }
+
+  const editImg    = document.getElementById("sc-edit-img") as HTMLImageElement;
+  const editName   = document.getElementById("sc-edit-name")!;
+  const editFields = document.getElementById("sc-edit-fields")!;
+  const editActions = document.getElementById("sc-edit-actions")!;
+
+  // Edit one recorded entry. Everything mutable lives in this call's closure rather than at
+  // init() scope: both containers are emptied on every open, so no listener from a previous
+  // open can survive to be re-entered, and nothing needs an explicit reset.
+  function openEditModal(card: EntryCard) {
+    const rec  = card.rec;
+    const poke = shinyByName.get(rec.pokemon_id);
+    const gen  = ++editGeneration;
+
+    editFields.innerHTML = "";
+    editActions.innerHTML = "";
+    mergeLiveEventOptions();
+
+    editName.textContent = regionalDisplayName(gameData, rec.pokemon_id, rec.region);
+    editImg.className = "sc-edit-img" + (poke && TINY_POKEMON.has(poke.id) ? " sprite-sm-poke" : "");
+
+    // The header sprite previews the costume being typed, so it follows the live input value.
+    // The card underneath follows rec, and so only moves once a save succeeds.
+    const refreshHeadSprite = () => {
+      if (!poke) { editImg.style.display = "none"; return; }
+      editImg.style.display = "";
+      if (rec.region) {
+        editImg.src = spriteUrl(regionalVariantId(rec.pokemon_id, rec.region) || poke.id);
+        editImg.onerror = () => { editImg.style.display = "none"; };
+      } else {
+        setSprite(editImg, poke.id, poke.name, costumeInput.value.trim());
+      }
+    };
+
+    const field = (labelText: string, control: HTMLElement) => {
+      const wrap = document.createElement("div");
+      wrap.className = "sc-field-wrap";
+      const lbl = document.createElement("label");
+      lbl.className = "sc-field-label";
+      lbl.textContent = labelText;
+      wrap.appendChild(lbl);
+      wrap.appendChild(control);
+      editFields.appendChild(wrap);
+    };
+
+    const formSel = makeSelect(FORMS, rec.form);
+    editFields.appendChild(formSel);
+
+    // Region selector, for species that have recordable regional forms in GO
+    // (card forms like Vivillon patterns, plus carry-only forms like the
+    // Scatterbug/Spewpa patterns). Lets older entries be marked retroactively.
+    const regionalOptions = recordableRegions(rec.pokemon_id);
+    let regionSel: HTMLSelectElement | null = null;
+    if (regionalOptions.length || rec.region) {
+      const opts = [
+        { value: "", label: JSC.formOriginal },
+        ...regionalOptions.map((f) => ({
+          value: f.region as string,
+          label: REGION_LABELS[f.region] ?? f.region,
+        })),
+      ];
+      // An entry may carry a region the constant no longer offers; keep it
+      // selectable so the modal does not silently misrepresent the entry.
+      if (rec.region && !opts.some((o) => o.value === rec.region)) {
+        opts.push({ value: rec.region, label: REGION_LABELS[rec.region] ?? rec.region });
+      }
+      regionSel = makeSelect(opts, rec.region);
+      editFields.appendChild(regionSel);
+    }
+
+    const costumeInput = document.createElement("input");
+    costumeInput.type = "text";
+    costumeInput.className = "move-select";
+    costumeInput.value = rec.costume;
+    costumeInput.placeholder = SH.costumePlaceholder;
+    costumeInput.setAttribute("list", "sc-costume-list");
+    costumeInput.addEventListener("focus", () => refreshCostumeDatalist(rec.pokemon_id, poke?.id ?? 0));
+    field(SH.costumeLabel, costumeInput);
+
+    const eventInput = document.createElement("input");
+    eventInput.type = "text";
+    eventInput.className = "move-select";
+    eventInput.value = rec.event_tag;
+    eventInput.placeholder = SH.eventPlaceholder;
+    eventInput.setAttribute("list", "sc-event-list");
+    eventInput.addEventListener("focus", () => mergeLiveEventOptions());
+    field(SH.eventLabel, eventInput);
+
+    const methodSel = makeSelect(METHODS, rec.method);
+    editFields.appendChild(methodSel);
+
+    // dateInputValue reads the stored day back in UTC (that is how it is stored);
+    // todayInputValue caps the picker by the trainer's own clock. They are not interchangeable.
+    const caughtInput = document.createElement("input");
+    caughtInput.type = "date";
+    caughtInput.className = "move-select";
+    caughtInput.title = SH.caught;
+    caughtInput.value = dateInputValue(rec.caught_at);
+    caughtInput.max = todayInputValue();
+    field(SH.caught, caughtInput);
+
+    // What the modal was showing when it opened. saveUpdate sends the date only when this
+    // changes, so editing a costume or a method can never rewrite the catch date as a side
+    // effect. Reseeded on every open, and unreachable from any earlier open's listeners.
+    let savedCaughtAt = caughtInput.value;
+
+    const statusEl = document.createElement("span");
+    statusEl.className = "sc-save-status";
+
+    let saveTimer: ReturnType<typeof setTimeout>;
+
+    const saveUpdate = async () => {
+      const newForm     = formSel.value;
+      const newRegion   = regionSel ? regionSel.value : rec.region;
+      const newCostume  = costumeInput.value;
+      const newEventTag = eventInput.value;
+      const newMethod   = methodSel.value;
+      // Empty means "leave the stored date alone", so an edit to any other field never touches it.
+      const newCaughtAt = caughtInput.value === savedCaughtAt ? "" : caughtInput.value;
+      let res: Response;
+      try {
+        res = await apiUpdate(rec.id, newForm, newRegion, newCostume, newEventTag, newMethod, newCaughtAt);
+      } catch (e) {
+        console.error("shiny update failed (network):", e);
+        if (gen === editGeneration) statusEl.textContent = JSC.error;
+        return;
+      }
+      // The modal has been closed or reopened on another entry while this was in flight, so
+      // there is nothing left to update and the status line now belongs to someone else.
+      if (gen !== editGeneration) return;
+      if (res.ok) {
+        rec.form      = newForm;
+        rec.region    = newRegion;
+        rec.costume   = newCostume;
+        rec.event_tag = newEventTag;
+        rec.method    = newMethod;
+        if (newCaughtAt) {
+          rec.caught_at = newCaughtAt;
+          savedCaughtAt = newCaughtAt;
+        }
+        // Full rebuild rather than incremental delete/set: with duplicate
+        // entries sharing a key, an incremental update would drop the
+        // surviving duplicate from the index until the next refetch.
+        rebuildState(userShinies);
+        updateCounter();
+        editName.textContent = regionalDisplayName(gameData, rec.pokemon_id, rec.region);
+        refreshHeadSprite();
+        card.refreshText();
+        card.refreshSprite();
+        statusEl.textContent = SH.saved;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);
+      } else {
+        console.error("shiny update failed:", res.status, rec.pokemon_id);
+        formSel.value = rec.form;
+        if (regionSel) regionSel.value = rec.region;
+        costumeInput.value = rec.costume;
+        eventInput.value   = rec.event_tag;
+        methodSel.value    = rec.method;
+        // Restore the date too. Leaving the rejected value in the input would let the next
+        // successful save of any other field commit it, because it would read as a change.
+        caughtInput.value  = savedCaughtAt;
+        statusEl.textContent = JSC.error;
+      }
+    };
+
+    formSel.addEventListener("change", saveUpdate);
+    if (regionSel) regionSel.addEventListener("change", saveUpdate);
+    costumeInput.addEventListener("change", saveUpdate);
+    costumeInput.addEventListener("input", refreshHeadSprite);
+    eventInput.addEventListener("change", saveUpdate);
+    methodSel.addEventListener("change", saveUpdate);
+    caughtInput.addEventListener("change", saveUpdate);
+
+    // Evolve button -- transforms entry into next form
+    const evolveBtn = document.createElement("button");
+    evolveBtn.className = "sc-evolve-btn";
+    evolveBtn.textContent = SH.evolveBtn;
+    evolveBtn.title = SH.evolveBtn;
+    evolveBtn.addEventListener("click", () => {
+      const targets = getEvolveTargets(rec.pokemon_id, rec.region);
+      const available = targets.filter((t) => t.name && shinyByName.has(t.name));
+      if (!available.length) {
+        evolveBtn.textContent = SH.evolveNone;
+        evolveBtn.disabled = true;
+        setTimeout(() => {
+          evolveBtn.textContent = SH.evolveBtn;
+          evolveBtn.disabled = false;
+        }, 2000);
+        return;
+      }
+      showEvolvePicker(editActions, rec, available, evolveBtn, closeEditModal);
+    });
+
+    // Remove button
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "sc-remove-btn";
+    removeBtn.textContent = JSC.remove;
+    removeBtn.addEventListener("click", async () => {
+      removeBtn.disabled = true;
+      removeBtn.textContent = "…";
+      const ok = await apiRemove(rec.id);
+      if (ok) {
+        closeEditModal();
+        userShinies = await fetchUserShinies();
+        rebuildState(userShinies);
+        updateCounter();
+        renderTab();
+      } else {
+        removeBtn.disabled = false;
+        removeBtn.textContent = JSC.remove;
+      }
+    });
+
+    editActions.appendChild(evolveBtn);
+    editActions.appendChild(removeBtn);
+    editActions.appendChild(statusEl);
+
+    refreshHeadSprite();
+    refreshCostumeDatalist(rec.pokemon_id, poke?.id ?? 0);
+    editModal.classList.add("open");
   }
 
   function renderCaughtList(evolvedOnly = false) {
@@ -1157,7 +1341,7 @@ async function init() {
       return;
     }
 
-    renderShinyRows(entries);
+    renderEntryCards(entries);
   }
 
   let activeTab = "all";
@@ -1193,17 +1377,20 @@ async function init() {
   renderTab();
 
   // Deep link from the detail view on your own trainer page: /shinies?entry=<id>. Switch to the
-  // Caught tab (the entry only exists there), then scroll to it and flash it, because the list can
-  // be hundreds of rows long and "we took you to the right page" is not the same as finding it.
+  // Caught tab (the entry only exists there), then scroll to it and flash it, because the grid can
+  // be hundreds of cards long and "we took you to the right page" is not the same as finding it.
+  // Opening the editor too, since editing that entry is the only reason to follow the link.
   const entryId = new URLSearchParams(location.search).get("entry");
   if (entryId) {
     const caughtBtn = tabsEl.querySelector('.tab-btn[data-tab="caught"]') as HTMLButtonElement | null;
+    // Populates entryCards synchronously, so the lookup below is safe.
     if (caughtBtn) caughtBtn.click();
-    const row = document.getElementById(`shiny-${entryId}`);
-    if (row) {
-      row.scrollIntoView({ behavior: "smooth", block: "center" });
-      row.classList.add("sc-entry-flash");
-      setTimeout(() => row.classList.remove("sc-entry-flash"), 2000);
+    const handle = entryCards.get(Number(entryId));
+    if (handle) {
+      handle.el.scrollIntoView({ behavior: "smooth", block: "center" });
+      handle.el.classList.add("sc-entry-flash");
+      setTimeout(() => handle.el.classList.remove("sc-entry-flash"), 2000);
+      openEditModal(handle);
     }
   }
 }
