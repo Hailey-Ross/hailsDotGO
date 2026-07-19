@@ -153,6 +153,51 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-07-18</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">My Collection has a new look</h2>
+          <ul class="cl-list">
+            <li>All four tabs now use the same grid of cards, so the page reads as one thing instead of two</li>
+            <li>Caught and Evolved cards have been redesigned. Each shiny sits on a lit pedestal, with its catch method, date, and any costume or event shown as tags</li>
+            <li>Tap a card to edit that entry in a small pop up</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">The drifting starfield, now matching hails.cc</h2>
+          <ul class="cl-list">
+            <li>The little specks floating behind every page have been retuned to match the ones on the hails.cc front page. There are more of them, they are brighter, they drift a touch faster and they are small five sided shapes rather than plain dots</li>
+            <li>They still sit behind everything, just above the background picture, and they still scatter away from your cursor as you move it around</li>
+            <li>Clicking does not spawn new ones here, unlike on the front page. This site has rather more buttons to press</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Catch dates stay put</h2>
+          <ul class="cl-list">
+            <li>The day you caught a shiny was being read back in the wrong timezone, so if you live west of the UK it was shown as the day before. Worse, the collection editor saved whatever it was showing, which meant every time you touched an unrelated field, like renaming a costume, the catch date quietly moved another day into the past</li>
+            <li>A catch date now shows and saves as the exact day you picked, no matter where you are, and editing a costume, a form, a method or an event tag no longer touches the date at all</li>
+            <li>Shinies caught on the same day used to come back in whatever order the database felt like, which could hide some of them from the six recent catches on your profile. They now sit in the order you added them, newest first, so a batch of catches from one event stays together</li>
+            <li>Entries you edited before today are still holding the date they drifted to, so it is worth checking anything you have renamed recently and setting the day back to the right one. It will stick this time</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Shiny collections now really do sort by Pokedex number</h2>
+          <ul class="cl-list">
+            <li>Opening the full shiny collection on a trainer's profile is meant to lay it out in Pokedex order. It was working out each Pokemon's number by reading its picture's filename, which guessed wrong twice over</li>
+            <li>Costumed shinies had no number to read at all, so every one of them was treated as number zero and piled up at the very front of the grid. A Party Hat Venusaur now sits at 3, with the rest of its kind</li>
+            <li>Regional forms were read as their own separate numbers, so an Alolan Raticate landed somewhere past 1000 instead of next to the ordinary one. Alolan, Galarian, Unown letters and crowned forms all sit with their species now</li>
+            <li>Where several of the same Pokemon share a number they are grouped together rather than left in the order you caught them, and the collapsed view still shows your six most recent catches</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-17</div>
       <div class="cl-body">
 

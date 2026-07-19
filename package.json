@@ -4,7 +4,7 @@
   "scripts": {
     "build": "esbuild ts/raids.ts ts/dps.ts ts/pvp.ts ts/events.ts ts/iv.ts ts/shinies.ts ts/raidfinder.ts ts/trainer.ts ts/social.ts ts/notifications.ts ts/bugreport.ts ts/reports.ts ts/playerreport.ts --bundle --outdir=static/js --target=es2020 --minify",
     "watch": "esbuild ts/raids.ts ts/dps.ts ts/pvp.ts ts/events.ts ts/iv.ts ts/shinies.ts ts/raidfinder.ts ts/trainer.ts ts/social.ts ts/notifications.ts ts/bugreport.ts ts/reports.ts ts/playerreport.ts --bundle --outdir=static/js --target=es2020 --watch",
-    "check": "node scripts/check-costume-parity.mjs && node scripts/check-admin-costumes-tab.mjs && node scripts/check-trainer-shiny-modal.mjs && node scripts/check-unown-letters.mjs && node scripts/check-vivillon-patterns.mjs && node scripts/check-scatterbug-carry.mjs"
+    "check": "node scripts/check-costume-parity.mjs && node scripts/check-admin-costumes-tab.mjs && node scripts/check-trainer-shiny-modal.mjs && node scripts/check-shiny-collection-cards.mjs && node scripts/check-unown-letters.mjs && node scripts/check-vivillon-patterns.mjs && node scripts/check-scatterbug-carry.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
