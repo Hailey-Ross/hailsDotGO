@@ -1476,6 +1476,9 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   gap: 0.2rem;
   width: 100%;
 }
+/* Costume suggestions inside the add/edit modal. A species can wear dozens of costumes, so the
+   dropdown scrolls rather than growing past the modal, same as the avatar picker in settings. */
+.sc-field-wrap .picker-dropdown { max-height: 260px; overflow-y: auto; overflow-x: hidden; }
 .sc-field-label {
   font-size: 0.75rem;
   color: var(--text-2);
@@ -1730,6 +1733,33 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   line-height: 1.4;
 }
 .shiny-tag { position: relative; }
+
+/* Species whose shiny is not out in Pokemon GO yet (or that are not in the game at all). Shown
+   only when the trainer ticks "show unreleased", and deliberately inert: there is nothing to
+   record, so the card carries no click handler and says so on hover. */
+.sc-card-unreleased {
+  filter: grayscale(1);
+  opacity: 0.42;
+  cursor: default;
+}
+.sc-card-unreleased:hover { transform: none; }
+.sc-soon-badge {
+  position: absolute; top: 4px; right: 5px;
+  background: var(--surface-h); color: var(--text-2);
+  font-size: 0.55rem; font-weight: 700;
+  padding: 1px 5px; border-radius: 4px;
+  text-shadow: none;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.sc-filter-toggle {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem; color: var(--text-2);
+  cursor: pointer; user-select: none;
+}
+.sc-filter-toggle input { cursor: pointer; }
 
 /* Shiny collection modal */
 .sc-modal {
@@ -2017,6 +2047,30 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .admin-card h2  { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
 .admin-desc     { font-size: 0.875rem; color: var(--text-2); margin-bottom: 1.1rem; line-height: 1.55; }
 .admin-form     { display: flex; flex-direction: column; }
+
+/* Shiny Dex admin rows. One flex row per species or form, kept compact because the table can run
+   to hundreds of rows before the render cap kicks in. */
+.sd-row {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.35rem 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: 0.85rem;
+}
+.sd-row-override { border-left: 3px solid var(--gold); background: var(--surface); }
+.sd-dex    { color: var(--text-3); font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+.sd-name   { font-weight: 600; min-width: 8.5rem; }
+.sd-gen    { color: var(--text-3); font-size: 0.75rem; min-width: 4rem; }
+.sd-sprite { width: 32px; height: 32px; image-rendering: pixelated; }
+.sd-status { font-size: 0.75rem; margin-left: auto; }
+.sd-pill {
+  font-size: 0.65rem; font-weight: 700; padding: 1px 6px;
+  border-radius: var(--r-pill); text-transform: uppercase; letter-spacing: 0.03em;
+  cursor: help;
+}
+.sd-pill-override { background: rgba(255, 179, 64, 0.16); color: var(--gold); }
+.sd-pill-warn     { background: rgba(229, 57, 53, 0.16); color: var(--red); }
 .admin-toggle-label {
   display: flex; align-items: center; gap: 0.65rem;
   cursor: pointer; user-select: none; font-size: 0.9rem;

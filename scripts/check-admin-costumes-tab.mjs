@@ -95,7 +95,11 @@ function stubDom() {
   const zoomOverlay = el("div");
   const zoomContent = el("div");
   const zoomClose = el("button");
-  const btn = { disabled: false, addEventListener() {} };
+  // A real recorded element, not a stub with a no-op listener: the "Fetch new costumes" handler
+  // has to be drivable, because the answer it writes used to be destroyed by the refresh that
+  // followed it and nothing noticed.
+  const btn = el("button");
+  btn.disabled = false;
   zoomOverlay.style.display = "none";
 
   const byId = {
@@ -114,7 +118,7 @@ function stubDom() {
     addEventListener() {}, // the Escape-to-close binding
   };
   globalThis.confirm = () => true;
-  return { made, list, status, zoomOverlay, zoomContent, handlers };
+  return { made, list, status, btn, zoomOverlay, zoomContent, handlers };
 }
 
 // ---------------------------------------------------------------------- the run
@@ -129,11 +133,20 @@ const end = html.indexOf("})();", start) + "})();".length;
 const src = html.slice(start, end);
 
 const data = payload();
-const { made, list, status, zoomOverlay, zoomContent, handlers } = stubDom();
+const { made, list, status, btn, zoomOverlay, zoomContent, handlers } = stubDom();
+
+// What DriftCheck answers when upstream has nothing new. It is the case that used to be invisible:
+// the note was written, then wiped by the refresh a few hundred ms later, so a working check looked
+// like a button that did nothing.
+const NOTE = "no new codes upstream (3739 shiny assets scanned) · 15 costume(s) have no label yet";
+const checkResult = { ok: true, result: { key: "costumes", ok: true, note: NOTE, count: 0 }, synced: "6280ccb86615fe270fa0c9ba1772660f4bf3e360" };
 
 const thrown = [];
 process.on("unhandledRejection", (e) => thrown.push(e));
-globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => data });
+globalThis.fetch = async (url, opts) =>
+  opts && opts.method === "POST"
+    ? { ok: true, status: 200, json: async () => checkResult }
+    : { ok: true, status: 200, json: async () => data };
 
 try {
   eval(src);
@@ -197,7 +210,29 @@ if (!bigs.every((n) => /^\/api\/costume-sprite\//.test(n.src ?? ""))) {
   fail("the zoom's sprites are not served through our proxy");
 }
 
+// "Fetch new costumes" must leave its answer on screen. The button asks upstream whether the game
+// has costumes we have never synced; the reply is the entire point of pressing it, and it used to
+// be overwritten by the list refresh that ran straight afterwards.
+const checkClick = handlers.find((h) => h.node === btn && h.evt === "click");
+if (!checkClick) fail("the Fetch new costumes button has no click handler");
+try {
+  checkClick.fn();
+} catch (e) {
+  thrown.push(e);
+  fail(`clicking Fetch new costumes threw: ${e}`);
+}
+await new Promise((r) => setTimeout(r, 50));
+if (thrown.length) fail(`the upstream check threw: ${thrown.map(String).join("; ")}`);
+if (status.textContent !== NOTE) {
+  fail(
+    `the drift note did not survive the refresh: status is ${JSON.stringify(status.textContent)}, ` +
+      `want ${JSON.stringify(NOTE)}`,
+  );
+}
+if (btn.disabled) fail("the Fetch new costumes button was left disabled");
+
 console.log(
   `admin Costumes tab renders ${want} costumes with working name controls, and clicking ${multi.code} ` +
-    `zooms to ${bigs.length} sprite(s), one per species. Nothing throws.`,
+    `zooms to ${bigs.length} sprite(s), one per species. Fetching upstream leaves its answer on ` +
+    `screen. Nothing throws.`,
 );

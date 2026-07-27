@@ -1,9 +1,11 @@
 import { loadGameData, pokeName } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
-import { costumeShinyUrl, costumeLabelsForDex, TINY_POKEMON } from "./shared/costumes";
+import { costumeShinyUrl, costumeEntries, TINY_POKEMON } from "./shared/costumes";
+import { createPicker } from "./shared/picker";
+import type { Picker } from "./shared/picker";
 import { getEvolveTargets, getEvolutionFamily, EvolveTarget } from "./shared/evolutions";
-import { shinyRegionalForms, recordableRegions, regionalVariantId, isPatternOnlyRegion, unownLetter, vivillonGeo, REGION_ORDER, UNOWN_LETTERS, VIVILLON_PATTERNS } from "./shared/regionalForms";
-import type { GameData, ShinyPokemon } from "./shared/types";
+import { cardRegionalForms, recordableRegions, setRegionalShinyOverrides, isRegionalShiny, regionalVariantId, isPatternOnlyRegion, unownLetter, vivillonGeo, REGION_ORDER, UNOWN_LETTERS, VIVILLON_PATTERNS } from "./shared/regionalForms";
+import type { GameData, ShinyPokemon, ShinyDexEntry } from "./shared/types";
 
 declare const JSC: Record<string, string>;
 declare const SH: Record<string, string>;
@@ -127,6 +129,9 @@ const REGION_LABELS: Record<string, string> = {
   galarian: JSC.formGalarian,
   hisuian: JSC.formHisuian,
   paldean: JSC.formPaldean,
+  paldean_combat: JSC.formPaldeanCombat,
+  paldean_blaze: JSC.formPaldeanBlaze,
+  paldean_aqua: JSC.formPaldeanAqua,
   therian: JSC.formTherian,
   origin: JSC.formOrigin,
   attack: JSC.formAttack,
@@ -201,15 +206,33 @@ function setSprite(img: HTMLImageElement, dexId: number, pokemonName: string, co
   }
 }
 
-function refreshCostumeDatalist(pokemonName: string, dexId: number) {
-  const dl = document.getElementById("sc-costume-list") as HTMLDataListElement;
-  if (!dl) return;
-  dl.innerHTML = "";
-  for (const c of costumeLabelsForDex(dexId, pokemonName)) {
-    const opt = document.createElement("option");
-    opt.value = c;
-    dl.appendChild(opt);
-  }
+// Costume is free text, so the picker is a suggestion list and never a constraint: whatever is
+// typed is what gets saved, including a costume that has no label yet.
+//
+// onInput fires on every keystroke (live sprite preview); onCommit fires when the value is settled
+// (the edit modal saves there). Choosing a row from the dropdown counts as BOTH, because setting
+// .value from code fires neither event, and a native datalist pick used to fire both.
+function costumePicker(
+  dexId: number,
+  pokemonName: string,
+  value: string,
+  onInput: () => void,
+  onCommit?: () => void,
+): Picker {
+  const picker = createPicker({
+    entries: costumeEntries(dexId, pokemonName),
+    placeholder: SH.costumePlaceholder,
+    noMatchText: SH.costumeNoMatch,
+    showOnFocus: true,
+    preview: false,
+    maxResults: 100,
+    onSelect: () => { onInput(); onCommit?.(); },
+  });
+  picker.input.classList.add("move-select");
+  picker.input.value = value;
+  picker.input.addEventListener("input", onInput);
+  if (onCommit) picker.input.addEventListener("change", onCommit);
+  return picker;
 }
 
 let liveEventsMerged = false;
@@ -336,13 +359,20 @@ function buildCaughtIndex(shinies: UserShiny[]): Map<string, UserShiny> {
   return m;
 }
 
-// True when any entry exists for this species in this region ('' = original
-// form). The empty region segment (`Name::`) cannot collide with a set one.
-function cardCaught(name: string, region: string, index: Map<string, UserShiny>): boolean {
-  for (const key of index.keys()) {
-    if (key.startsWith(`${name}:${region}:`)) return true;
-  }
-  return false;
+// The set of `name:region` pairs the trainer owns at least one entry for.
+//
+// This used to be a linear scan of every caught key, run once per card, on every keystroke: with
+// a thousand cards and a few hundred entries that is hundreds of thousands of string comparisons
+// per character typed. A prefix set makes the same question one lookup.
+function buildCaughtCardKeys(shinies: UserShiny[]): Set<string> {
+  const s = new Set<string>();
+  for (const e of shinies) s.add(`${e.pokemon_id}:${cardRegion(e.pokemon_id, e.region)}`);
+  return s;
+}
+
+// True when any entry exists for this species in this region ('' = original form).
+function cardCaught(name: string, region: string, keys: Set<string>): boolean {
+  return keys.has(`${name}:${region}`);
 }
 
 function makeSelect(options: { value: string; label: string }[], selected: string, disabled: string[] = []) {
@@ -376,28 +406,76 @@ async function init() {
     return;
   }
 
-  const allShinies = Object.values(gameData.shinies);
+  setRegionalShinyOverrides(gameData.regionalShinyOverrides);
+
+  // shinyDex is the full National Dex with availability flags; shinies is the released-only view.
+  //
+  // The fallback is NOT optional. A server with no baseline embedded omits shinyDex entirely, and
+  // so does every stub payload the check-* scripts feed this page. In that case everything present
+  // is treated as released and in GO, which reproduces the behaviour that shipped before the flags
+  // existed rather than rendering an empty grid.
+  const dexEntries: ShinyDexEntry[] = gameData.shinyDex
+    ? Object.values(gameData.shinyDex)
+    : Object.values(gameData.shinies).map((s) => ({
+        id: s.id, name: s.name, in_go: true, shiny_released: true,
+      }));
+
+  // Anything the server serves as released but the dex table has never heard of still gets a card.
+  // Today the baseline spans the whole National Dex so this is empty, but the day a new generation
+  // lands upstream before the baseline is regenerated, the alternative is a species that is served
+  // and invisible: precisely the silent-omission bug this whole change exists to kill.
+  if (gameData.shinyDex) {
+    const known = new Set(dexEntries.map((e) => e.id));
+    for (const s of Object.values(gameData.shinies)) {
+      if (!known.has(s.id)) {
+        dexEntries.push({ id: s.id, name: s.name, in_go: true, shiny_released: true });
+      }
+    }
+  }
+  const dexByName = new Map(dexEntries.map((e) => [e.name, e]));
+
+  // shinyByName spans the FULL dex, not just released species, so an entry someone already owns
+  // for an unreleased species still resolves a sprite instead of rendering a blank card.
+  const allShinies: ShinyPokemon[] = dexEntries.map(
+    (e) => gameData.shinies?.[String(e.id)] ?? { id: e.id, name: e.name },
+  );
   const shinyByName = new Map(allShinies.map((s) => [s.name, s]));
 
-  // One checklist card per species plus one per shiny available regional form.
+  // One checklist card per species plus one per regional form that gets a card. Unreleased cards
+  // are built too and filtered at render time, so the "show unreleased" toggle costs no rebuild.
   interface ShinyCard {
     species: ShinyPokemon;
     region: string;
     // A dex id for most cards, but the Unown letters have no id of their own and carry a
     // PokeAPI sprite slug ("201-b") instead.
     spriteId: number | string;
+    released: boolean;
+    inGo: boolean;
   }
-  const allCards: ShinyCard[] = allShinies.flatMap((s) => [
-    { species: s, region: "", spriteId: s.id },
-    ...shinyRegionalForms(s.name).map((f) => ({
-      species: s,
-      region: f.region as string,
-      spriteId: f.variantId,
-    })),
-  ]);
+  const allCards: ShinyCard[] = allShinies.flatMap((s) => {
+    const e = dexByName.get(s.name);
+    const inGo = e?.in_go ?? true;
+    const released = e?.shiny_released ?? true;
+    return [
+      { species: s, region: "", spriteId: s.id, released, inGo },
+      ...cardRegionalForms(s.name).map((f) => ({
+        species: s,
+        region: f.region as string,
+        spriteId: f.variantId,
+        // A form's shiny can only exist if the species itself is in the game.
+        released: released && isRegionalShiny(s.name, f),
+        inGo,
+      })),
+    ];
+  });
+  // Sorted once here rather than on every render: filtering preserves order.
+  const regionRankMap = new Map(REGION_ORDER.map((r, i) => [r as string, i + 1]));
+  const regionRank = (r: string) => (r ? regionRankMap.get(r) ?? 0 : 0);
+  allCards.sort((a, b) => a.species.id - b.species.id || regionRank(a.region) - regionRank(b.region));
 
   let evolvedShinies: UserShiny[] = [];
   let caughtIndex: Map<string, UserShiny>;
+  let caughtCardKeys: Set<string>;
   let countMap: Map<string, number>;
 
   function buildCountMap(shinies: UserShiny[]): Map<string, number> {
@@ -412,6 +490,7 @@ async function init() {
   function rebuildState(shinies: UserShiny[]) {
     evolvedShinies = shinies.filter((s) => !!s.evolved_at);
     caughtIndex    = buildCaughtIndex(shinies);
+    caughtCardKeys = buildCaughtCardKeys(shinies);
     countMap       = buildCountMap(shinies);
   }
 
@@ -429,8 +508,12 @@ async function init() {
       <button class="tab-btn" data-tab="missing">${SH.tabMissing}</button>
     </div>
     <input id="sc-search" type="text" class="search-input"
-           style="width:100%;margin-bottom:1rem;display:block"
+           style="width:100%;margin-bottom:0.5rem;display:block"
            placeholder="${JSC.search}">
+    <label class="sc-filter-toggle" id="sc-unreleased-wrap">
+      <input type="checkbox" id="sc-show-unreleased">
+      <span>${SH.showUnreleased}</span>
+    </label>
     <div id="sc-content"></div>
   `;
 
@@ -438,6 +521,20 @@ async function init() {
   const tabsEl     = document.getElementById("sc-tabs")!;
   const searchEl   = document.getElementById("sc-search") as HTMLInputElement;
   const contentEl  = document.getElementById("sc-content")!;
+  const unreleasedEl = document.getElementById("sc-show-unreleased") as HTMLInputElement;
+
+  const SHOW_UNRELEASED_KEY = "sc-show-unreleased";
+  try {
+    if (localStorage.getItem(SHOW_UNRELEASED_KEY) === "1") unreleasedEl.checked = true;
+  } catch { /* private mode: the toggle just does not persist */ }
+
+  // A card is visible when its shiny is released, or the trainer asked to see what is coming, or
+  // they already own one. That last clause matters: flags can be wrong or an admin can toggle
+  // something off, and hiding somebody's own catch from their own checklist would read as data
+  // loss. A caught unreleased card renders as caught, not greyed.
+  function cardVisible(c: ShinyCard): boolean {
+    return c.released || unreleasedEl.checked || cardCaught(c.species.name, c.region, caughtCardKeys);
+  }
 
   const modal = document.createElement("div");
   modal.className = "sc-modal";
@@ -529,17 +626,12 @@ async function init() {
   }
 
   let modalFormSel: HTMLSelectElement;
+  let modalCostumePicker: Picker;
   let modalCostumeInput: HTMLInputElement;
   let modalEventInput: HTMLInputElement;
   let modalMethodSel: HTMLSelectElement;
   let modalCaughtInput: HTMLInputElement;
   let modalTarget: ShinyCard | null = null;
-
-  // Populated per species by refreshCostumeDatalist() when the add modal opens or a
-  // row's costume input is focused; starts empty.
-  const costumeDatalist = document.createElement("datalist");
-  costumeDatalist.id = "sc-costume-list";
-  document.body.appendChild(costumeDatalist);
 
   const eventDatalist = document.createElement("datalist");
   eventDatalist.id = "sc-event-list";
@@ -554,7 +646,12 @@ async function init() {
     const s = c.species;
     modalTarget = c;
     mergeLiveEventOptions();
-    (document.getElementById("sc-modal-normal") as HTMLImageElement).src =
+    // Hide on error like every other sprite on the page: this one was the sole image without a
+    // handler, so a species PokeAPI has no art for showed the browser's broken image glyph.
+    const normalImg = document.getElementById("sc-modal-normal") as HTMLImageElement;
+    normalImg.style.display = "";
+    normalImg.onerror = () => { normalImg.style.display = "none"; };
+    normalImg.src =
       `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${c.spriteId}.png`;
     (document.getElementById("sc-modal-shiny") as HTMLImageElement).src = spriteUrl(c.spriteId);
     modalName.textContent = regionalDisplayName(gameData, s.name, c.region);
@@ -634,13 +731,11 @@ async function init() {
     const costumeLabel = document.createElement("label");
     costumeLabel.className = "sc-field-label";
     costumeLabel.textContent = SH.costumeLabel;
-    modalCostumeInput = document.createElement("input");
-    modalCostumeInput.type = "text";
-    modalCostumeInput.className = "move-select";
-    modalCostumeInput.placeholder = SH.costumePlaceholder;
-    modalCostumeInput.setAttribute("list", "sc-costume-list");
+    // No onCommit: nothing is persisted until the Add button is pressed.
+    modalCostumePicker = costumePicker(s.id, s.name, "", () => updateModalSprite());
+    modalCostumeInput = modalCostumePicker.input;
     costumeWrap.appendChild(costumeLabel);
-    costumeWrap.appendChild(modalCostumeInput);
+    costumeWrap.appendChild(modalCostumePicker.root);
     modalFields.appendChild(costumeWrap);
 
     const shinyImgEl = document.getElementById("sc-modal-shiny") as HTMLImageElement;
@@ -654,8 +749,6 @@ async function init() {
         : null;
       shinyImgEl.src = url ?? spriteUrl(c.spriteId);
     };
-    modalCostumeInput.addEventListener("input", updateModalSprite);
-    modalCostumeInput.addEventListener("change", updateModalSprite);
 
     const eventWrap = document.createElement("div");
     eventWrap.className = "sc-field-wrap";
@@ -689,7 +782,6 @@ async function init() {
     caughtWrap.appendChild(modalCaughtInput);
     modalFields.appendChild(caughtWrap);
 
-    refreshCostumeDatalist(s.name, s.id);
     modal.classList.add("open");
   }
 
@@ -809,13 +901,23 @@ async function init() {
     const grid = document.createElement("div");
     grid.className = "shiny-grid";
 
-    const regionRank = (r: string) => (r ? REGION_ORDER.indexOf(r as never) + 1 : 0);
-    for (const c of [...filtered].sort(
-      (a, b) => a.species.id - b.species.id || regionRank(a.region) - regionRank(b.region),
-    )) {
-      const caught = cardCaught(c.species.name, c.region, caughtIndex);
+    // allCards is pre-sorted at init and filtering preserves order, so no per-render sort.
+    for (const c of filtered) {
+      const caught = cardCaught(c.species.name, c.region, caughtCardKeys);
+      // Owning one beats the flag: it is recorded, so it is shown normally and stays editable.
+      const locked = !c.released && !caught;
       const card = document.createElement("div");
-      card.className = "shiny-tag" + (caught ? " sc-caught" : "");
+      card.className = "shiny-tag" + (caught ? " sc-caught" : "") + (locked ? " sc-card-unreleased" : "");
+
+      if (locked) {
+        card.setAttribute("aria-disabled", "true");
+        const soon = document.createElement("span");
+        soon.className = "sc-soon-badge";
+        // Two honestly different states: in the game but no shiny yet, versus not in the game.
+        soon.textContent = c.inGo ? SH.badgeSoon : SH.badgeNotInGo;
+        card.appendChild(soon);
+        card.setAttribute("title", c.inGo ? SH.tipShinyUnreleased : SH.tipNotInGo);
+      }
 
       if (caught) {
         const badge = document.createElement("span");
@@ -845,13 +947,16 @@ async function init() {
       label.className = "shiny-label";
       label.textContent = regionalDisplayName(gameData, c.species.name, c.region);
 
-      // Vivillon patterns show their real world collection region on hover.
+      // Vivillon patterns show their real world collection region on hover. An unreleased card
+      // keeps its "why can I not click this" tooltip instead.
       const geo = vivillonGeo(c.region);
-      if (geo) card.setAttribute("title", geo);
+      if (geo && !locked) card.setAttribute("title", geo);
 
       card.appendChild(img);
       card.appendChild(label);
-      card.addEventListener("click", () => openAddModal(c));
+      // No listener at all on a locked card, rather than a handler that declines: there is
+      // genuinely nothing to record yet.
+      if (!locked) card.addEventListener("click", () => openAddModal(c));
       grid.appendChild(card);
     }
 
@@ -1167,14 +1272,15 @@ async function init() {
       editFields.appendChild(regionSel);
     }
 
-    const costumeInput = document.createElement("input");
-    costumeInput.type = "text";
-    costumeInput.className = "move-select";
-    costumeInput.value = rec.costume;
-    costumeInput.placeholder = SH.costumePlaceholder;
-    costumeInput.setAttribute("list", "sc-costume-list");
-    costumeInput.addEventListener("focus", () => refreshCostumeDatalist(rec.pokemon_id, poke?.id ?? 0));
-    field(SH.costumeLabel, costumeInput);
+    const costumeSuggest = costumePicker(
+      poke?.id ?? 0,
+      rec.pokemon_id,
+      rec.costume,
+      () => refreshHeadSprite(),
+      () => saveUpdate(),
+    );
+    const costumeInput = costumeSuggest.input;
+    field(SH.costumeLabel, costumeSuggest.root);
 
     const eventInput = document.createElement("input");
     eventInput.type = "text";
@@ -1265,8 +1371,8 @@ async function init() {
 
     formSel.addEventListener("change", saveUpdate);
     if (regionSel) regionSel.addEventListener("change", saveUpdate);
-    costumeInput.addEventListener("change", saveUpdate);
-    costumeInput.addEventListener("input", refreshHeadSprite);
+    // The costume field wires its own change/input handlers in costumePicker(), because choosing a
+    // row from the dropdown has to count as a commit even though it fires no native change event.
     eventInput.addEventListener("change", saveUpdate);
     methodSel.addEventListener("change", saveUpdate);
     caughtInput.addEventListener("change", saveUpdate);
@@ -1278,7 +1384,11 @@ async function init() {
     evolveBtn.title = SH.evolveBtn;
     evolveBtn.addEventListener("click", () => {
       const targets = getEvolveTargets(rec.pokemon_id, rec.region);
-      const available = targets.filter((t) => t.name && shinyByName.has(t.name));
+      // Gated on "is in Pokemon GO", not "has a shiny released". If you caught a shiny Cosmog you
+      // can evolve it the moment the game lets you, rather than waiting for our flag to catch up:
+      // that lag is precisely what this whole feature exists to remove. Species that are not in
+      // the game at all still do not appear.
+      const available = targets.filter((t) => t.name && (dexByName.get(t.name)?.in_go ?? shinyByName.has(t.name)));
       if (!available.length) {
         evolveBtn.textContent = SH.evolveNone;
         evolveBtn.disabled = true;
@@ -1316,7 +1426,6 @@ async function init() {
     editActions.appendChild(statusEl);
 
     refreshHeadSprite();
-    refreshCostumeDatalist(rec.pokemon_id, poke?.id ?? 0);
     editModal.classList.add("open");
   }
 
@@ -1347,6 +1456,12 @@ async function init() {
   let activeTab = "all";
 
   function renderTab() {
+    // The unreleased toggle is only meaningful on the two grid tabs.
+    const toggleWrap = document.getElementById("sc-unreleased-wrap");
+    if (toggleWrap) {
+      toggleWrap.style.display = activeTab === "all" || activeTab === "missing" ? "" : "none";
+    }
+
     if (activeTab === "caught") {
       searchEl.placeholder = SH.filterCaught;
       renderCaughtList(false);
@@ -1354,9 +1469,11 @@ async function init() {
       searchEl.placeholder = SH.filterCaught;
       renderCaughtList(true);
     } else {
+      // With the toggle off this is byte for byte the list that shipped before the flags existed.
+      const visible = allCards.filter(cardVisible);
       const source = activeTab === "missing"
-        ? allCards.filter((c) => !cardCaught(c.species.name, c.region, caughtIndex))
-        : allCards;
+        ? visible.filter((c) => !cardCaught(c.species.name, c.region, caughtCardKeys))
+        : visible;
       searchEl.placeholder = JSC.searchNPokemon.replace("{n}", String(source.length));
       renderGrid(source);
     }
@@ -1371,7 +1488,20 @@ async function init() {
     renderTab();
   });
 
-  searchEl.addEventListener("input", renderTab);
+  // Debounced: a keystroke re-filters, re-runs a family search per matching name, and rebuilds the
+  // whole grid, and nobody types one character per frame.
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  searchEl.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderTab, 150);
+  });
+
+  unreleasedEl.addEventListener("change", () => {
+    try {
+      localStorage.setItem(SHOW_UNRELEASED_KEY, unreleasedEl.checked ? "1" : "0");
+    } catch { /* private mode: the toggle just does not persist */ }
+    renderTab();
+  });
 
   updateCounter();
   renderTab();

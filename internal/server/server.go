@@ -346,6 +346,13 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/admin/sprite-lock/{slug}", h.RequireAdmin(h.AdminSetSpriteLock))
 		r.Delete("/api/admin/sprite-lock/{slug}", h.RequireAdmin(h.AdminDeleteSpriteLock))
 
+		// Shiny dex availability: which species are in Pokemon GO and which have a shiny released.
+		// Overrides the embedded baseline so a shiny release is a checkbox, not a deploy.
+		r.Get("/api/admin/shiny-dex", h.RequireAdmin(h.AdminGetShinyDex))
+		r.Put("/api/admin/shiny-dex/{dex}", h.RequireAdmin(h.AdminSetShinyDexFlags))
+		r.Delete("/api/admin/shiny-dex/{dex}", h.RequireAdmin(h.AdminResetShinyDexFlags))
+		r.Post("/api/admin/shiny-dex/bulk", h.RequireAdmin(h.AdminBulkSetShinyDexFlags))
+
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))
 
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)

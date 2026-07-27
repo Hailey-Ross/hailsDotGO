@@ -37,12 +37,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"pogo.hails.cc/internal/masterfile"
 )
 
 const (
 	repo        = "PokeMiners/pogo_assets"
 	assetDir    = "Images/Pokemon - 256x256/Addressable Assets"
-	masterfile  = "https://raw.githubusercontent.com/WatWowMap/Masterfile-Generator/master/master-latest-everything.json"
 	catalogPath = "internal/costumes/catalog.json"
 	labelsPath  = "internal/costumes/labels.json"
 
@@ -120,7 +121,7 @@ func main() {
 	must(err, "list asset tree")
 	fmt.Printf("%d files in %q\n", len(files), assetDir)
 
-	mf, err := loadMasterfile()
+	mf, err := masterfile.Load(httpc)
 	must(err, "load masterfile")
 	fmt.Printf("masterfile: %d costume enums, %d species\n", len(mf.Costumes), len(mf.Pokemon))
 
@@ -250,69 +251,6 @@ func assetFiles(sha, token string) ([]string, error) {
 	return out, nil
 }
 
-type masterData struct {
-	Costumes map[string]struct {
-		Name  string `json:"name"`
-		Proto string `json:"proto"`
-	} `json:"costumes"`
-	Pokemon map[string]struct {
-		Name  string `json:"name"`
-		Forms map[string]struct {
-			Name      string `json:"name"`
-			Proto     string `json:"proto"`
-			IsCostume bool   `json:"isCostume"`
-		} `json:"forms"`
-	} `json:"pokemon"`
-}
-
-func loadMasterfile() (*masterData, error) {
-	var mf masterData
-	if err := getJSON(masterfile, "", &mf); err != nil {
-		return nil, err
-	}
-	if len(mf.Costumes) == 0 || len(mf.Pokemon) == 0 {
-		return nil, fmt.Errorf("masterfile is missing costumes or pokemon")
-	}
-	return &mf, nil
-}
-
-// isCostumeForm reports whether a .f code on this dex is a COSTUME rather than an ordinary
-// alternate form, and returns its display name.
-//
-// This filter is mandatory. The .f prefix is shared with regional, mega, battle and cosmetic
-// forms, so without it the catalog would happily ingest pm26.fALOLA (Alolan Raichu) and
-// pm888.fCROWNED_SWORD as costumes.
-//
-// Rather than normalise species names to strip the proto prefix (Mr. Mime, Farfetch'd and
-// Nidoran-F all break naive casing rules), match the form proto against the code the asset
-// tree produced for that same dex: PIKACHU_VISOR_2026 ends with _VISOR_2026.
-func (mf *masterData) isCostumeForm(dex int, code string) (string, bool) {
-	pk, ok := mf.Pokemon[strconv.Itoa(dex)]
-	if !ok {
-		return "", false
-	}
-	for _, form := range pk.Forms {
-		if form.Proto != code && !strings.HasSuffix(form.Proto, "_"+code) {
-			continue
-		}
-		if !form.IsCostume {
-			return "", false
-		}
-		return form.Name, true
-	}
-	return "", false
-}
-
-func (mf *masterData) nameToDex() map[string]int {
-	out := make(map[string]int, len(mf.Pokemon))
-	for dexStr, pk := range mf.Pokemon {
-		if dex, err := strconv.Atoi(dexStr); err == nil && pk.Name != "" {
-			out[pk.Name] = dex
-		}
-	}
-	return out
-}
-
 // buildCatalog keeps a (p, code) only if at least one SHINY asset exists for it, and records
 // exactly the dex numbers whose shiny asset is present. That existence test is what makes the
 // catalog authoritative for both eligibility and shiny availability.
@@ -326,7 +264,7 @@ func (mf *masterData) nameToDex() map[string]int {
 // negatives (PIKACHU_COPY_2019, Clone Pikachu, carries no flag at all despite its shiny asset
 // being live), and trusting the flag alone would silently drop a costume users have already
 // recorded. Curated-but-unconfirmed codes are reported so a human can eyeball them.
-func buildCatalog(sha string, files []string, mf *masterData, curated map[string]bool) (*catalog, map[string]int) {
+func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[string]bool) (*catalog, map[string]int) {
 	cat := &catalog{
 		AssetBase:    fmt.Sprintf(cdnBase, sha),
 		SourceCommit: sha,
@@ -361,7 +299,7 @@ func buildCatalog(sha string, files []string, mf *masterData, curated map[string
 			pretty[key] = cName[m[3]]
 		case m[2] != "":
 			key = "f:" + m[2]
-			name, confirmed := mf.isCostumeForm(dex, m[2])
+			name, confirmed := mf.IsCostumeForm(dex, m[2])
 			if !confirmed && !curated[key] {
 				continue // an ordinary alternate form (Alolan, Mega, Crowned, ...), not a costume
 			}
@@ -396,7 +334,7 @@ func buildCatalog(sha string, files []string, mf *masterData, curated map[string
 			Unconfirmed: unconfirmed[key],
 		}
 	}
-	return cat, mf.nameToDex()
+	return cat, mf.NameToDex()
 }
 
 type finding struct{ what, detail string }

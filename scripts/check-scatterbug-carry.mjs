@@ -214,7 +214,9 @@ try {
   const bySpecies = (name) => all.filter((c) => c.alt === name);
 
   // 1. Scatterbug and Spewpa are a single card each (no pattern cards); Vivillon still fans out.
-  for (const [name, want] of [["Scatterbug", 1], ["Spewpa", 1], ["Vivillon", 21]]) {
+  // Vivillon is 19, not 21: Fancy and Poke Ball are event exclusive with no released shiny, so
+  // they get no card by default. Scatterbug and Spewpa stay at one card each regardless.
+  for (const [name, want] of [["Scatterbug", 1], ["Spewpa", 1], ["Vivillon", 19]]) {
     const n = bySpecies(name).length;
     if (n !== want) fail(`${name} rendered ${n} card(s), want ${want}`);
   }

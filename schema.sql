@@ -102,6 +102,25 @@ CREATE TABLE IF NOT EXISTS user_shinies (
 -- ALTER TABLE user_shinies ADD INDEX idx_user_shiny (user_id, pokemon_id);
 -- ALTER TABLE user_shinies DROP INDEX uk_user_shiny;
 
+-- Admin corrections to the embedded shiny dex baseline, which carries in_go and
+-- shiny_released for every National Dex species and every regional form. Only
+-- CHANGED rows live here, so the table stays sparse and a corrected baseline can
+-- take over later. region '' is the species row, matching user_shinies.region;
+-- a NULL column means "no opinion, use the baseline default".
+CREATE TABLE IF NOT EXISTS shiny_dex_overrides (
+  dex            SMALLINT UNSIGNED NOT NULL,
+  region         VARCHAR(16)       NOT NULL DEFAULT '',
+  in_go          TINYINT(1)        NULL DEFAULT NULL,
+  shiny_released TINYINT(1)        NULL DEFAULT NULL,
+  note           VARCHAR(255)      NOT NULL DEFAULT '',
+  updated_by     INT UNSIGNED      NULL DEFAULT NULL,
+  updated_at     DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                   ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (dex, region),
+  CONSTRAINT fk_sdo_user FOREIGN KEY (updated_by)
+    REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS site_settings (
   setting_key   VARCHAR(64)  NOT NULL,
   setting_value VARCHAR(255) NOT NULL DEFAULT '',
@@ -658,7 +677,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (40, 'Bug reports triage enhancements (2026-06-28)'),
   (41, 'Player ("bad actor") report system (2026-06-28)'),
   (42, 'Transactional email: email_verified_at + email_tokens (2026-07-03)'),
-  (43, 'Regional form support in shiny collection (2026-07-05)');
+  (43, 'Regional form support in shiny collection (2026-07-05)'),
+  (44, 'Shiny dex availability overrides (2026-07-25)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

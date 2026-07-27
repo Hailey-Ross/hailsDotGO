@@ -31,6 +31,11 @@ export type Region =
   | "galarian"
   | "hisuian"
   | "paldean"
+  // Paldean Tauros comes in three breeds, each with its own shiny sprite, so each is its own
+  // card rather than one generic "Paldean Tauros". Wooper still uses the plain paldean tag.
+  | "paldean_combat"
+  | "paldean_blaze"
+  | "paldean_aqua"
   | "therian"
   | "origin"
   | "attack"
@@ -105,6 +110,10 @@ export interface VivillonPattern {
   label: string;
   spriteId: number | string;
   geo: string;
+  // Omitted means released. Only the two event exclusive patterns set it: their art exists in the
+  // game data but the shiny has never been obtainable, so they get a card only when a trainer asks
+  // to see what is coming. (Fandom's shiny list greys both; verified 2026-07-25.)
+  shiny?: boolean;
 }
 
 export const VIVILLON_PATTERNS: VivillonPattern[] = [
@@ -126,12 +135,13 @@ export const VIVILLON_PATTERNS: VivillonPattern[] = [
   { region: "viv_sun",         label: "Sun",         spriteId: "666-sun",         geo: "Central America, Mexico" },
   { region: "viv_ocean",       label: "Ocean",       spriteId: "666-ocean",       geo: "Pacific islands, Oceania" },
   { region: "viv_jungle",      label: "Jungle",      spriteId: "666-jungle",      geo: "Equatorial rainforests (Amazon, Central Africa)" },
-  { region: "viv_fancy",       label: "Fancy",       spriteId: "666-fancy",       geo: "Event exclusive" },
-  { region: "viv_poke_ball",   label: "Poke Ball",   spriteId: "666-poke-ball",   geo: "Event exclusive" },
+  { region: "viv_fancy",       label: "Fancy",       spriteId: "666-fancy",       geo: "Event exclusive", shiny: false },
+  { region: "viv_poke_ball",   label: "Poke Ball",   spriteId: "666-poke-ball",   geo: "Event exclusive", shiny: false },
 ];
 
 export const REGION_ORDER: Region[] = [
   "alolan", "galarian", "hisuian", "paldean",
+  "paldean_combat", "paldean_blaze", "paldean_aqua",
   "therian", "origin", "attack", "defense", "speed", "sky",
   "dusk_mane", "dawn_wings", "crowned_sword", "crowned_shield",
   "black", "white", "resolute", "midnight", "dusk",
@@ -203,10 +213,15 @@ export const REGIONAL_FORMS: Record<string, RegionalForm[]> = {
   "Decidueye":  [{ region: "hisuian", variantId: 10244, shiny: true }],
   // Paldean
   "Wooper":     [{ region: "paldean", variantId: 10253, shiny: true }],
-  // Combat Breed variant id; shiny status disputed between sources
-  // (Serebii yes, LeekDuck no), kept false until confirmed. Enabling later
-  // may need per breed values.
-  "Tauros":     [{ region: "paldean", variantId: 10250, shiny: false }],
+  // Three breeds, each with its own shiny sprite, so each gets its own card. The shiny was
+  // disputed (Serebii yes, LeekDuck no) and kept false; Fandom's shiny list is a second source
+  // saying released for all three, verified 2026-07-25, so it is on. Note the plain "paldean"
+  // tag is deliberately NOT used here any more: it stays valid only for Wooper.
+  "Tauros": [
+    { region: "paldean_combat", variantId: 10250, shiny: true },
+    { region: "paldean_blaze",  variantId: 10251, shiny: true },
+    { region: "paldean_aqua",   variantId: 10252, shiny: true },
+  ],
   // Therian (Forces of Nature). Base card is the Incarnate form; the therian
   // row adds the second collectible card. Enamorus is intentionally omitted:
   // its shiny is not released in Pokemon GO.
@@ -275,31 +290,63 @@ export const REGIONAL_FORMS: Record<string, RegionalForm[]> = {
   // Unown letters. Every letter's shiny is released, so all 28 get a card. The
   // base dex card is kept as well, for a catch whose letter was never noted.
   "Unown": UNOWN_LETTERS.map((u) => ({ region: u.region, variantId: u.spriteId, shiny: true })),
-  // Vivillon patterns. Every pattern's shiny is released, so all 20 get a card.
+  // Vivillon patterns. 18 of the 20 have a released shiny; Fancy and Poke Ball are event
+  // exclusive and do not, so they carry shiny: false and only appear under "show unreleased".
   // The base dex card is kept as well, for a catch whose pattern was never noted.
   // Only Vivillon carries patterns: Scatterbug and Spewpa look identical across
   // every region (PokeAPI files their pattern forms with no sprite of their own).
-  "Vivillon": VIVILLON_PATTERNS.map((p) => ({ region: p.region, variantId: p.spriteId, shiny: true })),
+  "Vivillon": VIVILLON_PATTERNS.map((p) => ({ region: p.region, variantId: p.spriteId, shiny: p.shiny ?? true })),
   // Scatterbug and Spewpa carry the pattern (chosen at catch, and it rides up the
   // line to Vivillon) but never show it: patternOnly means the pattern is
   // recordable and evolves through, yet spawns no card and leaves the sprite the
   // plain 664/665. variantId 0 forces every sprite lookup back to the base dex.
-  "Scatterbug": VIVILLON_PATTERNS.map((p) => ({ region: p.region, variantId: 0, shiny: true, patternOnly: true })),
-  "Spewpa":     VIVILLON_PATTERNS.map((p) => ({ region: p.region, variantId: 0, shiny: true, patternOnly: true })),
+  // They mirror Vivillon's own flags rather than hardcoding true, so a pattern with no released
+  // shiny is not offered on the pre-evolutions either. Fancy and Poke Ball are event exclusive
+  // Vivillon and never came from a Scatterbug in the first place.
+  "Scatterbug": VIVILLON_PATTERNS.map((p) => ({ region: p.region, variantId: 0, shiny: p.shiny ?? true, patternOnly: true })),
+  "Spewpa":     VIVILLON_PATTERNS.map((p) => ({ region: p.region, variantId: 0, shiny: p.shiny ?? true, patternOnly: true })),
 };
+
+// Admin overrides from gameData.regionalShinyOverrides, laid over the shiny flag
+// compiled in above. The table stays the DEFAULT and the only value when the
+// payload is missing, so the page degrades to exactly its previous behaviour.
+// This is what makes "Hisuian Zorua's shiny finally shipped" a checkbox in the
+// admin panel instead of an edit to this file plus a deploy.
+let regionalShinyOverrides: Record<string, Record<string, boolean>> = {};
+
+export function setRegionalShinyOverrides(m: Record<string, Record<string, boolean>> | null | undefined): void {
+  regionalShinyOverrides = m ?? {};
+}
+
+// Scatterbug and Spewpa carry Vivillon's patterns rather than owning them, so
+// they read Vivillon's flag. Keeping three hand maintained copies of the same 20
+// booleans in step was never going to survive a pattern being toggled off.
+function overrideSource(species: string): string {
+  return species === "Scatterbug" || species === "Spewpa" ? "Vivillon" : species;
+}
+
+export function isRegionalShiny(species: string, f: RegionalForm): boolean {
+  return regionalShinyOverrides[overrideSource(species)]?.[f.region] ?? f.shiny;
+}
 
 // Regional forms that get their own checklist card: shiny released, and not
 // carry-only. Scatterbug and Spewpa patterns are excluded here so they stay a
 // single card each.
 export function shinyRegionalForms(species: string): RegionalForm[] {
-  return (REGIONAL_FORMS[species] ?? []).filter((f) => f.shiny && !f.patternOnly);
+  return (REGIONAL_FORMS[species] ?? []).filter((f) => isRegionalShiny(species, f) && !f.patternOnly);
+}
+
+// Every form that gets a card, released or not, so the checklist can render an
+// unreleased form greyed instead of pretending it does not exist.
+export function cardRegionalForms(species: string): RegionalForm[] {
+  return (REGIONAL_FORMS[species] ?? []).filter((f) => !f.patternOnly);
 }
 
 // Regional forms that can be recorded on an entry and carried through evolution:
 // the card forms plus the carry-only ones. Drives the collection row's region
 // select and the region propagation in getEvolveTargets.
 export function recordableRegions(species: string): RegionalForm[] {
-  return (REGIONAL_FORMS[species] ?? []).filter((f) => f.shiny);
+  return (REGIONAL_FORMS[species] ?? []).filter((f) => isRegionalShiny(species, f));
 }
 
 // True when a species/region pair is carry-only (a Scatterbug/Spewpa pattern),
