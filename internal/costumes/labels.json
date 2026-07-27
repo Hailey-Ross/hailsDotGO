@@ -178,7 +178,8 @@
 
     { "label": "Party Hat", "code": "c:ANNIVERSARY_2024" },
     { "label": "Flower Crown", "code": "c:SPRING_2024" },
-    { "label": "Visor", "code": "c:SUMMER_2024" }
+    { "label": "Visor", "code": "c:SUMMER_2024" },
+    { "label": "Fragment Hat", "code": "c:FALL_2018" }
   ],
 
   "aliases": {
