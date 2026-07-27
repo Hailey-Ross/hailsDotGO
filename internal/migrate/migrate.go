@@ -35,14 +35,15 @@ type Section struct {
 // install record everything up to its current version without re-running it.
 //
 // v0.1.7b is the migration baseline floor: releases before it were intentionally
-// removed, so the migrate tool only recognises v0.1.7b as a `-from` target and
-// migrations run forward from here only. An install older than v0.1.7b is no
+// removed, so every key in this map is a valid `-from` target and v0.1.7b is the
+// oldest of them. Migrations run forward from here only. An install older than v0.1.7b is no
 // longer upgradable in place; it reinstalls from schema.sql (which seeds the full
 // history) and carries on from there. Keep this in step as we tag: add the new
 // version each release, mapped to its highest applied section.
 var BaselineVersions = map[string]int{
 	"v0.1.7b": 43,
 	"v0.1.7c": 43, // no schema change: the collection rework is UI and date handling only
+	"v0.1.7e": 44, // adds shiny_dex_overrides (section 44); v0.1.7d was never tagged
 }
 
 // headerRe matches a section header line like "-- 39. Bug report system (2026-06-28)".

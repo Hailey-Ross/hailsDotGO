@@ -85,9 +85,11 @@ Visit [http://localhost:8080](http://localhost:8080).
 The [Getting Started](https://github.com/Hailey-Ross/hailsDotGO/wiki/Getting-Started) wiki page covers the rest: creating the first admin account, the CSRF key, and platform notes. Upgrading an existing install? Use the migrate tool instead of `schema.sql`:
 
 ```bash
-go run ./cmd/migrate -from v0.1.7b   # baseline at v0.1.7b (the supported floor), then apply what is pending
+go run ./cmd/migrate -from v0.1.7c   # name the version you are on (v0.1.7b is the oldest supported), then apply what is pending
 go run ./cmd/migrate                 # every upgrade after that
 ```
+
+v0.1.7e adds a table, so upgrading to it is not just a rebuild and a restart. Full steps are on the [Releases and Upgrading](https://github.com/Hailey-Ross/hailsDotGO/wiki/Releases-and-Upgrading) wiki page.
 
 When you are ready to put it on a server, see [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment).
 
@@ -101,7 +103,7 @@ cp .gitignore.example .gitignore
 
 ## How It Works (the short version)
 
-Game data (stats, moves, shinies, type chart) comes from [PoGoAPI](https://pogoapi.net) and refreshes every 6 hours, with embedded snapshots as an offline fallback. Official localized Pokémon names (French, German, Spanish, Japanese) come from [PokéAPI](https://pokeapi.co). Raid bosses and Max Battles come from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api), and the events feed from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) with sanitized detail pages from [LeekDuck](https://leekduck.com). All battle math runs client-side in TypeScript compiled by esbuild; accounts and everything persistent live in MySQL.
+Game data (stats, moves, shinies, type chart) comes from [PoGoAPI](https://pogoapi.net) and refreshes every 6 hours, with embedded snapshots as an offline fallback. Shiny *availability* is owned locally instead: the full National Dex ships embedded with per-species flags for whether a species is in Pokémon GO and whether its shiny is out, and admins correct it from the panel, so a shiny release does not need a rebuild. See [Data Sources](https://github.com/Hailey-Ross/hailsDotGO/wiki/Data-Sources). Official localized Pokémon names (French, German, Spanish, Japanese) come from [PokéAPI](https://pokeapi.co). Raid bosses and Max Battles come from [pokemon-go-api](https://github.com/pokemon-go-api/pokemon-go-api), and the events feed from [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) with sanitized detail pages from [LeekDuck](https://leekduck.com). All battle math runs client-side in TypeScript compiled by esbuild; accounts and everything persistent live in MySQL.
 
 Full details, refresh schedules, and attribution: [Data Sources](https://github.com/Hailey-Ross/hailsDotGO/wiki/Data-Sources) and [Architecture](https://github.com/Hailey-Ross/hailsDotGO/wiki/Architecture).
 
