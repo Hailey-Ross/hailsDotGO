@@ -513,7 +513,15 @@ type Store struct {
 	pokemonMoves      json.RawMessage
 	fastMoves         json.RawMessage
 	chargedMoves      json.RawMessage
+	// shinies is DERIVED, not assigned: rebuildShinyLocked filters the full dex down to species
+	// whose shiny is actually released. shinyUpstream holds the pristine merged upstream blob it
+	// is computed from. See shinydex.go for the precedence rules.
 	shinies           json.RawMessage
+	shinyUpstream     json.RawMessage
+	shinyDex          json.RawMessage
+	regionalShiny     json.RawMessage
+	shinyOverrides    map[shinyOverrideKey]ShinyOverride
+	upstreamShinyDex  map[int]bool // dex numbers PoGoAPI vouches for, derived on every rebuild
 	shadowPokemon     json.RawMessage
 	typeChart         json.RawMessage
 	cpMults           json.RawMessage
@@ -627,6 +635,20 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 				log.Printf("pogodata: pokemonIDMap: could not parse pokemon data (arr=%v obj=%v)", err, err2)
 			}
 		}
+		// PoGoAPI's stats feed is missing a handful of species that are genuinely in the game
+		// (Basculegion at the time of writing). Without this, PokemonDexID returns 0 for them and
+		// every server-resolved sprite for a stored entry comes back empty. The baseline knows
+		// every National Dex name, so fill the gaps rather than let a stats omission break art.
+		if len(shinyBaseline) > 0 {
+			if s.pokemonIDMap == nil {
+				s.pokemonIDMap = make(map[string]int, len(shinyBaseline))
+			}
+			for dex, base := range shinyBaseline {
+				if base.Name != "" && s.pokemonIDMap[base.Name] == 0 {
+					s.pokemonIDMap[base.Name] = dex
+				}
+			}
+		}
 	case "pokemon_moves":
 		s.pokemonMoves = data
 	case "fast_moves":
@@ -634,7 +656,11 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 	case "charged_moves":
 		s.chargedMoves = data
 	case "shinies":
-		s.shinies = mergeShinySupplement(data)
+		// The choke point. Embedded fallback, disk cache, the six hour refresh and the admin
+		// scraper check all land here, so recomputing from the overrides on every apply is what
+		// guarantees a refresh can never drop one.
+		s.shinyUpstream = mergeShinySupplement(data)
+		s.rebuildShinyLocked()
 	case "shadow_pokemon":
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(data, &raw); err == nil {
@@ -1275,7 +1301,37 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 			return d, 0, err
 		}, nil)
 	}
+
+	// Upstream can only ever ADD a shiny (see shinydex.go), so a species it lists that we do not
+	// serve means an override is holding it off. That is a legitimate admin decision, but it
+	// should never be invisible: surface it here so the drift shows up in the same place every
+	// other source's drift does.
+	if n := s.upstreamShinyDisagreements(); n > 0 {
+		for i := range out {
+			if out[i].Key == "shinies" {
+				out[i].Note = fmt.Sprintf("%d species upstream lists as shiny that we do not; review in the Shiny Dex tab", n)
+			}
+		}
+	}
 	return out
+}
+
+// upstreamShinyDisagreements counts species PoGoAPI reports as shiny that the effective flags do
+// not, which only happens when an admin override says otherwise.
+func (s *Store) upstreamShinyDisagreements() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n := 0
+	for dex := range s.upstreamShinyDex {
+		base, ok := shinyBaseline[dex]
+		if !ok {
+			continue
+		}
+		if _, shiny, _ := s.effectiveFlags(dex, base, true); !shiny {
+			n++
+		}
+	}
+	return n
 }
 
 // persistAndApply writes a data blob to the disk cache and into the in-memory store,
@@ -1374,6 +1430,10 @@ func (s *Store) AllData() json.RawMessage {
 		Raids         json.RawMessage            `json:"raids"`
 		MaxBattles    json.RawMessage            `json:"maxBattles"`
 		Shinies       json.RawMessage            `json:"shinies"`
+		// ShinyDex is the full National Dex with in_go/shiny_released flags. Shinies stays the
+		// released-only view every existing client already reads, so this is purely additive.
+		ShinyDex      json.RawMessage            `json:"shinyDex,omitempty"`
+		RegionalShiny json.RawMessage            `json:"regionalShinyOverrides,omitempty"`
 		ShadowPokemon json.RawMessage            `json:"shadowPokemon"`
 		TypeChart     json.RawMessage            `json:"typeChart"`
 		CPMultipliers json.RawMessage            `json:"cpMultipliers"`
@@ -1398,6 +1458,8 @@ func (s *Store) AllData() json.RawMessage {
 		Raids:         s.raids,
 		MaxBattles:    s.maxBattles,
 		Shinies:       s.shinies,
+		ShinyDex:      s.shinyDex,
+		RegionalShiny: s.regionalShiny,
 		ShadowPokemon: s.shadowPokemon,
 		TypeChart:     s.typeChart,
 		CPMultipliers: s.cpMults,

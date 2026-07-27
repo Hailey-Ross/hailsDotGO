@@ -42,6 +42,7 @@
       {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="feedback-options">{{T "admin.tab.feedback_options"}}</button>{{end}}
       {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="sprites">Trainer Avatars</button>{{end}}
       {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="costumes">Costumes</button>{{end}}
+      {{if .User.IsAdmin}}<button class="admin-nav-link" data-tab="shiny-dex">Shiny Dex</button>{{end}}
     </div>
 
     {{if .User.IsAdmin}}
@@ -778,6 +779,63 @@
     </div>
   </div>
 </div>
+
+<div id="tab-shiny-dex" class="tab-panel">
+  <div class="admin-card">
+    <h2>Shiny Dex</h2>
+    <p class="admin-desc">
+      Which species are in Pokemon GO, and which of them have a shiny released. The full National Dex
+      ships with the app; this page only records where we disagree with it, so when Niantic releases a
+      shiny you tick a box here instead of waiting for a deploy. Unreleased species are hidden on
+      My Collection unless a trainer asks to see what is coming.
+    </p>
+
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+      <input type="text" id="sd-search" class="auth-input" placeholder="Search name or dex..."
+             style="max-width:220px" autocomplete="off">
+      <select id="sd-gen-filter" class="move-select" style="max-width:150px">
+        <option value="">All generations</option>
+        <option value="1">Gen 1 (Kanto)</option>
+        <option value="2">Gen 2 (Johto)</option>
+        <option value="3">Gen 3 (Hoenn)</option>
+        <option value="4">Gen 4 (Sinnoh)</option>
+        <option value="5">Gen 5 (Unova)</option>
+        <option value="6">Gen 6 (Kalos)</option>
+        <option value="7">Gen 7 (Alola)</option>
+        <option value="8">Gen 8 (Galar)</option>
+        <option value="9">Gen 9 (Paldea)</option>
+      </select>
+      <select id="sd-status-filter" class="move-select" style="max-width:230px">
+        <option value="attention">Needs attention</option>
+        <option value="">All species</option>
+        <option value="released">Shiny released</option>
+        <option value="pending">In GO, shiny not released</option>
+        <option value="notingo">Not in Pokemon GO</option>
+        <option value="overridden">Overridden only</option>
+      </select>
+      <button class="btn-sm" id="sd-accept-suggestions" style="display:none"></button>
+    </div>
+
+    <div id="sd-species-table" style="display:flex;flex-direction:column;gap:0.35rem">
+      <p style="color:var(--text-2);font-size:0.9rem">Loading...</p>
+    </div>
+  </div>
+
+  <div class="admin-card">
+    <h2>Regional and alternate forms</h2>
+    <p class="admin-desc">
+      Forms that get their own card on the checklist: regional variants, alternate battle formes, the
+      Unown letters and the Vivillon patterns. Only shiny availability is editable here, because the
+      game either has a form or it does not. Scatterbug and Spewpa are absent on purpose: they carry
+      Vivillon's patterns rather than owning them, so they follow whatever Vivillon says.
+    </p>
+    <input type="text" id="sd-regional-search" class="auth-input" placeholder="Search species or form..."
+           style="max-width:220px;margin-bottom:1rem" autocomplete="off">
+    <div id="sd-regional-table" style="display:flex;flex-direction:column;gap:0.35rem">
+      <p style="color:var(--text-2);font-size:0.9rem">Loading...</p>
+    </div>
+  </div>
+</div>
 {{end}}
 
   </div><!-- .admin-panels -->
@@ -1255,7 +1313,11 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     costumes.forEach(function(c) { list.appendChild(row(c)); });
   }
 
-  function load() {
+  // keepStatus: the caller has already written something the admin needs to read. Without it the
+  // drift note from "Fetch new costumes" survived for about as long as the request that followed
+  // it, and when the backlog was empty it was replaced by '', so a working check read as a dead
+  // button. That is what made a genuine upstream answer look like nothing happening.
+  function load(keepStatus) {
     return fetch('/api/admin/costumes')
       .then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1273,9 +1335,11 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
           message('Loaded ' + costumes.length + ' costumes but failed to render them (see console).', '#f85149');
           return;
         }
-        status.textContent = costumes.length
-          ? costumes.length + ' costume' + (costumes.length === 1 ? '' : 's') + ' with no name'
-          : '';
+        if (!keepStatus) {
+          status.textContent = costumes.length
+            ? costumes.length + ' costume' + (costumes.length === 1 ? '' : 's') + ' with no name'
+            : '';
+        }
       })
       .catch(function(e) {
         console.error('costume tab load failed', e);
@@ -1298,14 +1362,25 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
       return r.json();
     })
     .then(function(d) {
-      var res = d.result || {};
-      if (!d.ok) { status.textContent = 'Check failed: ' + (res.error || 'unknown error'); return; }
-      // The catalog is compiled into the binary, so this can only ever report. Say so rather than
-      // implying the site just picked the new costumes up.
-      status.textContent = res.note
-        ? res.note
-        : 'Up to date with upstream (' + (d.synced || '').slice(0, 7) + ').';
-      return load(); // refresh, so a stale error cannot linger and make a good check look broken
+      // Its own try, for the same reason load()'s render() has one: a .catch() on the end of this
+      // chain would swallow a code bug thrown in here and report it as 'Check failed: ...', a
+      // network-sounding message for something that never touched the network.
+      try {
+        var res = d.result || {};
+        if (!d.ok) { status.textContent = 'Check failed: ' + (res.error || 'unknown error'); return; }
+        // The catalog is compiled into the binary, so this can only ever report. Say so rather than
+        // implying the site just picked the new costumes up.
+        status.textContent = res.note
+          ? res.note
+          : 'Up to date with upstream (' + (d.synced || '').slice(0, 7) + ').';
+      } catch (e) {
+        console.error('costume check render failed', e);
+        status.textContent = 'Checked upstream but failed to show the result (see console).';
+        return;
+      }
+      // Refresh the list so a stale error cannot linger and make a good check look broken, but
+      // keep the note: it is the answer the admin pressed the button for.
+      return load(true);
     })
     .catch(function(e) {
       console.error('costume check failed', e);
@@ -3237,6 +3312,306 @@ function renderSpriteTable() {
     document.getElementById('sprite-group-filter')?.addEventListener('change', renderSpriteTable);
     document.getElementById('sprite-lock-filter')?.addEventListener('change', renderSpriteTable);
   });
+})();
+
+// ── Shiny Dex: species and regional form availability ──────────
+//
+// Modelled on Trainer Avatars above, with three departures forced by scale. This table is 1025
+// species plus ~133 forms, where that one is a few hundred sprites:
+//
+//   1. Delegated listeners. One change and one click handler on each container, not one per row:
+//      per-row binding would attach thousands of listeners on every keystroke.
+//   2. The search is debounced, so typing does not rebuild the DOM per character.
+//   3. Rendering is capped, because nobody reads 1025 rows and the browser should not build them.
+//
+// The default status filter is "needs attention" so opening the tab shows the handful of rows worth
+// looking at rather than the whole dex.
+//
+// This block must stay BELOW the csrfFetch definition above: it is a separate IIFE, so a helper
+// declared in another one is not in scope here, and scripts/check-admin-shiny-dex-tab.mjs exists to
+// catch exactly that class of mistake.
+(function() {
+  var sdSpecies = [];
+  var sdRegional = [];
+  var sdLoaded = false;
+  var RENDER_CAP = 300;
+
+  function el(id) { return document.getElementById(id); }
+
+  function sdLoad() {
+    return fetch('/api/admin/shiny-dex')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.error) throw new Error(d.error);
+        sdSpecies = d.species || [];
+        sdRegional = d.regional || [];
+        sdRenderSpecies();
+        sdRenderRegional();
+        sdRefreshSuggestions();
+      })
+      .catch(function(e) {
+        var t = el('sd-species-table');
+        if (t) t.innerHTML = '<p style="color:#fc8181">' + esc(e.message || 'Could not load the shiny dex.') + '</p>';
+      });
+  }
+
+  // A species is worth an admin's attention when a source disagrees with us, or when someone has
+  // already overridden it (so the override stays visible rather than becoming invisible policy).
+  function sdNeedsAttention(s) {
+    return (s.upstream_shiny && !s.shiny_released) || s.overridden;
+  }
+
+  function sdFilteredSpecies() {
+    var q = (el('sd-search') ? el('sd-search').value : '').trim().toLowerCase();
+    var gen = el('sd-gen-filter') ? el('sd-gen-filter').value : '';
+    var status = el('sd-status-filter') ? el('sd-status-filter').value : '';
+    return sdSpecies.filter(function(s) {
+      if (q && s.name.toLowerCase().indexOf(q) === -1 && String(s.dex) !== q) return false;
+      if (gen && String(s.gen) !== gen) return false;
+      if (status === 'attention'  && !sdNeedsAttention(s)) return false;
+      if (status === 'released'   && !s.shiny_released) return false;
+      if (status === 'pending'    && !(s.in_go && !s.shiny_released)) return false;
+      if (status === 'notingo'    && s.in_go) return false;
+      if (status === 'overridden' && !s.overridden) return false;
+      return true;
+    });
+  }
+
+  function sdProvenance(row) {
+    if (!row.overridden) return '';
+    var who = row.updated_by || 'an admin';
+    var when = row.updated_at ? ' on ' + row.updated_at : '';
+    return who + when + (row.note ? ': ' + row.note : '');
+  }
+
+  function sdCheckbox(field, row, checked, defaultOn) {
+    return '<label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;color:var(--text-2)">' +
+      '<input type="checkbox" data-field="' + field + '"' + (checked ? ' checked' : '') +
+      ' title="default: ' + (defaultOn ? 'on' : 'off') + '">' + field.replace('_', ' ') + '</label>';
+  }
+
+  function sdSpeciesRow(s) {
+    var flags = [];
+    if (s.overridden) {
+      flags.push('<span class="sd-pill sd-pill-override" title="' + esc(sdProvenance(s)) + '">overridden</span>');
+    }
+    if (s.upstream_shiny && !s.shiny_released) {
+      flags.push('<span class="sd-pill sd-pill-warn" title="PoGoAPI lists a shiny for this species that we are not serving">upstream says shiny</span>');
+    }
+    return '<div class="sd-row' + (s.overridden ? ' sd-row-override' : '') + '" data-dex="' + s.dex + '" data-region="">' +
+      '<span class="sd-dex">#' + String(s.dex).padStart(4, '0') + '</span>' +
+      '<span class="sd-name">' + esc(s.name) + '</span>' +
+      '<span class="sd-gen">Gen ' + s.gen + '</span>' +
+      sdCheckbox('in_go', s, s.in_go, s.default_in_go) +
+      sdCheckbox('shiny_released', s, s.shiny_released, s.default_shiny_released) +
+      flags.join('') +
+      (s.overridden ? '<button class="btn-sm sd-reset" title="Reset to the shipped default">Reset</button>' : '') +
+      '<span class="sd-status"></span>' +
+      '</div>';
+  }
+
+  function sdRenderSpecies() {
+    var host = el('sd-species-table');
+    if (!host) return;
+    var rows = sdFilteredSpecies();
+    if (!rows.length) {
+      host.innerHTML = '<p style="color:var(--text-2);font-size:0.9rem">Nothing matches those filters.</p>';
+      return;
+    }
+    var shown = rows.slice(0, RENDER_CAP);
+    var html = shown.map(sdSpeciesRow).join('');
+    if (rows.length > shown.length) {
+      html += '<p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem">Showing ' +
+        shown.length + ' of ' + rows.length + '. Narrow the filters to see the rest.</p>';
+    }
+    host.innerHTML = html;
+  }
+
+  function sdRegionalRow(f) {
+    return '<div class="sd-row' + (f.overridden ? ' sd-row-override' : '') +
+      '" data-dex="' + f.dex + '" data-region="' + esc(f.region) + '">' +
+      '<img src="' + esc(f.sprite_url) + '" alt="" class="sd-sprite" loading="lazy" onerror="this.style.display=\'none\'">' +
+      '<span class="sd-name">' + esc(f.name) + '</span>' +
+      '<span class="sd-gen">' + esc(f.region) + '</span>' +
+      sdCheckbox('shiny_released', f, f.shiny_released, f.default_shiny_released) +
+      (f.overridden ? '<span class="sd-pill sd-pill-override" title="' + esc(sdProvenance(f)) + '">overridden</span>' : '') +
+      (f.overridden ? '<button class="btn-sm sd-reset" title="Reset to the shipped default">Reset</button>' : '') +
+      '<span class="sd-status"></span>' +
+      '</div>';
+  }
+
+  function sdRenderRegional() {
+    var host = el('sd-regional-table');
+    if (!host) return;
+    var q = (el('sd-regional-search') ? el('sd-regional-search').value : '').trim().toLowerCase();
+    var rows = sdRegional.filter(function(f) {
+      return !q || f.name.toLowerCase().indexOf(q) !== -1 || f.region.toLowerCase().indexOf(q) !== -1;
+    });
+    if (!rows.length) {
+      host.innerHTML = '<p style="color:var(--text-2);font-size:0.9rem">Nothing matches that search.</p>';
+      return;
+    }
+    var shown = rows.slice(0, RENDER_CAP);
+    var html = shown.map(sdRegionalRow).join('');
+    if (rows.length > shown.length) {
+      html += '<p style="color:var(--text-2);font-size:0.85rem;margin-top:0.5rem">Showing ' +
+        shown.length + ' of ' + rows.length + '.</p>';
+    }
+    host.innerHTML = html;
+  }
+
+  function sdRefreshSuggestions() {
+    var btn = el('sd-accept-suggestions');
+    if (!btn) return;
+    var pending = sdSpecies.filter(function(s) { return s.upstream_shiny && !s.shiny_released; });
+    if (!pending.length) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    btn.textContent = 'Accept ' + pending.length + ' upstream suggestion' + (pending.length === 1 ? '' : 's');
+    btn.dataset.count = String(pending.length);
+  }
+
+  function sdFind(dex, region) {
+    var list = region ? sdRegional : sdSpecies;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].dex === dex && (region ? list[i].region === region : true)) return list[i];
+    }
+    return null;
+  }
+
+  function sdSay(row, msg, ok) {
+    var statusEl = row.querySelector('.sd-status');
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.color = ok ? 'var(--green)' : '#fc8181';
+    if (ok) setTimeout(function() { statusEl.textContent = ''; }, 2000);
+  }
+
+  function sdSave(row) {
+    var dex = parseInt(row.dataset.dex, 10);
+    var region = row.dataset.region || '';
+    var boxes = row.querySelectorAll('input[type="checkbox"]');
+    // No `note` key at all: the API reads an absent note as "leave the stored one alone", so
+    // moving a checkbox does not destroy the reason somebody recorded the override.
+    var body = { region: region };
+    for (var i = 0; i < boxes.length; i++) {
+      body[boxes[i].dataset.field] = boxes[i].checked;
+    }
+    // A form has no in_go of its own: that is the species' business, and the API rejects it.
+    if (region) delete body.in_go;
+
+    return csrfFetch('/api/admin/shiny-dex/' + dex, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; }).then(function(d) {
+        if (!res.ok) { sdSay(row, d.error || STRINGS.error, false); return; }
+        var rec = sdFind(dex, region);
+        if (rec) {
+          if (!region) rec.in_go = !!body.in_go;
+          rec.shiny_released = !!body.shiny_released;
+          rec.overridden = !!d.overridden;
+        }
+        sdSay(row, 'Saved', true);
+        sdRefreshSuggestions();
+      });
+    }).catch(function() { sdSay(row, STRINGS.error, false); });
+  }
+
+  function sdReset(row) {
+    var dex = parseInt(row.dataset.dex, 10);
+    var region = row.dataset.region || '';
+    return csrfFetch('/api/admin/shiny-dex/' + dex + '?region=' + encodeURIComponent(region), { method: 'DELETE' })
+      .then(function(res) {
+        if (!res.ok) { sdSay(row, STRINGS.error, false); return; }
+        return sdLoad();
+      })
+      .catch(function() { sdSay(row, STRINGS.error, false); });
+  }
+
+  function sdBindDelegated(hostId, rerender) {
+    var host = el(hostId);
+    if (!host) return;
+    host.addEventListener('change', function(e) {
+      var box = e.target.closest ? e.target.closest('input[type="checkbox"]') : null;
+      if (!box) return;
+      var row = box.closest('.sd-row');
+      if (row) sdSave(row);
+    });
+    host.addEventListener('click', function(e) {
+      var btn = e.target.closest ? e.target.closest('.sd-reset') : null;
+      if (!btn) return;
+      var row = btn.closest('.sd-row');
+      if (row) sdReset(row);
+    });
+    if (rerender) host.dataset.bound = '1';
+  }
+
+  function sdDebounce(fn) {
+    var t;
+    return function() {
+      clearTimeout(t);
+      t = setTimeout(fn, 150);
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var tab = document.querySelector('[data-tab="shiny-dex"]');
+    if (!tab) return;
+    tab.addEventListener('click', function() {
+      if (!sdLoaded) { sdLoaded = true; sdLoad(); }
+    });
+
+    var deb = sdDebounce(sdRenderSpecies);
+    el('sd-search')?.addEventListener('input', deb);
+    el('sd-gen-filter')?.addEventListener('change', sdRenderSpecies);
+    el('sd-status-filter')?.addEventListener('change', sdRenderSpecies);
+    el('sd-regional-search')?.addEventListener('input', sdDebounce(sdRenderRegional));
+
+    sdBindDelegated('sd-species-table');
+    sdBindDelegated('sd-regional-table');
+
+    el('sd-accept-suggestions')?.addEventListener('click', function() {
+      var pending = sdSpecies.filter(function(s) { return s.upstream_shiny && !s.shiny_released; });
+      if (!pending.length) return;
+      // A species can only be "upstream says shiny, we do not" because an override is holding it
+      // off, so accepting the suggestion means clearing that override. Sending the upstream value
+      // does exactly that: it matches the effective default, and the API drops the row.
+      var BULK_MAX = 200;
+      var batch = pending.slice(0, BULK_MAX);
+      var msg = 'Turn the shiny on for ' + batch.length + ' species that PoGoAPI lists and we do not?';
+      if (pending.length > batch.length) {
+        msg += '\n\n' + pending.length + ' are pending; this does the first ' + BULK_MAX +
+               '. Press it again for the rest.';
+      }
+      if (!confirm(msg)) return;
+      var items = batch.map(function(s) {
+        return { dex: s.dex, region: '', in_go: true, shiny_released: true };
+      });
+      csrfFetch('/api/admin/shiny-dex/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items })
+      }).then(function(res) {
+        return res.json().catch(function() { return {}; });
+      }).then(function(d) {
+        // Report what actually happened rather than assuming it all worked.
+        if (d && d.errors && d.errors.length) {
+          alert(d.applied + ' applied, ' + d.errors.length + ' failed:\n' + d.errors.slice(0, 10).join('\n'));
+        }
+        return sdLoad();
+      });
+    });
+  });
+
+  // Exposed for scripts/check-admin-shiny-dex-tab.mjs, which runs this IIFE against a stub DOM.
+  window.__shinyDexTab = {
+    load: sdLoad,
+    renderSpecies: sdRenderSpecies,
+    renderRegional: sdRenderRegional,
+    filtered: sdFilteredSpecies,
+    save: sdSave
+  };
 })();
 
 // ── Bug Reports ────────────────────────────────────────────────

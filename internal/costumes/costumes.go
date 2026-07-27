@@ -236,15 +236,7 @@ func OriginURL(name string) string {
 // backlog immediately. No network.
 func Unlabelled() []Unnamed {
 	l := labels()
-	labelled := map[string]bool{}
-	for _, byLabel := range l.Species {
-		for _, code := range byLabel {
-			labelled[code] = true
-		}
-	}
-	for _, s := range l.Shared {
-		labelled[s.Code] = true
-	}
+	labelled := labelledCodes()
 	hidden := map[string]bool{}
 	for _, h := range l.Hidden {
 		hidden[h] = true
@@ -266,6 +258,23 @@ func Unlabelled() []Unnamed {
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out
+}
+
+// labelledCodes is every code a curated or runtime label points at, from the MERGED set. The
+// drift check needs it too: a label vouching for a code is what admits a .f code the masterfile
+// forgot to flag, exactly as it does when the sync tool builds the catalog.
+func labelledCodes() map[string]bool {
+	l := labels()
+	out := map[string]bool{}
+	for _, byLabel := range l.Species {
+		for _, code := range byLabel {
+			out[code] = true
+		}
+	}
+	for _, s := range l.Shared {
+		out[s.Code] = true
+	}
 	return out
 }
 

@@ -719,3 +719,28 @@ CREATE TABLE IF NOT EXISTS email_tokens (
 -- like Shadow Alolan stay representable.
 ALTER TABLE user_shinies
   ADD COLUMN region VARCHAR(16) NOT NULL DEFAULT '' AFTER form;
+
+
+-- 44. Shiny dex availability overrides (2026-07-25)
+-- The full National Dex now ships as an embedded baseline (in_go and
+-- shiny_released per species, and per regional form). This table holds ONLY
+-- admin corrections to that baseline, so it stays sparse and shipping a
+-- corrected baseline later does not fight the admin.
+--
+-- region '' is the species row; any other value is a regional or alternate
+-- form row, keyed the same way user_shinies.region is. A NULL column means
+-- "no opinion, use the baseline default"; a row that matches the default in
+-- every column is DELETEd rather than stored.
+CREATE TABLE IF NOT EXISTS shiny_dex_overrides (
+  dex            SMALLINT UNSIGNED NOT NULL,
+  region         VARCHAR(16)       NOT NULL DEFAULT '',
+  in_go          TINYINT(1)        NULL DEFAULT NULL,
+  shiny_released TINYINT(1)        NULL DEFAULT NULL,
+  note           VARCHAR(255)      NOT NULL DEFAULT '',
+  updated_by     INT UNSIGNED      NULL DEFAULT NULL,
+  updated_at     DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                   ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (dex, region),
+  CONSTRAINT fk_sdo_user FOREIGN KEY (updated_by)
+    REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

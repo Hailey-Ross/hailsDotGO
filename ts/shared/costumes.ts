@@ -10,6 +10,7 @@
 // inert: a costume can be recorded before its release without any "pending" bookkeeping.
 import catalog from "../../internal/costumes/catalog.json";
 import labelData from "../../internal/costumes/labels.json";
+import type { PickerEntry } from "./picker";
 
 type Catalog = { assetBase: string; codes: Record<string, { pretty: string; dex: number[] }> };
 type Labels = {
@@ -61,6 +62,34 @@ function resolve(dexId: number, pokemonName: string, costumeLabel: string): stri
 
   const shared = LAB.shared.find((s) => s.label === label && covers(s.code, dexId));
   return shared ? shared.code : null;
+}
+
+// Other spellings that resolve to a label. This is the reverse of the aliases map, which runs
+// typed text -> label, and it exists so the picker can MATCH on the name the game uses while
+// still SHOWING ours: searching "Professor Willow's assistant" has to find "Willow's Lab Coat".
+export function costumeAliasesFor(label: string): string[] {
+  return Object.entries(LAB.aliases)
+    .filter(([, canonical]) => canonical === label)
+    .map(([alias]) => alias);
+}
+
+// The costume field used to be an <input list> pointing at a <datalist>. Desktop browsers
+// autocompleted it; mobile browsers render datalist suggestions inconsistently, and on a phone the
+// list did not appear at all, which made every costume invisible to anyone who did not already know
+// its exact label. A trainer reported the Willow costume as missing for that reason. These entries
+// drive a createPicker dropdown instead, which renders itself and so behaves the same everywhere.
+//
+// Each row carries its shiny sprite, because a costume is far easier to recognise than to name.
+export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[] {
+  return costumeLabelsForDex(dexId, pokemonName).map((label, i) => ({
+    key: label,
+    name: label,
+    label,
+    sprite: costumeShinyUrl(dexId, pokemonName, label),
+    aliases: costumeAliasesFor(label),
+    types: [],
+    group: i,
+  }));
 }
 
 // pm25.cANNIVERSARY.s.icon.png -- the code carries its own prefix ("c:" or "f:").

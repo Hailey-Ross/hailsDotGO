@@ -13,6 +13,11 @@ export interface PickerEntry {
   tag?: string;           // small pill in the dropdown row, e.g. "T5", "Mega"
   group: number;          // sort tiebreaker after match rank; lower first
   data?: unknown;         // caller payload (PokemonStat, RaidBoss)
+  // Other spellings that should find this entry without being shown as separate rows. Costume
+  // labels need it: the game calls f:ANNIVERSARY_2026 "Professor Willow's assistant" while we
+  // label it "Willow's Lab Coat", so a trainer searching the name they read in the event notes
+  // finds nothing unless the alias matches too.
+  aliases?: string[];
 }
 
 export interface PickerOptions {
@@ -21,6 +26,7 @@ export interface PickerOptions {
   maxResults?: number;    // default 10
   showOnFocus?: boolean;  // when true, focusing the empty input lists the first entries
   preview?: boolean;      // default true; render the selected preview block
+  noMatchText?: string;   // default JSC.noPokemonFound; not every picker lists Pokemon
   onSelect(entry: PickerEntry): void;
   onClear?(): void;
 }
@@ -136,10 +142,12 @@ export function createPicker(opts: PickerOptions): Picker {
       matches = opts.entries.slice(0, maxResults);
     } else {
       const rank = (e: PickerEntry) => {
-        const n = norm(e.name), l = norm(e.label);
-        if (n === q || l === q) return 0;
-        if (n.startsWith(q) || l.startsWith(q)) return 1;
-        if (n.includes(q) || l.includes(q)) return 2;
+        // An alias matches at the same rank as the label it stands for, so searching the name the
+        // game uses is as good as searching ours. The row still shows our label, never the alias.
+        const names = [norm(e.name), norm(e.label), ...(e.aliases ?? []).map(norm)];
+        if (names.some((n) => n === q)) return 0;
+        if (names.some((n) => n.startsWith(q))) return 1;
+        if (names.some((n) => n.includes(q))) return 2;
         return 3;
       };
       matches = opts.entries
@@ -153,7 +161,7 @@ export function createPicker(opts: PickerOptions): Picker {
     if (!matches.length) {
       const none = document.createElement("button");
       none.className = "picker-option no-match";
-      none.textContent = JSC.noPokemonFound;
+      none.textContent = opts.noMatchText ?? JSC.noPokemonFound;
       none.disabled = true;
       dropdown.appendChild(none);
     } else {

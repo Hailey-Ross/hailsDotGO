@@ -91,6 +91,9 @@ func New(store *pogodata.Store, db *sql.DB) *Handlers {
 	}
 	h.loadTemplates()
 	h.reloadLangs()
+	// After store.Start() has loaded the fallback and cache, so the first rebuild already has the
+	// admin overrides in hand. Later background refreshes re-enter the same rebuild and keep them.
+	h.reloadShinyOverrides()
 	return h
 }
 

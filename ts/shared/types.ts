@@ -49,6 +49,16 @@ export interface ShinyPokemon {
   found_photobomb?: boolean;
 }
 
+// One row of the full National Dex, with availability. shinies above stays the
+// released-only view every client already reads; this is the superset that also
+// carries the species we know about but cannot catch a shiny of yet.
+export interface ShinyDexEntry {
+  id: number;
+  name: string;
+  in_go: boolean;
+  shiny_released: boolean;
+}
+
 export type TypeChart = Record<string, Record<string, number>>;
 
 export interface CPMultiplier {
@@ -73,6 +83,10 @@ export interface GameData {
   raids: RaidTiers | null;
   maxBattles: RaidTiers | null;
   shinies: Record<string, ShinyPokemon> | null;
+  // Both are omitted by the server when no baseline is embedded, and every
+  // consumer must degrade to shinies alone rather than render an empty page.
+  shinyDex?: Record<string, ShinyDexEntry> | null;
+  regionalShinyOverrides?: Record<string, Record<string, boolean>> | null;
   shadowPokemon: string[] | null;
   typeChart: TypeChart | null;
   cpMultipliers: CPMultiplier[] | null;

@@ -182,7 +182,12 @@
   ],
 
   "aliases": {
-    "Pikachu Visor": "Visor"
+    "Pikachu Visor": "Visor",
+
+    "Professor Willow's Assistant": "Willow's Lab Coat",
+    "Professor Willow's assistant": "Willow's Lab Coat",
+    "Professor Willow’s Assistant": "Willow's Lab Coat",
+    "Professor Willow’s assistant": "Willow's Lab Coat"
   },
 
   "_hidden_comment": [

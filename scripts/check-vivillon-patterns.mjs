@@ -55,9 +55,14 @@ const PATTERNS = [
   { label: "Sun",         region: "viv_sun",         slug: "666-sun" },
   { label: "Ocean",       region: "viv_ocean",       slug: "666-ocean" },
   { label: "Jungle",      region: "viv_jungle",      slug: "666-jungle" },
-  { label: "Fancy",       region: "viv_fancy",       slug: "666-fancy" },
-  { label: "Poke Ball",   region: "viv_poke_ball",   slug: "666-poke-ball" },
+  // Event exclusive: the art exists but the shiny has never been obtainable, so these two get no
+  // card by default and only appear once a trainer ticks "show unreleased".
+  { label: "Fancy",       region: "viv_fancy",       slug: "666-fancy",     unreleased: true },
+  { label: "Poke Ball",   region: "viv_poke_ball",   slug: "666-poke-ball", unreleased: true },
 ];
+
+const RELEASED = PATTERNS.filter((p) => !p.unreleased);
+const UNRELEASED = PATTERNS.filter((p) => p.unreleased);
 
 // ------------------------------------------------------------------- the fixtures
 // Enough of /api/data to drive the grid: Vivillon, plus a species with an ordinary regional form so
@@ -257,10 +262,16 @@ try {
   };
   const vivillon = cards.map(cardInfo).filter((c) => c.alt === "Vivillon");
 
-  // 1. Exactly 21 cards: the patternless base card plus all 20 patterns, no duplicates.
-  const WANT_CARDS = 1 + PATTERNS.length;
+  // 1. Exactly 19 cards by default: the patternless base card plus the 18 patterns with a
+  //    released shiny, no duplicates. Fancy and Poke Ball are event exclusive and must NOT be here.
+  const WANT_CARDS = 1 + RELEASED.length;
   if (vivillon.length !== WANT_CARDS) {
-    fail(`Vivillon rendered ${vivillon.length} cards, want ${WANT_CARDS} (base + ${PATTERNS.length} patterns)`);
+    fail(`Vivillon rendered ${vivillon.length} cards, want ${WANT_CARDS} (base + ${RELEASED.length} released patterns)`);
+  }
+  for (const p of UNRELEASED) {
+    if (vivillon.find((c) => c.label === `${p.label} Vivillon`)) {
+      fail(`${p.label} has no released shiny but got a card in the default view`);
+    }
   }
   const labels = vivillon.map((c) => c.label);
   const dupes = labels.filter((l, i) => labels.indexOf(l) !== i);
@@ -274,7 +285,7 @@ try {
   //    be plain 666 (666-meadow does not exist upstream), and the hyphenated slugs must be spelled
   //    out (666-icy-snow, 666-high-plains, 666-poke-ball).
   // 3. The label reads "Meadow Vivillon" (pattern first).
-  for (const p of PATTERNS) {
+  for (const p of RELEASED) {
     const want = `${p.label} Vivillon`;
     const card = vivillon.find((c) => c.label === want);
     if (!card) fail(`no card labelled ${JSON.stringify(want)} (labels: ${labels.join(", ")})`);
@@ -315,7 +326,8 @@ try {
   }
 
   console.log(
-    `Vivillon patterns: the checklist renders ${vivillon.length} Vivillon cards (base + ${PATTERNS.length} patterns), ` +
+    `Vivillon patterns: the checklist renders ${vivillon.length} Vivillon cards (base + ${RELEASED.length} released ` +
+    `patterns, with ${UNRELEASED.map((p) => p.label).join(" and ")} correctly absent), ` +
       `each with the right shiny sprite (Meadow is 666, hyphenated slugs like 666-icy-snow are spelled right), ` +
       `each labelled pattern first ("Meadow Vivillon"), a caught viv_elegant ticks only the Elegant card, and ` +
       `every region tag fits the ${REGION_COLUMN_MAX}-char column.`,
