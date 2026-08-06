@@ -114,6 +114,61 @@ func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
+// Locale strings are PLAIN TEXT. Nothing in them may be markup.
+//
+// This is not a style preference, it is what keeps a translator from taking over
+// the admin panel. Every template ships its locale bundle into a JavaScript object
+// (STRINGS, JSC, SH, RF2 and friends), and the client concatenates those values
+// into innerHTML in over a hundred places, including
+// placeholder="${STRINGS.passwordPh}" in the admin panel itself. Go's templates
+// escape the strings correctly on the way out; the JavaScript that consumes them
+// afterwards does not. So an approved translation was live markup on every page,
+// and the review UI showed the reviewer a correctly escaped preview, meaning the
+// payload looked harmless right up until it was approved.
+//
+// Enforced at submission AND at approval: an edit submitted before this existed is
+// still sitting in translation_edits waiting for a reviewer, and a submit-time check
+// alone would wave it straight through.
+//
+// The character set was chosen by measurement, not guesswork. Across all five
+// shipped locales (4475 strings) there is not one single "<" or ">", so rejecting
+// them costs nothing. Double quotes appear in six strings in total, and they are
+// rejected too because an attribute context such as placeholder="..." is broken out
+// of with a quote alone, no angle bracket required. Apostrophes are NOT rejected:
+// French alone uses 141 of them.
+var translationBannedChars = []struct {
+	r    rune
+	name string
+}{
+	{'<', "<"},
+	{'>', ">"},
+	{'"', `"`},
+}
+
+// sanitizeTranslation normalises a submitted string and reports what is wrong with
+// it, returning the cleaned text and an error message key when it must be refused.
+func sanitizeTranslation(text string) (string, string) {
+	// Strip control characters outright. They are invisible, they have no place in a
+	// UI string, and they are a standard way to smuggle a payload past eyeball review.
+	cleaned := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\t' {
+			return ' '
+		}
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, text)
+	cleaned = strings.TrimSpace(cleaned)
+
+	for _, banned := range translationBannedChars {
+		if strings.ContainsRune(cleaned, banned.r) {
+			return cleaned, "error.tl_markup_not_allowed"
+		}
+	}
+	return cleaned, ""
+}
+
 func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	var body struct {
@@ -133,9 +188,13 @@ func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.tl_unknown_key"), http.StatusBadRequest)
 		return
 	}
-	text := strings.TrimSpace(body.NewText)
+	text, badKey := sanitizeTranslation(body.NewText)
 	if text == "" {
 		writeJSONError(w, h.t(r, "error.tl_empty"), http.StatusBadRequest)
+		return
+	}
+	if badKey != "" {
+		writeJSONError(w, h.t(r, badKey), http.StatusBadRequest)
 		return
 	}
 	if len(text) > translateMaxLen {
@@ -424,6 +483,16 @@ func (h *Handlers) AdminTranslationApprove(w http.ResponseWriter, r *http.Reques
 		writeJSONError(w, h.t(r, "error.tl_already_processed"), http.StatusNotFound)
 		return
 	}
+
+	// Re-check at approval, not just at submission. Anything already queued when the
+	// submit-time rule landed has never been through it, and this is the last gate
+	// before the string becomes live markup on every page.
+	cleanText, badKey := sanitizeTranslation(newText)
+	if badKey != "" || cleanText == "" {
+		writeJSONError(w, h.t(r, "error.tl_markup_not_allowed"), http.StatusBadRequest)
+		return
+	}
+	newText = cleanText
 
 	// Apply first: backup + atomic file write + in-memory reload. If this
 	// fails the row stays pending and nothing changed on disk or in memory.

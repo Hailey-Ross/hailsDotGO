@@ -80,8 +80,14 @@ func main() {
 		Addr:              ":" + port,
 		Handler:           server.New(store, db, csrfKey),
 		ReadHeaderTimeout: 15 * time.Second,
-		WriteTimeout:      90 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// Without a ReadTimeout, a client that sends headers promptly and then dribbles
+		// its body one byte at a time holds the connection open indefinitely. Generous
+		// at 2 minutes so an 8 MB screenshot upload over a poor mobile connection still
+		// completes; the body size caps in server.go bound the volume, this bounds time.
+		ReadTimeout:    2 * time.Minute,
+		MaxHeaderBytes: 1 << 20,
+		WriteTimeout:   90 * time.Second,
+		IdleTimeout:    60 * time.Second,
 	}
 
 	go func() {

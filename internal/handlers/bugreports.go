@@ -519,6 +519,21 @@ func (h *Handlers) APIBugInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A reporter must not be able to pull the person they reported into the thread.
+	// Nothing stopped it before, and the consequences are worse than they first look:
+	// it hands the accused the full contents of the report against them, and it turns
+	// the ticket into a channel the reporter can use to reach someone who may well
+	// have blocked them. Staff keep the ability, since a moderator may have a genuine
+	// reason to bring both sides together.
+	if !isStaff {
+		var reportedUserID sql.NullInt64
+		h.db.QueryRow(`SELECT reported_user_id FROM bug_reports WHERE id = ?`, reportID).Scan(&reportedUserID)
+		if reportedUserID.Valid && uint(reportedUserID.Int64) == targetID {
+			writeJSONError(w, "you cannot invite the person this report is about", http.StatusForbidden)
+			return
+		}
+	}
+
 	// Determine the invited user's role and enforce the collaborator cap for non-staff inviters.
 	invitedRole := "collaborator"
 	targetIsStaff := targetRole == "moderator" || targetRole == "admin" || target == auth.SuperadminUser

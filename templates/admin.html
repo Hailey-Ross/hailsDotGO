@@ -789,6 +789,11 @@
       shiny you tick a box here instead of waiting for a deploy. Unreleased species are hidden on
       My Collection unless a trainer asks to see what is coming.
     </p>
+    <p class="admin-desc">
+      When a shiny is announced ahead of time, put the date in the release field. Trainers see it on
+      the greyed card straight away, and the shiny turns itself on when the day arrives, so nobody has
+      to remember. If Niantic delays it, untick the shiny box: an explicit tick always beats the date.
+    </p>
 
     <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
       <input type="text" id="sd-search" class="auth-input" placeholder="Search name or dex..."
@@ -812,6 +817,7 @@
         <option value="pending">In GO, shiny not released</option>
         <option value="notingo">Not in Pokemon GO</option>
         <option value="overridden">Overridden only</option>
+        <option value="dated">Has a release date</option>
       </select>
       <button class="btn-sm" id="sd-accept-suggestions" style="display:none"></button>
     </div>
@@ -825,9 +831,10 @@
     <h2>Regional and alternate forms</h2>
     <p class="admin-desc">
       Forms that get their own card on the checklist: regional variants, alternate battle formes, the
-      Unown letters and the Vivillon patterns. Only shiny availability is editable here, because the
-      game either has a form or it does not. Scatterbug and Spewpa are absent on purpose: they carry
-      Vivillon's patterns rather than owning them, so they follow whatever Vivillon says.
+      Unown letters and the Vivillon patterns. Only shiny availability and its release date are
+      editable here, because the game either has a form or it does not. Scatterbug and Spewpa are
+      absent on purpose: they carry Vivillon's patterns rather than owning them, so they follow
+      whatever Vivillon says.
     </p>
     <input type="text" id="sd-regional-search" class="auth-input" placeholder="Search species or form..."
            style="max-width:220px;margin-bottom:1rem" autocomplete="off">
@@ -865,6 +872,10 @@ const STRINGS = {
   btnConfirmDisable:   {{T "admin.js.btn_confirm_disable"}},
   disableReasonPh:     {{T "admin.js.disable_reason_ph"}},
   disableReasonLabel:  {{T "admin.js.disable_reason_label"}},
+  btnDeleteUser:       {{T "admin.js.btn_delete_user"}},
+  btnConfirmDelete:    {{T "admin.js.btn_confirm_delete"}},
+  deleteWarning:       {{T "admin.js.delete_warning"}},
+  deleteConfirmPh:     {{T "admin.js.delete_confirm_ph"}},
   btnUnhide:        {{T "admin.js.btn_unhide"}},
   btnHide:          {{T "admin.js.btn_hide"}},
   btnBanRaids:      {{T "admin.js.btn_ban_raids"}},
@@ -1603,6 +1614,10 @@ function renderUserDetail(u) {
     ? `<button class="um-btn ${u.translator ? 'um-btn-danger' : 'um-btn-ok'}" onclick="toggleTranslator(${u.id}, ${!u.translator})">${u.translator ? STRINGS.btnRevokeTranslator : STRINGS.btnGrantTranslator}</button>` : '';
   const tagManageBtn  = canManageTags ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'tags')">${STRINGS.btnManageTags}</button>` : '';
   const raidStatsBtn  = IS_ADMIN ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'raidstats')">${STRINGS.btnRaidStats}</button>` : '';
+  // Owner only, and never the owner's own row: the server refuses both, this just
+  // keeps the button off screens where it could only ever fail.
+  const deleteUserBtn = IS_SUPERADMIN && !isMe && u.username !== SUPERADMIN
+    ? `<button class="um-btn um-btn-danger" onclick="toggleExpand(${u.id}, 'delete')">${STRINGS.btnDeleteUser}</button>` : '';
   const confirmRoleBtn= IS_ADMIN && u.pending_role && u.username !== SUPERADMIN ? `
     <button class="um-btn um-btn-ok" onclick="confirmRole(${u.id})">${STRINGS.btnConfirmRole} ${esc(cap(u.pending_role))}</button>
     <button class="um-btn um-btn-danger" onclick="rejectRole(${u.id})">${STRINGS.btnRejectRole}</button>` : '';
@@ -1631,7 +1646,7 @@ function renderUserDetail(u) {
       ${canSetPw ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'password')">${STRINGS.btnSetPassword}</button>` : ''}
       ${canRename ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'username')">${STRINGS.btnRename}</button>` : ''}
       <button class="um-btn" onclick="toggleExpand(${u.id}, 'strikes')">${STRINGS.btnStrikes}</button>
-      ${raidStatsBtn}${tagManageBtn}${confirmRoleBtn}${disableBtn}${dirHideBtn}${raidBanBtn}${apiAccessBtn}${translatorBtn}${roleSelect}${specialSelect}
+      ${raidStatsBtn}${tagManageBtn}${confirmRoleBtn}${disableBtn}${dirHideBtn}${raidBanBtn}${apiAccessBtn}${translatorBtn}${roleSelect}${specialSelect}${deleteUserBtn}
     </div>
     <div class="um-expand" id="um-expand-${u.id}"></div>`;
 }
@@ -1724,6 +1739,17 @@ function toggleExpand(id, type) {
         <span id="disable-status-${id}" style="font-size:0.8rem"></span>
       </div>
     </div>`;
+  } else if (type === 'delete') {
+    el.innerHTML = `<div class="um-strikes-panel">
+      <p style="font-size:0.82rem;color:#fc8181;margin:0 0 0.5rem">${STRINGS.deleteWarning}</p>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+        <input type="text" id="delete-confirm-${id}" class="auth-input" maxlength="32"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="${STRINGS.deleteConfirmPh}" style="flex:1;min-width:200px;font-size:0.85rem">
+        <button class="um-btn um-btn-danger" onclick="confirmDeleteUser(${id})">${STRINGS.btnConfirmDelete}</button>
+        <span id="delete-status-${id}" style="font-size:0.8rem"></span>
+      </div>
+    </div>`;
   }
 }
 
@@ -1791,6 +1817,29 @@ async function confirmDisable(id) {
   } else {
     const d = await res.json().catch(() => ({}));
     if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+  }
+}
+
+// Permanent deletion. The typed username is checked again on the server against
+// the account it just loaded, so this is a courtesy gate, not the real one.
+async function confirmDeleteUser(id) {
+  const typed    = (document.getElementById('delete-confirm-' + id)?.value || '').trim();
+  const statusEl = document.getElementById('delete-status-' + id);
+  const btn      = document.querySelector(`#um-expand-${id} .um-btn-danger`);
+  if (btn) btn.disabled = true;
+  const res = await csrfFetch('/admin/users/' + id + '/delete', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({confirm_username: typed}),
+  });
+  if (res.ok) {
+    users = users.filter(u => u.id !== id);
+    closeUserModal();
+    renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
+  } else {
+    const d = await res.json().catch(() => ({}));
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -3357,6 +3406,7 @@ function renderSpriteTable() {
 
   // A species is worth an admin's attention when a source disagrees with us, or when someone has
   // already overridden it (so the override stays visible rather than becoming invisible policy).
+  // A recorded release date counts as an override, so dated species land here for free.
   function sdNeedsAttention(s) {
     return (s.upstream_shiny && !s.shiny_released) || s.overridden;
   }
@@ -3373,6 +3423,7 @@ function renderSpriteTable() {
       if (status === 'pending'    && !(s.in_go && !s.shiny_released)) return false;
       if (status === 'notingo'    && s.in_go) return false;
       if (status === 'overridden' && !s.overridden) return false;
+      if (status === 'dated'      && !s.release_date) return false;
       return true;
     });
   }
@@ -3390,6 +3441,24 @@ function renderSpriteTable() {
       ' title="default: ' + (defaultOn ? 'on' : 'off') + '">' + field.replace('_', ' ') + '</label>';
   }
 
+  // The announced release date. Clearing the field sends an empty string, which drops the date and,
+  // if nothing else on the row disagrees with the shipped default, deletes the row outright.
+  function sdDateInput(row) {
+    return '<label class="sd-date-wrap" title="Announced release date. When it arrives the shiny ' +
+      'turns itself on; untick the shiny box to hold back a delayed release.">' +
+      '<span>release</span>' +
+      '<input type="date" class="sd-date" data-field="release_date" value="' +
+      esc(row.release_date || '') + '"></label>';
+  }
+
+  // Only shown once the day has passed. A future date needs no pill, because the input next to it
+  // already says so; a passed one has to explain why a box nobody ticked is ticked.
+  function sdDatePill(row) {
+    if (!row.released_by_date) return '';
+    return '<span class="sd-pill sd-pill-date" title="The announced date has passed, so the shiny ' +
+      'is live. Untick shiny released to hold it back.">released by date</span>';
+  }
+
   function sdSpeciesRow(s) {
     var flags = [];
     if (s.overridden) {
@@ -3404,6 +3473,8 @@ function renderSpriteTable() {
       '<span class="sd-gen">Gen ' + s.gen + '</span>' +
       sdCheckbox('in_go', s, s.in_go, s.default_in_go) +
       sdCheckbox('shiny_released', s, s.shiny_released, s.default_shiny_released) +
+      sdDateInput(s) +
+      sdDatePill(s) +
       flags.join('') +
       (s.overridden ? '<button class="btn-sm sd-reset" title="Reset to the shipped default">Reset</button>' : '') +
       '<span class="sd-status"></span>' +
@@ -3434,6 +3505,8 @@ function renderSpriteTable() {
       '<span class="sd-name">' + esc(f.name) + '</span>' +
       '<span class="sd-gen">' + esc(f.region) + '</span>' +
       sdCheckbox('shiny_released', f, f.shiny_released, f.default_shiny_released) +
+      sdDateInput(f) +
+      sdDatePill(f) +
       (f.overridden ? '<span class="sd-pill sd-pill-override" title="' + esc(sdProvenance(f)) + '">overridden</span>' : '') +
       (f.overridden ? '<button class="btn-sm sd-reset" title="Reset to the shipped default">Reset</button>' : '') +
       '<span class="sd-status"></span>' +
@@ -3496,6 +3569,8 @@ function renderSpriteTable() {
     for (var i = 0; i < boxes.length; i++) {
       body[boxes[i].dataset.field] = boxes[i].checked;
     }
+    var dateEl = row.querySelector('.sd-date');
+    if (dateEl) body.release_date = dateEl.value;
     // A form has no in_go of its own: that is the species' business, and the API rejects it.
     if (region) delete body.in_go;
 
@@ -3506,13 +3581,26 @@ function renderSpriteTable() {
     }).then(function(res) {
       return res.json().catch(function() { return {}; }).then(function(d) {
         if (!res.ok) { sdSay(row, d.error || STRINGS.error, false); return; }
+        // Patched from the RESPONSE, not from what was sent: a release date that has arrived turns
+        // shiny_released on by itself, so the checkboxes are not the last word any more.
         var rec = sdFind(dex, region);
+        var changed = false;
         if (rec) {
-          if (!region) rec.in_go = !!body.in_go;
-          rec.shiny_released = !!body.shiny_released;
-          rec.overridden = !!d.overridden;
+          var before = [rec.overridden, rec.released_by_date, rec.shiny_released].join('|');
+          if (!region) rec.in_go = !!d.in_go;
+          rec.shiny_released   = !!d.shiny_released;
+          rec.release_date     = d.release_date || '';
+          rec.released_by_date = !!d.released_by_date;
+          rec.overridden       = !!d.overridden;
+          changed = before !== [rec.overridden, rec.released_by_date, rec.shiny_released].join('|');
         }
-        sdSay(row, 'Saved', true);
+        // Only when the row would now DRAW differently: a pill appearing or a Reset button showing
+        // up is its own confirmation, and re-rendering on every keystroke would fight the admin.
+        if (changed) {
+          if (region) sdRenderRegional(); else sdRenderSpecies();
+        } else {
+          sdSay(row, 'Saved', true);
+        }
         sdRefreshSuggestions();
       });
     }).catch(function() { sdSay(row, STRINGS.error, false); });
@@ -3533,7 +3621,8 @@ function renderSpriteTable() {
     var host = el(hostId);
     if (!host) return;
     host.addEventListener('change', function(e) {
-      var box = e.target.closest ? e.target.closest('input[type="checkbox"]') : null;
+      // Date inputs fire change on commit, not per keystroke, so they save the same way a checkbox does.
+      var box = e.target.closest ? e.target.closest('input[type="checkbox"], input[type="date"]') : null;
       if (!box) return;
       var row = box.closest('.sd-row');
       if (row) sdSave(row);

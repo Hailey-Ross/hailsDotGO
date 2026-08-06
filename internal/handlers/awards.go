@@ -190,6 +190,19 @@ func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, h.t(r, "error.award_rank_too_low"), http.StatusForbidden)
 			return
 		}
+		// awards_grant_min_trust was seeded in the schema from the start and read by
+		// nothing, so a setting that looks like it gates community award granting was
+		// doing nothing at all. Worse than having no control, because it invites the
+		// belief that one is in place.
+		//
+		// Measured on effective trust, matching every other trust gate in the app, so
+		// the store bonus and the same decay rules apply here too.
+		if minTrust := h.settingFloat("awards_grant_min_trust", 50); minTrust > 0 {
+			if h.effectiveTrust(u.ID) < minTrust {
+				writeJSONError(w, h.t(r, "error.award_trust_too_low"), http.StatusForbidden)
+				return
+			}
+		}
 	}
 
 	var recipientID uint

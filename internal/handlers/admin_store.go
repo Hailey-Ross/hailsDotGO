@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-sql-driver/mysql"
 )
 
 type tagRequestRecord struct {
@@ -73,12 +76,39 @@ func (h *Handlers) AdminTagRequestApprove(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, err = h.db.Exec(`INSERT INTO tags (name, color) VALUES (?, ?) ON DUPLICATE KEY UPDATE color = VALUES(color)`, name, color); err != nil {
+	// Refuse a name that already exists, rather than merging into it.
+	//
+	// This used to be INSERT ... ON DUPLICATE KEY UPDATE color followed by a lookup
+	// by name. Requesting the name of an existing tag, "Staff" for example, therefore
+	// did not create anything: approval bound the requester to that shared tag and
+	// repainted its colour for every other holder at the same time. The moderator
+	// approving it saw no indication that the name collided with anything.
+	var existing int64
+	switch err := h.db.QueryRow(`SELECT id FROM tags WHERE name = ?`, name).Scan(&existing); {
+	case err == nil:
+		writeJSONError(w, h.t(r, "error.adm_tag_exists"), http.StatusConflict)
+		return
+	case !errors.Is(err, sql.ErrNoRows):
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
-	var tagID int64
-	h.db.QueryRow(`SELECT id FROM tags WHERE name = ?`, name).Scan(&tagID)
+
+	res, err := h.db.Exec(`INSERT INTO tags (name, color) VALUES (?, ?)`, name, color)
+	if err != nil {
+		// Someone else took the name between the check above and this insert.
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			writeJSONError(w, h.t(r, "error.adm_tag_exists"), http.StatusConflict)
+			return
+		}
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	tagID, err := res.LastInsertId()
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
 
 	h.db.Exec(`INSERT IGNORE INTO user_tags (user_id, tag_id) VALUES (?, ?)`, userID, tagID)
 	h.db.Exec(

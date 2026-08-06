@@ -153,8 +153,39 @@
   <div class="changelog">
 
     <div class="cl-entry fade-up">
+      <div class="cl-date">2026-08-05</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Accounts can now be deleted, not only suspended</h2>
+          <ul class="cl-list">
+            <li>Until now the strongest thing staff could do to an account was suspend it, which locks the trainer out but keeps everything on file. There is now a way to remove an account outright, for spam signups, throwaway test accounts, and anyone who asks for their data to be erased</li>
+            <li>Only the site owner can do it, and it asks for the username to be typed out in full before it will go ahead. There is no undo and no copy kept, so the extra step is the point</li>
+            <li>Deleting an account takes everything belonging to it: the shiny collection, raid history, ratings, reports, messages, purchases and saved devices. The trainer is signed out everywhere the moment it happens</li>
+            <li>Other people's records are left standing. If the deleted account had rated or raided with someone, that trainer's own history and trust score are untouched rather than quietly shifting</li>
+            <li>Strikes now outlive the staff member who issued them. Previously, deleting a moderator would have deleted every strike they had ever given out, wiping the record of the trainers they disciplined. The strike stays, still showing who issued it</li>
+            <li>That last part is a database change. The upgrade tool applies it, and a brand new install needs nothing extra</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-27</div>
       <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">See which shinies are coming, and when</h2>
+          <ul class="cl-list">
+            <li>Niantic usually announces a shiny weeks before it arrives. Those dates can now be recorded, so My Collection tells you what is coming instead of only what is out</li>
+            <li>A Pokemon with an announced shiny shows on the checklist straight away, greyed out with the date in the corner and the full date when you hover it. You still cannot add it, because it does not exist yet. Everything else that is unreleased stays tucked behind the "Show unreleased" tickbox as before</li>
+            <li>The Missing tab is unchanged: it lists shinies you could go out and catch today, so an announced one is not on it</li>
+            <li>On the day, the shiny turns itself on. Nobody has to be awake to tick a box. If Niantic delays a release we can hold it back by hand, and doing so overrules the date</li>
+            <li>Staff can set a date for regional and alternate forms too, not just for a species</li>
+            <li>This adds one column to the database. The upgrade tool handles it, and a brand new install needs nothing extra</li>
+          </ul>
+        </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Release v0.1.7e</h2>

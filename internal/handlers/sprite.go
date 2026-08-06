@@ -3,9 +3,15 @@ package handlers
 import (
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
+
+// Bounded, like every other outbound client in the repo. http.Get uses
+// http.DefaultClient, which has no timeout at all, so a slow origin would pin a
+// request goroutine here indefinitely.
+var trainerSpriteHTTP = &http.Client{Timeout: 20 * time.Second}
 
 func (h *Handlers) APITrainerSprite(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
@@ -22,7 +28,7 @@ func (h *Handlers) APITrainerSprite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := http.Get(srcURL)
+	resp, err := trainerSpriteHTTP.Get(srcURL)
 	if err != nil {
 		http.NotFound(w, r)
 		return

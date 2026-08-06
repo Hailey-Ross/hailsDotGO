@@ -64,7 +64,11 @@
           </span>
         </div>
 
-        {{if and $.User .Data.Trainer.TrainerCode}}
+        {{/* ProfilePublic is required here for the same reason trainers.html requires it
+             on the directory card: a private profile hides pronouns and location but was
+             still handing its Pokemon GO friend code to any logged-in visitor. The owner
+             still sees their own code on their own profile. */}}
+        {{if and $.User .Data.Trainer.TrainerCode (or .Data.Trainer.ProfilePublic .Data.IsOwnProfile)}}
         <div class="trainer-card-code" style="margin-top:0.6rem;display:inline-block">{{.Data.Trainer.TrainerCodeFormatted}}</div>
         {{end}}
       </div>

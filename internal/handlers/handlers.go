@@ -285,7 +285,7 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	if page == "shinies" || page == "trainer" {
 		pd.CostumeLabels = template.JS("null")
 		if b, err := costumes.LabelsJSON(); err == nil {
-			pd.CostumeLabels = template.JS(b)
+			pd.CostumeLabels = template.JS(scriptSafeJSON(b))
 		} else {
 			log.Printf("costumes: marshal labels for %s: %v", page, err)
 		}
@@ -293,6 +293,26 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)
 	}
+}
+
+// scriptSafeJSON escapes the three characters that let a JSON blob break out of the
+// <script> block it is inlined into.
+//
+// costumes.LabelsJSON reproduces labels.json BYTE FOR BYTE on purpose, because the
+// GitHub sync PRs its output straight back into the file and any re-marshal would
+// rewrite the whole thing (TestLabelsJSONMatchesTheFileVerbatim pins this). A
+// side effect is that it does not HTML-escape, and the file's _comment blocks
+// already contain literal "<p>" and "<CODE>". Nothing exploitable today, but a
+// "</script>" reaching that file would end the block and everything after it would
+// parse as markup. Escaping here rather than in LabelsJSON keeps the byte-stability
+// guarantee intact.
+//
+// Safe as a blind replace: in well-formed JSON these three characters can only ever
+// occur inside string literals, where \uXXXX is an equivalent encoding.
+var scriptJSONEscaper = strings.NewReplacer("<", `\u003c`, ">", `\u003e`, "&", `\u0026`)
+
+func scriptSafeJSON(b []byte) string {
+	return scriptJSONEscaper.Replace(string(b))
 }
 
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {

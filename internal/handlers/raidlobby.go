@@ -563,11 +563,19 @@ func (h *Handlers) APIRaidState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Post-raid feedback owed as an attended member, regardless of mode.
+	//
+	// 'removed' counts as well as 'confirmed'. Attendance is what earns the right to
+	// leave feedback, and a host could otherwise erase every negative rating simply by
+	// kicking the members who were about to leave one: the kick sets state to
+	// 'removed', which used to drop them out of both this list and the submission
+	// query below. attended = 1 still gates it, so someone kicked before the raid ever
+	// happened is not owed anything. A moderator or admin who judges a rating unfair
+	// can still neutralise it through the trust tools.
 	feedback := []raidFeedbackDue{}
 	frows, err := h.db.Query(`
 		SELECT l.id, l.boss_name FROM raid_lobby_members lm
 		JOIN raid_lobbies l ON l.id = lm.lobby_id
-		WHERE lm.user_id = ? AND lm.state = 'confirmed' AND lm.attended = 1
+		WHERE lm.user_id = ? AND lm.state IN ('confirmed','removed') AND lm.attended = 1
 		  AND lm.host_vote = 'none' AND lm.raid_success IS NULL
 		  AND l.state = 'reported' AND l.closed_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`, u.ID)
 	if err == nil {
@@ -1228,7 +1236,7 @@ func (h *Handlers) APIRaidLobbyFeedback(w http.ResponseWriter, r *http.Request) 
 
 	res, err := h.db.Exec(`
 		UPDATE raid_lobby_members SET raid_success = ?, host_vote = ?
-		WHERE lobby_id = ? AND user_id = ? AND state = 'confirmed' AND attended = 1
+		WHERE lobby_id = ? AND user_id = ? AND state IN ('confirmed','removed') AND attended = 1
 		  AND raid_success IS NULL AND host_vote = 'none'`,
 		body.RaidSuccess, body.HostVote, id, u.ID)
 	if err != nil {

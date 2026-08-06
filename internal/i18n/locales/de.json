@@ -780,6 +780,7 @@
   "shinies.js.badge_soon": "bald",
   "shinies.js.tip_shiny_unreleased": "Schillerndes Pokémon in Pokémon GO noch nicht verfügbar",
   "shinies.js.tip_not_in_go": "In Pokémon GO nicht verfügbar",
+  "shinies.js.tip_shiny_dated": "Schillerndes Pokémon erscheint am {date}",
   "shinies.js.saved": "Gespeichert",
   "shinies.js.tab_all": "Alle Shinys",
   "shinies.js.tab_caught": "Gefangen",

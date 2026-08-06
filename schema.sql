@@ -107,11 +107,17 @@ CREATE TABLE IF NOT EXISTS user_shinies (
 -- CHANGED rows live here, so the table stays sparse and a corrected baseline can
 -- take over later. region '' is the species row, matching user_shinies.region;
 -- a NULL column means "no opinion, use the baseline default".
+--
+-- release_date is the announced day a shiny goes live. Once it has passed the
+-- shiny counts as released with no further admin action, but an explicit
+-- shiny_released still beats it in both directions so a delayed release can be
+-- held back. A row carrying only a date is kept, not deleted as a no-op.
 CREATE TABLE IF NOT EXISTS shiny_dex_overrides (
   dex            SMALLINT UNSIGNED NOT NULL,
   region         VARCHAR(16)       NOT NULL DEFAULT '',
   in_go          TINYINT(1)        NULL DEFAULT NULL,
   shiny_released TINYINT(1)        NULL DEFAULT NULL,
+  release_date   DATE              NULL DEFAULT NULL,
   note           VARCHAR(255)      NOT NULL DEFAULT '',
   updated_by     INT UNSIGNED      NULL DEFAULT NULL,
   updated_at     DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -160,17 +166,21 @@ CREATE TABLE IF NOT EXISTS invites (
     REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- issued_by is nullable and SET NULL, not CASCADE: a strike is a record about the
+-- trainer it was issued against, so deleting the staff account that issued it must
+-- not delete the record. issued_by_name is a snapshot of the issuer's username and
+-- is what the panel displays, so the row still reads correctly with issued_by gone.
 CREATE TABLE IF NOT EXISTS user_strikes (
   id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id        INT UNSIGNED NOT NULL,
   reason         VARCHAR(255) NOT NULL DEFAULT '',
-  issued_by      INT UNSIGNED NOT NULL,
+  issued_by      INT UNSIGNED NULL DEFAULT NULL,
   issued_by_name VARCHAR(32)  NOT NULL DEFAULT '',
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_strike_user (user_id),
   CONSTRAINT fk_strike_user   FOREIGN KEY (user_id)   REFERENCES users (id) ON DELETE CASCADE,
-  CONSTRAINT fk_strike_issuer FOREIGN KEY (issued_by) REFERENCES users (id) ON DELETE CASCADE
+  CONSTRAINT fk_strike_issuer FOREIGN KEY (issued_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -678,7 +688,9 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (41, 'Player ("bad actor") report system (2026-06-28)'),
   (42, 'Transactional email: email_verified_at + email_tokens (2026-07-03)'),
   (43, 'Regional form support in shiny collection (2026-07-05)'),
-  (44, 'Shiny dex availability overrides (2026-07-25)');
+  (44, 'Shiny dex availability overrides (2026-07-25)'),
+  (45, 'Announced shiny release dates (2026-07-27)'),
+  (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

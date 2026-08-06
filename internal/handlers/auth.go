@@ -92,10 +92,35 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, sessionCookie(token, 30*24*time.Hour))
 
 	next := r.FormValue("next")
-	if u, err := url.Parse(next); next == "" || err != nil || u.Host != "" || u.Scheme != "" || strings.HasPrefix(next, "//") {
+	if !safeNextPath(next) {
 		next = "/shinies"
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+// safeNextPath reports whether a ?next= value is a same-site path worth redirecting
+// to after login.
+//
+// The rooted-path check alone is not enough. A browser resolves "/\evil.com" as a
+// scheme-relative URL exactly like "//evil.com" (WHATWG URL treats the backslash as
+// a slash), and it strips tab and newline characters before parsing, so "/\t/evil.com"
+// collapses to "//evil.com" too. url.Parse does none of that: it reports an empty
+// Scheme and Host for all of them, which is how the previous check passed them
+// straight through to an off-site redirect.
+func safeNextPath(next string) bool {
+	if next == "" || next[0] != '/' {
+		return false
+	}
+	if strings.HasPrefix(next, "//") {
+		return false
+	}
+	for _, c := range next {
+		if c == '\\' || c < 0x20 || c == 0x7f {
+			return false
+		}
+	}
+	u, err := url.Parse(next)
+	return err == nil && u.Scheme == "" && u.Host == ""
 }
 
 func (h *Handlers) RegisterPage(w http.ResponseWriter, r *http.Request) {

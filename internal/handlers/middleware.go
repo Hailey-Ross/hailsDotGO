@@ -28,6 +28,34 @@ func (h *Handlers) currentUser(r *http.Request) *auth.User {
 	return u
 }
 
+// currentUserBearer resolves the session from the Authorization header ONLY, never
+// from the cookie.
+//
+// The /api/mobile/v1 tree is deliberately outside CSRF protection, on the stated
+// grounds that Bearer tokens are not CSRF-vulnerable. That was only half true:
+// resolveToken falls back to the session cookie, so a browser carrying a live
+// session would authenticate against those routes on a cross-site request with no
+// token of any kind. The only thing standing in the way was SameSite, and SameSite
+// is scoped to the registrable domain, so any sibling host under the same site
+// counted as same-site and defeated it.
+//
+// Requiring the header closes it properly: cross-origin JavaScript cannot set
+// Authorization without a CORS preflight, and the app sends no CORS headers at all,
+// so the preflight fails. This also matches what the API is documented to do on the
+// credits page, where every authenticated mobile endpoint is listed as Bearer.
+func (h *Handlers) currentUserBearer(r *http.Request) *auth.User {
+	hdr := r.Header.Get("Authorization")
+	if !strings.HasPrefix(hdr, "Bearer ") {
+		return nil
+	}
+	token := strings.TrimPrefix(hdr, "Bearer ")
+	if token == "" {
+		return nil
+	}
+	u, _ := auth.GetSession(h.db, token)
+	return u
+}
+
 func (h *Handlers) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.currentUser(r) == nil {

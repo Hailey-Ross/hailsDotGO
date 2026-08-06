@@ -1053,6 +1053,17 @@
     }
   }
 
+  // Trainer names are user-set and land in innerHTML below, as element content and
+  // as a data-trainer="..." attribute value. Submissions are now restricted to
+  // letters, numbers, spaces and simple punctuation, but names stored before that
+  // rule existed are still in the database, so escape at the sink as well. Same
+  // shape as escapeHtml in admin.html.
+  function escBlocked(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+
   function addBlockedRow(username, trainerName) {
     var empty = document.getElementById('blocked-empty-state');
     if (empty) empty.remove();
@@ -1060,8 +1071,8 @@
     var div = document.createElement('div');
     div.className = 'admin-card friends-card';
     div.id = 'blocked-row-' + username;
-    var display = trainerName ? trainerName + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + username + ')</span>' : username;
-    div.innerHTML = '<div style="display:flex;align-items:center;gap:0.75rem"><span style="flex:1;font-size:0.95rem">' + display + '</span><button type="button" class="btn-secondary settings-unblock-btn" data-username="' + username + '" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.unblock_btn"}}</button></div>';
+    var display = trainerName ? escBlocked(trainerName) + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + escBlocked(username) + ')</span>' : escBlocked(username);
+    div.innerHTML = '<div style="display:flex;align-items:center;gap:0.75rem"><span style="flex:1;font-size:0.95rem">' + display + '</span><button type="button" class="btn-secondary settings-unblock-btn" data-username="' + escBlocked(username) + '" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.unblock_btn"}}</button></div>';
     list.appendChild(div);
     div.querySelector('.settings-unblock-btn').addEventListener('click', unblockHandler);
   }
@@ -1097,8 +1108,8 @@
       var row = document.createElement('div');
       row.className = 'admin-card friends-card';
       row.style.cssText = 'padding:0.5rem 0.75rem';
-      var display = u.trainer_name ? u.trainer_name + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + u.username + ')</span>' : u.username;
-      row.innerHTML = '<div style="display:flex;align-items:center;gap:0.75rem"><span style="flex:1;font-size:0.95rem">' + display + '</span><button type="button" class="btn-secondary block-result-btn" data-username="' + u.username + '" data-trainer="' + (u.trainer_name || '') + '" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.block_btn"}}</button></div>';
+      var display = u.trainer_name ? escBlocked(u.trainer_name) + ' <span style="color:var(--text-3);font-size:0.8rem">(@' + escBlocked(u.username) + ')</span>' : escBlocked(u.username);
+      row.innerHTML = '<div style="display:flex;align-items:center;gap:0.75rem"><span style="flex:1;font-size:0.95rem">' + display + '</span><button type="button" class="btn-secondary block-result-btn" data-username="' + escBlocked(u.username) + '" data-trainer="' + escBlocked(u.trainer_name || '') + '" style="font-size:0.8rem;padding:0.35rem 0.7rem">{{T "settings.blocked.block_btn"}}</button></div>';
       row.querySelector('.block-result-btn').addEventListener('click', function() {
         var blockBtn = this;
         var username = blockBtn.dataset.username;

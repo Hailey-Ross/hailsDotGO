@@ -519,9 +519,17 @@ type Store struct {
 	shinies           json.RawMessage
 	shinyUpstream     json.RawMessage
 	shinyDex          json.RawMessage
+	// regionalShiny and regionalShinyDates are DERIVED from regionalOverrides on every rebuild, the
+	// same way shinies is derived from the baseline. Resolving them here rather than in the handler
+	// is what lets an announced form date arrive on the hourly tick instead of on the next write.
 	regionalShiny     json.RawMessage
+	regionalShinyDates json.RawMessage
+	regionalOverrides []RegionalShinyOverride
 	shinyOverrides    map[shinyOverrideKey]ShinyOverride
 	upstreamShinyDex  map[int]bool // dex numbers PoGoAPI vouches for, derived on every rebuild
+	// shinyBuiltFor is the UTC day the blobs above were resolved for, so RefreshShinyDates can
+	// notice a release date crossing midnight without redoing the work every hour.
+	shinyBuiltFor     string
 	shadowPokemon     json.RawMessage
 	typeChart         json.RawMessage
 	cpMults           json.RawMessage
@@ -874,6 +882,14 @@ func (s *Store) Start() {
 		// ScrapedDuck asks for at least 5 minutes between fetches; 30 is plenty.
 		for range time.NewTicker(30 * time.Minute).C {
 			s.refreshEvents()
+		}
+	}()
+	go func() {
+		// An announced shiny release date turns the shiny on by itself, but nothing else would
+		// notice the day changing until the next six hour refresh. This is a string comparison an
+		// hour, so the worst a date driven release waits is an hour past UTC midnight.
+		for range time.NewTicker(time.Hour).C {
+			s.RefreshShinyDates()
 		}
 	}()
 	go s.scheduleRaidRefresh() // raids + max battles refresh on Mountain Time schedule
@@ -1327,7 +1343,7 @@ func (s *Store) upstreamShinyDisagreements() int {
 		if !ok {
 			continue
 		}
-		if _, shiny, _ := s.effectiveFlags(dex, base, true); !shiny {
+		if !s.effectiveFlags(dex, base, true).ShinyReleased {
 			n++
 		}
 	}
@@ -1434,6 +1450,9 @@ func (s *Store) AllData() json.RawMessage {
 		// released-only view every existing client already reads, so this is purely additive.
 		ShinyDex      json.RawMessage            `json:"shinyDex,omitempty"`
 		RegionalShiny json.RawMessage            `json:"regionalShinyOverrides,omitempty"`
+		// RegionalDates is species name -> region tag -> announced release day. Separate from
+		// RegionalShiny so that blob's shape stays the bool map every client already reads.
+		RegionalDates json.RawMessage            `json:"regionalShinyDates,omitempty"`
 		ShadowPokemon json.RawMessage            `json:"shadowPokemon"`
 		TypeChart     json.RawMessage            `json:"typeChart"`
 		CPMultipliers json.RawMessage            `json:"cpMultipliers"`
@@ -1460,6 +1479,7 @@ func (s *Store) AllData() json.RawMessage {
 		Shinies:       s.shinies,
 		ShinyDex:      s.shinyDex,
 		RegionalShiny: s.regionalShiny,
+		RegionalDates: s.regionalShinyDates,
 		ShadowPokemon: s.shadowPokemon,
 		TypeChart:     s.typeChart,
 		CPMultipliers: s.cpMults,

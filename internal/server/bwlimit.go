@@ -3,7 +3,6 @@ package server
 import (
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -34,14 +33,19 @@ func newBWLimiter(limit int64, window, penalty time.Duration) *bwLimiter {
 	return bl
 }
 
+// realIP reads the address the realIP middleware resolved, and nothing else.
+//
+// This used to read X-Real-IP and then the first X-Forwarded-For entry, both
+// straight from the request. X-Real-IP is the dangerous one: a capture against the
+// live host confirmed Caddy forwards it to the app exactly as the client sent it.
+// So one header of the attacker's choosing both bypassed the bandwidth cap entirely
+// and added an unbounded entry to the windows and blocked maps, since every distinct
+// forged value counted as a new key.
 func (bl *bwLimiter) realIP(r *http.Request) string {
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return strings.TrimSpace(ip)
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
 	}
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		return strings.TrimSpace(strings.SplitN(fwd, ",", 2)[0])
-	}
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return ip
 }
 

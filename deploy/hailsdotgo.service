@@ -15,9 +15,20 @@ Environment=PORT=8080
 # deploy.ps1 writes this file (mode 600); for a manual install create it yourself.
 EnvironmentFile=/opt/hailsdotgo/app.env
 
-# Basic hardening
+# Hardening. This block was documented in deploy/hailsdotgo.service but never actually
+# reached the server: deploy.ps1 ships the copy at the repo root, and that copy carried
+# none of it, so the running unit reported NoNewPrivileges=no and PrivateTmp=no. The two
+# files are identical now so they cannot drift apart again.
+#
+# ProtectSystem is "full", not "strict": /usr, /boot and /etc become read-only while
+# /opt/hailsdotgo stays writable, which the app needs for cache/, locales/ and costumes/.
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target

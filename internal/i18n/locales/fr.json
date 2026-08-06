@@ -780,6 +780,7 @@
   "shinies.js.badge_soon": "bientôt",
   "shinies.js.tip_shiny_unreleased": "Le chromatique n'est pas encore disponible dans Pokémon GO",
   "shinies.js.tip_not_in_go": "Non disponible dans Pokémon GO",
+  "shinies.js.tip_shiny_dated": "Le chromatique arrive le {date}",
   "shinies.js.saved": "Enregistré",
   "shinies.js.tab_all": "Tous les Chromatiques",
   "shinies.js.tab_caught": "Capturés",

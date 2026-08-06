@@ -5,11 +5,43 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"pogo.hails.cc/internal/pogodata"
 )
 
 var trainerCodeRe = regexp.MustCompile(`^\d{12}$`)
+
+// trainerNamePunct is the small punctuation set allowed in a trainer name, on top
+// of Unicode letters, marks, numbers and spaces.
+//
+// Deliberately absent: < > " ' and &. The first two end any chance of injecting a
+// tag, and the quotes end any chance of breaking out of an attribute value. The
+// trainer name is rendered into innerHTML in the blocked-users list on the settings
+// page, both as element content and inside a data-trainer="..." attribute, and until
+// now it was checked for length and nothing else. Sixteen bytes is enough for
+// <svg onload=a()>, which needs no interaction at all, or <base href=//a.bc, which
+// silently re-points every relative URL on the page.
+//
+// Letters and marks are matched by Unicode category rather than by an ASCII range,
+// so accented, Cyrillic, Greek, CJK and other non-Latin names all still work.
+const trainerNamePunct = ".,!?-_()[]:;+*/#@"
+
+func validTrainerName(name string) bool {
+	for _, r := range name {
+		switch {
+		case unicode.IsLetter(r), unicode.IsMark(r), unicode.IsDigit(r):
+			continue
+		case r == ' ':
+			continue
+		case strings.ContainsRune(trainerNamePunct, r):
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 var predefinedPronouns = map[string]bool{
 	"":         true,
@@ -177,6 +209,10 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if len(trainerName) > 16 {
 		fail(h.t(r, "error.trainer_name_length"))
+		return
+	}
+	if !validTrainerName(trainerName) {
+		fail(h.t(r, "error.trainer_name_chars"))
 		return
 	}
 	if trainerCode != "" && !trainerCodeRe.MatchString(trainerCode) {

@@ -2,6 +2,8 @@ module pogo.hails.cc
 
 go 1.25.0
 
+toolchain go1.26.5
+
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/go-chi/chi/v5 v5.1.0
@@ -9,7 +11,10 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/gorilla/csrf v1.7.3
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/sideshow/apns2 v0.25.0
 	golang.org/x/crypto v0.52.0
+	golang.org/x/image v0.43.0
+	golang.org/x/oauth2 v0.36.0
 )
 
 require (
@@ -21,11 +26,8 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/sideshow/apns2 v0.25.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
-	golang.org/x/image v0.43.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
-	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 )

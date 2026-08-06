@@ -854,6 +854,7 @@
   "shinies.js.badge_soon": "近日",
   "shinies.js.tip_shiny_unreleased": "この色違いはポケモンGOではまだ実装されていません",
   "shinies.js.tip_not_in_go": "ポケモンGOには未登場です",
+  "shinies.js.tip_shiny_dated": "色違いは{date}に実装予定",
   "shinies.js.saved": "保存しました",
   "shinies.js.tab_all": "すべての色違い",
   "shinies.js.tab_caught": "捕まえた",

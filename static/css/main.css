@@ -1736,11 +1736,16 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 
 /* Species whose shiny is not out in Pokemon GO yet (or that are not in the game at all). Shown
    only when the trainer ticks "show unreleased", and deliberately inert: there is nothing to
-   record, so the card carries no click handler and says so on hover. */
-.sc-card-unreleased {
+   record, so the card carries no click handler and says so on hover.
+   The greying sits on the sprite and the label rather than on the card, because filter and opacity
+   apply to the whole subtree and no child can climb back out of them. On the card it also dimmed
+   the corner badge, and an announced release date is the one thing on an unreleased card that has
+   to stay readable. */
+.sc-card-unreleased { cursor: default; }
+.sc-card-unreleased .shiny-img,
+.sc-card-unreleased .shiny-label {
   filter: grayscale(1);
   opacity: 0.42;
-  cursor: default;
 }
 .sc-card-unreleased:hover { transform: none; }
 .sc-soon-badge {
@@ -1752,6 +1757,17 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   line-height: 1.4;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+/* A card with an announced release date shows the date instead of "soon". It is a longer string in
+   a corner sized for four characters, so it drops the letter spacing and tightens the padding, and
+   it is tinted blue to read as information rather than as the grey "nothing to record" badge. */
+.sc-soon-badge.sc-date-badge {
+  background: rgba(91, 156, 246, 0.22);
+  color: #cfe0fb;
+  letter-spacing: 0;
+  padding: 1px 4px;
+  text-transform: none;
+  white-space: nowrap;
 }
 .sc-filter-toggle {
   display: flex; align-items: center; gap: 0.4rem;
@@ -2071,6 +2087,26 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .sd-pill-override { background: rgba(255, 179, 64, 0.16); color: var(--gold); }
 .sd-pill-warn     { background: rgba(229, 57, 53, 0.16); color: var(--red); }
+.sd-pill-date     { background: rgba(91, 156, 246, 0.16); color: var(--blue); }
+/* The announced release date. Sized down hard: a native date input is built for a form, and at full
+   size it would be the widest thing in a row that has to stay one line. */
+.sd-date-wrap {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.8rem; color: var(--text-2); cursor: help;
+}
+.sd-date {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit; font-size: 0.75rem;
+  padding: 1px 4px;
+  cursor: pointer;
+  /* The one place this is needed: without it the browser draws the native picker and its calendar
+     popup in the light palette, on a page that is otherwise entirely dark. */
+  color-scheme: dark;
+}
+.sd-date:focus { outline: 1px solid var(--blue); }
 .admin-toggle-label {
   display: flex; align-items: center; gap: 0.65rem;
   cursor: pointer; user-select: none; font-size: 0.9rem;

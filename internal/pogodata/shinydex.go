@@ -10,12 +10,21 @@ package pogodata
 //
 // Precedence, decided once and documented only here:
 //
-//	admin override  >  (baseline OR upstream presence)
+//	explicit admin flag  >  passed release date  >  (baseline OR upstream presence)
 //
 // Upstream is ADDITIVE: a species PoGoAPI lists can turn shiny_released on, but a species it omits
 // can never turn it off. The 2026-07-04 audit found zero false positives in 863 upstream entries
 // and 21 false negatives, so upstream-true is trustworthy and upstream-absence is not. The union
 // means that if PoGoAPI ever resumes, new releases self heal with no admin action.
+//
+// The middle tier is the announced release date. Niantic says a shiny lands on a given day; an
+// admin records that day, and when it arrives the shiny turns itself on rather than waiting for
+// somebody to remember. Dates slip, so the explicit flag deliberately sits ABOVE the date and wins
+// in both directions: unticking shiny_released holds a delayed release back even though its date
+// has passed. That ordering is the entire safety net for the automatic flip, so do not swap it.
+//
+// Dates are compared as "YYYY-MM-DD" strings. That sorts in date order for free and keeps a
+// timezone out of the comparison; the one clock involved is UTC, via shinyNow.
 //
 // One deliberate asymmetry, so nobody has to rediscover it: an explicit override wins in both
 // directions for shiny_released, but NOT for in_go. A released shiny forces in_go true at the end
@@ -34,14 +43,32 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"time"
 )
 
+// shinyNow is the clock the release dates are judged against, in UTC. A variable rather than a
+// direct time.Now call so the tests can drive a date across midnight instead of hoping the wall
+// clock cooperates.
+var shinyNow = func() time.Time { return time.Now().UTC() }
+
+// shinyDateLayout is the one date format this feature speaks, end to end: the SQL column is a DATE,
+// the handler formats it with DATE_FORMAT, and the client renders it. Nothing parses a timestamp.
+const shinyDateLayout = "2006-01-02"
+
+// today returns the current UTC day as a comparable "YYYY-MM-DD" string.
+func today() string { return shinyNow().Format(shinyDateLayout) }
+
 // BaselineSpecies is one row of the embedded National Dex truth table.
+//
+// ReleaseDate is never present in the embedded file: it is filled in by rebuildShinyLocked from the
+// admin override table, and only for a species whose shiny is still unreleased, so a card that is
+// already catchable does not carry a stale date. omitempty keeps the embedded file's shape.
 type BaselineSpecies struct {
 	ID            int    `json:"id"`
 	Name          string `json:"name"`
 	InGo          bool   `json:"in_go"`
 	ShinyReleased bool   `json:"shiny_released"`
+	ReleaseDate   string `json:"shiny_release_date,omitempty"`
 }
 
 // shinyBaseline is the embedded table, dex -> row. Empty is a supported state: the store then
@@ -73,11 +100,15 @@ func loadShinyBaseline() map[int]BaselineSpecies {
 // ShinyOverride is one admin correction. A nil pointer means "no opinion, keep the default", which
 // is how a row can override in_go without touching shiny_released. Region "" is the species row;
 // any other value is a regional or alternate form, keyed the way user_shinies.region is.
+//
+// ReleaseDate is "YYYY-MM-DD" or empty. It is not a pointer because there is no third state to
+// express: a date is either announced or it is not.
 type ShinyOverride struct {
 	Dex           int
 	Region        string
 	InGo          *bool
 	ShinyReleased *bool
+	ReleaseDate   string
 }
 
 type shinyOverrideKey struct {
@@ -98,6 +129,11 @@ type AdminShinySpecies struct {
 	DefaultShinyReleased bool   `json:"default_shiny_released"`
 	UpstreamShiny        bool   `json:"upstream_shiny"`
 	Overridden           bool   `json:"overridden"`
+	// ReleaseDate is the announced day; ReleasedByDate says the shiny is on BECAUSE that day has
+	// passed rather than because anyone ticked a box. The panel needs to tell those apart to
+	// explain itself.
+	ReleaseDate    string `json:"release_date,omitempty"`
+	ReleasedByDate bool   `json:"released_by_date,omitempty"`
 }
 
 // SetShinyOverrides replaces the admin override set and recomputes the served blobs. The handlers
@@ -114,34 +150,144 @@ func (s *Store) SetShinyOverrides(list []ShinyOverride) {
 	s.rebuildShinyLocked()
 }
 
-// SetRegionalShinyOverrides stores the sparse regional map the client overlays onto its compiled
-// in defaults. The shape (species name -> region tag -> shiny_released) is opaque to this package:
-// regional form identity lives in ts/shared/regionalForms.ts and internal/handlers/regional.go, and
-// duplicating it here would be a third copy to keep in sync.
-func (s *Store) SetRegionalShinyOverrides(raw json.RawMessage) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.regionalShiny = raw
+// RegionalShinyOverride is one admin correction to a regional or alternate form. Species is the
+// English name because that is what the client keys its compiled-in table by; this package never
+// interprets it. Form IDENTITY still lives in ts/shared/regionalForms.ts and
+// internal/handlers/regional.go, and duplicating it here would be a third copy to keep in sync.
+type RegionalShinyOverride struct {
+	Species       string
+	Region        string
+	ShinyReleased *bool
+	ReleaseDate   string
 }
 
-// effectiveFlags resolves one species. Caller must hold s.mu.
-func (s *Store) effectiveFlags(dex int, base BaselineSpecies, upstreamShiny bool) (inGo, shiny, overridden bool) {
-	shiny = base.ShinyReleased || upstreamShiny
-	inGo = base.InGo
-	if ov, ok := s.shinyOverrides[shinyOverrideKey{Dex: dex}]; ok {
+// SetRegionalShinyOverrides replaces the regional corrections and recomputes the served blobs.
+//
+// It takes the rows rather than a finished blob so that resolving a release date happens HERE, on
+// the same clock and in the same rebuild as every species. When the handler resolved them itself, a
+// form's announced day arriving did nothing until the next admin write, because nothing else ever
+// called back into the handler layer.
+func (s *Store) SetRegionalShinyOverrides(list []RegionalShinyOverride) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.regionalOverrides = list
+	s.rebuildShinyLocked()
+}
+
+// rebuildRegionalShinyLocked recomputes the two sparse overlays the client lays over its compiled-in
+// form table: species name -> region tag -> shiny_released, and the same shape carrying the
+// announced day. Two blobs rather than one object-valued map, so the flags keep the plain boolean
+// shape every existing consumer and check script already reads. Caller must hold s.mu.
+func (s *Store) rebuildRegionalShinyLocked() {
+	flags := map[string]map[string]bool{}
+	dates := map[string]map[string]string{}
+
+	for _, ov := range s.regionalOverrides {
+		if ov.Species == "" || ov.Region == "" {
+			continue
+		}
+		// A form has no baseline row, so the precedence from the top of this file is applied to the
+		// override alone: explicit flag beats a passed date. What it falls back to when neither
+		// speaks is the client's own default, which is why nothing is written in that case.
+		released, say := false, false
+		if ShinyDateReached(ov.ReleaseDate) {
+			released, say = true, true
+		}
 		if ov.ShinyReleased != nil {
-			shiny = *ov.ShinyReleased
-			overridden = true
+			released, say = *ov.ShinyReleased, true
+		}
+		if say {
+			if flags[ov.Species] == nil {
+				flags[ov.Species] = map[string]bool{}
+			}
+			flags[ov.Species][ov.Region] = released
+		}
+		// The date only travels while the form is still locked, matching the species blob.
+		if ov.ReleaseDate != "" && !released {
+			if dates[ov.Species] == nil {
+				dates[ov.Species] = map[string]string{}
+			}
+			dates[ov.Species][ov.Region] = ov.ReleaseDate
+		}
+	}
+
+	s.regionalShiny = marshalOverlay(flags, "shiny flags")
+	s.regionalShinyDates = marshalOverlay(dates, "release dates")
+}
+
+// marshalOverlay renders one sparse overlay, or nil when it is empty so the key drops out of the
+// payload entirely. A marshal failure logs and serves nothing, which falls back to the client's
+// compiled-in defaults rather than a half written overlay.
+func marshalOverlay[V bool | string](m map[string]map[string]V, what string) json.RawMessage {
+	if len(m) == 0 {
+		return nil
+	}
+	blob, err := json.Marshal(m)
+	if err != nil {
+		log.Printf("pogodata: regional %s: marshal: %v", what, err)
+		return nil
+	}
+	return blob
+}
+
+// RefreshShinyDates rebuilds the served blobs when the UTC day has rolled over, so a release date
+// takes effect on the day it names instead of waiting for the next six hour data refresh.
+//
+// Called hourly. The common case is a single string comparison and no work at all.
+func (s *Store) RefreshShinyDates() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shinyBuiltFor == today() {
+		return
+	}
+	s.rebuildShinyLocked()
+}
+
+// shinyFlags is the resolved answer for one species, plus enough provenance for the admin panel to
+// explain it. A plain multi-return grew past the point where the call sites stayed readable.
+type shinyFlags struct {
+	InGo           bool
+	ShinyReleased  bool
+	Overridden     bool
+	ReleaseDate    string
+	ReleasedByDate bool
+}
+
+// effectiveFlags resolves one species against the precedence documented at the top of this file.
+// Caller must hold s.mu.
+func (s *Store) effectiveFlags(dex int, base BaselineSpecies, upstreamShiny bool) shinyFlags {
+	out := shinyFlags{
+		InGo:          base.InGo,
+		ShinyReleased: base.ShinyReleased || upstreamShiny,
+	}
+	if ov, ok := s.shinyOverrides[shinyOverrideKey{Dex: dex}]; ok {
+		out.ReleaseDate = ov.ReleaseDate
+		// A recorded date is a decision somebody made, so the row counts as overridden even when
+		// both flags are NULL. Otherwise a date-only row draws no Reset button and shows no note,
+		// leaving it invisible and unremovable from the panel.
+		if ov.ReleaseDate != "" {
+			out.Overridden = true
+			if ov.ReleaseDate <= today() {
+				out.ShinyReleased = true
+				out.ReleasedByDate = true
+			}
+		}
+		// Explicit flags sit above the date and win in both directions, so an admin can hold back a
+		// release Niantic delayed past its announced day.
+		if ov.ShinyReleased != nil {
+			out.ShinyReleased = *ov.ShinyReleased
+			out.ReleasedByDate = out.ShinyReleased && out.ReleasedByDate
+			out.Overridden = true
 		}
 		if ov.InGo != nil {
-			inGo = *ov.InGo
-			overridden = true
+			out.InGo = *ov.InGo
+			out.Overridden = true
 		}
 	}
-	if shiny { // a released shiny implies the species is in the game
-		inGo = true
+	if out.ShinyReleased { // a released shiny implies the species is in the game
+		out.InGo = true
 	}
-	return inGo, shiny, overridden
+	return out
 }
 
 // rebuildShinyLocked recomputes s.shinies (released species only, the shape every existing client
@@ -152,6 +298,13 @@ func (s *Store) effectiveFlags(dex int, base BaselineSpecies, upstreamShiny bool
 // /api/private/data and the mobile app all read it, and widening it to the full dex would make
 // every one of them render species that cannot be caught.
 func (s *Store) rebuildShinyLocked() {
+	// Remembered so RefreshShinyDates can tell whether a release date has crossed midnight since
+	// the blobs were last built, without re-resolving 1025 species every hour.
+	s.shinyBuiltFor = today()
+	// Before the early return below: a missing baseline stops species resolution, but the regional
+	// overlays are independent of it and must still be served.
+	s.rebuildRegionalShinyLocked()
+
 	if len(shinyBaseline) == 0 {
 		// No baseline: behave exactly as the store did before this file existed.
 		s.shinies = s.shinyUpstream
@@ -182,10 +335,17 @@ func (s *Store) rebuildShinyLocked() {
 	for dex, base := range shinyBaseline {
 		key := strconv.Itoa(dex)
 		_, upstreamShiny := upstream[key]
-		inGo, shiny, _ := s.effectiveFlags(dex, base, upstreamShiny)
+		f := s.effectiveFlags(dex, base, upstreamShiny)
 
-		dexTable[key] = BaselineSpecies{ID: dex, Name: base.Name, InGo: inGo, ShinyReleased: shiny}
-		if !shiny {
+		row := BaselineSpecies{ID: dex, Name: base.Name, InGo: f.InGo, ShinyReleased: f.ShinyReleased}
+		// The date only travels while the shiny is still locked: that is the one moment a trainer
+		// needs it. Once the card is catchable the date is history and would just be noise in a
+		// blob every page load already downloads.
+		if !f.ShinyReleased {
+			row.ReleaseDate = f.ReleaseDate
+		}
+		dexTable[key] = row
+		if !f.ShinyReleased {
 			continue
 		}
 		// Prefer the upstream object: it carries the found_* method flags, which nothing in the
@@ -253,17 +413,19 @@ func (s *Store) ShinyDexAdmin() []AdminShinySpecies {
 	out := make([]AdminShinySpecies, 0, len(shinyBaseline))
 	for dex, base := range shinyBaseline {
 		upstreamShiny := s.upstreamShinyDex[dex]
-		inGo, shiny, overridden := s.effectiveFlags(dex, base, upstreamShiny)
+		f := s.effectiveFlags(dex, base, upstreamShiny)
 		out = append(out, AdminShinySpecies{
 			Dex:                  dex,
 			Name:                 base.Name,
 			Gen:                  GenForDex(dex),
-			InGo:                 inGo,
-			ShinyReleased:        shiny,
+			InGo:                 f.InGo,
+			ShinyReleased:        f.ShinyReleased,
 			DefaultInGo:          base.InGo,
 			DefaultShinyReleased: base.ShinyReleased,
 			UpstreamShiny:        upstreamShiny,
-			Overridden:           overridden,
+			Overridden:           f.Overridden,
+			ReleaseDate:          f.ReleaseDate,
+			ReleasedByDate:       f.ReleasedByDate,
 		})
 	}
 	// Map iteration order is random and the admin table renders in dex order.
@@ -291,6 +453,11 @@ func (s *Store) ShinyEffectiveDefaults(dex int) (inGo, shinyReleased, ok bool) {
 	inGo = base.InGo || shiny
 	return inGo, shiny, true
 }
+
+// ShinyDateReached reports whether an announced release date has arrived, on the same UTC clock the
+// served blobs are resolved against. Exported so the admin write path can classify an explicit tick
+// that merely agrees with the date as the no-op it is, instead of freezing it into the table.
+func ShinyDateReached(date string) bool { return date != "" && date <= today() }
 
 // ShinyBaselineName maps a dex to its English species name, or "" if the baseline does not have it.
 // The override table is keyed by dex, so the name has to be recovered somewhere to reach the client.
