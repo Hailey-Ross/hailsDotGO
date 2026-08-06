@@ -770,6 +770,21 @@
     </div>
   </div>
 
+  <!-- Names given here, and the only ones that can be taken back. A named costume leaves the
+       backlog above at once, so without this there is no way back to a name at all: the escape
+       hatch existed in the API and nothing in the browser could reach it, which is how two GO Tour
+       costumes stayed on the wrong variant. -->
+  <div class="admin-card" id="costume-named-card" style="display:none">
+    <h2>Named here</h2>
+    <p class="admin-desc">
+      Costumes named in this panel. Removing one puts it back in the backlog above, and is the only
+      way to correct a name. It stops being possible the moment a trainer records the costume,
+      because removing the label then would blank the artwork on entries people have saved, and it
+      also stops once the name has been merged into the repo and deployed.
+    </p>
+    <div id="costume-named-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+  </div>
+
   <!-- Full-size view of a costume, on every species that has it. A 56px thumbnail is not enough to
        name a costume from, and the name is effectively permanent once trainers record it. -->
   <div id="costume-zoom-overlay" class="um-modal-overlay" style="display:none">
@@ -1147,9 +1162,19 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     var name = document.createElement('div');
     name.textContent = c.suggested
       ? 'Upstream calls this "' + c.suggested + '"'
-      : 'Upstream has no name for this one' + (c.pretty ? ' (' + c.pretty + ')' : '');
-    name.style.cssText = 'font-size:0.95rem;color:var(--text-1);margin-bottom:1rem';
+      : 'No upstream name for this one. Name it from the sprite below.';
+    name.style.cssText = 'font-size:0.95rem;color:var(--text-1);margin-bottom:' + (c.suggested ? '1rem' : '0.25rem');
     zoomContent.appendChild(name);
+
+    // Say the guard is off. Without a name to compare against, the sharesWord check below cannot
+    // run at all, and its silence is otherwise indistinguishable from "checked, looks fine".
+    if (!c.suggested) {
+      var unchecked = document.createElement('div');
+      unchecked.textContent = 'Nothing upstream to cross-check the name against'
+        + (c.pretty ? ' (the game calls the code "' + c.pretty + '", which is a machine name)' : '');
+      unchecked.style.cssText = 'font-size:0.85rem;color:var(--text-2);margin-bottom:1rem';
+      zoomContent.appendChild(unchecked);
+    }
 
     var grid = document.createElement('div');
     grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:1rem;justify-content:center';
@@ -1222,13 +1247,27 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
       name.textContent = c.suggested;
       name.style.cssText = 'color:var(--text-1);font-weight:600';
     } else {
-      name.textContent = 'no name upstream yet' + (c.pretty ? ' (' + c.pretty + ')' : '');
+      name.textContent = 'no upstream name; name it from the sprite';
       name.style.cssText = 'color:var(--text-2);font-style:italic';
     }
     text.appendChild(name);
 
+    // The cross-check below only runs when upstream has a name, so on these rows the spelling typed
+    // here is the only line of defence. Say that out loud: a silent guard reads exactly like a
+    // guard that passed. Stated quietly rather than in alarm colours, because it is true of every
+    // row in the queue today and a warning that is always on is wallpaper.
+    if (!c.suggested) {
+      var unchecked = document.createElement('div');
+      unchecked.textContent = 'nothing upstream to cross-check this name against';
+      unchecked.style.cssText = 'font-size:0.8rem;color:var(--text-2);font-style:italic';
+      text.appendChild(unchecked);
+    }
+
+    // The machine name next to the code, not in place of a real name. "Gotour 2026 A" is an
+    // identifier, not something to type into the box, but it is still the only other text the game
+    // gives us for this costume and it belongs where the code is.
     var code = document.createElement('div');
-    code.textContent = c.code;
+    code.textContent = c.code + (c.pretty ? '   ' + c.pretty : '');
     code.style.cssText = 'font-family:monospace;font-size:0.8rem;color:var(--text-2)';
     text.appendChild(code);
 
@@ -1324,6 +1363,89 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     costumes.forEach(function(c) { list.appendChild(row(c)); });
   }
 
+  // ── Names given here, and taking one back ───────────────────
+  var namedCard = document.getElementById('costume-named-card');
+  var namedList = document.getElementById('costume-named-list');
+
+  function namedRow(n) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem;'
+      + 'border:1px solid var(--border);border-radius:6px;flex-wrap:wrap';
+
+    if (n.sprite_url) {
+      var img = document.createElement('img');
+      img.src = n.sprite_url;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none';
+      wrap.appendChild(img);
+    }
+
+    var text = document.createElement('div');
+    text.style.cssText = 'min-width:0;flex:1';
+
+    var label = document.createElement('div');
+    label.textContent = n.label;
+    label.style.cssText = 'color:var(--text-1);font-weight:600';
+    text.appendChild(label);
+
+    var code = document.createElement('div');
+    code.textContent = n.code + (n.by ? '   named by ' + n.by : '');
+    code.style.cssText = 'font-family:monospace;font-size:0.8rem;color:var(--text-2)';
+    text.appendChild(code);
+
+    var species = document.createElement('div');
+    species.textContent = (n.species || []).join(', ') || ('dex ' + (n.dex || []).join(', '));
+    species.style.cssText = 'font-size:0.8rem;color:var(--text-2)';
+    text.appendChild(species);
+
+    wrap.appendChild(text);
+
+    var err = document.createElement('div');
+    err.style.cssText = 'font-size:0.8rem;color:#f85149;flex-basis:100%';
+
+    var drop = document.createElement('button');
+    drop.className = 'btn-secondary';
+    drop.style.flex = 'none';
+    if (n.used) {
+      // Not disabled quietly: say which way the door is shut. The endpoint refuses this too, so the
+      // button could only ever fail, and a trainer's saved artwork is what it is protecting.
+      drop.disabled = true;
+      drop.textContent = 'In use';
+      drop.title = n.used + ' trainer entr' + (n.used === 1 ? 'y' : 'ies')
+        + ' already use this name, so removing it would blank the costume art on them';
+    } else {
+      drop.textContent = 'Remove name';
+      drop.title = 'Put this costume back in the backlog so it can be named again';
+      drop.addEventListener('click', function() {
+        if (!confirm('Remove the name "' + n.label + '" from ' + n.code + '?\n\n'
+            + 'It goes back to the backlog and can be named again. This only works while no trainer '
+            + 'has recorded it.')) return;
+        drop.disabled = true;
+        err.textContent = '';
+        post('/api/admin/costumes/name?code=' + encodeURIComponent(n.code), null, 'DELETE')
+          .then(function() { load(); })
+          .catch(function(e) {
+            err.textContent = e.message;
+            drop.disabled = false;
+          });
+      });
+    }
+    wrap.appendChild(drop);
+    wrap.appendChild(err);
+    return wrap;
+  }
+
+  function renderNamed(named) {
+    namedList.textContent = '';
+    if (!named || !named.length) {
+      namedCard.style.display = 'none';
+      return;
+    }
+    named.forEach(function(n) { namedList.appendChild(namedRow(n)); });
+    namedCard.style.display = '';
+  }
+
   // keepStatus: the caller has already written something the admin needs to read. Without it the
   // drift note from "Fetch new costumes" survived for about as long as the request that followed
   // it, and when the backlog was empty it was replaced by '', so a working check read as a dead
@@ -1338,9 +1460,10 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
         var costumes = d.costumes || [];
         // Render outside the catch's blast radius. A .catch() on the end of a chain also swallows
         // exceptions thrown inside earlier .then() handlers, so a rendering bug would otherwise be
-        // reported as "could not load" -- which is exactly how this tab lied about being broken.
+        // reported as "could not load", which is exactly how this tab lied about being broken.
         try {
           render(costumes);
+          renderNamed(d.named);
         } catch (e) {
           console.error('costume tab render failed', e);
           message('Loaded ' + costumes.length + ' costumes but failed to render them (see console).', '#f85149');
@@ -1361,15 +1484,26 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
   load();
 
   if (!btn) return;
+  // The server caches the upstream listing for a few minutes, because one scan costs five GitHub
+  // API calls and this button shares its quota with the Check Scrapers panel. The first press is
+  // happy to be answered from that cache; a second press asks for a live look, which is what an
+  // admin watching for an event drop actually wants.
+  var checked = false;
+  btn.title = 'Press again for a live re-check (the first answer may be a few minutes old)';
   btn.addEventListener('click', function() {
     btn.disabled = true;
     status.textContent = 'Checking upstream...';
-    fetch('/admin/check-costumes', {
+    var url = checked ? '/admin/check-costumes?refresh=1' : '/admin/check-costumes';
+    fetch(url, {
       method: 'POST',
       headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content}
     })
     .then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
+      // Only a press that actually got an answer spends the cheap path. Setting this before the
+      // request would mean one failed press pushed every later press onto the forced route, which
+      // skips a perfectly good cached listing and spends five API calls to learn the same thing.
+      checked = true;
       return r.json();
     })
     .then(function(d) {

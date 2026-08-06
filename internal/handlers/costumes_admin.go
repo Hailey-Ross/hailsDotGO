@@ -59,7 +59,71 @@ func (h *Handlers) AdminCostumes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"ok": true, "costumes": out})
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "costumes": out, "named": h.namedHere(names)})
+}
+
+// namedCostume is one costume this panel named, with what it would cost to take the name back.
+type namedCostume struct {
+	costumes.NamedHere
+	Species []string `json:"species"`
+	Used    int      `json:"used"` // trainer entries recorded under this label
+}
+
+// namedHere lists the names an admin can still take back, and how many trainers have already used
+// each one.
+//
+// The count is the whole point of showing this. Removing a label that entries already reference
+// would blank the costume art on them, so the handler refuses; saying so up front is kinder than a
+// button that fails when pressed. A count that cannot be read is reported as in use, because
+// guessing "nobody" and being wrong is the expensive direction.
+func (h *Handlers) namedHere(species map[int]string) []namedCostume {
+	list := costumes.NamedInPanel()
+	if len(list) == 0 {
+		return nil
+	}
+
+	used := map[string]int{}
+	counted := true
+	rows, err := h.db.Query(`SELECT costume, COUNT(*) FROM user_shinies WHERE costume <> '' GROUP BY costume`)
+	if err != nil {
+		log.Printf("costumes: count label use: %v", err)
+		counted = false
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var label string
+			var n int
+			if err := rows.Scan(&label, &n); err != nil {
+				log.Printf("costumes: scan label use: %v", err)
+				counted = false
+				break
+			}
+			used[label] = n
+		}
+		if err := rows.Err(); err != nil {
+			log.Printf("costumes: count label use: %v", err)
+			counted = false
+		}
+	}
+	if !counted {
+		// Unknown, so assume in use. The endpoint checks again and refuses anyway; offering a
+		// button that is going to fail is the worse of the two ways to be wrong here.
+		for _, n := range list {
+			used[n.Label] = 1
+		}
+	}
+
+	out := make([]namedCostume, 0, len(list))
+	for _, n := range list {
+		row := namedCostume{NamedHere: n, Used: used[n.Label]}
+		for _, dex := range n.Dex {
+			if name := species[dex]; name != "" {
+				row.Species = append(row.Species, name)
+			}
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 // AdminCheckCostumes asks the mined-asset repo whether the game has costumes we have not synced.
@@ -67,8 +131,19 @@ func (h *Handlers) AdminCostumes(w http.ResponseWriter, r *http.Request) {
 // It cannot apply what it finds. The catalog is compiled into the binary, so picking up a new
 // costume means running `make costumes` and deploying. Saying so plainly is the point: the button
 // tells you there is work to do, it does not pretend to have done it.
+//
+// ?refresh=1 bypasses the cached upstream listing. The tab sends it on a second press, so the
+// first press is cheap and an admin watching for an event drop is never more than one more click
+// away from a live answer. The 5/min per IP limit on the route is what bounds it.
 func (h *Handlers) AdminCheckCostumes(w http.ResponseWriter, r *http.Request) {
-	res := costumes.DriftCheck()
+	// Choose the check before running it. Running the cached one and then discarding its answer for
+	// the fresh one would spend the five upstream API calls the cache exists to save, twice over.
+	check := costumes.DriftCheck
+	if r.URL.Query().Get("refresh") == "1" {
+		check = costumes.DriftCheckFresh
+	}
+	res := check()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"ok":     res.Error == "",

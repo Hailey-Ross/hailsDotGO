@@ -25,10 +25,14 @@ clean:
 # codes exist, which species can wear them, and whether the shiny art is there. Run this after
 # an event drops new costumes, then give any REVIEW entries a label in labels.json.
 # Deliberately NOT a dependency of `build`: the build must never need the network.
+# Writes nothing when only the asset pin moved (pinned URLs are immutable, so an older pin serves
+# every sprite correctly). Pass -repin to move the pin on purpose:
+#   go run ./cmd/synccostumes -repin
 costumes:
 	go run ./cmd/synccostumes
 
 # Fail if upstream has costumes the catalog does not know about. For CI or release prep.
+# Green when only the pin is behind: that is bookkeeping, not drift.
 costumes-check:
 	go run ./cmd/synccostumes -check
 

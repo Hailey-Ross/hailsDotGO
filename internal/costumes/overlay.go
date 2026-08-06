@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -224,6 +225,61 @@ func LabelOf(code string) string {
 		}
 	}
 	return ""
+}
+
+// NamedHere is a costume this panel named, and the only kind Unname can take back.
+type NamedHere struct {
+	Code      string `json:"code"`
+	Label     string `json:"label"`
+	By        string `json:"by,omitempty"`
+	At        string `json:"at,omitempty"`
+	Dex       []int  `json:"dex"`
+	SpriteURL string `json:"sprite_url"`
+}
+
+// NamedInPanel lists the overlay names, newest first, so an admin can see what they called things
+// and take one back.
+//
+// Only the overlay, never the curated file. Those two are removable and not removable respectively,
+// and showing a curated label beside a Remove button that will always refuse would be a worse lie
+// than showing nothing. A name also leaves the review queue the moment it is given, so without this
+// there is no way back to it at all: the escape hatch existed but nothing could reach it, and two
+// costumes were named wrongly before anyone noticed.
+func NamedInPanel() []NamedHere {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	// The embedded file wins on merge, so once a name has been PR'd back into labels.json and
+	// deployed, dropping the overlay copy changes nothing: the costume stays named and simply
+	// cannot be renamed. Offering a Remove button for one would report success and do nothing,
+	// which is worse than not offering it, so those drop off this list the moment they land in a
+	// deployed build. Correcting one after that means editing labels.json and deploying.
+	curated := make(map[string]bool, len(lab.Shared))
+	for _, s := range lab.Shared {
+		curated[s.Code] = true
+	}
+	for _, byLabel := range lab.Species {
+		for _, code := range byLabel {
+			curated[code] = true
+		}
+	}
+
+	out := make([]NamedHere, 0, len(ov.Shared))
+	for _, e := range ov.Shared {
+		if curated[e.Code] {
+			continue
+		}
+		n := NamedHere{Code: e.Code, Label: e.Label, By: e.By, At: e.At}
+		if c, ok := cat.Codes[e.Code]; ok && len(c.Dex) > 0 {
+			n.Dex = c.Dex
+			n.SpriteURL = SpritePath + assetFile(c.Dex[0], e.Code)
+		}
+		out = append(out, n)
+	}
+	// Newest first: a mistake is nearly always the thing just named, and it is the thing still
+	// safe to take back.
+	sort.SliceStable(out, func(i, j int) bool { return out[i].At > out[j].At })
+	return out
 }
 
 // commitLocked writes the overlay to disk and only then swaps it into memory, so a failed write

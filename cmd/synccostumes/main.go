@@ -110,6 +110,7 @@ func (l *labels) codes() map[string]bool {
 func main() {
 	check := flag.Bool("check", false, "report only; write nothing and exit non-zero on drift")
 	offline := flag.Bool("offline", false, "do not fetch costume names from Dittobase; use the cached ones")
+	repin := flag.Bool("repin", false, "move the asset pin to upstream HEAD even when no catalog data changed")
 	token := flag.String("token", os.Getenv("GITHUB_TOKEN"), "GitHub token (optional; raises the 60/hr anon rate limit)")
 	flag.Parse()
 
@@ -136,13 +137,13 @@ func main() {
 	for name, dex := range nameToDex {
 		dexToName[dex] = name
 	}
-	nm := refreshNames(cat, dexToName, *offline)
+	nm, unnamedWhy := refreshNames(cat, dexToName, *offline)
 	for code, e := range cat.Codes {
 		e.Suggested = suggestedLabel(e, nm, code)
 	}
 	fmt.Println()
 
-	errs, warns, review := audit(cat, lab, nameToDex, nm)
+	errs, warns, review := audit(cat, lab, nameToDex, nm, noNameReasons(cat, nm, unnamedWhy))
 	report("ERROR", errs)
 	report("WARN", warns)
 	report("NAME CHECK", nameCheck(cat, lab, nameToDex, nm))
@@ -157,40 +158,109 @@ func main() {
 	// Drift means the committed catalog would CHANGE, not that unlabelled costumes exist:
 	// leaving a costume unnamed is a normal steady state (we simply do not offer it), so
 	// failing on REVIEW would make -check red forever and train everyone to ignore it.
-	changed, err := catalogChanged(cat)
+	d, err := catalogDiff(catalogPath, cat)
 	must(err, "compare "+catalogPath)
 
+	if d.pin {
+		fmt.Printf("asset pin: catalog is at %s, upstream is at %s\n", short(d.committedSHA), short(sha))
+	}
+
 	if *check {
-		if changed {
+		if d.data {
 			fmt.Fprintf(os.Stderr, "\n%s is out of date: run `make costumes`\n", catalogPath)
 			os.Exit(1)
+		}
+		if d.pin {
+			fmt.Println("catalog data is up to date; the asset pin is older than upstream HEAD, which is fine (pinned URLs are immutable)")
+			return
 		}
 		fmt.Println("catalog is up to date")
 		return
 	}
 
-	if !changed {
-		fmt.Printf("%s already up to date\n", catalogPath)
+	if !d.data && !*repin {
+		if d.pin {
+			fmt.Printf("%s data is unchanged; leaving the pin at %s (pass -repin to move it)\n", catalogPath, short(d.committedSHA))
+		} else {
+			fmt.Printf("%s already up to date\n", catalogPath)
+		}
 		return
 	}
 	must(writeCatalog(cat), "write "+catalogPath)
 	fmt.Printf("\nwrote %s\n", catalogPath)
 }
 
-// catalogChanged reports whether the derived catalog differs from what is committed.
-func catalogChanged(cat *catalog) (bool, error) {
-	next, err := marshalCatalog(cat)
-	if err != nil {
-		return false, err
-	}
-	cur, err := os.ReadFile(catalogPath)
+// diff separates the two things that can make the committed catalog differ from a fresh
+// derivation, because only one of them is news.
+type diff struct {
+	data         bool   // the costume answer moved: codes, species, names or flags
+	pin          bool   // only the asset pin moved: assetBase and sourceCommit
+	committedSHA string // what the committed catalog is pinned to
+}
+
+// catalogDiff compares the derived catalog against what is committed, separating a DATA change
+// from PIN churn.
+//
+// Data is the answer: which codes exist, which species wear them, the names, the flags. If that
+// moved, the embedded catalog is genuinely stale and someone has to rebuild and deploy.
+//
+// The pin is bookkeeping. assetBase and sourceCommit follow PokeMiners HEAD, and that repo commits
+// several times a day, so byte comparing the whole file made -check red permanently while the data
+// underneath had not moved for weeks. That is the exact alarm fatigue the comment above the -check
+// branch was written to prevent, arriving through the back door.
+//
+// An older pin is not a problem to fix. The pin exists so the sprite URLs are immutable (an
+// upstream reorg must fail on a dev box, never on the live site), and every asset the catalog
+// names existed at the pinned commit, so jsDelivr will serve it forever. Re-pinning for its own
+// sake costs a rebuild of a go:embed'ed file and a manual deploy for no user visible effect, and
+// leaves `make costumes` dirtying the tree on every run. When the data DOES change the fresh pin
+// is adopted with it, which is required: the new asset only exists at the newer commit.
+func catalogDiff(path string, next *catalog) (diff, error) {
+	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return true, nil
+		return diff{data: true, pin: true}, nil
 	}
 	if err != nil {
-		return false, err
+		return diff{}, err
 	}
-	return !bytes.Equal(cur, next), nil
+	var cur catalog
+	if err := json.Unmarshal(b, &cur); err != nil {
+		// A file we cannot parse is a file we must rewrite, not a reason to refuse. The byte
+		// comparison this replaced recovered from a corrupt or BOM-prefixed catalog by definition,
+		// and given the BOM has crashed this service before, `make costumes` has to stay the repair
+		// rather than becoming another thing that needs one.
+		fmt.Fprintf(os.Stderr, "%s is unreadable (%v); treating it as out of date\n", path, err)
+		return diff{data: true, pin: true}, nil
+	}
+
+	curCodes, err := json.Marshal(cur.Codes)
+	if err != nil {
+		return diff{}, err
+	}
+	nextCodes, err := json.Marshal(next.Codes)
+	if err != nil {
+		return diff{}, err
+	}
+	d := diff{
+		data:         !bytes.Equal(curCodes, nextCodes),
+		pin:          cur.SourceCommit != next.SourceCommit,
+		committedSHA: cur.SourceCommit,
+	}
+	// An assetBase that is not what the committed pin implies means the URL SHAPE changed, not the
+	// pin: someone edited cdnBase because upstream moved the folder again, which is the one thing
+	// the pinning exists to survive. Every sprite URL on the site is wrong until it is written, so
+	// it counts as data and must not sit behind -repin.
+	if cur.AssetBase != fmt.Sprintf(cdnBase, cur.SourceCommit) {
+		d.data = true
+	}
+	return d, nil
+}
+
+func short(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
 
 // headSHA returns the COMMIT sha (not a tree sha) that the CDN URL is pinned to.
@@ -340,7 +410,11 @@ func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[s
 type finding struct{ what, detail string }
 
 // audit compares the curated labels against the derived catalog. It never modifies labels.json.
-func audit(cat *catalog, lab *labels, nameToDex map[string]int, nm names) (errs, warns, review []finding) {
+//
+// noName explains, per code, why a REVIEW entry has no suggested name. Without it a blank
+// suggestion is unreadable: a source that has no page for the costume looks exactly like a run
+// that never asked, and the admin naming tab shows the same nothing either way.
+func audit(cat *catalog, lab *labels, nameToDex map[string]int, nm names, noName map[string]string) (errs, warns, review []finding) {
 	labelled := map[string]bool{}
 
 	for species, byLabel := range lab.Species {
@@ -409,6 +483,8 @@ func audit(cat *catalog, lab *labels, nameToDex map[string]int, nm names) (errs,
 		detail := fmt.Sprintf("masterfile: %q", e.Pretty)
 		if suggested := suggestedLabel(e, nm, code); suggested != "" {
 			detail = fmt.Sprintf("dittobase: %-28q masterfile: %q", suggested, e.Pretty)
+		} else if why := noName[code]; why != "" {
+			detail = fmt.Sprintf("masterfile: %-28q %s", e.Pretty, why)
 		}
 		review = append(review, finding{
 			fmt.Sprintf("%-34s dex=%s", code, compactDex(e.Dex)),
