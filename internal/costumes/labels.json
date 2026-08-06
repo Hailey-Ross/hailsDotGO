@@ -182,8 +182,16 @@
     { "label": "Fragment Hat", "code": "c:FALL_2018" },
     { "label": "Crown", "code": "c:ROYAL_NOEVOLVE" },
     { "label": "Liko's Hat", "code": "c:HORIZONS_2025_NOEVOLVE" },
-    { "label": "Red's Cap", "code": "f:GOTOUR_2026_A_02" },
-    { "label": "Ethan's Cap", "code": "f:GOTOUR_2026_B_02" }
+    { "label": "Red's Cap", "code": "f:GOTOUR_2026_A" },
+    { "label": "Leaf's Hat", "code": "f:GOTOUR_2026_A_02" },
+    { "label": "Ethan's Cap", "code": "f:GOTOUR_2026_B" },
+    { "label": "Lyra's Hat", "code": "f:GOTOUR_2026_B_02" },
+    { "label": "Calem's Cap", "code": "f:GOTOUR_2026_C" },
+    { "label": "Serena's Hat", "code": "f:GOTOUR_2026_C_02" },
+    { "label": "Studded Jacket", "code": "f:BB_2026" },
+    { "label": "Eggshell", "code": "f:SPRING_2026" },
+    { "label": "Red Kebaya", "code": "c:INDONESIA_2025_NOEVOLVE" },
+    { "label": "Holiday Decorations", "code": "f:WINTER_2025" }
   ],
 
   "aliases": {
