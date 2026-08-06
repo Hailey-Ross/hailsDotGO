@@ -20,6 +20,48 @@ func anUnnamedCode(t *testing.T) (string, int) {
 	return list[0].Code, list[0].Dex[0]
 }
 
+// anUnnamedCodeSharing finds an unnamed costume that at least one species can wear alongside an
+// existing label, so reusing that label on it really would shadow the existing one.
+func anUnnamedCodeSharing(t *testing.T, label string) Unnamed {
+	t.Helper()
+	for _, u := range Unlabelled() {
+		for _, d := range u.Dex {
+			if slices.Contains(LabelsForDex(d, ""), label) {
+				return u
+			}
+		}
+	}
+	t.Skipf("no unnamed costume is worn by a species that already has %q", label)
+	return Unnamed{}
+}
+
+// twoDisjointUnnamedCodes finds two unnamed costumes that no species can wear both of, so one
+// label can legitimately cover both.
+//
+// Chosen from the live backlog rather than written down, because the backlog shrinks every time an
+// admin names something. A hardcoded pair turns a test into a tripwire for ordinary use of the
+// admin panel, which is what happened the first time round.
+func twoDisjointUnnamedCodes(t *testing.T) (Unnamed, Unnamed) {
+	t.Helper()
+	list := Unlabelled()
+	for i, a := range list {
+		for _, b := range list[i+1:] {
+			overlap := false
+			for _, d := range a.Dex {
+				if slices.Contains(b.Dex, d) {
+					overlap = true
+					break
+				}
+			}
+			if !overlap {
+				return a, b
+			}
+		}
+	}
+	t.Skip("no two unnamed costumes have disjoint species")
+	return Unnamed{}, Unnamed{}
+}
+
 // The whole point of the feature: naming a costume makes it selectable straight away, with no
 // rebuild and no deploy.
 func TestNameMakesACostumeSelectableImmediately(t *testing.T) {
@@ -95,18 +137,30 @@ func TestNameRefusesToRenameAnExistingLabel(t *testing.T) {
 func TestNameRejectsAShadowingCollision(t *testing.T) {
 	Init(t.TempDir())
 
-	// c:FALL_2018 covers Pikachu (25), and so does the curated "Party Hat" (c:ANNIVERSARY).
-	if err := Name("c:FALL_2018", "Party Hat", "tester"); err == nil {
-		t.Error("a label that would shadow an existing one on the same species was allowed")
+	// Reusing a label on a species that can already wear it would make the existing one
+	// unreachable. The code is picked at run time and must be UNNAMED: hardcoding c:FALL_2018 here
+	// meant the refusal came from "already has a label" instead, so the collision path this test is
+	// named after was never actually exercised.
+	clash := anUnnamedCodeSharing(t, "Party Hat")
+	if err := Name(clash.Code, "Party Hat", "tester"); err == nil {
+		t.Errorf("%s can be worn by a species that already has a Party Hat, and the shadowing label was allowed", clash.Code)
 	}
 
-	// A disjoint dex set is legitimate. c:ROYAL_NOEVOLVE is Nidoqueen/Nidoking (31, 34), which no
-	// "Party Hat" covers.
-	if err := Name("c:ROYAL_NOEVOLVE", "Party Hat", "tester"); err != nil {
+	// A disjoint dex set is legitimate: that is how "Party Hat" already maps to two codes. The pair
+	// is picked at run time rather than hardcoded, because an admin naming a costume is a normal
+	// event that must not break this test. c:ROYAL_NOEVOLVE was named here and became "Crown" in
+	// the panel, which did exactly that.
+	first, second := twoDisjointUnnamedCodes(t)
+	if err := Name(first.Code, "Shared Test Hat", "tester"); err != nil {
+		t.Fatalf("naming the first of a disjoint pair failed: %v", err)
+	}
+	if err := Name(second.Code, "Shared Test Hat", "tester"); err != nil {
 		t.Errorf("a disjoint duplicate label was rejected: %v", err)
 	}
-	if _, ok := SpriteURL(31, "", "Party Hat"); !ok {
-		t.Error("the disjoint duplicate did not resolve")
+	for _, c := range []Unnamed{first, second} {
+		if _, ok := SpriteURL(c.Dex[0], "", "Shared Test Hat"); !ok {
+			t.Errorf("the disjoint duplicate did not resolve for %s", c.Code)
+		}
 	}
 	// ...and it must not have disturbed the original.
 	url, ok := SpriteURL(25, "Pikachu", "Party Hat")
@@ -161,7 +215,8 @@ func TestCuratedLabelsWinOverTheOverlay(t *testing.T) {
 		t.Fatal("the curated Visor did not resolve")
 	}
 	// Naming an unrelated code cannot disturb it.
-	if err := Name("c:ROYAL_NOEVOLVE", "Royal Crown", "tester"); err != nil {
+	anyCode, _ := anUnnamedCode(t)
+	if err := Name(anyCode, "Royal Crown", "tester"); err != nil {
 		t.Fatalf("Name: %v", err)
 	}
 	after, _ := SpriteURL(6, "Charizard", "Visor")
@@ -188,7 +243,8 @@ func TestCorruptOverlayFallsBackInsteadOfCrashing(t *testing.T) {
 // hand-written _comment blocks in labels.json rather than silently deleting them.
 func TestLabelsJSONKeepsTheComments(t *testing.T) {
 	Init(t.TempDir())
-	if err := Name("c:ROYAL_NOEVOLVE", "Royal Crown", "tester"); err != nil {
+	anyCode, _ := anUnnamedCode(t)
+	if err := Name(anyCode, "Royal Crown", "tester"); err != nil {
 		t.Fatalf("Name: %v", err)
 	}
 
@@ -352,4 +408,87 @@ func containsStr(haystack, needle string) bool {
 		}
 		return false
 	})()
+}
+
+// Naming a costume drops it out of the review backlog at once, so the panel needs some other way
+// back to it or a wrong name is unreachable. Unname exists, but nothing could list what it applies
+// to, and two GO Tour costumes were named onto the wrong variant before anyone noticed.
+func TestNamedInPanelListsWhatCanBeTakenBack(t *testing.T) {
+	Init(t.TempDir())
+	code, dex := anUnnamedCode(t)
+
+	if len(NamedInPanel()) != 0 {
+		t.Fatalf("NamedInPanel = %+v before anything was named, want nothing", NamedInPanel())
+	}
+	if err := Name(code, "Test Cap", "tester"); err != nil {
+		t.Fatalf("Name: %v", err)
+	}
+
+	got := NamedInPanel()
+	if len(got) != 1 {
+		t.Fatalf("NamedInPanel = %+v, want the one name just given", got)
+	}
+	if got[0].Code != code || got[0].Label != "Test Cap" || got[0].By != "tester" {
+		t.Errorf("got %+v, want %s labelled \"Test Cap\" by tester", got[0], code)
+	}
+	// The sprite has to be servable, or the row renders a broken image next to the button that
+	// decides whether the name was right.
+	if got[0].SpriteURL == "" || !AllowedFile(got[0].SpriteURL[len(SpritePath):]) {
+		t.Errorf("sprite %q would not be served by the proxy", got[0].SpriteURL)
+	}
+	if !slices.Contains(got[0].Dex, dex) {
+		t.Errorf("dex = %v, want it to include %d", got[0].Dex, dex)
+	}
+
+	// And taking it back puts it in the backlog again, which is the whole point of listing it.
+	if err := Unname(code); err != nil {
+		t.Fatalf("Unname: %v", err)
+	}
+	if len(NamedInPanel()) != 0 {
+		t.Errorf("NamedInPanel = %+v after the name was removed, want nothing", NamedInPanel())
+	}
+	var back bool
+	for _, u := range Unlabelled() {
+		if u.Code == code {
+			back = true
+		}
+	}
+	if !back {
+		t.Error("the costume did not return to the review backlog after its name was removed")
+	}
+}
+
+// A curated label is not removable, so it must not be offered.
+func TestNamedInPanelIgnoresCuratedLabels(t *testing.T) {
+	Init(t.TempDir())
+
+	if len(NamedInPanel()) != 0 {
+		t.Errorf("NamedInPanel = %+v with an empty overlay, want nothing", NamedInPanel())
+	}
+}
+
+// The trap this closes: a name is PR'd back into labels.json and deployed, so the code is now in
+// BOTH the embedded file and the overlay. The embedded set wins on merge, so removing the overlay
+// copy leaves the costume named and unrenameable. A Remove button there would report success and
+// change nothing, which is a worse answer than not offering one.
+func TestNamedInPanelDropsANameOnceItIsCurated(t *testing.T) {
+	Init(t.TempDir())
+
+	// Stand in for the merged-and-deployed state: a code the embedded labels already carry.
+	curated := "c:SPRING_2020_NOEVOLVE" // "Visor"
+	if LabelOf(curated) != "" {
+		t.Fatalf("%s is in the overlay to begin with; pick a curated code that is not", curated)
+	}
+
+	mu.Lock()
+	ov.Shared = append(ov.Shared, overlayEntry{Code: curated, Label: "Visor", By: "tester"})
+	rebuildLocked()
+	mu.Unlock()
+
+	for _, n := range NamedInPanel() {
+		if n.Code == curated {
+			t.Errorf("%s is curated as well as in the overlay, so removing it would do nothing, "+
+				"but it was still offered as removable", curated)
+		}
+	}
 }

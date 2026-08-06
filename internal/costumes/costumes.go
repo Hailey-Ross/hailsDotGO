@@ -470,11 +470,22 @@ func leadingWhitespace(seg []byte) string {
 	return string(seg[nl:i])
 }
 
-// Codes is the set of costume codes with shiny art, for the admin drift check.
-func Codes() map[string]bool {
-	out := make(map[string]bool, len(cat.Codes))
-	for code := range cat.Codes {
-		out[code] = true
+// CatalogDex is every costume code with shiny art, mapped to the species that have it, for the
+// admin drift check.
+//
+// The dex list and not just the key, because a set of codes cannot answer the question that
+// actually matters after an event: a costume routinely ships on three species and gains more in a
+// later wave, and comparing keys alone reports "nothing new" while trainers of the new species see
+// a plain shiny.
+//
+// The dex lists are copied rather than aliased. The parsed catalog is process-wide and shared by
+// every request that resolves a sprite, so one caller sorting or appending to what it thought was
+// its own slice would corrupt the catalog for everyone until the next restart. 140 short slices is
+// nothing next to the five network calls this feeds.
+func CatalogDex() map[string][]int {
+	out := make(map[string][]int, len(cat.Codes))
+	for code, e := range cat.Codes {
+		out[code] = slices.Clone(e.Dex)
 	}
 	return out
 }

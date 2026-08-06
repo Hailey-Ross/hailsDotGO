@@ -9,7 +9,7 @@
 //
 // Worse, it lied about it. A .catch() on the end of a promise chain also swallows exceptions
 // thrown inside earlier .then() handlers, so the ReferenceError surfaced as "Could not load
-// costumes." -- a network error message for a code bug.
+// costumes.", a network error message for a code bug.
 //
 // So this pulls the tab's IIFE straight out of templates/admin.html, runs it against a stub DOM
 // with a realistic payload, and fails if it throws or does not build a row and a sprite for every
@@ -56,7 +56,32 @@ function payload() {
   if (costumes.length && !costumes.some((c) => !c.suggested)) costumes[0].suggested = "";
   if (costumes.length && !costumes.some((c) => c.suggested)) costumes[0].suggested = "Test Hat";
 
-  return { ok: true, costumes };
+  // What the panel has already named, which is the only thing Unname can take back. Both branches:
+  // one nobody has recorded (removable) and one trainers already use (must not be).
+  const named = [
+    {
+      code: "f:NAMED_WRONGLY",
+      label: "Wrong Name",
+      by: "hails",
+      at: "2026-08-06T04:00:00Z",
+      dex: [25],
+      sprite_url: spriteURL(25, "f:NAMED_WRONGLY"),
+      species: ["Pikachu"],
+      used: 0,
+    },
+    {
+      code: "f:NAMED_AND_USED",
+      label: "Popular Hat",
+      by: "hails",
+      at: "2026-08-05T04:00:00Z",
+      dex: [25],
+      sprite_url: spriteURL(25, "f:NAMED_AND_USED"),
+      species: ["Pikachu"],
+      used: 3,
+    },
+  ];
+
+  return { ok: true, costumes, named };
 }
 
 // ------------------------------------------------------------------ the stub DOM
@@ -95,6 +120,9 @@ function stubDom() {
   const zoomOverlay = el("div");
   const zoomContent = el("div");
   const zoomClose = el("button");
+  const namedCard = el("div");
+  const namedList = el("div");
+  namedCard.style.display = "none";
   // A real recorded element, not a stub with a no-op listener: the "Fetch new costumes" handler
   // has to be drivable, because the answer it writes used to be destroyed by the refresh that
   // followed it and nothing noticed.
@@ -109,6 +137,8 @@ function stubDom() {
     "costume-zoom-overlay": zoomOverlay,
     "costume-zoom-content": zoomContent,
     "costume-zoom-close": zoomClose,
+    "costume-named-card": namedCard,
+    "costume-named-list": namedList,
   };
 
   globalThis.document = {
@@ -118,7 +148,7 @@ function stubDom() {
     addEventListener() {}, // the Escape-to-close binding
   };
   globalThis.confirm = () => true;
-  return { made, list, status, btn, zoomOverlay, zoomContent, handlers };
+  return { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList, handlers };
 }
 
 // ---------------------------------------------------------------------- the run
@@ -133,20 +163,33 @@ const end = html.indexOf("})();", start) + "})();".length;
 const src = html.slice(start, end);
 
 const data = payload();
-const { made, list, status, btn, zoomOverlay, zoomContent, handlers } = stubDom();
+const { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList, handlers } = stubDom();
 
 // What DriftCheck answers when upstream has nothing new. It is the case that used to be invisible:
 // the note was written, then wiped by the refresh a few hundred ms later, so a working check looked
 // like a button that did nothing.
-const NOTE = "no new codes upstream (3739 shiny assets scanned) · 15 costume(s) have no label yet";
+const NOTE =
+  "no new codes and no new species upstream (1268 costume shiny asset(s) among 3750 files)" +
+  " · 14 costume(s) have no label yet and cannot be recorded, see the Costumes tab";
 const checkResult = { ok: true, result: { key: "costumes", ok: true, note: NOTE, count: 0 }, synced: "6280ccb86615fe270fa0c9ba1772660f4bf3e360" };
 
 const thrown = [];
+const posted = [];
+// The first press fails, so the script can tell whether a press that got no answer still spends
+// the one cheap cached lookup the page is allowed.
+let failNextPost = true;
 process.on("unhandledRejection", (e) => thrown.push(e));
-globalThis.fetch = async (url, opts) =>
-  opts && opts.method === "POST"
-    ? { ok: true, status: 200, json: async () => checkResult }
-    : { ok: true, status: 200, json: async () => data };
+globalThis.fetch = async (url, opts) => {
+  if (opts && opts.method === "POST") {
+    posted.push(url);
+    if (failNextPost) {
+      failNextPost = false;
+      return { ok: false, status: 502, json: async () => ({ ok: false }) };
+    }
+    return { ok: true, status: 200, json: async () => checkResult };
+  }
+  return { ok: true, status: 200, json: async () => data };
+};
 
 try {
   eval(src);
@@ -155,7 +198,10 @@ try {
 }
 await new Promise((r) => setTimeout(r, 50));
 
-const imgs = made.filter((n) => n.tag === "img");
+// Scoped to the backlog list, not every <img> the tab made: the "named here" rows below carry
+// sprites of their own, and counting those would turn "one sprite per costume" into a tally.
+const imgsIn = (root) => (root.children ?? []).flatMap((c) => (c.tag === "img" ? [c] : imgsIn(c)));
+const imgs = imgsIn(list);
 const want = data.costumes.length;
 
 const fail = (msg) => {
@@ -215,13 +261,29 @@ if (!bigs.every((n) => /^\/api\/costume-sprite\//.test(n.src ?? ""))) {
 // be overwritten by the list refresh that ran straight afterwards.
 const checkClick = handlers.find((h) => h.node === btn && h.evt === "click");
 if (!checkClick) fail("the Fetch new costumes button has no click handler");
-try {
-  checkClick.fn();
-} catch (e) {
-  thrown.push(e);
-  fail(`clicking Fetch new costumes threw: ${e}`);
-}
-await new Promise((r) => setTimeout(r, 50));
+
+const press = async (what) => {
+  try {
+    checkClick.fn();
+  } catch (e) {
+    thrown.push(e);
+    fail(`${what} threw: ${e}`);
+  }
+  await new Promise((r) => setTimeout(r, 50));
+};
+
+// Press one fails (HTTP 502). It must report that, must re-enable the button, and must NOT count
+// as the answered press: burning the cached path on a press that got nothing would send every
+// later press upstream for five API calls to learn what a cached listing already knew.
+const realConsoleError = console.error;
+console.error = () => {}; // the tab logs the deliberate 502; do not let it look like a real failure
+await press("a failing press");
+console.error = realConsoleError;
+if (thrown.length) fail(`a failed check threw instead of reporting: ${thrown.map(String).join("; ")}`);
+if (!/failed/i.test(status.textContent)) fail(`a failed check reported ${JSON.stringify(status.textContent)}`);
+if (btn.disabled) fail("a failed check left the button disabled");
+
+await press("clicking Fetch new costumes");
 if (thrown.length) fail(`the upstream check threw: ${thrown.map(String).join("; ")}`);
 if (status.textContent !== NOTE) {
   fail(
@@ -231,8 +293,98 @@ if (status.textContent !== NOTE) {
 }
 if (btn.disabled) fail("the Fetch new costumes button was left disabled");
 
+// The server answers the first press from a cached listing, because one scan costs five GitHub API
+// calls shared with the Check Scrapers panel. A second press has to ask for a live look, or an
+// admin watching an event drop is stuck behind the cache with no way through.
+if (posted[0] !== "/admin/check-costumes") fail(`the failed press asked for ${posted[0]}, want the cached path`);
+if (posted[1] !== "/admin/check-costumes") {
+  fail(`after a FAILED press the next one asked for ${JSON.stringify(posted[1])}, want the cached path still`);
+}
+await press("the third press");
+if (thrown.length) fail(`the third press threw: ${thrown.map(String).join("; ")}`);
+if (posted[2] !== "/admin/check-costumes?refresh=1") {
+  fail(`the press after an answered one asked for ${JSON.stringify(posted[2])}, want a forced refresh`);
+}
+
+// A costume with no upstream name has nothing running the sharesWord guard against it, so the row
+// and the zoom must both say so: a silent guard is indistinguishable from one that passed. And
+// they must say it ONLY there, or the sentence is a lie on the rows that ARE cross-checked.
+const rowText = (n) => (n.children ?? []).flatMap((c) => [c._text ?? "", rowText(c)]).join(" ");
+const WARNING = /nothing upstream to cross-check/i;
+
+const noSuggestion = data.costumes.findIndex((c) => !c.suggested);
+const withSuggestion = data.costumes.findIndex((c) => c.suggested);
+if (noSuggestion < 0 || withSuggestion < 0) fail("the payload does not cover both suggestion branches");
+
+if (!WARNING.test(rowText(list.children[noSuggestion]))) {
+  fail("a costume with no upstream name does not say that nothing is cross-checking its label");
+}
+if (WARNING.test(rowText(list.children[withSuggestion]))) {
+  fail(`${data.costumes[withSuggestion].code} has an upstream name but still claims nothing cross-checks it`);
+}
+
+// The zoom is the view an admin actually names from, so the same has to hold there.
+for (const [idx, want] of [[noSuggestion, true], [withSuggestion, false]]) {
+  zoomContent.textContent = "";
+  thumbClicks[idx].fn();
+  const shown = WARNING.test(rowText(zoomContent));
+  if (shown !== want) {
+    fail(
+      `the zoom for ${data.costumes[idx].code} ${shown ? "claims" : "does not say"} nothing cross-checks it, ` +
+        `want the opposite`,
+    );
+  }
+}
+
+// Naming a costume drops it out of the backlog at once, so this is the ONLY route back to a name.
+// Without it the Unname endpoint was unreachable from the browser, and two GO Tour costumes sat on
+// the wrong variant with nothing in the panel able to correct them.
+if (namedCard.style.display === "none") fail("names given here are not shown, so none can be taken back");
+if (namedList.children.length !== data.named.length) {
+  fail(`the named list rendered ${namedList.children.length} rows, want ${data.named.length}`);
+}
+
+const namedButtons = namedList.children.map((row) => (row.children ?? []).find((c) => c.tag === "button"));
+if (namedButtons.some((b) => !b)) fail("a named costume has no button, so it cannot be taken back");
+
+const removable = namedButtons[data.named.findIndex((n) => !n.used)];
+const inUse = namedButtons[data.named.findIndex((n) => n.used)];
+
+// A label trainers already recorded must not offer a removal: taking it back would blank the
+// costume art on their saved entries. The endpoint refuses too, so a live button could only fail.
+if (!inUse.disabled) fail("a costume trainers already recorded still offers to have its name removed");
+if (handlers.some((h) => h.node === inUse && h.evt === "click")) {
+  fail("the in-use name has a click handler, so it can be pressed anyway");
+}
+
+const removeClick = handlers.find((h) => h.node === removable && h.evt === "click");
+if (!removeClick) fail("the Remove name button has no click handler");
+
+const deletes = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, opts) => {
+  if (opts && opts.method === "DELETE") {
+    deletes.push(url);
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  }
+  return realFetch(url, opts);
+};
+try {
+  removeClick.fn();
+} catch (e) {
+  thrown.push(e);
+  fail(`removing a name threw: ${e}`);
+}
+await new Promise((r) => setTimeout(r, 50));
+if (thrown.length) fail(`removing a name threw: ${thrown.map(String).join("; ")}`);
+
+const wantDelete = `/api/admin/costumes/name?code=${encodeURIComponent(data.named[0].code)}`;
+if (deletes[0] !== wantDelete) {
+  fail(`Remove name sent ${JSON.stringify(deletes[0])}, want a DELETE to ${JSON.stringify(wantDelete)}`);
+}
+
 console.log(
   `admin Costumes tab renders ${want} costumes with working name controls, and clicking ${multi.code} ` +
     `zooms to ${bigs.length} sprite(s), one per species. Fetching upstream leaves its answer on ` +
-    `screen. Nothing throws.`,
+    `screen. A name given here can be taken back, and one trainers already use cannot. Nothing throws.`,
 );
