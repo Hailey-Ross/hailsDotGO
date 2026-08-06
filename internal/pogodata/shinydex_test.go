@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // withBaseline swaps the package level baseline for one test and restores it after. The baseline is
@@ -289,6 +290,213 @@ func TestUnknownUpstreamSpeciesReachesDexTable(t *testing.T) {
 	if entry.Name != "Futuremon" || !entry.ShinyReleased || !entry.InGo {
 		t.Errorf("dex table entry for an upstream-only species is wrong: %+v", entry)
 	}
+}
+
+// ------------------------------------------------------------------ announced release dates
+
+// atDay pins the clock the release dates are judged against, so these tests assert the rule rather
+// than whatever day the build machine happens to be on.
+func atDay(t *testing.T, day string) {
+	t.Helper()
+	fixed, err := time.Parse(shinyDateLayout, day)
+	if err != nil {
+		t.Fatalf("bad test day %q: %v", day, err)
+	}
+	prev := shinyNow
+	shinyNow = func() time.Time { return fixed }
+	t.Cleanup(func() { shinyNow = prev })
+}
+
+// A date still in the future announces, it does not release.
+func TestFutureReleaseDateDoesNotRelease(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	atDay(t, "2026-07-27")
+	s := &Store{}
+	applyShinies(s, `{}`)
+	s.SetShinyOverrides([]ShinyOverride{{Dex: 2, ReleaseDate: "2026-08-12"}})
+
+	dex := dexTableOf(t, s)
+	if dex["2"].ShinyReleased {
+		t.Error("a release date two weeks out must not release the shiny yet")
+	}
+	if dex["2"].ReleaseDate != "2026-08-12" {
+		t.Errorf("the announced date must reach the client while the shiny is locked, got %q", dex["2"].ReleaseDate)
+	}
+	if _, ok := releasedKeys(t, s)["2"]; ok {
+		t.Error("an announced but unreleased shiny must stay out of the released-only shinies map")
+	}
+}
+
+// The whole point: the day arrives and nobody has to do anything.
+func TestPassedReleaseDateReleases(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	for _, day := range []string{"2026-08-12", "2026-08-13"} { // the day itself, and after it
+		atDay(t, day)
+		s := &Store{}
+		applyShinies(s, `{}`)
+		s.SetShinyOverrides([]ShinyOverride{{Dex: 2, ReleaseDate: "2026-08-12"}})
+
+		dex := dexTableOf(t, s)
+		if !dex["2"].ShinyReleased {
+			t.Errorf("on %s a shiny announced for 2026-08-12 must be released", day)
+		}
+		if dex["2"].ReleaseDate != "" {
+			t.Errorf("on %s a released card still carries its date %q; it is history now", day, dex["2"].ReleaseDate)
+		}
+		if _, ok := releasedKeys(t, s)["2"]; !ok {
+			t.Errorf("on %s the released shiny is missing from the shinies map", day)
+		}
+	}
+}
+
+// The safety net for the automatic flip: Niantic delays it, an admin unticks the box, and the date
+// does not override them back.
+func TestExplicitFlagBeatsPassedDate(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	atDay(t, "2026-08-20")
+	s := &Store{}
+	applyShinies(s, `{}`)
+	s.SetShinyOverrides([]ShinyOverride{
+		{Dex: 2, ReleaseDate: "2026-08-12", ShinyReleased: boolPtr(false)},
+	})
+
+	if dexTableOf(t, s)["2"].ShinyReleased {
+		t.Error("an explicit shiny_released false must hold back a release whose announced day has passed")
+	}
+	admin := adminByDex(t, s)
+	if admin[2].ReleasedByDate {
+		t.Error("a species held back by an explicit flag must not report itself as released by date")
+	}
+}
+
+// A date alone is an override: without this the admin panel draws no Reset button for a date-only
+// row and there is no way to take the date back off.
+func TestReleaseDateCountsAsOverride(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	atDay(t, "2026-07-27")
+	s := &Store{}
+	applyShinies(s, `{}`)
+	s.SetShinyOverrides([]ShinyOverride{{Dex: 2, ReleaseDate: "2026-08-12"}})
+
+	admin := adminByDex(t, s)
+	if !admin[2].Overridden {
+		t.Error("a row carrying only a release date must still count as overridden")
+	}
+	if admin[2].ReleaseDate != "2026-08-12" {
+		t.Errorf("the admin row lost its release date, got %q", admin[2].ReleaseDate)
+	}
+	if admin[2].ReleasedByDate {
+		t.Error("a future date must not report the species as released by date")
+	}
+}
+
+// The hourly tick: nothing else notices midnight, so a date driven release would otherwise wait for
+// the next six hour data refresh.
+func TestRefreshShinyDatesFlipsOnDayChange(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	atDay(t, "2026-08-11")
+	s := &Store{}
+	applyShinies(s, `{}`)
+	s.SetShinyOverrides([]ShinyOverride{{Dex: 2, ReleaseDate: "2026-08-12"}})
+	if dexTableOf(t, s)["2"].ShinyReleased {
+		t.Fatal("the day before, the shiny must still be locked")
+	}
+
+	// Same day: no rebuild, and nothing changes.
+	s.RefreshShinyDates()
+	if dexTableOf(t, s)["2"].ShinyReleased {
+		t.Error("a refresh on the same day must not change anything")
+	}
+
+	atDay(t, "2026-08-12")
+	s.RefreshShinyDates()
+	if !dexTableOf(t, s)["2"].ShinyReleased {
+		t.Error("the day arrived and the hourly refresh did not release the shiny")
+	}
+}
+
+// ShinyDateReached is what the admin write path uses to classify a tick that merely agrees with the
+// date, so it has to answer on the same clock as the served blobs.
+func TestShinyDateReached(t *testing.T) {
+	atDay(t, "2026-08-12")
+	cases := map[string]bool{"": false, "2026-08-11": true, "2026-08-12": true, "2026-08-13": false}
+	for date, want := range cases {
+		if got := ShinyDateReached(date); got != want {
+			t.Errorf("ShinyDateReached(%q) = %v, want %v (today is 2026-08-12)", date, got, want)
+		}
+	}
+}
+
+// The regional overlays are resolved in the store, not in the handler, precisely so this works: a
+// form's announced day arriving must flip it on the hourly tick, with no admin write to trigger it.
+func TestRegionalReleaseDateFlipsOnTheSameClock(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	atDay(t, "2026-08-11")
+	s := &Store{}
+	applyShinies(s, `{}`)
+	s.SetRegionalShinyOverrides([]RegionalShinyOverride{
+		{Species: "Zorua", Region: "hisuian", ReleaseDate: "2026-08-12"},
+		{Species: "Rotom", Region: "heat", ReleaseDate: "2026-08-12", ShinyReleased: boolPtr(false)},
+	})
+
+	// The day before: nothing is claimed released, and the announced day is on its way to the client.
+	if flags := regionalFlags(t, s); len(flags["Zorua"]) != 0 {
+		t.Errorf("a future date must not state a flag for the form, got %v", flags["Zorua"])
+	}
+	if got := regionalDates(t, s)["Zorua"]["hisuian"]; got != "2026-08-12" {
+		t.Errorf("the form's announced date did not reach the client, got %q", got)
+	}
+
+	atDay(t, "2026-08-12")
+	s.RefreshShinyDates()
+
+	if !regionalFlags(t, s)["Zorua"]["hisuian"] {
+		t.Error("the day arrived and the hourly refresh did not release the form's shiny")
+	}
+	if _, ok := regionalDates(t, s)["Zorua"]; ok {
+		t.Error("a released form still carries its date; it is history now")
+	}
+	// The delay case, on a form: an explicit false holds it back past its announced day.
+	if regionalFlags(t, s)["Rotom"]["heat"] {
+		t.Error("an explicit shiny_released false must hold a form back past its announced day")
+	}
+}
+
+func regionalFlags(t *testing.T, s *Store) map[string]map[string]bool {
+	t.Helper()
+	out := map[string]map[string]bool{}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.regionalShiny) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(s.regionalShiny, &out); err != nil {
+		t.Fatalf("regionalShinyOverrides is not valid JSON: %v", err)
+	}
+	return out
+}
+
+func regionalDates(t *testing.T, s *Store) map[string]map[string]string {
+	t.Helper()
+	out := map[string]map[string]string{}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.regionalShinyDates) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(s.regionalShinyDates, &out); err != nil {
+		t.Fatalf("regionalShinyDates is not valid JSON: %v", err)
+	}
+	return out
+}
+
+func adminByDex(t *testing.T, s *Store) map[int]AdminShinySpecies {
+	t.Helper()
+	out := map[int]AdminShinySpecies{}
+	for _, row := range s.ShinyDexAdmin() {
+		out[row.Dex] = row
+	}
+	return out
 }
 
 func TestGenForDex(t *testing.T) {

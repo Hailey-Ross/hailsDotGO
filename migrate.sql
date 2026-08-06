@@ -744,3 +744,36 @@ CREATE TABLE IF NOT EXISTS shiny_dex_overrides (
   CONSTRAINT fk_sdo_user FOREIGN KEY (updated_by)
     REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- 45. Announced shiny release dates (2026-07-27)
+-- Niantic announces a shiny weeks before it ships. This column records the
+-- announced day so the admin panel can show it, the checklist can show it, and
+-- the shiny turns itself on when the day arrives instead of waiting for
+-- somebody to remember to tick a box.
+--
+-- DATE, not DATETIME: an announced release is a calendar day, not an instant,
+-- and the rest of this feature already compares dates as 'YYYY-MM-DD' strings
+-- so there is no midnight-in-whose-timezone question to get wrong.
+--
+-- An explicit shiny_released still beats a passed date in both directions, so a
+-- delayed release is one unticked box away from being corrected.
+ALTER TABLE shiny_dex_overrides
+  ADD COLUMN release_date DATE NULL DEFAULT NULL AFTER shiny_released;
+
+
+-- 46. Nullable strike issuer (2026-08-05)
+-- Staff accounts can now be deleted outright from the admin panel, and
+-- user_strikes.issued_by was NOT NULL with ON DELETE CASCADE. That meant deleting
+-- a moderator also deleted every strike that moderator had ever issued, wiping the
+-- moderation record of the trainers they disciplined.
+--
+-- A strike is a record about the trainer it was issued against, not about the
+-- issuer, so it has to outlive the issuer. issued_by_name already holds a snapshot
+-- of the issuer's username and is the only issuer field the panel reads
+-- (AdminStrikesGet), so SET NULL costs nothing the UI shows.
+ALTER TABLE user_strikes DROP FOREIGN KEY fk_strike_issuer;
+ALTER TABLE user_strikes MODIFY issued_by INT UNSIGNED NULL DEFAULT NULL;
+ALTER TABLE user_strikes
+  ADD CONSTRAINT fk_strike_issuer FOREIGN KEY (issued_by)
+  REFERENCES users (id) ON DELETE SET NULL;

@@ -780,6 +780,7 @@
   "shinies.js.badge_soon": "pronto",
   "shinies.js.tip_shiny_unreleased": "El shiny aún no está disponible en Pokémon GO",
   "shinies.js.tip_not_in_go": "No disponible en Pokémon GO",
+  "shinies.js.tip_shiny_dated": "El shiny llega el {date}",
   "shinies.js.saved": "Guardado",
   "shinies.js.tab_all": "Todos los Shiny",
   "shinies.js.tab_caught": "Capturados",

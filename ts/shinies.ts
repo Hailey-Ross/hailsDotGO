@@ -4,7 +4,7 @@ import { costumeShinyUrl, costumeEntries, TINY_POKEMON } from "./shared/costumes
 import { createPicker } from "./shared/picker";
 import type { Picker } from "./shared/picker";
 import { getEvolveTargets, getEvolutionFamily, EvolveTarget } from "./shared/evolutions";
-import { cardRegionalForms, recordableRegions, setRegionalShinyOverrides, isRegionalShiny, regionalVariantId, isPatternOnlyRegion, unownLetter, vivillonGeo, REGION_ORDER, UNOWN_LETTERS, VIVILLON_PATTERNS } from "./shared/regionalForms";
+import { cardRegionalForms, recordableRegions, setRegionalShinyOverrides, setRegionalShinyDates, isRegionalShiny, regionalShinyDate, regionalVariantId, isPatternOnlyRegion, unownLetter, vivillonGeo, REGION_ORDER, UNOWN_LETTERS, VIVILLON_PATTERNS } from "./shared/regionalForms";
 import type { GameData, ShinyPokemon, ShinyDexEntry } from "./shared/types";
 
 declare const JSC: Record<string, string>;
@@ -325,6 +325,24 @@ function todayInputValue(): string {
   return `${n.getFullYear()}-${pad2(n.getMonth() + 1)}-${pad2(n.getDate())}`;
 }
 
+// An announced release day, short enough for a 0.55rem corner badge ("12 Aug"). Read back in UTC
+// for the same reason dateInputValue is: the server sent a calendar day, and a local reading would
+// show the day before for everyone west of UTC.
+function shortReleaseDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(SITE_LANG ?? "en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
+}
+
+// The same day written out, for the tooltip that explains what the badge means.
+function longReleaseDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(SITE_LANG ?? "en-GB", {
+    timeZone: "UTC", year: "numeric", month: "long", day: "numeric",
+  });
+}
+
 async function apiRemove(id: number): Promise<boolean> {
   const res = await fetch(`/api/shinies/${id}`, {
     method: "DELETE",
@@ -407,6 +425,7 @@ async function init() {
   }
 
   setRegionalShinyOverrides(gameData.regionalShinyOverrides);
+  setRegionalShinyDates(gameData.regionalShinyDates);
 
   // shinyDex is the full National Dex with availability flags; shinies is the released-only view.
   //
@@ -451,13 +470,15 @@ async function init() {
     spriteId: number | string;
     released: boolean;
     inGo: boolean;
+    // "YYYY-MM-DD" when the shiny has been announced but not shipped, else "".
+    releaseDate: string;
   }
   const allCards: ShinyCard[] = allShinies.flatMap((s) => {
     const e = dexByName.get(s.name);
     const inGo = e?.in_go ?? true;
     const released = e?.shiny_released ?? true;
     return [
-      { species: s, region: "", spriteId: s.id, released, inGo },
+      { species: s, region: "", spriteId: s.id, released, inGo, releaseDate: e?.shiny_release_date ?? "" },
       ...cardRegionalForms(s.name).map((f) => ({
         species: s,
         region: f.region as string,
@@ -465,6 +486,9 @@ async function init() {
         // A form's shiny can only exist if the species itself is in the game.
         released: released && isRegionalShiny(s.name, f),
         inGo,
+        // A form waiting on its own species has the species' date, not its own: the form cannot
+        // arrive first, and showing an earlier form date would promise something that cannot happen.
+        releaseDate: released ? regionalShinyDate(s.name, f) : (e?.shiny_release_date ?? ""),
       })),
     ];
   });
@@ -528,12 +552,16 @@ async function init() {
     if (localStorage.getItem(SHOW_UNRELEASED_KEY) === "1") unreleasedEl.checked = true;
   } catch { /* private mode: the toggle just does not persist */ }
 
-  // A card is visible when its shiny is released, or the trainer asked to see what is coming, or
-  // they already own one. That last clause matters: flags can be wrong or an admin can toggle
-  // something off, and hiding somebody's own catch from their own checklist would read as data
-  // loss. A caught unreleased card renders as caught, not greyed.
+  // A card is visible when its shiny is released, or a release date has been announced for it, or
+  // the trainer asked to see what is coming, or they already own one. That last clause matters:
+  // flags can be wrong or an admin can toggle something off, and hiding somebody's own catch from
+  // their own checklist would read as data loss. A caught unreleased card renders as caught.
+  //
+  // The date clause is the point of announcing one: a handful of dated cards showing by default is
+  // how a trainer finds out something is coming, and it is a handful, not the 140 undated ones.
   function cardVisible(c: ShinyCard): boolean {
-    return c.released || unreleasedEl.checked || cardCaught(c.species.name, c.region, caughtCardKeys);
+    return c.released || !!c.releaseDate || unreleasedEl.checked
+        || cardCaught(c.species.name, c.region, caughtCardKeys);
   }
 
   const modal = document.createElement("div");
@@ -913,10 +941,19 @@ async function init() {
         card.setAttribute("aria-disabled", "true");
         const soon = document.createElement("span");
         soon.className = "sc-soon-badge";
-        // Two honestly different states: in the game but no shiny yet, versus not in the game.
-        soon.textContent = c.inGo ? SH.badgeSoon : SH.badgeNotInGo;
+        const dated = c.inGo && !!c.releaseDate;
+        if (dated) {
+          // An announced date is strictly better than "soon", so it replaces it rather than
+          // sitting next to it: the corner has room for one badge.
+          soon.classList.add("sc-date-badge");
+          soon.textContent = shortReleaseDate(c.releaseDate);
+          card.setAttribute("title", SH.tipShinyDated.replace("{date}", longReleaseDate(c.releaseDate)));
+        } else {
+          // Two honestly different states: in the game but no shiny yet, versus not in the game.
+          soon.textContent = c.inGo ? SH.badgeSoon : SH.badgeNotInGo;
+          card.setAttribute("title", c.inGo ? SH.tipShinyUnreleased : SH.tipNotInGo);
+        }
         card.appendChild(soon);
-        card.setAttribute("title", c.inGo ? SH.tipShinyUnreleased : SH.tipNotInGo);
       }
 
       if (caught) {
@@ -1471,8 +1508,11 @@ async function init() {
     } else {
       // With the toggle off this is byte for byte the list that shipped before the flags existed.
       const visible = allCards.filter(cardVisible);
+      // Missing is a to-do list of shinies you could go out and catch, so an announced one does not
+      // belong on it however visible it is on All. Ticking the toggle still opts into the wish list.
       const source = activeTab === "missing"
-        ? visible.filter((c) => !cardCaught(c.species.name, c.region, caughtCardKeys))
+        ? visible.filter((c) => (c.released || unreleasedEl.checked)
+            && !cardCaught(c.species.name, c.region, caughtCardKeys))
         : visible;
       searchEl.placeholder = JSC.searchNPokemon.replace("{n}", String(source.length));
       renderGrid(source);

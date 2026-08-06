@@ -46,6 +46,26 @@ const (
 	// Confirm timeouts are logged but free this many times per rolling 24h.
 	trustTimeoutFreePer24h = 2
 
+	// Repeat POSITIVE trust between the same two accounts decays.
+	//
+	// uk_te_vote only makes a vote unique per lobby, so two accounts could raid
+	// together over and over, commend each other every time, and each new lobby was
+	// a fresh full-weight event. Trust was farmable without bound by a pair.
+	//
+	// The first trustPairFreeInteractions in the window count in full, because
+	// raiding repeatedly with the same people is exactly what real users do. After
+	// that each further positive event from the same actor to the same subject is
+	// worth half the last, floored so the event is still recorded and visible rather
+	// than silently dropped. The series converges, so one pair contributes at most
+	// roughly trustPairFreeInteractions + 1 events' worth of trust per window no
+	// matter how many raids they stage.
+	//
+	// Negative events are deliberately NOT decayed: damping repeated dislikes would
+	// let a genuinely bad actor outrun their own reputation.
+	trustPairWindowDays       = 30
+	trustPairFreeInteractions = 3
+	trustPairDecayFloor       = 0.05
+
 	// Host lobbies that end without the raid ever starting (expired while
 	// open, or cancelled by the host before raiding) are logged but free this
 	// many times per rolling window; past that, each further one applies the
@@ -144,11 +164,51 @@ func clampF(v, lo, hi float64) float64 {
 	return v
 }
 
+// pairDecay returns a weight multiplier that shrinks as the same actor keeps
+// awarding positive trust to the same subject, so a colluding pair cannot farm an
+// unbounded score by raiding together repeatedly. See trustPairFreeInteractions.
+//
+// Returns 1.0 unchanged for negative events, for system events (actorID 0), and
+// for self-directed rows, so only the farming case is affected.
+func (h *Handlers) pairDecay(userID, actorID uint, rawDelta float64) float64 {
+	if rawDelta <= 0 || actorID == 0 || actorID == userID {
+		return 1.0
+	}
+
+	var prior int
+	if err := h.db.QueryRow(`
+		SELECT COUNT(*) FROM trust_events
+		WHERE actor_id = ? AND user_id = ? AND applied_delta > 0
+		  AND created_at > DATE_SUB(NOW(), INTERVAL ? DAY)`,
+		actorID, userID, trustPairWindowDays).Scan(&prior); err != nil {
+		// Fail closed on the safe side: full weight, same as before this existed.
+		log.Printf("pairDecay %d->%d: %v", actorID, userID, err)
+		return 1.0
+	}
+
+	return pairDecayFactor(prior)
+}
+
+// pairDecayFactor is the arithmetic half of pairDecay, split out so the curve can
+// be tested without a database. prior is how many positive events this actor has
+// already sent this subject inside the window.
+func pairDecayFactor(prior int) float64 {
+	if prior < trustPairFreeInteractions {
+		return 1.0
+	}
+	factor := math.Pow(0.5, float64(prior-trustPairFreeInteractions+1))
+	if factor < trustPairDecayFloor {
+		return trustPairDecayFloor
+	}
+	return factor
+}
+
 // insertTrustEvent records an event and bumps the subject's cached score.
 // actorID 0 means a system event; lobbyID 0 means no lobby context.
 // INSERT IGNORE makes votes idempotent via uk_te_vote: a duplicate
 // commend/dislike is dropped silently and the score is not double counted.
 func (h *Handlers) insertTrustEvent(userID, actorID uint, lobbyID uint64, eventType string, rawDelta, weight float64, note string) {
+	weight *= h.pairDecay(userID, actorID, rawDelta)
 	applied := clampF(rawDelta*weight, trustAppliedMin, trustAppliedMax)
 
 	var actor, lobby any

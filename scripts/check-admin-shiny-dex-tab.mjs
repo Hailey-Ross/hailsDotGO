@@ -64,6 +64,10 @@ const PAYLOAD = {
     // Upstream disagrees with us: must render the warning pill and count as a suggestion.
     { dex: 999, name: "Gimmighoul", gen: 9, in_go: true, shiny_released: false, default_in_go: true,  default_shiny_released: false, upstream_shiny: true,  overridden: false },
     { dex: 1007, name: "Koraidon", gen: 9, in_go: false, shiny_released: false, default_in_go: false, default_shiny_released: false, upstream_shiny: false, overridden: false },
+    // Announced, not out yet: a date-only row, which is overridden with both flags still at default.
+    { dex: 827, name: "Nickit", gen: 8, in_go: true, shiny_released: false, default_in_go: true, default_shiny_released: false, upstream_shiny: false, overridden: true, release_date: "2026-08-12" },
+    // Its day has passed, so the shiny is on with nobody having ticked anything.
+    { dex: 828, name: "Thievul", gen: 8, in_go: true, shiny_released: true, default_in_go: true, default_shiny_released: false, upstream_shiny: false, overridden: true, release_date: "2026-07-01", released_by_date: true },
   ],
   regional: [
     { dex: 570, name: "Zorua", region: "hisuian", sprite_url: "https://example/10238.png", shiny_released: false, default_shiny_released: false, overridden: false },
@@ -122,7 +126,15 @@ globalThis.STRINGS = { error: "Something went wrong" };
 const sent = [];
 globalThis.csrfFetch = async (url, opts = {}) => {
   sent.push({ url, method: opts.method ?? "GET", body: opts.body ? JSON.parse(opts.body) : null });
-  return { ok: true, status: 200, json: async () => ({ ok: true, overridden: true }) };
+  // Mirrors what AdminSetShinyDexFlags returns: the RESOLVED row, because a release date that has
+  // arrived turns shiny_released on without anybody having ticked it.
+  return {
+    ok: true, status: 200,
+    json: async () => ({
+      ok: true, overridden: true, in_go: true, shiny_released: true,
+      release_date: "2026-08-12", released_by_date: false,
+    }),
+  };
 };
 globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => PAYLOAD });
 
@@ -162,8 +174,9 @@ if (html.indexOf('<option value="attention">') > html.indexOf('<option value="">
 getById("sd-status-filter").value = "attention";
 api.renderSpecies();
 const attention = api.filtered();
-if (attention.length !== 2) {
-  fail(`"needs attention" matched ${attention.length} species, want 2 (the overridden one and the upstream disagreement).`,
+if (attention.length !== 4) {
+  fail(`"needs attention" matched ${attention.length} species, want 4 (the overridden one, the upstream ` +
+    "disagreement, and the two carrying a release date).",
     `  matched: ${attention.map((s) => s.name).join(", ")}`);
 }
 
@@ -192,13 +205,29 @@ if (!speciesHost.innerHTML.includes("upstream says shiny")) {
   fail("a species upstream lists as shiny and we do not is not flagged.");
 }
 
+// 3b. Release dates: every row offers the field, the announced one is filled in, and only the row
+//     whose day has passed explains itself with a pill. Without that pill the shiny box is ticked
+//     with no override on the row and no way to tell why.
+const dateInputs = (speciesHost.innerHTML.match(/type="date"/g) ?? []).length;
+if (dateInputs !== PAYLOAD.species.length) {
+  fail(`rendered ${dateInputs} release date fields, want one per species (${PAYLOAD.species.length}).`);
+}
+if (!speciesHost.innerHTML.includes('value="2026-08-12"')) {
+  fail("the announced release date is not filled into its row's date field.");
+}
+const datePills = (speciesHost.innerHTML.match(/released by date/g) ?? []).length;
+if (datePills !== 1) {
+  fail(`rendered ${datePills} 'released by date' pills, want exactly 1 (only the row whose day has passed).`);
+}
+
 // 4. Filters.
 const cases = [
   ["gen", "sd-gen-filter", "9", 2],
-  ["status released", "sd-status-filter", "released", 3],
-  ["status pending", "sd-status-filter", "pending", 2],
+  ["status released", "sd-status-filter", "released", 4],
+  ["status pending", "sd-status-filter", "pending", 3],
   ["status notingo", "sd-status-filter", "notingo", 1],
-  ["status overridden", "sd-status-filter", "overridden", 1],
+  ["status overridden", "sd-status-filter", "overridden", 3],
+  ["status dated", "sd-status-filter", "dated", 2],
 ];
 for (const [label, id, value, want] of cases) {
   getById("sd-gen-filter").value = "";
@@ -241,9 +270,12 @@ if (listenerCount !== before) {
 }
 
 // 7. Saving sends the right body and does not send in_go for a form.
+// The date field is read by class, so the stub answers that selector specifically.
+const rowQuery = (date) => (sel) => (sel === ".sd-date" ? { value: date } : makeEl("status"));
+
 const speciesRow = {
   dataset: { dex: "792", region: "" },
-  querySelector: () => makeEl("status"),
+  querySelector: rowQuery("2026-08-12"),
   querySelectorAll: () => [
     { dataset: { field: "in_go" }, checked: true, type: "checkbox" },
     { dataset: { field: "shiny_released" }, checked: true, type: "checkbox" },
@@ -258,16 +290,36 @@ if (sent[0].method !== "PUT" || !sent[0].url.endsWith("/api/admin/shiny-dex/792"
 if (sent[0].body.shiny_released !== true || sent[0].body.in_go !== true || sent[0].body.region !== "") {
   fail(`species save body is wrong: ${JSON.stringify(sent[0].body)}`);
 }
+if (sent[0].body.release_date !== "2026-08-12") {
+  fail(`species save sent release_date ${JSON.stringify(sent[0].body.release_date)}, want "2026-08-12".`);
+}
+
+// Clearing the field must send an empty string, not omit the key: the API reads an ABSENT date as
+// "leave the stored one alone", so omitting it would make a date impossible to remove.
+const clearedRow = {
+  dataset: { dex: "792", region: "" },
+  querySelector: rowQuery(""),
+  querySelectorAll: () => [
+    { dataset: { field: "in_go" }, checked: true, type: "checkbox" },
+    { dataset: { field: "shiny_released" }, checked: false, type: "checkbox" },
+  ],
+};
+sent.length = 0;
+await api.save(clearedRow);
+if (!("release_date" in sent[0].body) || sent[0].body.release_date !== "") {
+  fail(`clearing the date sent ${JSON.stringify(sent[0].body)}, want release_date: "" so the date is removed.`);
+}
 
 const formRow = {
   dataset: { dex: "570", region: "hisuian" },
-  querySelector: () => makeEl("status"),
+  querySelector: rowQuery("2026-09-01"),
   querySelectorAll: () => [{ dataset: { field: "shiny_released" }, checked: true, type: "checkbox" }],
 };
 sent.length = 0;
 await api.save(formRow);
 if (sent[0].body.region !== "hisuian") fail("form save did not carry its region.");
 if ("in_go" in sent[0].body) fail("form save sent in_go, which the API rejects: a form has no in_go of its own.");
+if (sent[0].body.release_date !== "2026-09-01") fail("form save dropped its release date.");
 
 // 8. The render cap holds, so clearing the filters cannot build the entire National Dex.
 const many = [];
@@ -287,8 +339,10 @@ if (!speciesHost.innerHTML.includes("of 1025")) {
 
 console.log(
   `admin Shiny Dex: ${PAYLOAD.species.length} species and ${PAYLOAD.regional.length} forms render with their ` +
-  "flags, provenance and Reset buttons; search, generation and status filters all narrow correctly; " +
-  "Scatterbug and Spewpa stay out of the form table; saving sends the right body and omits in_go for a " +
-  `form; listeners are delegated so re-rendering attaches none; and 1025 species render capped at ${RENDER_CAP} ` +
-  "with the remainder declared rather than silently dropped.",
+  "flags, provenance, release date fields and Reset buttons; an announced date fills its field and only a " +
+  "date that has already passed draws the 'released by date' pill; search, generation and status filters " +
+  "(including the new dated one) all narrow correctly; Scatterbug and Spewpa stay out of the form table; " +
+  "saving sends the right body, carries the date, sends an empty string when it is cleared, and omits " +
+  `in_go for a form; listeners are delegated so re-rendering attaches none; and 1025 species render capped ` +
+  `at ${RENDER_CAP} with the remainder declared rather than silently dropped.`,
 );

@@ -124,8 +124,15 @@ func (s *Store) refreshEventDetails(feed json.RawMessage) {
 // scrapeEventPage fetches one LeekDuck event page and returns the sanitized
 // HTML of its main content block.
 func (s *Store) scrapeEventPage(pageURL string) (string, error) {
+	// HasSuffix alone was not a domain check: "evilleekduck.com" ends in
+	// "leekduck.com" and sailed straight through it. The host must either BE the
+	// domain or be a subdomain of it, which means matching on the dot.
 	u, err := url.Parse(pageURL)
-	if err != nil || u.Scheme != "https" || !strings.HasSuffix(u.Host, "leekduck.com") {
+	host := ""
+	if u != nil {
+		host = strings.ToLower(u.Hostname())
+	}
+	if err != nil || u.Scheme != "https" || (host != "leekduck.com" && !strings.HasSuffix(host, ".leekduck.com")) {
 		return "", fmt.Errorf("refusing non-leekduck link %q", pageURL)
 	}
 

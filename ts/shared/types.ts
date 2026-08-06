@@ -57,6 +57,10 @@ export interface ShinyDexEntry {
   name: string;
   in_go: boolean;
   shiny_released: boolean;
+  // The announced release day, "YYYY-MM-DD". Present only while the shiny is
+  // still locked: once the day arrives the server flips shiny_released and drops
+  // the date, so a catchable card never carries one.
+  shiny_release_date?: string;
 }
 
 export type TypeChart = Record<string, Record<string, number>>;
@@ -87,6 +91,10 @@ export interface GameData {
   // consumer must degrade to shinies alone rather than render an empty page.
   shinyDex?: Record<string, ShinyDexEntry> | null;
   regionalShinyOverrides?: Record<string, Record<string, boolean>> | null;
+  // Announced release days for regional and alternate forms, species name ->
+  // region tag -> "YYYY-MM-DD". A separate blob so the map above keeps the plain
+  // boolean shape every consumer already reads.
+  regionalShinyDates?: Record<string, Record<string, string>> | null;
   shadowPokemon: string[] | null;
   typeChart: TypeChart | null;
   cpMultipliers: CPMultiplier[] | null;

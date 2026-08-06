@@ -39,6 +39,9 @@ const GAME_DATA = {
     792:  { id: 792,  name: "Lunala",    in_go: true,  shiny_released: false },
     1007: { id: 1007, name: "Koraidon",  in_go: false, shiny_released: false },
     890:  { id: 890,  name: "Eternatus", in_go: true,  shiny_released: false },
+    // Announced but not shipped. Unlike Lunala this one is visible WITHOUT the toggle, because an
+    // announced date is the one thing on the unreleased side of the dex a trainer wants unprompted.
+    827:  { id: 827,  name: "Nickit",    in_go: true,  shiny_released: false, shiny_release_date: "2026-08-12" },
   },
 };
 
@@ -136,6 +139,7 @@ globalThis.SH = strings({
   badgeNotInGo: "n/a",
   tipShinyUnreleased: "Shiny not released in Pokemon GO yet",
   tipNotInGo: "Not available in Pokemon GO",
+  tipShinyDated: "Shiny releases on {date}",
 });
 globalThis.SITE_LANG = "en";
 globalThis.COSTUME_LABELS = null;
@@ -227,15 +231,30 @@ try {
     process.exit(0);
   }
 
-  // 1. Default view: released species only, PLUS the caught unreleased one.
+  // 1. Default view: released species, PLUS the caught unreleased one, PLUS the dated one.
   let cards = cardsNow();
   let names = cards.map((c) => c.name).sort();
-  if (names.join(",") !== "Bulbasaur,Eternatus,Futuremon,Solgaleo") {
-    fail(`the default All tab shows [${names.join(", ")}], want Bulbasaur, Eternatus, Futuremon and Solgaleo only ` +
-      "(released species plus the one already caught).");
+  if (names.join(",") !== "Bulbasaur,Eternatus,Futuremon,Nickit,Solgaleo") {
+    fail(`the default All tab shows [${names.join(", ")}], want Bulbasaur, Eternatus, Futuremon, Nickit and ` +
+      "Solgaleo only (released species, plus the one already caught, plus the one with an announced date).");
   }
   if (cards.find((c) => c.name === "Lunala") || cards.find((c) => c.name === "Koraidon")) {
-    fail("an unreleased species is visible by default.");
+    fail("an unreleased species with no announced date is visible by default.");
+  }
+
+  // 1b. The dated card is visible, but it is still unreleased: greyed, inert, and badged with the
+  //     date rather than "soon". Visible does NOT mean recordable.
+  const nickit = cards.find((c) => c.name === "Nickit");
+  if (!nickit.locked) fail("the dated species is not greyed; an announced shiny still cannot be caught.");
+  if (nickit.clickable) fail("the dated species is clickable, so a shiny that does not exist yet can be recorded.");
+  // Day and month order follows the trainer's locale, so the assertion is on content, not on order:
+  // what must never happen is the badge landing a day early, which is what a local-time read of a
+  // UTC calendar day does for everyone west of Greenwich.
+  if (!/\bAug\b/.test(nickit.badge) || !/\b12\b/.test(nickit.badge)) {
+    fail(`the dated species shows badge ${JSON.stringify(nickit.badge)}, want the announced day short, "12" and "Aug".`);
+  }
+  if (!/\bAugust\b/.test(nickit.title) || !/\b12\b/.test(nickit.title) || !/2026/.test(nickit.title)) {
+    fail(`the dated species shows tooltip ${JSON.stringify(nickit.title)}, want the full announced date in it.`);
   }
 
   // 2. The caught unreleased species is NOT greyed and IS clickable. This is the data-loss guard.
@@ -258,8 +277,8 @@ try {
 
   cards = cardsNow();
   names = cards.map((c) => c.name).sort();
-  if (names.join(",") !== "Bulbasaur,Eternatus,Futuremon,Koraidon,Lunala,Solgaleo") {
-    fail(`with the toggle on the All tab shows [${names.join(", ")}], want all five species.`);
+  if (names.join(",") !== "Bulbasaur,Eternatus,Futuremon,Koraidon,Lunala,Nickit,Solgaleo") {
+    fail(`with the toggle on the All tab shows [${names.join(", ")}], want every species.`);
   }
   for (const [name, wantBadge, wantTip] of [
     ["Lunala", "soon", "Shiny not released in Pokemon GO yet"],
@@ -274,10 +293,10 @@ try {
   // Released species must not have been dragged into the locked state.
   if (cards.find((c) => c.name === "Solgaleo").locked) fail("Solgaleo is greyed; its shiny is released.");
 
-  // 5. Unticking hides them again.
+  // 5. Unticking hides them again, except the dated one, which was never behind the toggle.
   toggle.checked = false;
   toggle.fire("change");
-  if (cardsNow().length !== 4) fail("unticking the toggle did not hide the unreleased species again.");
+  if (cardsNow().length !== 5) fail("unticking the toggle did not hide the undated unreleased species again.");
 
   // 6. The Missing tab excludes unreleased species: it is a to-do list, not a wish list.
   const tabs = getById("sc-tabs");
@@ -286,15 +305,17 @@ try {
   (tabs._on?.click ?? []).forEach((f) => f({ target: { closest: () => missingBtn } }));
   const missing = cardsNow().map((c) => c.name).sort();
   if (missing.join(",") !== "Bulbasaur,Futuremon,Solgaleo") {
-    fail(`the Missing tab shows [${missing.join(", ")}], want the two uncaught RELEASED species only.`);
+    fail(`the Missing tab shows [${missing.join(", ")}], want the uncaught RELEASED species only. ` +
+      "A dated shiny is visible on All but is not something anyone can go and catch, so it is not a to-do.");
   }
 
   console.log(
     "shiny dex filter: the All tab shows released species plus anything already caught (an unreleased " +
-    "Eternatus the trainer owns stays visible, ticked and clickable); ticking Show unreleased reveals " +
-    "Lunala greyed with a 'soon' badge and Koraidon greyed as not in the game, both inert with no click " +
-    "handler; unticking hides them again; the Missing tab lists only uncaught released species; and the " +
-    "search placeholder count matches the grid.",
+    "Eternatus the trainer owns stays visible, ticked and clickable) plus anything with an announced " +
+    "release date (Nickit, greyed and inert, badged with the announced day and the full date on hover); ticking Show " +
+    "unreleased reveals Lunala greyed with a 'soon' badge and Koraidon greyed as not in the game, both " +
+    "inert with no click handler; unticking hides those two again but keeps the dated one; the Missing " +
+    "tab lists only uncaught released species; and the search placeholder count matches the grid.",
   );
 
   // 7. The fallback, in a fresh process so init() runs again from scratch.

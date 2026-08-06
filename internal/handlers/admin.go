@@ -416,6 +416,66 @@ func (h *Handlers) AdminToggleDirectoryHide(w http.ResponseWriter, r *http.Reque
 	w.Write([]byte(`{"ok":true}`))
 }
 
+// staffRank orders privilege levels so that an account-altering action can require
+// the caller to strictly outrank their target. The superadmin sits above every
+// stored role, because that privilege comes from the SUPERADMIN_USER env var and
+// not from the users.role column.
+func staffRank(username, role string) int {
+	if auth.SuperadminUser != "" && username == auth.SuperadminUser {
+		return 3
+	}
+	switch role {
+	case "admin":
+		return 2
+	case "moderator":
+		return 1
+	}
+	return 0
+}
+
+// confirmMatchesUsername reports whether a typed confirmation names the target
+// account exactly. The match is deliberately not case insensitive and not
+// fuzzy: the panel prints the username directly above the box, so a caller who
+// cannot reproduce it is a caller who has the wrong account in front of them.
+func confirmMatchesUsername(typed, targetUsername string) bool {
+	typed = strings.TrimSpace(typed)
+	return typed != "" && typed == targetUsername
+}
+
+// mayActOn reports whether the caller may take an account-altering action against
+// the given target, writing the refusal itself when they may not.
+//
+// Every such handler must funnel through this. Before it existed, RequireMod was
+// the only gate on password reset, disable, rename and strikes, so a moderator
+// could reset an administrator's password and simply log in as them, or disable
+// every admin at once (disabling also drops the target's sessions). Only the
+// superadmin was ever checked for, and only by username.
+//
+// The rule is strict: equal rank is refused, so staff cannot act on their peers
+// laterally either. The superadmin outranks everyone and is never locked out.
+func (h *Handlers) mayActOn(w http.ResponseWriter, r *http.Request, targetUsername, targetRole string) bool {
+	caller := h.currentUser(r)
+	if caller == nil {
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusUnauthorized)
+		return false
+	}
+	if staffRank(caller.Username, caller.Role) <= staffRank(targetUsername, targetRole) {
+		writeJSONError(w, h.t(r, "error.adm_staff_target"), http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// targetUser loads the username and role a staff check needs, writing the 404
+// itself when the id does not resolve.
+func (h *Handlers) targetUser(w http.ResponseWriter, r *http.Request, id uint64) (username, role string, ok bool) {
+	if err := h.db.QueryRow(`SELECT username, role FROM users WHERE id = ?`, id).Scan(&username, &role); err != nil {
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+		return "", "", false
+	}
+	return username, role, true
+}
+
 func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -435,21 +495,19 @@ func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Authorize before hashing: bcrypt at cost 13 is deliberately expensive, so a
+	// refused caller should not get to spend it.
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.NewPassword), bcryptCost)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.server"), http.StatusInternalServerError)
-		return
-	}
-
-	caller := h.currentUser(r)
-
-	var targetUsername string
-	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
-		return
-	}
-	if targetUsername == auth.SuperadminUser && !caller.IsSuperAdmin() {
-		writeJSONError(w, h.t(r, "error.adm_reset_superadmin"), http.StatusForbidden)
 		return
 	}
 
@@ -461,6 +519,13 @@ func (h *Handlers) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	if n, _ := result.RowsAffected(); n == 0 {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
+	}
+
+	// An admin reset is the "this account is compromised" lever, so it has to evict
+	// the intruder too. The self-serve reset and the disable path both already do
+	// this; this one did not, and left every existing session alive.
+	if _, err := h.db.Exec(`DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+		log.Printf("admin reset password: clear sessions for user %d: %v", id, err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -494,15 +559,11 @@ func (h *Handlers) AdminChangeUsername(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	caller := h.currentUser(r)
-
-	var currentUsername string
-	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&currentUsername); err != nil {
-		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+	currentUsername, currentRole, ok := h.targetUser(w, r, id)
+	if !ok {
 		return
 	}
-	if currentUsername == auth.SuperadminUser && !caller.IsSuperAdmin() {
-		writeJSONError(w, h.t(r, "error.adm_rename_superadmin"), http.StatusForbidden)
+	if !h.mayActOn(w, r, currentUsername, currentRole) {
 		return
 	}
 
@@ -544,13 +605,11 @@ func (h *Handlers) AdminToggleDisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var targetUsername string
-	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
 		return
 	}
-	if targetUsername == auth.SuperadminUser {
-		writeJSONError(w, h.t(r, "error.adm_disable_superadmin"), http.StatusForbidden)
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
 		return
 	}
 
@@ -705,9 +764,11 @@ func (h *Handlers) AdminStrikesAdd(w http.ResponseWriter, r *http.Request) {
 	if len(body.Reason) > 255 {
 		body.Reason = body.Reason[:255]
 	}
-	var targetExists bool
-	if err := h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)`, id).Scan(&targetExists); err != nil || !targetExists {
-		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
 		return
 	}
 	result, err := h.db.Exec(
@@ -729,6 +790,21 @@ func (h *Handlers) AdminStrikesDelete(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
+	// The route only carries the strike id, so resolve the user it belongs to before
+	// deciding: clearing a strike is as much a staff action as issuing one.
+	var strikeUsername, strikeRole string
+	err = h.db.QueryRow(
+		`SELECT u.username, u.role FROM user_strikes s JOIN users u ON u.id = s.user_id WHERE s.id = ?`,
+		strikeID,
+	).Scan(&strikeUsername, &strikeRole)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
+		return
+	}
+	if !h.mayActOn(w, r, strikeUsername, strikeRole) {
+		return
+	}
+
 	result, err := h.db.Exec(`DELETE FROM user_strikes WHERE id = ?`, strikeID)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
@@ -1106,6 +1182,140 @@ func (h *Handlers) AdminRefreshActivity(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+// AdminDeleteUser permanently removes an account and everything tied to it.
+// Superadmin only, and irreversible: there is no tombstone row and nothing is
+// archived, which is why the caller has to retype the target's username.
+//
+// Most of the work is already done by the schema. Of the columns pointing at
+// users.id, all but two carry a foreign key that either cascades or nulls. The
+// statements below cover what the database cannot clean up on its own, and every
+// one of them must run before the DELETE, while the rows they join against still
+// exist. Sessions need no handling: fk_session_user cascades, so the account is
+// logged out everywhere by the delete itself.
+func (h *Handlers) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	// The route is already wrapped in RequireSuperAdmin. Repeated here so the
+	// handler cannot be re-mounted behind a weaker gate by accident.
+	actor := h.currentUser(r)
+	if actor == nil || !actor.IsSuperAdmin() {
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
+		return
+	}
+
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		ConfirmUsername string `json:"confirm_username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
+
+	if uint64(actor.ID) == id {
+		writeJSONError(w, h.t(r, "error.adm_delete_self"), http.StatusForbidden)
+		return
+	}
+
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
+		return
+	}
+	// Compared against the username just loaded from the database, never against
+	// anything the browser supplied, so a stale panel cannot delete a recycled id.
+	if !confirmMatchesUsername(body.ConfirmUsername, targetUsername) {
+		writeJSONError(w, h.t(r, "error.adm_delete_confirm_mismatch"), http.StatusBadRequest)
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		log.Printf("admin delete user %d: begin: %v", id, err)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	cleanup := []struct {
+		what string
+		stmt string
+	}{
+		// Neither column has a foreign key behind it, so nothing nulls them for us
+		// and they would be left pointing at an id that no longer exists.
+		{"custom_tag_requests.reviewed_by",
+			`UPDATE custom_tag_requests SET reviewed_by = NULL WHERE reviewed_by = ?`},
+		{"bug_report_participants.added_by",
+			`UPDATE bug_report_participants SET added_by = NULL WHERE added_by = ?`},
+
+		// reporter_id is ON DELETE SET NULL, but reporter_email is a plain string
+		// and would outlive the account whose address it is.
+		{"bug_reports.reporter_email",
+			`UPDATE bug_reports SET reporter_email = NULL WHERE reporter_id = ?`},
+
+		// trust_events.lobby_id has no foreign key to raid_lobbies, so deleting a
+		// host strands other trainers' events. Null the dead reference rather than
+		// delete the row: users.trust_score is a stored running sum of
+		// applied_delta, so removing those rows would silently desync scores that
+		// belong to trainers who are still here. uk_te_vote tolerates the NULL.
+		{"trust_events.lobby_id",
+			`UPDATE trust_events te JOIN raid_lobbies l ON l.id = te.lobby_id
+			    SET te.lobby_id = NULL
+			  WHERE l.host_id = ?`},
+
+		// raid_ratings.post_id has no foreign key to raid_posts and is NOT NULL, so
+		// unlike the events above these rows cannot be kept once the host's posts
+		// cascade away. Nothing caches them: AdminClearRatings deletes the same
+		// rows with no recompute afterwards.
+		{"raid_ratings orphaned by raid_posts",
+			`DELETE r FROM raid_ratings r
+			   JOIN raid_posts p ON p.id = r.post_id
+			  WHERE p.user_id = ?`},
+	}
+	for _, c := range cleanup {
+		if _, err := tx.Exec(c.stmt, id); err != nil {
+			log.Printf("admin delete user %d: cleanup %s: %v", id, c.what, err)
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Matched on the username as well as the id so the confirmation is atomic with
+	// the delete. Without it there is a window, however small, in which the account
+	// is renamed or deleted and recreated between the lookup above and this line,
+	// and the typed confirmation would then have approved a different account.
+	res, err := tx.Exec(`DELETE FROM users WHERE id = ? AND username = ?`, id, targetUsername)
+	if err != nil {
+		log.Printf("admin delete user %d: %v", id, err)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// The account changed underneath us. The deferred rollback undoes the
+		// cleanup statements above, so nothing is left half done.
+		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("admin delete user %d: commit: %v", id, err)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+
+	// There is no audit table in this app, so the service log is the only lasting
+	// record that this happened.
+	log.Printf("admin: superadmin %q permanently deleted user %d (%q, role %q)",
+		actor.Username, id, targetUsername, targetRole)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
 }

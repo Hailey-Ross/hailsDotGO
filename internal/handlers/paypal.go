@@ -18,6 +18,11 @@ var ppToken struct {
 	mu        sync.Mutex
 }
 
+// Bounded, unlike http.DefaultClient. paypalAuth holds ppToken.mu across its
+// request, so an unbounded call there does not just hang one request, it blocks
+// every other purchase in the process behind the mutex until PayPal answers.
+var paypalHTTP = &http.Client{Timeout: 20 * time.Second}
+
 func paypalBase() string {
 	if os.Getenv("PAYPAL_MODE") == "live" {
 		return "https://api-m.paypal.com"
@@ -47,7 +52,7 @@ func paypalAuth() (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(clientID+":"+secret)))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := paypalHTTP.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +103,7 @@ func createPayPalOrder(amountCents int, itemName, returnURL, cancelURL string) (
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := paypalHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +139,7 @@ func verifyPayPalWebhook(headers http.Header, body []byte) bool {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := paypalHTTP.Do(req)
 	if err != nil {
 		return false
 	}
@@ -158,7 +163,7 @@ func capturePayPalOrder(orderID string) (*ppOrderResult, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := paypalHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -329,6 +329,22 @@ export function isRegionalShiny(species: string, f: RegionalForm): boolean {
   return regionalShinyOverrides[overrideSource(species)]?.[f.region] ?? f.shiny;
 }
 
+// Announced release days for the forms, from gameData.regionalShinyDates. Kept
+// beside the flags rather than folded into them so the override map above keeps
+// the boolean shape every other consumer reads.
+let regionalShinyDates: Record<string, Record<string, string>> = {};
+
+export function setRegionalShinyDates(m: Record<string, Record<string, string>> | null | undefined): void {
+  regionalShinyDates = m ?? {};
+}
+
+// "YYYY-MM-DD" for a form whose shiny has been announced but not shipped, or ""
+// when there is no date. Follows the same Scatterbug/Spewpa indirection as the
+// flag, so a pattern's date is Vivillon's date.
+export function regionalShinyDate(species: string, f: RegionalForm): string {
+  return regionalShinyDates[overrideSource(species)]?.[f.region] ?? "";
+}
+
 // Regional forms that get their own checklist card: shiny released, and not
 // carry-only. Scatterbug and Spewpa patterns are excluded here so they stay a
 // single card each.

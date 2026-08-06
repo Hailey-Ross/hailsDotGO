@@ -924,6 +924,21 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check the declared dimensions before decoding. The 8 MB cap above is on the
+	// COMPRESSED bytes, and PNG happily compresses a solid 30000x30000 image into
+	// about a kilobyte; image.Decode would then allocate 3.6 GB of pixel buffer and
+	// take the process down. DecodeConfig reads only the header.
+	const maxPixels = 40 << 20 // 40 MP, roughly 4x the largest phone screenshot
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
+	if err != nil {
+		writeJSONError(w, "could not decode image", http.StatusBadRequest)
+		return
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > maxPixels {
+		writeJSONError(w, "image dimensions too large", http.StatusBadRequest)
+		return
+	}
+
 	img, _, err := image.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
 		writeJSONError(w, "could not decode image", http.StatusBadRequest)

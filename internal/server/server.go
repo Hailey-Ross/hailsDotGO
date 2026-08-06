@@ -3,8 +3,10 @@ package server
 import (
 	"database/sql"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,7 +31,18 @@ func securityHeaders(next http.Handler) http.Handler {
 		// SAMEORIGIN (not DENY) so the translator preview iframe can embed
 		// site pages; foreign-origin framing stays blocked.
 		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
-		w.Header().Set("Content-Security-Policy", "frame-ancestors 'self'")
+		// The policy was frame-ancestors and nothing else, which only restated the
+		// X-Frame-Options line above it. These three directives are the ones that pay
+		// their way without a script-src, which cannot be added while the templates
+		// carry inline <script> blocks:
+		//
+		//   base-uri     stops an injected <base href> silently re-pointing every
+		//                relative URL on the page, which was one of the ways the
+		//                16-byte trainer name could be turned into an attack.
+		//   form-action  stops an injected form posting credentials off-site.
+		//   object-src   kills <object>/<embed> plugin content outright.
+		w.Header().Set("Content-Security-Policy",
+			"frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -37,9 +50,167 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// trustedClientIP resolves the real client address, or "" when no forwarding header
+// can be trusted and the socket address should stand as it is.
+//
+// The rules below were confirmed by capturing what Caddy actually forwards to :8080
+// on the live host (Caddy v2.11.4, reverse_proxy localhost:8080), not read off the
+// repo Caddyfile, which is stale and does not even name the current hostname.
+//
+// What the capture showed:
+//
+//   - X-Forwarded-For arrives with exactly ONE entry, the peer as Caddy resolved it.
+//     A request sent with a forged "X-Forwarded-For: 1.2.3.4" reached the app as
+//     "X-Forwarded-For: 127.0.0.1": Caddy REPLACES the header rather than appending
+//     to it, so client-supplied entries never survive.
+//   - Cf-Connecting-Ip and X-Real-Ip are passed through VERBATIM. Both arrived at the
+//     app exactly as forged. Neither may ever be trusted, and nothing here reads them.
+//
+// That second point is why chi's middleware.RealIP is deliberately not used: it reads
+// X-Real-IP first of all and trusts it unconditionally, so dropping it in would have
+// let any client pick its own rate-limit key, and pin that key to a stranger's
+// address to get that person blocked instead.
+//
+// Two rules make this safe. Forwarding headers are honoured only when the request
+// arrived from a loopback peer, which is where Caddy sits, so anything reaching the
+// app port directly is keyed on its own socket address with its headers ignored. And
+// the LAST X-Forwarded-For entry is taken: today that is the only entry, and it stays
+// correct if a proxy hop is ever added in front, where earlier entries would be the
+// client-supplied ones.
+//
+// If Caddy sends no X-Forwarded-For at all, this returns "" and the behaviour falls
+// back to the socket address, so the failure mode is the status quo, not a bypass.
+func trustedClientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	peer := net.ParseIP(strings.TrimSpace(host))
+	if peer == nil || !peer.IsLoopback() {
+		return ""
+	}
+	fwd := r.Header.Get("X-Forwarded-For")
+	if fwd == "" {
+		return ""
+	}
+	parts := strings.Split(fwd, ",")
+	last := strings.TrimSpace(parts[len(parts)-1])
+	if net.ParseIP(last) == nil {
+		return ""
+	}
+	return last
+}
+
+// realIP rewrites RemoteAddr to the resolved client address so that everything
+// downstream, httprate, the bandwidth limiter and the request log alike, keys on
+// one consistent and trustworthy value.
+//
+// Without this every httprate.LimitByIP in the app keyed on 127.0.0.1, because
+// httprate.KeyByIP reads RemoteAddr and Caddy is the peer. All 27 limiters shared a
+// single global bucket, so three requests a minute to /forgot-password denied
+// password resets to every user on the site.
+func realIP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ip := trustedClientIP(r); ip != "" {
+			r.RemoteAddr = net.JoinHostPort(ip, "0")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// defaultMaxBody caps a request body when nothing more specific applies.
+//
+// Almost every JSON handler in the app decoded straight from r.Body with no bound
+// at all: 58 of 62 of them, reachable before authentication via
+// POST /api/mobile/v1/auth/login. One slow client streaming an endless body held a
+// connection and a decoder buffer for as long as it liked, and SavePokemonIV wrote
+// an unbounded json.RawMessage into a MySQL JSON column.
+//
+// 1 MB was picked by measuring rather than guessing. The largest user-authored text
+// in production is a 134 byte bug report message; translation edits are capped at
+// 2000 characters by the handler; no request struct in the app decodes a large
+// array. 1 MB leaves three orders of magnitude of headroom over anything real.
+const defaultMaxBody = 1 << 20
+
+// bodyLimits raises the cap for the endpoints that genuinely need more. Keyed on
+// the exact request path.
+var bodyLimits = map[string]int64{
+	// Screenshot upload. The handler applies the same 8 MB itself; this keeps the
+	// outer wrapper from being the tighter of the two.
+	"/api/iv/ocr":           8 << 20,
+	"/api/mobile/v1/iv/ocr": 8 << 20,
+
+	// A saved Pokemon carries its iv_candidates list. An ambiguous appraisal (no
+	// dust, wide level range) can enumerate several thousand candidates at roughly
+	// 85 bytes each, so this one is legitimately larger than the rest.
+	"/api/iv/pokemon":           2 << 20,
+	"/api/mobile/v1/iv/pokemon": 2 << 20,
+}
+
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body == nil || r.Method == http.MethodGet || r.Method == http.MethodHead {
+			next.ServeHTTP(w, r)
+			return
+		}
+		limit := int64(defaultMaxBody)
+		if n, ok := bodyLimits[r.URL.Path]; ok {
+			limit = n
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// sensitiveQueryKeys are query parameters that are credentials in their own right.
+// Anyone holding one can complete the action it belongs to.
+var sensitiveQueryKeys = []string{"token", "invite"}
+
+// redactingLogFormatter is chi's request logger with those parameters masked.
+//
+// GET /reset-password, GET /verify-email and the invite links all carry their
+// single-use token in the query string, and the default formatter writes
+// r.RequestURI verbatim. That put every live password reset token into the systemd
+// journal, which is readable by more people than the mailbox the link was sent to
+// and is retained long after the token itself expires.
+type redactingLogFormatter struct {
+	inner middleware.LogFormatter
+}
+
+func (f *redactingLogFormatter) NewLogEntry(r *http.Request) middleware.LogEntry {
+	if r.URL == nil || r.URL.RawQuery == "" {
+		return f.inner.NewLogEntry(r)
+	}
+	q := r.URL.Query()
+	found := false
+	for _, key := range sensitiveQueryKeys {
+		if q.Has(key) {
+			q.Set(key, "REDACTED")
+			found = true
+		}
+	}
+	if !found {
+		return f.inner.NewLogEntry(r)
+	}
+	// Shallow copy with its own URL: the formatter only reads, and this copy is
+	// never passed downstream, so handlers still see the real token.
+	scrubbed := *r
+	u := *r.URL
+	u.RawQuery = q.Encode()
+	scrubbed.URL = &u
+	scrubbed.RequestURI = u.RequestURI()
+	return f.inner.NewLogEntry(&scrubbed)
+}
+
 func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	// First in the stack: every limiter and the request log below read RemoteAddr,
+	// so it has to be resolved before any of them see it.
+	r.Use(realIP)
+	r.Use(limitBody)
+	r.Use(middleware.RequestLogger(&redactingLogFormatter{
+		inner: &middleware.DefaultLogFormatter{Logger: log.New(os.Stdout, "", log.LstdFlags)},
+	}))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
 	r.Use(securityHeaders)
@@ -68,7 +239,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// Mobile API -- outside CSRF group (Bearer tokens are not CSRF-vulnerable).
 	// Login is public and rate-limited; everything else requires Bearer or cookie auth.
 	r.Route("/api/mobile/v1", func(r chi.Router) {
-		r.With(httprate.LimitByIP(5, time.Minute)).Post("/auth/login", h.MobileLogin)
+		r.With(httprate.LimitByIP(15, time.Minute)).Post("/auth/login", h.MobileLogin)
 
 		// Public game data aliases with stable versioned URLs for mobile clients.
 		// Rate-limited to match the legacy web API (server.go ~line 305).
@@ -146,15 +317,21 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		})
 
 		r.Get("/login", h.LoginPage)
-		r.With(httprate.LimitByIP(10, time.Minute)).Post("/login", h.Login)
+		// These numbers only started meaning anything once realIP made the key the
+		// actual client. Until then every one of them shared a single 127.0.0.1 bucket,
+		// so they were tuned for a world where they effectively never fired. They are
+		// raised here to absorb shared addresses (a household, a campus, or carrier
+		// grade NAT can put many genuine users behind one IP) while still being far
+		// below what a brute force run needs.
+		r.With(httprate.LimitByIP(15, time.Minute)).Post("/login", h.Login)
 		r.Get("/register", h.RegisterPage)
-		r.With(httprate.LimitByIP(5, time.Minute)).Post("/register", h.Register)
+		r.With(httprate.LimitByIP(10, time.Minute)).Post("/register", h.Register)
 		r.Get("/forgot-password", h.ForgotPasswordPage)
-		r.With(httprate.LimitByIP(3, time.Minute)).Post("/forgot-password", h.ForgotPassword)
+		r.With(httprate.LimitByIP(8, time.Minute)).Post("/forgot-password", h.ForgotPassword)
 		r.Get("/reset-password", h.ResetPasswordPage)
-		r.With(httprate.LimitByIP(5, time.Minute)).Post("/reset-password", h.ResetPassword)
+		r.With(httprate.LimitByIP(10, time.Minute)).Post("/reset-password", h.ResetPassword)
 		r.Get("/verify-email", h.VerifyEmail)
-		r.With(httprate.LimitByIP(2, time.Minute)).Post("/resend-verification", h.RequireAuth(h.ResendVerification))
+		r.With(httprate.LimitByIP(5, time.Minute)).Post("/resend-verification", h.RequireAuth(h.ResendVerification))
 		r.Post("/logout", h.Logout)
 		r.Post("/lang", h.SetLang)
 
@@ -224,6 +401,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/admin/users/{id}/username", h.RequireMod(h.AdminChangeUsername))
 		r.Post("/admin/users/{id}/disable", h.RequireMod(h.AdminToggleDisable))
 		r.Post("/admin/users/{id}/role", h.RequireAdmin(h.AdminChangeRole))
+		// Permanent account deletion. Superadmin only and irreversible, so it is
+		// rate limited as a brake on a scripted rampage with a stolen session.
+		// 10 per 5 minutes leaves room for a real spam cleanup, which is the
+		// reason this route exists, while still making mass deletion slow.
+		r.With(httprate.LimitByIP(10, 5*time.Minute)).
+			Post("/admin/users/{id}/delete", h.RequireSuperAdmin(h.AdminDeleteUser))
 		r.Post("/admin/users/{id}/api-access", h.RequireSuperAdmin(h.AdminToggleAPIAccess))
 		r.Post("/admin/users/{id}/translator", h.RequireSuperAdmin(h.AdminToggleTranslator))
 		r.Post("/admin/refresh-data", h.RequireSuperAdmin(h.AdminRefreshData))
@@ -365,7 +548,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
 
-		r.Post("/api/iv/calculate", h.IVCalculate)
+		// Unauthenticated and the most CPU-expensive endpoint in the app: it
+		// re-unmarshals the master species blob per request and the solver runs up to
+		// roughly 400k iterations. It had no limit at all. 30/min leaves ordinary
+		// interactive use untouched (a user checks one Pokemon at a time) while
+		// bounding what a single address can burn.
+		r.With(httprate.LimitByIP(30, time.Minute)).Post("/api/iv/calculate", h.IVCalculate)
 		r.With(httprate.LimitByIP(10, time.Minute)).Post("/api/iv/ocr", h.RequireAuthAPI(h.IVFromOCR))
 		r.Get("/api/iv/pokemon", h.RequireAuthAPI(h.ListPokemonIV))
 		r.Post("/api/iv/pokemon", h.RequireAuthAPI(h.SavePokemonIV))

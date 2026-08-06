@@ -14,10 +14,12 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"pogo.hails.cc/internal/pogodata"
@@ -29,6 +31,7 @@ type shinyOverrideRow struct {
 	Region        string
 	InGo          *bool
 	ShinyReleased *bool
+	ReleaseDate   string
 	Note          string
 	UpdatedBy     string
 	UpdatedAt     string
@@ -36,8 +39,11 @@ type shinyOverrideRow struct {
 
 // loadShinyOverrides reads the whole override table. It is a few hundred rows at most.
 func (h *Handlers) loadShinyOverrides() ([]shinyOverrideRow, error) {
+	// Both dates are formatted in SQL and scanned as strings rather than parsed into time.Time. A
+	// release date is a calendar day, and giving it a clock would only invite a timezone bug.
 	rows, err := h.db.Query(`
-		SELECT o.dex, o.region, o.in_go, o.shiny_released, o.note,
+		SELECT o.dex, o.region, o.in_go, o.shiny_released,
+		       COALESCE(DATE_FORMAT(o.release_date, '%Y-%m-%d'), ''), o.note,
 		       COALESCE(u.username, ''), DATE_FORMAT(o.updated_at, '%Y-%m-%d')
 		  FROM shiny_dex_overrides o
 		  LEFT JOIN users u ON u.id = o.updated_by
@@ -52,7 +58,7 @@ func (h *Handlers) loadShinyOverrides() ([]shinyOverrideRow, error) {
 		var r shinyOverrideRow
 		// TINYINT(1) NULL scans cleanly into *bool via sql.NullBool.
 		var inGo, shiny sql.NullBool
-		if err := rows.Scan(&r.Dex, &r.Region, &inGo, &shiny, &r.Note, &r.UpdatedBy, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.Dex, &r.Region, &inGo, &shiny, &r.ReleaseDate, &r.Note, &r.UpdatedBy, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if inGo.Valid {
@@ -82,39 +88,35 @@ func (h *Handlers) reloadShinyOverrides() {
 	}
 
 	species := make([]pogodata.ShinyOverride, 0, len(rows))
-	// regional is species NAME -> region tag -> shiny_released, the shape the client overlays onto
-	// its compiled-in defaults.
-	regional := map[string]map[string]bool{}
+	regional := make([]pogodata.RegionalShinyOverride, 0, len(rows))
 	for _, r := range rows {
 		if r.Region == "" {
 			species = append(species, pogodata.ShinyOverride{
 				Dex: r.Dex, Region: "", InGo: r.InGo, ShinyReleased: r.ShinyReleased,
+				ReleaseDate: r.ReleaseDate,
 			})
 			continue
 		}
-		if r.ShinyReleased == nil {
-			continue // in_go is meaningless for a form; nothing to tell the client
+		// in_go is meaningless for a form, so a row with neither a flag nor a date has nothing to
+		// tell the client. Checking the date too is what keeps a date-only form row alive.
+		if r.ShinyReleased == nil && r.ReleaseDate == "" {
+			continue
 		}
+		// The override table is keyed by dex; the client keys its form table by species name, so
+		// the name has to be recovered before the row can reach it.
 		name := h.store.ShinyBaselineName(r.Dex)
 		if name == "" {
 			continue
 		}
-		if regional[name] == nil {
-			regional[name] = map[string]bool{}
-		}
-		regional[name][r.Region] = *r.ShinyReleased
+		regional = append(regional, pogodata.RegionalShinyOverride{
+			Species: name, Region: r.Region, ShinyReleased: r.ShinyReleased, ReleaseDate: r.ReleaseDate,
+		})
 	}
 
 	h.store.SetShinyOverrides(species)
-	if len(regional) == 0 {
-		h.store.SetRegionalShinyOverrides(nil)
-		return
-	}
-	if blob, err := json.Marshal(regional); err == nil {
-		h.store.SetRegionalShinyOverrides(blob)
-	} else {
-		log.Printf("reloadShinyOverrides: marshal regional: %v", err)
-	}
+	// Rows, not a finished blob: the store resolves a passed release date on its own clock, so a
+	// form's announced day arrives on the hourly tick rather than waiting for the next admin write.
+	h.store.SetRegionalShinyOverrides(regional)
 }
 
 // ---------------------------------------------------------------------- GET
@@ -134,6 +136,8 @@ type adminShinyRegionalOut struct {
 	ShinyReleased        bool   `json:"shiny_released"`
 	DefaultShinyReleased bool   `json:"default_shiny_released"`
 	Overridden           bool   `json:"overridden"`
+	ReleaseDate          string `json:"release_date,omitempty"`
+	ReleasedByDate       bool   `json:"released_by_date,omitempty"`
 	Note                 string `json:"note,omitempty"`
 	UpdatedBy            string `json:"updated_by,omitempty"`
 	UpdatedAt            string `json:"updated_at,omitempty"`
@@ -178,9 +182,19 @@ func (h *Handlers) AdminGetShinyDex(w http.ResponseWriter, r *http.Request) {
 			ShinyReleased:        def,
 			DefaultShinyReleased: def,
 		}
-		if o, ok := byKey[strconv.Itoa(dex)+"|"+f.Region]; ok && o.ShinyReleased != nil {
-			row.ShinyReleased = *o.ShinyReleased
-			row.Overridden = true
+		// A form has no baseline row, so the same precedence is applied here rather than in the
+		// store: explicit flag beats a passed date beats the compiled-in default.
+		if o, ok := byKey[strconv.Itoa(dex)+"|"+f.Region]; ok {
+			row.ReleaseDate = o.ReleaseDate
+			if pogodata.ShinyDateReached(o.ReleaseDate) {
+				row.ShinyReleased = true
+				row.ReleasedByDate = true
+			}
+			if o.ShinyReleased != nil {
+				row.ShinyReleased = *o.ShinyReleased
+				row.ReleasedByDate = row.ShinyReleased && row.ReleasedByDate
+			}
+			row.Overridden = o.ShinyReleased != nil || o.ReleaseDate != ""
 			row.Note, row.UpdatedBy, row.UpdatedAt = o.Note, o.UpdatedBy, o.UpdatedAt
 		}
 		regionalOut = append(regionalOut, row)
@@ -201,8 +215,36 @@ type shinyDexWriteInput struct {
 	ShinyReleased *bool  `json:"shiny_released"`
 	// A nil Note means "leave whatever is there alone". The row editor sends only the flags, and
 	// wiping the reason somebody recorded an override every time a checkbox moves would destroy
-	// the only record of intent the table has.
-	Note *string `json:"note"`
+	// the only record of intent the table has. ReleaseDate follows the same contract: nil leaves
+	// the stored date alone, "" clears it, "YYYY-MM-DD" sets it.
+	Note        *string `json:"note"`
+	ReleaseDate *string `json:"release_date"`
+}
+
+// shinyDateHorizon caps how far ahead a release date may be set. Niantic announces weeks out, not
+// years, so anything past this is a mistyped year rather than a plan, and catching it here beats
+// leaving it parked in the table until somebody notices a card that never unlocks.
+const shinyDateHorizon = 3 // years
+
+// parseShinyReleaseDate validates an announced release date. Empty means "no date", which is always
+// allowed. Mirrors parseCaughtAt in shinies.go: same layout, same UTC-midnight reading, same refusal
+// to accept a day before Pokemon GO existed.
+func parseShinyReleaseDate(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return "", errors.New("release date must look like 2026-08-12")
+	}
+	if t.Before(goLaunch) {
+		return "", errors.New("release date is before Pokemon GO launched")
+	}
+	if t.After(time.Now().UTC().AddDate(shinyDateHorizon, 0, 0)) {
+		return "", errors.New("release date is too far in the future")
+	}
+	return t.Format("2006-01-02"), nil
 }
 
 // applyShinyDexWrite validates one edit and either stores it or deletes the row when the result
@@ -239,7 +281,32 @@ func (h *Handlers) applyShinyDexWrite(userID uint, dex int, in shinyDexWriteInpu
 		defInGo = true
 	}
 
-	inGo, shiny := defInGo, defShiny
+	// Whatever the request did not mention keeps whatever is already stored. One read up front is
+	// what lets the write below be a single statement instead of one variant per tri-state field.
+	stored, err := h.shinyOverrideNoteAndDate(dex, region)
+	if err != nil {
+		return http.StatusInternalServerError, "could not read the existing override"
+	}
+	note := stored.note
+	if in.Note != nil {
+		note = *in.Note
+	}
+	date := stored.date
+	if in.ReleaseDate != nil {
+		parsed, err := parseShinyReleaseDate(*in.ReleaseDate)
+		if err != nil {
+			return http.StatusBadRequest, err.Error()
+		}
+		date = parsed
+	}
+
+	// dateShiny is what shiny_released resolves to with NO explicit flag: the default, turned on by
+	// an announced date that has arrived. Comparing against THIS rather than defShiny is what stops
+	// an automatic release from being frozen into the table as an explicit one the next time an
+	// admin edits anything else on the row.
+	dateShiny := defShiny || pogodata.ShinyDateReached(date)
+
+	inGo, shiny := defInGo, dateShiny
 	if in.InGo != nil {
 		inGo = *in.InGo
 	}
@@ -252,19 +319,25 @@ func (h *Handlers) applyShinyDexWrite(userID uint, dex int, in shinyDexWriteInpu
 
 	// Store only what actually differs, so a row is a minimal statement of intent and a corrected
 	// baseline shipped later takes over instead of losing to a stale no-op.
-	var inGoCol, shinyCol any
+	var inGoCol, shinyCol, dateCol any
 	if region == "" && inGo != defInGo {
 		inGoCol = inGo
 	}
-	if shiny != defShiny {
+	if shiny != dateShiny {
 		shinyCol = shiny
+	}
+	if date != "" {
+		dateCol = date
 	}
 
 	// An override row that overrides nothing is worse than no row: effectiveFlags reads both NULLs
 	// as "no opinion", so the admin panel reports it as not overridden, draws no Reset button and
 	// never shows its note. It would be invisible and unremovable from the UI. A note alone is not
 	// a reason to keep one, so this drops the row whatever the note says.
-	if inGoCol == nil && shinyCol == nil {
+	//
+	// A DATE is different and must keep the row alive: it is data trainers see on the checklist and
+	// the thing that will release the shiny on its own, not a comment about a decision.
+	if inGoCol == nil && shinyCol == nil && dateCol == nil {
 		if _, err := h.db.Exec(`DELETE FROM shiny_dex_overrides WHERE dex = ? AND region = ?`, dex, region); err != nil {
 			return http.StatusInternalServerError, "could not clear the override"
 		}
@@ -277,31 +350,39 @@ func (h *Handlers) applyShinyDexWrite(userID uint, dex int, in shinyDexWriteInpu
 		actor = userID
 	}
 
-	// Two statements rather than one, so a nil note genuinely leaves the stored note alone. Folding
-	// that into a single query needs COALESCE gymnastics against a NOT NULL column, and getting it
-	// subtly wrong is how the reason for an override quietly disappears.
-	const setNote = `
-		INSERT INTO shiny_dex_overrides (dex, region, in_go, shiny_released, note, updated_by)
-		VALUES (?, ?, ?, ?, ?, ?)
+	// One statement, because note and date were already resolved above. The read-then-write is not
+	// atomic, but the racing scenario is two admins editing the same species in the same second.
+	const upsert = `
+		INSERT INTO shiny_dex_overrides (dex, region, in_go, shiny_released, release_date, note, updated_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE in_go = VALUES(in_go), shiny_released = VALUES(shiny_released),
-		                        note = VALUES(note), updated_by = VALUES(updated_by)`
-	const keepNote = `
-		INSERT INTO shiny_dex_overrides (dex, region, in_go, shiny_released, note, updated_by)
-		VALUES (?, ?, ?, ?, '', ?)
-		ON DUPLICATE KEY UPDATE in_go = VALUES(in_go), shiny_released = VALUES(shiny_released),
+		                        release_date = VALUES(release_date), note = VALUES(note),
 		                        updated_by = VALUES(updated_by)`
-
-	var err error
-	if in.Note != nil {
-		_, err = h.db.Exec(setNote, dex, region, inGoCol, shinyCol, *in.Note, actor)
-	} else {
-		_, err = h.db.Exec(keepNote, dex, region, inGoCol, shinyCol, actor)
-	}
-	if err != nil {
+	if _, err := h.db.Exec(upsert, dex, region, inGoCol, shinyCol, dateCol, note, actor); err != nil {
 		log.Printf("shiny dex write dex=%d region=%q: %v", dex, region, err)
 		return http.StatusInternalServerError, "could not save the override"
 	}
 	return 0, ""
+}
+
+// shinyOverrideStored is the part of a row the write path has to preserve when the request stays
+// silent about it.
+type shinyOverrideStored struct {
+	note string
+	date string
+}
+
+// shinyOverrideNoteAndDate reads the note and release date already on a row. A missing row is not an
+// error: it is the ordinary case of a first write, and both fields come back empty.
+func (h *Handlers) shinyOverrideNoteAndDate(dex int, region string) (shinyOverrideStored, error) {
+	var out shinyOverrideStored
+	err := h.db.QueryRow(`
+		SELECT note, COALESCE(DATE_FORMAT(release_date, '%Y-%m-%d'), '')
+		  FROM shiny_dex_overrides WHERE dex = ? AND region = ?`, dex, region).Scan(&out.note, &out.date)
+	if errors.Is(err, sql.ErrNoRows) {
+		return shinyOverrideStored{}, nil
+	}
+	return out, err
 }
 
 // AdminSetShinyDexFlags sets the flags for one species or one regional form.
@@ -322,11 +403,59 @@ func (h *Handlers) AdminSetShinyDexFlags(w http.ResponseWriter, r *http.Request)
 	}
 	h.reloadShinyOverrides()
 	w.Header().Set("Content-Type", "application/json")
-	// Trimmed, so the answer describes the row the write actually touched.
-	json.NewEncoder(w).Encode(map[string]any{
-		"ok":         true,
-		"overridden": h.isOverridden(dex, strings.TrimSpace(in.Region)),
-	})
+	// The resolved row, not an echo of the request: a passed release date can turn shiny_released
+	// on by itself, so the panel has to be told what the row actually says now rather than assuming
+	// its checkboxes were the last word.
+	state := h.shinyRowState(dex, strings.TrimSpace(in.Region))
+	state["ok"] = true
+	json.NewEncoder(w).Encode(state)
+}
+
+// shinyRowState resolves one row the way the GET endpoint would, so a save can patch the panel in
+// place without reloading the whole dex.
+func (h *Handlers) shinyRowState(dex int, region string) map[string]any {
+	var inGo, shiny bool
+	if region == "" {
+		inGo, shiny, _ = h.store.ShinyEffectiveDefaults(dex)
+	} else {
+		inGo = true
+		shiny = regionalShinyDefault(h.store.ShinyBaselineName(dex), region)
+	}
+
+	var releasedByDate, overridden bool
+	date := ""
+	var dbInGo, dbShiny sql.NullBool
+	var dbDate string
+	err := h.db.QueryRow(`
+		SELECT in_go, shiny_released, COALESCE(DATE_FORMAT(release_date, '%Y-%m-%d'), '')
+		  FROM shiny_dex_overrides WHERE dex = ? AND region = ?`, dex, region).Scan(&dbInGo, &dbShiny, &dbDate)
+	if err == nil {
+		overridden = true
+		date = dbDate
+		if pogodata.ShinyDateReached(date) {
+			shiny, releasedByDate = true, true
+		}
+		if dbShiny.Valid {
+			shiny = dbShiny.Bool
+			releasedByDate = shiny && releasedByDate
+		}
+		if dbInGo.Valid {
+			inGo = dbInGo.Bool
+		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("shinyRowState dex=%d region=%q: %v", dex, region, err)
+	}
+	if shiny {
+		inGo = true
+	}
+
+	return map[string]any{
+		"in_go":            inGo,
+		"shiny_released":   shiny,
+		"release_date":     date,
+		"released_by_date": releasedByDate,
+		"overridden":       overridden,
+	}
 }
 
 // AdminResetShinyDexFlags drops an override so the baseline default takes over again.
@@ -393,11 +522,4 @@ func (h *Handlers) actorID(r *http.Request) uint {
 		return u.ID
 	}
 	return 0
-}
-
-// isOverridden reports whether a row currently exists for this species or form.
-func (h *Handlers) isOverridden(dex int, region string) bool {
-	var n int
-	h.db.QueryRow(`SELECT COUNT(*) FROM shiny_dex_overrides WHERE dex = ? AND region = ?`, dex, region).Scan(&n)
-	return n > 0
 }

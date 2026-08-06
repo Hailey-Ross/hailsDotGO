@@ -16,7 +16,10 @@ import (
 func (h *Handlers) MobileAuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if h.currentUser(r) == nil {
+			// Bearer only: this whole tree is CSRF-exempt, so accepting the session
+			// cookie here would make every route in it cross-site requestable.
+			// See currentUserBearer in middleware.go.
+			if h.currentUserBearer(r) == nil {
 				writeJSONError(w, "authentication required", http.StatusUnauthorized)
 				return
 			}
