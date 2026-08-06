@@ -43,9 +43,96 @@ function baseMovesetName(name: string): string {
     .replace(/_(X|Y)$/i, "");
 }
 
+// Raid bosses are named with a space separated form prefix, because that is how
+// they are shown: "Shadow Slowpoke", "Alolan Sandshrew", "Mega Blaziken",
+// "Shadow Giratina (Altered Forme)". The Pokemon list they are looked up in
+// carries base species only, so those names find nothing.
+//
+// This is not cosmetic. Every miss used to fall through to a hardcoded default
+// defence, and 14 of the 19 bosses in a typical rotation miss, so most of the
+// damage numbers on the page were computed against a stat nobody has.
+function baseSpeciesName(name: string): string {
+  let out = name;
+  // Repeated, because decorations stack: "Shadow Alolan Marowak" carries two.
+  for (let i = 0; i < 3; i++) {
+    const next = out.replace(/^(Shadow|Mega|Primal|Alolan|Galarian|Hisuian|Paldean)\s+/i, "");
+    if (next === out) break;
+    out = next;
+  }
+  return out
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    // "Mega Charizard X" leaves "Charizard X", which is no species at all and
+    // fell through to the flat fallback.
+    .replace(/\s+[XY]$/, "")
+    .trim();
+}
+
+// bossFormHint recovers which FORM a boss name is describing.
+//
+// Stripping the decoration and looking the species up by name alone is not
+// enough, because 60 species carry several stat lines under one name and the
+// lookup returns whichever sorts first. That is how "Deoxys (Defense Forme)"
+// resolved to Deoxys Attack: defence 46 against a real 330, which is further
+// from the truth than the flat fallback it replaced.
+function bossFormHint(name: string): string | null {
+  const prefix = name.match(/^(Alolan|Galarian|Hisuian|Paldean)\s+/i);
+  if (prefix) {
+    const p = prefix[1].toLowerCase();
+    if (p === "alolan") return "alola";
+    if (p === "paldean") return "paldea";
+    return p; // galarian, hisuian
+  }
+  // "Deoxys (Defense Forme)" -> "defense", "Giratina (Origin Forme)" -> "origin"
+  const paren = name.match(/\(([^)]*)\)\s*$/);
+  if (paren) {
+    return paren[1].replace(/\s*forme?\s*$/i, "").trim().toLowerCase() || null;
+  }
+  // Shadow and Mega carry no form of their own: a shadow is the ordinary form.
+  if (/^Shadow\s+/i.test(name)) return "normal";
+  return null;
+}
+
+// bossDefense is the defender stat every damage calculation divides by.
+//
+// It falls back to the base species when the exact form is not in the list,
+// which is exact for Shadow (identical base stats) and an approximation for
+// Mega and regional forms. Both are far closer than the 200 that stood here
+// before. The literal remains only for a boss that resolves to nothing at all.
+// Exported so the parity script can assert against the shipped implementation
+// rather than a copy of it, which would pass while this was broken.
+export function bossDefense(data: GameData, boss: RaidBoss): number {
+  const stats = bossStats(data, boss);
+  return stats ? (stats.base_defense + 15) * 0.7903 : 200;
+}
+
+// bossStats resolves a boss to its actual stat line, form included. Exported so
+// the parity script can assert the FORM is right rather than merely that some
+// number came back, which is the check that let the Deoxys case through.
+export function bossStats(data: GameData, boss: RaidBoss) {
+  // No exact-name short circuit. pokemonByName takes the first record with a
+  // matching name and has no form preference, so an undecorated boss name (which
+  // is how the ORDINARY form is always written) picked up whichever form sorted
+  // first: plain Mewtwo resolved to Armored, Aegislash to Blade, Eternatus to
+  // Eternamax. 80 of the 152 multi form species were wrong that way, on the main
+  // counters table, and the earlier version of this function only fixed the
+  // decorated names.
+  const base = baseSpeciesName(boss.pokemon_name).toLowerCase();
+  const hint = bossFormHint(boss.pokemon_name);
+  const candidates = (data.pokemon ?? []).filter((p) => p.pokemon_name.toLowerCase() === base);
+  if (!candidates.length) return undefined;
+
+  if (hint) {
+    const match = candidates.find((p) => (p.form ?? "").toLowerCase() === hint);
+    if (match) return match;
+  }
+  // No hint, or a form this dataset does not carry (every Mega is in that
+  // bucket: there is exactly one Mega entry in the whole list). Prefer the
+  // ordinary form over whatever happens to sort first.
+  return candidates.find((p) => (p.form ?? "").toLowerCase() === "normal") ?? candidates[0];
+}
+
 export function calcCounters(data: GameData, boss: RaidBoss): CounterResult[] {
-  const bossStats = pokemonByName(data, boss.pokemon_name);
-  const defDef = bossStats ? (bossStats.base_defense + 15) * 0.7903 : 200;
+  const defDef = bossDefense(data, boss);
   const bossTypes = boss.types ?? [];
   const cpMult = data.cpMultipliers?.find((c) => c.level === 40)?.multiplier ?? 0.7903;
 
@@ -114,14 +201,84 @@ export function calcCounters(data: GameData, boss: RaidBoss): CounterResult[] {
   return [...bestMap.values()].sort((a, b) => b.dps - a.dps).slice(0, 20);
 }
 
+// MovesetRange is the same Pokemon at both ends of its move pool against one
+// boss. The box records which Pokemon a trainer owns but not which moves it
+// knows, so a single number would quietly present the best case as fact. The
+// spread is the honest answer: worst is what it does on its weakest pairing.
+//
+// best and worst are the same object when only one usable pairing exists.
+export interface MovesetRange {
+  best: CounterResult;
+  worst: CounterResult;
+}
+
 export function calcSinglePokemon(
   data: GameData,
   pokemonName: string,
   boss: RaidBoss,
   config: PokemonConfig = DEFAULT_CONFIG
 ): CounterResult | null {
-  const bossStats = pokemonByName(data, boss.pokemon_name);
-  const defDef = bossStats ? (bossStats.base_defense + 15) * 0.7903 : 200;
+  return calcMovesetRange(data, pokemonName, boss, config)?.best ?? null;
+}
+
+// pickForm chooses among several records sharing one pokemon_name.
+//
+// 60 species carry more than one, and a plain name lookup returns whichever
+// sorts first, which is usually not the ordinary one. A Kantonian Raichu was
+// being given Alolan stats AND the Alolan move pool, so the page recommended it
+// bring Psychic, a move it cannot learn.
+function pickForm<T extends { pokemon_name: string; form?: string }>(
+  list: T[],
+  name: string,
+  gameForm?: string
+): T | undefined {
+  const lower = name.toLowerCase();
+  const matches = list.filter((x) => x.pokemon_name.toLowerCase() === lower);
+  if (!matches.length) return undefined;
+  if (gameForm) {
+    const want = gameForm.toLowerCase();
+    const exact = matches.find((x) => (x.form ?? "").toLowerCase() === want);
+    if (exact) return exact;
+  }
+  return matches.find((x) => (x.form ?? "").toLowerCase() === "normal") ?? matches[0];
+}
+
+// moveTypesFor is every damage type a species can actually bring.
+//
+// It exists for the shortlist pre-rank, which used to stand in the species' OWN
+// types for this. That reads Alakazam as Psychic and never notices it carries
+// Shadow Ball, Dazzling Gleam and Fire Punch, so coverage attackers were being
+// dropped before they were ever scored.
+export function moveTypesFor(data: GameData, pokemonName: string, gameForm?: string): string[] {
+  const entry =
+    pickForm(data.pokemonMoves ?? [], pokemonName, gameForm) ??
+    pickForm(data.pokemonMoves ?? [], baseMovesetName(pokemonName), gameForm);
+  if (!entry) return [];
+
+  const fastTypes = new Map((data.fastMoves ?? []).map((m) => [m.name.toLowerCase(), m.type]));
+  const chargedTypes = new Map((data.chargedMoves ?? []).map((m) => [m.name.toLowerCase(), m.type]));
+  const out = new Set<string>();
+  for (const n of [...entry.fast_moves, ...entry.elite_fast_moves]) {
+    const t = fastTypes.get(n.toLowerCase());
+    if (t) out.add(t);
+  }
+  for (const n of [...entry.charged_moves, ...entry.elite_charged_moves]) {
+    const t = chargedTypes.get(n.toLowerCase());
+    if (t) out.add(t);
+  }
+  return [...out];
+}
+
+export function calcMovesetRange(
+  data: GameData,
+  pokemonName: string,
+  boss: RaidBoss,
+  config: PokemonConfig = DEFAULT_CONFIG,
+  // The game's own form (Alola, Galarian, Therian...). Distinct from
+  // config.form, which is the shadow and purified axis.
+  gameForm?: string
+): MovesetRange | null {
+  const defDef = bossDefense(data, boss);
   const bossTypes = boss.types ?? [];
 
   const cpMult = config.cpm;
@@ -137,17 +294,16 @@ export function calcSinglePokemon(
   const primalName = `Primal_${pokemonName}`;
   const pokeStats = (config.form === "primal" && !pokemonName.toLowerCase().startsWith("primal_"))
     ? (pokemonByName(data, primalName) ?? pokemonByName(data, pokemonName))
-    : pokemonByName(data, pokemonName);
+    : pickForm(data.pokemon ?? [], pokemonName, gameForm);
   const poke = pokeStats;
   if (!poke) return null;
 
-  // Move pool: always from the originally-searched name, falling back to base form.
+  // Move pool from the same form as the stats, falling back to the base name for
+  // Shadow, Mega and Primal, which share their base form's pool.
   const baseName = baseMovesetName(pokemonName);
-  const movesEntry = (data.pokemonMoves ?? []).find(
-    (pm) => pm.pokemon_name.toLowerCase() === pokemonName.toLowerCase()
-  ) ?? (data.pokemonMoves ?? []).find(
-    (pm) => pm.pokemon_name.toLowerCase() === baseName.toLowerCase()
-  );
+  const movesEntry =
+    pickForm(data.pokemonMoves ?? [], pokemonName, gameForm) ??
+    pickForm(data.pokemonMoves ?? [], baseName, gameForm);
   if (!movesEntry) return null;
 
   const fastNames = [...movesEntry.fast_moves, ...movesEntry.elite_fast_moves].map((n) => n.toLowerCase());
@@ -161,6 +317,7 @@ export function calcSinglePokemon(
   const atkStat = (poke.base_attack + config.atkIV) * cpMult * atkMult;
 
   let best: CounterResult | null = null;
+  let worst: CounterResult | null = null;
 
   for (const fn of fastNames) {
     const fast = fastByName.get(fn);
@@ -173,10 +330,14 @@ export function calcSinglePokemon(
       const chargedEff = bossTypes.length > 0 ? typeEffectiveness(data, charged.type, bossTypes) : 1;
 
       const dps = trueDPS(fast, charged, atkStat, defDef, fastEff, chargedEff);
-      if (best && dps <= best.dps) continue;
+      const better = !best || dps > best.dps;
+      const poorer = !worst || dps < worst.dps;
+      // TDO is the expensive half, so only pay for it on a pairing that is
+      // actually going to be kept at one end or the other.
+      if (!better && !poorer) continue;
 
       const tdo = estimateTDO(poke, fast, charged, atkStat, defDef, fastEff, chargedEff, cpMult, config.staIV, defMult);
-      best = {
+      const entry: CounterResult = {
         name: poke.pokemon_name,
         pokemonId: poke.pokemon_id,
         fastMove: fast.name,
@@ -186,10 +347,13 @@ export function calcSinglePokemon(
         dps,
         tdo,
       };
+      if (better) best = entry;
+      if (poorer) worst = entry;
     }
   }
 
-  return best;
+  if (!best || !worst) return null;
+  return { best, worst };
 }
 
 export function renderCounterTable(data: GameData, boss: RaidBoss, results: CounterResult[]): HTMLElement {

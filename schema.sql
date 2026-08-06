@@ -492,6 +492,11 @@ CREATE TABLE IF NOT EXISTS user_pokemon_box (
   user_id        INT UNSIGNED NOT NULL,
   pokemon_name   VARCHAR(64) NOT NULL,
   form           VARCHAR(64) NOT NULL DEFAULT '',
+  -- form is the game's form name (Normal, Alola, Galarian, Therian, costumes).
+  -- Shadow and purified are a separate axis, and NULL means "not recorded"
+  -- rather than "no", so the UI can offer to fill it in on an older entry.
+  is_shadow      TINYINT(1) NULL DEFAULT NULL,
+  is_purified    TINYINT(1) NULL DEFAULT NULL,
   cp             SMALLINT UNSIGNED NOT NULL,
   level          DECIMAL(4,1) NOT NULL,
   atk_iv         TINYINT UNSIGNED,
@@ -690,7 +695,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (43, 'Regional form support in shiny collection (2026-07-05)'),
   (44, 'Shiny dex availability overrides (2026-07-25)'),
   (45, 'Announced shiny release dates (2026-07-27)'),
-  (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)');
+  (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)'),
+  (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

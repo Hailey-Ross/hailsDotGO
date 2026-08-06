@@ -311,6 +311,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(httprate.LimitByIP(30, time.Minute)).Get("/events/calendar.ics", h.EventsICS)
 		r.With(httprate.LimitByIP(30, time.Minute)).Get("/events/event.ics", h.EventICS)
 		r.Get("/iv", h.GetIVPage)
+		r.Get("/box", h.GetBoxPage)
 		r.Get("/credits", h.Credits)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
@@ -561,9 +562,14 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// bounding what a single address can burn.
 		r.With(httprate.LimitByIP(30, time.Minute)).Post("/api/iv/calculate", h.IVCalculate)
 		r.With(httprate.LimitByIP(10, time.Minute)).Post("/api/iv/ocr", h.RequireAuthAPI(h.IVFromOCR))
-		r.Get("/api/iv/pokemon", h.RequireAuthAPI(h.ListPokemonIV))
-		r.Post("/api/iv/pokemon", h.RequireAuthAPI(h.SavePokemonIV))
-		r.Delete("/api/iv/pokemon/{id}", h.RequireAuthAPI(h.DeletePokemonIV))
+		// The box endpoints had no limiter, which was survivable while the only
+		// caller was the calculator's own save button. There is a form in front
+		// of them now, and the box holds up to 9000 rows, so a list call is the
+		// most expensive authenticated read on the site. Generous enough that no
+		// real trainer notices, tight enough that nobody loops it.
+		r.With(httprate.LimitByIP(60, time.Minute)).Get("/api/iv/pokemon", h.RequireAuthAPI(h.ListPokemonIV))
+		r.With(httprate.LimitByIP(60, time.Minute)).Post("/api/iv/pokemon", h.RequireAuthAPI(h.SavePokemonIV))
+		r.With(httprate.LimitByIP(60, time.Minute)).Delete("/api/iv/pokemon/{id}", h.RequireAuthAPI(h.DeletePokemonIV))
 
 		r.With(httprate.LimitAll(2, 10*time.Minute)).Post("/api/refresh", h.RequireAPIAccess(h.APIRefresh))
 

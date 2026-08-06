@@ -1,5 +1,6 @@
 import { loadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
 import { calcCounters, renderCounterTable, calcSinglePokemon, DEFAULT_CONFIG } from "./shared/counters";
+import { renderBoxVsBoss, renderBoxPlaceholder } from "./shared/boxcounters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
@@ -139,6 +140,9 @@ function buildRaidsView(data: GameData): HTMLElement {
   const counterPanel = document.createElement("div");
   counterPanel.style.display = "none";
   let activeCard: HTMLElement | null = null;
+  // Bumped every time a panel is opened, so a box lookup that returns after the
+  // trainer has moved on does not append its answer to a different boss.
+  let panelSeq = 0;
 
   const allBosses = tiers.flatMap(([tier, bosses]) =>
     bosses.map((boss) => ({ boss, tier }))
@@ -568,7 +572,25 @@ function buildRaidsView(data: GameData): HTMLElement {
           }
         });
 
+        // The trainer's own Pokemon comes FIRST, above the generic list. It is
+        // the answer they actually came for: what to bring, out of what they
+        // own. The top counters below it are the reference for what is possible.
+        //
+        // The placeholder is appended now so the box section keeps its place in
+        // the order while it loads, rather than appearing under the table and
+        // shoving it down when it arrives.
+        const panelToken = ++panelSeq;
+        const placeholder = renderBoxPlaceholder();
+        counterPanel.appendChild(placeholder);
+
         counterPanel.appendChild(renderCounterTable(data, boss, calcCounters(data, boss)));
+        renderBoxVsBoss(data, boss).then((section) => {
+          if (panelToken === panelSeq && counterPanel.style.display !== "none") {
+            placeholder.replaceWith(section);
+          } else {
+            placeholder.remove();
+          }
+        });
         counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
 
@@ -619,6 +641,9 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
   const counterPanel = document.createElement("div");
   counterPanel.style.display = "none";
   let activeCard: HTMLElement | null = null;
+  // Bumped every time a panel is opened, so a box lookup that returns after the
+  // trainer has moved on does not append its answer to a different boss.
+  let panelSeq = 0;
 
   const tiers = Object.entries(data.maxBattles!).filter(([, b]) => b.length).sort(([a], [b]) => Number(b) - Number(a));
   let activeTier = tiers.length ? tiers[0][0] : "";
@@ -695,7 +720,25 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
           }
         });
 
+        // The trainer's own Pokemon comes FIRST, above the generic list. It is
+        // the answer they actually came for: what to bring, out of what they
+        // own. The top counters below it are the reference for what is possible.
+        //
+        // The placeholder is appended now so the box section keeps its place in
+        // the order while it loads, rather than appearing under the table and
+        // shoving it down when it arrives.
+        const panelToken = ++panelSeq;
+        const placeholder = renderBoxPlaceholder();
+        counterPanel.appendChild(placeholder);
+
         counterPanel.appendChild(renderCounterTable(data, boss, calcCounters(data, boss)));
+        renderBoxVsBoss(data, boss).then((section) => {
+          if (panelToken === panelSeq && counterPanel.style.display !== "none") {
+            placeholder.replaceWith(section);
+          } else {
+            placeholder.remove();
+          }
+        });
         counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
 

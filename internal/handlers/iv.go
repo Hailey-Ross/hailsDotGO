@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,13 @@ func (h *Handlers) GetIVPage(w http.ResponseWriter, r *http.Request) {
 		h.db.QueryRow(`SELECT COALESCE(trainer_level, 0) FROM users WHERE id = ?`, u.ID).Scan(&pd.TrainerLevel)
 	}
 	h.render(w, r, "iv", pd)
+}
+
+// GetBoxPage renders the Pokemon box. The box is a trainer's own Pokemon, so
+// the page needs no server data: everything comes from /api/iv/pokemon, which
+// already requires a session.
+func (h *Handlers) GetBoxPage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "box", nil)
 }
 
 // IV calculation types
@@ -57,7 +65,7 @@ type ivRequest struct {
 	HP            int    `json:"hp"`
 	DustCost      int    `json:"dust_cost"`
 	TrainerLevel  int    `json:"trainer_level"`
-	TopStat       string `json:"top_stat"`        // "atk", "def", "sta", or "" to skip filter
+	TopStat       string `json:"top_stat"`       // "atk", "def", "sta", or "" to skip filter
 	AppraisalBars *int   `json:"appraisal_bars"` // nil or absent = skip; 0-3 = apply star filter
 	IsLucky       *bool  `json:"is_lucky"`       // nil = unknown; dust interpretations stay fuzzy
 	IsShadow      *bool  `json:"is_shadow"`
@@ -157,8 +165,9 @@ var appraisalRange = [4][2]int{
 // and rounds half-levels to 4 decimals, which breaks the exact-match CP
 // search and the arc inversion (both need precise values through level 50/51).
 // Rules, verified against GoIV/Silph to within 1e-7 on 2026-07-05:
-//   whole levels above 40:  CPM(L+1) = CPM(L) + 0.005
-//   half levels:            CPM(L+0.5) = sqrt((CPM(L)^2 + CPM(L+1)^2) / 2)
+//
+//	whole levels above 40:  CPM(L+1) = CPM(L) + 0.005
+//	half levels:            CPM(L+0.5) = sqrt((CPM(L)^2 + CPM(L+1)^2) / 2)
 func cpmLookup(cpms []cpmEntry) map[float64]float64 {
 	m := make(map[float64]float64, len(cpms)+22)
 	for _, e := range cpms {
@@ -419,16 +428,66 @@ type pokemonBoxEntry struct {
 	ID           uint64          `json:"id"`
 	PokemonName  string          `json:"pokemon_name"`
 	Form         string          `json:"form"`
+	IsShadow     *bool           `json:"is_shadow"`
+	IsPurified   *bool           `json:"is_purified"`
 	CP           int             `json:"cp"`
 	Level        float64         `json:"level"`
 	AtkIV        *int            `json:"atk_iv"`
 	DefIV        *int            `json:"def_iv"`
 	StaIV        *int            `json:"sta_iv"`
 	IVPct        *float64        `json:"iv_pct,omitempty"`
+	ApproxIVs    *approxIVs      `json:"approx_ivs,omitempty"`
 	IVCandidates json.RawMessage `json:"iv_candidates,omitempty"`
 	CaughtAt     *time.Time      `json:"caught_at,omitempty"`
 	Note         string          `json:"note"`
 	CreatedAt    time.Time       `json:"created_at"`
+}
+
+// boxFormPattern bounds the form field without pinning it to a list.
+//
+// This is the game's own form name (Normal, Alola, Galarian, Therian, and a
+// long tail of costumes: 273 distinct values in the current dataset), not the
+// shadow or purified state, so an allow list here would reject almost every
+// real save. It only has to stay inside the column and carry nothing exotic.
+var boxFormPattern = regexp.MustCompile(`^[A-Za-z0-9_ -]{0,64}$`)
+
+// maxPokemonBoxSize caps a trainer's box. It also caps what the list endpoint
+// will return in one page, because the raids page asks for the whole box to rank
+// it against a boss, and a lower ceiling there would quietly score only the most
+// recently added Pokemon.
+const maxPokemonBoxSize = 9000
+
+// pokemonGoLaunch is the earliest a Pokemon could have been caught.
+var pokemonGoLaunch = time.Date(2016, 7, 6, 0, 0, 0, 0, time.UTC)
+
+// approxIVs is the middle of a candidate set, for a Pokemon the calculator could
+// not narrow to a single spread. Callers show it marked as approximate.
+type approxIVs struct {
+	AtkIV int `json:"atk_iv"`
+	DefIV int `json:"def_iv"`
+	StaIV int `json:"sta_iv"`
+}
+
+// averageIVCandidates reduces a stored candidate set to its mean spread. It
+// returns nil for anything it cannot read, so a corrupt or empty set leaves the
+// Pokemon marked as unknown rather than inventing a number for it.
+func averageIVCandidates(raw []byte) *approxIVs {
+	var cands []IVCandidate
+	if err := json.Unmarshal(raw, &cands); err != nil || len(cands) == 0 {
+		return nil
+	}
+	var a, d, s int
+	for _, c := range cands {
+		a += c.AtkIV
+		d += c.DefIV
+		s += c.StaIV
+	}
+	n := len(cands)
+	return &approxIVs{
+		AtkIV: int(math.Round(float64(a) / float64(n))),
+		DefIV: int(math.Round(float64(d) / float64(n))),
+		StaIV: int(math.Round(float64(s) / float64(n))),
+	}
 }
 
 func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
@@ -440,6 +499,8 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PokemonName  string          `json:"pokemon_name"`
 		Form         string          `json:"form"`
+		IsShadow     *bool           `json:"is_shadow"`
+		IsPurified   *bool           `json:"is_purified"`
 		CP           int             `json:"cp"`
 		Level        float64         `json:"level"`
 		AtkIV        *int            `json:"atk_iv"`
@@ -457,18 +518,72 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
 		return
 	}
-	if len(body.Note) > 160 {
-		body.Note = body.Note[:160]
+	// Levels come in half steps. A value like 33.3 stores fine in DECIMAL(4,1),
+	// displays fine, and then matches no CP multiplier, so the Pokemon silently
+	// vanishes from every ranking with nothing to explain why.
+	if body.Level*2 != math.Trunc(body.Level*2) {
+		writeJSONError(w, "level must be a whole or half number", http.StatusBadRequest)
+		return
 	}
 
-	const maxPokemonBoxSize = 3000
+	// The three IVs and the form used to be taken on trust, because the only
+	// caller was the calculator, which could not produce anything else. The box
+	// page lets a trainer type them in directly, so they are checked here now.
+	//
+	// A nil IV is allowed and means "not worked out yet"; the box stores the
+	// candidate spreads for that case.
+	for _, iv := range []*int{body.AtkIV, body.DefIV, body.StaIV} {
+		if iv != nil && (*iv < 0 || *iv > 15) {
+			writeJSONError(w, "IVs must be between 0 and 15", http.StatusBadRequest)
+			return
+		}
+	}
+	if body.Form == "" {
+		body.Form = "Normal"
+	}
+	if !boxFormPattern.MatchString(body.Form) {
+		writeJSONError(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	if len(body.PokemonName) > 64 {
+		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	// Truncate on runes, not bytes. The column is VARCHAR(160), which MySQL
+	// counts in characters, and the note field accepts 160 of them. A Japanese
+	// or emoji note is three or four bytes per character, so a byte slice landed
+	// mid rune, produced invalid utf8mb4, and the insert failed with a 500.
+	if r := []rune(body.Note); len(r) > 160 {
+		body.Note = string(r[:160])
+	}
+
+	// iv_candidates is stored as raw JSON. The body cap allows 2 MB, and with a
+	// 9000 row box that is a great deal of storage per account for a field the
+	// calculator fills with at most a few hundred spreads. Bound it here rather
+	// than trusting the caller, since this endpoint now has a form in front of it.
+	const maxCandidatesBytes = 256 << 10
+	if len(body.IVCandidates) > maxCandidatesBytes {
+		writeJSONError(w, "too many IV candidates", http.StatusBadRequest)
+		return
+	}
+
+	// caught_at is optional and only ever a past date. An unbounded value either
+	// fails the DATETIME range and 500s, or quietly stores a catch in the year
+	// 9999.
+	if body.CaughtAt != nil {
+		if body.CaughtAt.Before(pokemonGoLaunch) || body.CaughtAt.After(time.Now().AddDate(0, 0, 1)) {
+			writeJSONError(w, "invalid catch date", http.StatusBadRequest)
+			return
+		}
+	}
+
 	var boxCount int
 	if err := h.db.QueryRow(`SELECT COUNT(*) FROM user_pokemon_box WHERE user_id = ?`, u.ID).Scan(&boxCount); err != nil {
 		writeJSONError(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	if boxCount >= maxPokemonBoxSize {
-		writeJSONError(w, "box is full (3000 Pokémon limit)", http.StatusConflict)
+		writeJSONError(w, "It's over 9000!", http.StatusConflict)
 		return
 	}
 
@@ -479,9 +594,11 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.db.Exec(`
 		INSERT INTO user_pokemon_box
-		    (user_id, pokemon_name, form, cp, level, atk_iv, def_iv, sta_iv, iv_candidates, caught_at, note)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, body.PokemonName, body.Form, body.CP, body.Level,
+		    (user_id, pokemon_name, form, is_shadow, is_purified, cp, level,
+		     atk_iv, def_iv, sta_iv, iv_candidates, caught_at, note)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, body.PokemonName, body.Form, body.IsShadow, body.IsPurified,
+		body.CP, body.Level,
 		body.AtkIV, body.DefIV, body.StaIV,
 		candidatesJSON, body.CaughtAt, body.Note,
 	)
@@ -504,7 +621,10 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	if limit <= 0 || limit > 200 {
+	// The page list asks for 50. The raids page asks for the whole box, because
+	// it ranks every Pokemon a trainer owns against the boss they have open, and
+	// a cap there would silently judge only the most recently added ones.
+	if limit <= 0 || limit > maxPokemonBoxSize {
 		limit = 50
 	}
 	if offset < 0 {
@@ -515,8 +635,15 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(`SELECT COUNT(*) FROM user_pokemon_box WHERE user_id = ?`, u.ID).Scan(&total)
 
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_name, form, cp, level, atk_iv, def_iv, sta_iv,
-		       iv_candidates, caught_at, COALESCE(note,''), created_at
+		-- iv_candidates is the largest column a row holds and the raids page asks
+		-- for the whole box, so it is read ONLY for the rows that can use it:
+		-- those whose IVs were never pinned down. Selecting it unconditionally
+		-- shipped megabytes across the wire from a separate database host for
+		-- data this endpoint then deliberately threw away.
+		SELECT id, pokemon_name, form, is_shadow, is_purified, cp, level,
+		       atk_iv, def_iv, sta_iv,
+		       CASE WHEN atk_iv IS NULL THEN iv_candidates END,
+		       caught_at, COALESCE(note,''), created_at
 		FROM user_pokemon_box WHERE user_id = ?
 		ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		u.ID, limit, offset,
@@ -532,14 +659,25 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 		var e pokemonBoxEntry
 		var candidatesRaw []byte
 		if err := rows.Scan(
-			&e.ID, &e.PokemonName, &e.Form, &e.CP, &e.Level,
+			&e.ID, &e.PokemonName, &e.Form, &e.IsShadow, &e.IsPurified,
+			&e.CP, &e.Level,
 			&e.AtkIV, &e.DefIV, &e.StaIV,
 			&candidatesRaw, &e.CaughtAt, &e.Note, &e.CreatedAt,
 		); err != nil {
 			continue
 		}
-		if len(candidatesRaw) > 0 {
-			e.IVCandidates = json.RawMessage(candidatesRaw)
+		// The raw candidate set is deliberately NOT returned by the list.
+		//
+		// It is the largest thing a row holds, and the raids page asks for the
+		// whole box at once, so shipping it would make this the most expensive
+		// read on the site for data no caller wants in full. Everything that
+		// reads a half identified Pokemon wants one thing: the middle of the
+		// possibilities. So that is computed here and the array stays on the
+		// server.
+		if e.AtkIV == nil && len(candidatesRaw) > 0 {
+			if avg := averageIVCandidates(candidatesRaw); avg != nil {
+				e.ApproxIVs = avg
+			}
 		}
 		if e.AtkIV != nil && e.DefIV != nil && e.StaIV != nil {
 			pct := math.Round(float64(*e.AtkIV+*e.DefIV+*e.StaIV)/45.0*1000) / 10
@@ -579,4 +717,3 @@ func (h *Handlers) DeletePokemonIV(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-

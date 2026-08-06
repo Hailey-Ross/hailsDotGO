@@ -777,3 +777,21 @@ ALTER TABLE user_strikes MODIFY issued_by INT UNSIGNED NULL DEFAULT NULL;
 ALTER TABLE user_strikes
   ADD CONSTRAINT fk_strike_issuer FOREIGN KEY (issued_by)
   REFERENCES users (id) ON DELETE SET NULL;
+
+
+-- 47. Shadow and purified status on a boxed Pokemon (2026-08-05)
+-- The raids page now scores a trainer's own Pokemon against the boss they have
+-- open, and shadow is worth +20% attack (and 20% more damage taken) in that
+-- calculation, which is often the difference between a good counter and the best
+-- one. The box recorded species, form, CP, level and IVs but not this, so a
+-- Shadow Machamp scored as an ordinary Machamp.
+--
+-- The IV calculator already asks (it needs the flags to read the dust cost); it
+-- simply had nowhere to put the answer.
+--
+-- Nullable rather than NOT NULL DEFAULT 0: existing rows genuinely do not know,
+-- and "not recorded" is a different statement from "not a shadow". The UI can
+-- then offer to fill it in rather than silently asserting a default.
+ALTER TABLE user_pokemon_box
+  ADD COLUMN is_shadow   TINYINT(1) NULL DEFAULT NULL AFTER form,
+  ADD COLUMN is_purified TINYINT(1) NULL DEFAULT NULL AFTER is_shadow;
