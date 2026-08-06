@@ -155,6 +155,7 @@ async function loadDetail(ev: PogoEvent, container: HTMLElement) {
 
 function renderExtraData(container: HTMLElement, ev: PogoEvent) {
   container.className = ""; // drop scraped-content padding; sections pad themselves
+  const before = container.childElementCount;
   const x = ev.extraData;
   if (x) {
     if (x.communityday) {
@@ -231,6 +232,16 @@ function renderExtraData(container: HTMLElement, ev: PogoEvent) {
       const sec = monSection(EV.spawns, [x.breakthrough]);
       if (sec) container.appendChild(sec);
     }
+  }
+  // Most events only carry extraData.generic (two booleans, nothing worth
+  // drawing), so every branch above can miss and leave the modal body blank.
+  // Say so instead, and offer the source page when the feed gave us one.
+  // No link here: showModal already appends a "View on LeekDuck" link directly
+  // below this container, so adding one would stack two identical links.
+  if (container.childElementCount === before) {
+    const empty = el("div", "event-detail-section");
+    empty.appendChild(el("p", "empty-state", EV.detailNone));
+    container.appendChild(empty);
   }
 }
 
@@ -423,6 +434,21 @@ function tickCountdowns() {
   });
 }
 
+// "pokemon-go-fest" becomes "Pokemon Go Fest". Feed types are lowercase words
+// joined by hyphens, and a type Niantic has just invented has no locale key to
+// look up, so the slug itself is the only label we can offer.
+function prettyType(slug: string): string {
+  return slug
+    .split("-")
+    .filter((word) => word.length > 0)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+// Set once the subscribe panel is wired, then called by init() with the loaded
+// feed so the panel can offer the event types the curated checkboxes miss.
+let addFeedTypes: ((events: PogoEvent[]) => void) | null = null;
+
 // Calendar subscription panel: build a webcal:// URL for the .ics feed from the
 // checked event-type toggles, wire Copy, and point the "Add to Google Calendar"
 // link at it. The feed itself handles floating-vs-UTC times correctly.
@@ -453,7 +479,10 @@ function initSubscribe() {
         }
       }
     }
-    const query = !everything && types.length ? "?types=" + types.join(",") : "";
+    // Encoded because these values come from the feed, not from us. An unencoded
+    // "#" would truncate the copied link at the fragment and silently change what
+    // the trainer subscribed to.
+    const query = !everything && types.length ? "?types=" + encodeURIComponent(types.join(",")) : "";
     const webcal = "webcal://" + host + "/events/calendar.ics" + query;
     const https = "https://" + host + "/events/calendar.ics" + query;
     urlField.value = webcal;
@@ -468,12 +497,56 @@ function initSubscribe() {
       update();
     });
   }
-  for (const b of specific) {
+  function wireSpecific(b: HTMLInputElement) {
     b.addEventListener("change", () => {
       if (b.checked && allBox) allBox.checked = false;
       update();
     });
   }
+  for (const b of specific) wireSpecific(b);
+
+  // The checkboxes in the template are curated bundles with translated labels,
+  // so they only ever cover the types we knew about when they were written. The
+  // live feed carries more (GO Fest, seasons, one-off formats), and a trainer
+  // who ticks specific types would never see those land in their calendar. So
+  // once the feed is in, anything no curated box claims gets its own generated
+  // checkbox, off by default, wired exactly like the curated ones.
+  addFeedTypes = (events: PogoEvent[]) => {
+    const wrap = document.getElementById("sub-types");
+    if (!wrap) return;
+    const covered = new Set<string>();
+    for (const b of specific) {
+      for (const t of (b.dataset.type || "").split(",")) {
+        const tok = t.trim();
+        if (tok) covered.add(tok);
+      }
+    }
+    // "Everything" is a wildcard, not a claim on any one type.
+    covered.delete("*");
+    const anchor = allBox ? allBox.closest("label") : null;
+    for (const ev of events) {
+      const type = (ev.eventType || "").trim();
+      if (!type || covered.has(type)) continue;
+      // Only offer a type the server's ?types= filter will actually accept. It
+      // drops an unrecognised token silently, which would leave a trainer with a
+      // subscription that quietly returns nothing. Mirrors eventTypePattern in
+      // internal/handlers/events_ics.go.
+      if (!/^[a-z0-9_-]{1,64}$/.test(type)) continue;
+      covered.add(type);
+      const box = el("input");
+      box.type = "checkbox";
+      box.dataset.type = type;
+      const label = el("label", "sub-type");
+      label.appendChild(box);
+      label.appendChild(el("span", undefined, prettyType(type)));
+      // Keep the dashed "Everything" toggle last, where the panel expects it.
+      if (anchor) wrap.insertBefore(label, anchor);
+      else wrap.appendChild(label);
+      specific.push(box);
+      wireSpecific(box);
+    }
+    update();
+  };
 
   copyBtn.addEventListener("click", async () => {
     try {
@@ -498,6 +571,7 @@ async function init() {
       app.innerHTML = `<div class="error-state">${EV.error}</div>`;
       return;
     }
+    if (addFeedTypes) addFeedTypes(events);
 
     const now = Date.now();
     const current: PogoEvent[] = [];

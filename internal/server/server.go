@@ -541,7 +541,13 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/maxbattles", h.APIMaxBattles)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/events", h.APIEvents)
+		// Raised from 10 to match the detail endpoint below. This is an
+		// unauthenticated read that every visitor to /events performs, and the
+		// reasoning recorded further down (a household, a campus or carrier grade
+		// NAT can put many genuine trainers behind one address) applies here just
+		// as much as it does to login. apiBW, the bandwidth cap, is the real abuse
+		// ceiling and is untouched.
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/events", h.APIEvents)
 		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/events/{id}", h.APIEventDetail)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)

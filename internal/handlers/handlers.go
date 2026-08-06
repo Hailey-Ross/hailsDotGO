@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -355,8 +354,8 @@ func (h *Handlers) APIEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.store.Events())
 }
 
-var eventIDPattern = regexp.MustCompile(`^[a-z0-9-]{1,128}$`)
-
+// eventIDPattern is defined once, in events_ics.go, next to the other event id
+// handling. It used to have a second copy here that omitted the underscore.
 func (h *Handlers) APIEventDetail(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if !eventIDPattern.MatchString(id) {

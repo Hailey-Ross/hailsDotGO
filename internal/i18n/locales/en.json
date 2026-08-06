@@ -72,6 +72,7 @@
   "events.modal.leekduck":     "View on LeekDuck",
   "events.modal.can_be_shiny": "Can be shiny",
   "events.modal.loading_details": "Loading full details…",
+  "events.detail.none":        "No extra details for this event yet.",
   "events.subscribe.title": "Subscribe to calendar",
   "events.subscribe.desc": "Add these events to Google Calendar, Apple Calendar or any calendar app. Times arrive in your own timezone, so alarms just work. Choose what you want, then copy the link or add it to Google in one tap.",
   "events.subscribe.type.community_day": "Community Day",
