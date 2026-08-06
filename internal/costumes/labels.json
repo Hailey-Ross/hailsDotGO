@@ -179,7 +179,11 @@
     { "label": "Party Hat", "code": "c:ANNIVERSARY_2024" },
     { "label": "Flower Crown", "code": "c:SPRING_2024" },
     { "label": "Visor", "code": "c:SUMMER_2024" },
-    { "label": "Fragment Hat", "code": "c:FALL_2018" }
+    { "label": "Fragment Hat", "code": "c:FALL_2018" },
+    { "label": "Crown", "code": "c:ROYAL_NOEVOLVE" },
+    { "label": "Liko's Hat", "code": "c:HORIZONS_2025_NOEVOLVE" },
+    { "label": "Red's Cap", "code": "f:GOTOUR_2026_A_02" },
+    { "label": "Ethan's Cap", "code": "f:GOTOUR_2026_B_02" }
   ],
 
   "aliases": {
