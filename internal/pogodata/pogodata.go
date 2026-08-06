@@ -507,6 +507,7 @@ type Store struct {
 	raids             json.RawMessage
 	maxBattles        json.RawMessage
 	events            json.RawMessage
+	eventsFetchedAt   time.Time // zero until the first success; seeded from the cache file mtime at boot
 	eventDetails      map[string]eventDetail
 	detailsRunning    atomic.Bool
 	pokemon           json.RawMessage
@@ -592,7 +593,7 @@ func (s *Store) cachedFetch(key, url string) (json.RawMessage, error) {
 }
 
 // loadFromCache reads any previously saved JSON blobs from disk into the store.
-// Fast and synchronous — called before the HTTP server starts listening.
+// Fast and synchronous, called before the HTTP server starts listening.
 func (s *Store) loadFromCache() {
 	keys := []string{"raids", "max_battles", "events", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_evolutions", "pokemon_names"}
 	s.mu.Lock()
@@ -602,8 +603,30 @@ func (s *Store) loadFromCache() {
 		if err != nil {
 			continue
 		}
+		if key == "events" {
+			// Hold the events blob to the same bar fetchEvents applies. The cache
+			// is written non atomically, so a truncated or half written file is a
+			// real input, and applying one would serve a broken body and then let
+			// the mtime below claim it was freshly fetched.
+			if n, err := arrayLen(json.RawMessage(data)); err != nil || n == 0 {
+				log.Printf("pogodata: events: ignoring unusable disk cache: %v", err)
+				continue
+			}
+		}
 		log.Printf("pogodata: %s: loaded from disk cache", key)
 		s.applyResult(key, json.RawMessage(data))
+		if key == "events" {
+			// Seed the age from the file itself, but only now that the contents are
+			// known good. Without this a boot from an old cache reports "never
+			// fetched" and looks identical to a boot from a fresh one, which is the
+			// state worth being able to tell apart.
+			if info, statErr := os.Stat(filepath.Join(s.cacheDir, key+".json")); statErr == nil {
+				s.eventsFetchedAt = info.ModTime()
+				if age := time.Since(info.ModTime()); age > time.Hour {
+					log.Printf("pogodata: events: disk cache is %s old", age.Round(time.Minute))
+				}
+			}
+		}
 	}
 	s.loadEventDetailsFromDisk()
 }
@@ -864,13 +887,35 @@ func mergeShinySupplement(data json.RawMessage) json.RawMessage {
 	return merged
 }
 
+// startupEventRetries are the waits between attempts at the very first events
+// fetch. The ticker in Start does not fire until 30 minutes in, so without these
+// a cold boot that loses a race with the network serves whatever was on disk, or
+// an error page on a fresh install, for a full half hour.
+var startupEventRetries = []time.Duration{30 * time.Second, 2 * time.Minute}
+
+// refreshEventsAtStartup makes the first attempt and retries a couple of times
+// before leaving it to the ticker. Startup only: a failure mid life is fine to
+// leave until the next tick, because there is already good data being served.
+func (s *Store) refreshEventsAtStartup() {
+	if err := s.refreshEvents(); err == nil {
+		return
+	}
+	for _, wait := range startupEventRetries {
+		time.Sleep(wait)
+		if err := s.refreshEvents(); err == nil {
+			return
+		}
+	}
+	log.Println("pogodata: events: startup retries exhausted, waiting for the next scheduled refresh")
+}
+
 func (s *Store) Start() {
 	s.loadFallback()    // always works: data is compiled into the binary
 	s.loadFromCache()   // overlay with anything fresher saved to disk
 	go s.refresh()          // try PoGoAPI in background
 	go s.refreshRaids()     // try pokemon-go-api raids in background
 	go s.refreshMaxBattles() // try pokemon-go-api max battles in background
-	go s.refreshEvents()     // try ScrapedDuck events in background
+	go s.refreshEventsAtStartup() // try ScrapedDuck events in background, with retries
 	go s.refreshPokemonNames() // try PokeAPI localized names in background
 	go func() {
 		for range time.NewTicker(6 * time.Hour).C {
@@ -973,17 +1018,89 @@ func (s *Store) refreshMaxBattles() {
 
 // refreshEvents fetches current and upcoming events from ScrapedDuck (LeekDuck data)
 // and writes to disk cache. On failure the last good payload is kept.
-func (s *Store) refreshEvents() {
-	data, err := s.cachedFetch("events", "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json")
-	if err != nil {
-		log.Printf("pogodata: events refresh: %v", err)
-		return
+// eventsFeedURL is the ScrapedDuck mirror of the LeekDuck events list. It is
+// declared once because it used to be spelled out separately in refreshEvents
+// and in CheckScrapers, which is how those two would eventually have drifted
+// onto different branches or paths.
+const eventsFeedURL = "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
+
+// arrayLen reports how many elements a JSON array payload holds and errors if
+// the payload is not an array at all.
+//
+// groupedCount cannot answer this: it unmarshals into a map, which is the raids
+// shape, so it silently reports 0 for a feed that is a flat array.
+func arrayLen(data json.RawMessage) (int, error) {
+	var arr []json.RawMessage
+	if err := json.Unmarshal(data, &arr); err != nil {
+		return 0, err
 	}
+	return len(arr), nil
+}
+
+// fetchEvents retrieves the events feed and refuses anything that is not a non
+// empty JSON array.
+//
+// That guard is the whole difference between a bad upstream reply and losing
+// every event page the site has scraped. An empty array is valid JSON, so
+// without it the payload is written over cache/events.json and then handed to
+// refreshEventDetails, which reads it as "no event is active any more", deletes
+// all of them and rewrites event_details.json as {}. Both caches are destroyed
+// in a single pass and nothing exists to restore them from.
+//
+// It guards on parse failure and emptiness ONLY, deliberately. A quiet week is
+// a legitimately short feed, so a percentage floor would eventually refuse a
+// real payload and freeze the events page with no way for upstream to recover
+// it. A suspicious drop is reported instead, as a Note on the scraper check.
+func (s *Store) fetchEvents() (json.RawMessage, int, error) {
+	data, err := s.fetch(eventsFeedURL)
+	if err != nil {
+		return nil, 0, err
+	}
+	n, err := arrayLen(data)
+	if err != nil {
+		return nil, 0, fmt.Errorf("events feed is not a JSON array: %w", err)
+	}
+	if n == 0 {
+		return nil, 0, fmt.Errorf("no events parsed from %s", eventsFeedURL)
+	}
+	return data, n, nil
+}
+
+// eventsAge reports how long ago the events feed was last fetched successfully,
+// and whether that is known at all.
+func (s *Store) eventsAge() (time.Duration, bool) {
+	s.mu.RLock()
+	at := s.eventsFetchedAt
+	s.mu.RUnlock()
+	if at.IsZero() {
+		return 0, false
+	}
+	return time.Since(at), true
+}
+
+// refreshEvents fetches the events feed, and on success replaces the cache and
+// scrapes any detail pages that are missing or stale. On failure the last good
+// payload is kept and nothing on disk is touched.
+func (s *Store) refreshEvents() error {
+	data, n, err := s.fetchEvents()
+	if err != nil {
+		// Say how stale the data now is, so a silent upstream death shows up in
+		// the journal as a number that keeps growing rather than one repeated line.
+		if age, ok := s.eventsAge(); ok {
+			log.Printf("pogodata: events refresh: %v (still serving data fetched %s ago)", err, age.Round(time.Minute))
+		} else {
+			log.Printf("pogodata: events refresh: %v", err)
+		}
+		return err
+	}
+	os.WriteFile(filepath.Join(s.cacheDir, "events.json"), data, 0644)
 	s.mu.Lock()
 	s.applyResult("events", data)
+	s.eventsFetchedAt = time.Now()
 	s.mu.Unlock()
-	log.Println("pogodata: events refresh complete")
+	log.Printf("pogodata: events refresh complete (%d events)", n)
 	s.refreshEventDetails(data)
+	return nil
 }
 
 // refreshPokemonNames fetches localized species names from PokeAPI's CSV dataset,
@@ -1288,10 +1405,29 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 		}
 		return d, groupedCount(d), nil
 	}, nil)
-	run("events", func() (json.RawMessage, int, error) {
-		d, err := s.fetch("https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json")
-		return d, 0, err
-	}, func(d json.RawMessage) { s.refreshEventDetails(d) })
+	// Read the previous count before the new payload overwrites the file, so a
+	// sharp drop can be reported. It is only ever reported, never acted on:
+	// refusing a short feed would freeze the events page with no way for
+	// upstream to recover it.
+	prevEvents := 0
+	if old, err := os.ReadFile(filepath.Join(s.cacheDir, "events.json")); err == nil {
+		prevEvents, _ = arrayLen(old)
+	}
+	// The detail scrape is started in the background rather than awaited. It
+	// sleeps detailFetchDelay between pages to stay polite, so a cold cache of
+	// ~50 events is well over a minute of sleeping, and this runs inside the
+	// admin HTTP request, against a 90 second WriteTimeout. detailsRunning
+	// already makes a concurrent pass a no op, so this cannot double fetch.
+	run("events", s.fetchEvents, func(d json.RawMessage) {
+		s.mu.Lock()
+		s.eventsFetchedAt = time.Now()
+		s.mu.Unlock()
+		go s.refreshEventDetails(d)
+	})
+	if i := len(out) - 1; i >= 0 && out[i].Key == "events" && out[i].OK &&
+		prevEvents > 0 && out[i].Count*2 < prevEvents {
+		out[i].Note = fmt.Sprintf("event count fell from %d to %d, worth checking upstream", prevEvents, out[i].Count)
+	}
 	run("pokemon_names", func() (json.RawMessage, int, error) { return s.fetchPokemonNames() }, nil)
 
 	// PoGoAPI endpoints: sequential with a 400 ms delay to avoid rate limiting, matching refresh().

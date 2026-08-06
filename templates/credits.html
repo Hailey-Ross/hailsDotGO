@@ -168,6 +168,17 @@
           </ul>
         </div>
 
+        <div class="cl-item">
+          <h2 class="cl-title">Event details that were quietly missing are back</h2>
+          <ul class="cl-list">
+            <li>Opening a GO Battle League event showed a blank panel where the details should be. The page was being fetched and stored correctly the whole time, then refused on the way back out because those events are named with underscores and the check that guards them did not allow one. Every League rotation reads properly now</li>
+            <li>Event details were also disappearing partway through an event. The site worked out whether an event had finished using the clock where the server sits, but most events run at the same hour in every timezone, so anything still running in the Americas looked over hours before it was. Those events kept their card and lost their details. It now waits until an event has genuinely finished everywhere on Earth</li>
+            <li>An event with nothing extra to show used to open an empty panel. It now says so plainly instead of looking broken</li>
+            <li>The subscribe list only offered a fixed set of event types, so choosing specific types quietly left out GO Fest, seasons, GO Pass and a few others. Anything the schedule carries now appears in the list on its own, and no type can go missing again</li>
+            <li>If the source we take events from ever publishes something empty or malformed, the site now keeps what it already has instead of throwing it away. Previously one bad update could have wiped every stored event page with nothing to restore from</li>
+          </ul>
+        </div>
+
       </div>
     </div>
 
