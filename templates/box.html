@@ -1,0 +1,66 @@
+{{define "title"}}{{T "box.title"}}{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>{{T "box.title"}}</h1>
+  <p>{{T "box.subtitle"}}</p>
+</div>
+
+<div id="box-app">
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>{{T "box.loading"}}</p>
+  </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>const BOX_CTX = { loggedIn: {{if .User}}true{{else}}false{{end}} };
+const BX = {
+  loading:      {{T "box.loading"}},
+  loggedOut:    {{T "box.logged_out"}},
+  empty:        {{T "box.empty"}},
+  count:        {{T "box.count"}},
+  colPokemon:   {{T "box.col_pokemon"}},
+  colLevel:     {{T "box.col_level"}},
+  colIv:        {{T "box.col_iv"}},
+  colCp:        {{T "box.col_cp"}},
+  colActions:   {{T "box.col_actions"}},
+  btnDelete:    {{T "box.btn_delete"}},
+  deleteOk:     {{T "box.delete_ok"}},
+  deleteFail:   {{T "box.delete_fail"}},
+  addTitle:     {{T "box.add_title"}},
+  addHint:      {{T "box.add_hint"}},
+  fieldPokemon: {{T "box.field_pokemon"}},
+  fieldStatus:  {{T "box.field_status"}},
+  fieldCp:      {{T "box.field_cp"}},
+  fieldLevel:   {{T "box.field_level"}},
+  fieldNote:    {{T "box.field_note"}},
+  statusNormal: {{T "box.status_normal"}},
+  statusShadow: {{T "box.status_shadow"}},
+  statusPurified: {{T "box.status_purified"}},
+  btnAdd:       {{T "box.btn_add"}},
+  addOk:        {{T "box.add_ok"}},
+  addFail:      {{T "box.add_fail"}},
+  needPokemon:  {{T "box.need_pokemon"}},
+  dontKnowIvs:  {{T "box.dont_know_ivs"}},
+  prev:         {{T "box.prev"}},
+  next:         {{T "box.next"}},
+  shadowTag:    {{T "box.shadow_tag"}},
+  purifiedTag:  {{T "box.purified_tag"}},
+  logIn:          {{T "box.log_in"}},
+  loadFailed:     {{T "box.load_failed"}},
+  fieldAtkIv:     {{T "box.field_atk_iv"}},
+  fieldDefIv:     {{T "box.field_def_iv"}},
+  fieldStaIv:     {{T "box.field_sta_iv"}},
+  needCp:         {{T "box.need_cp"}},
+  needLevel:      {{T "box.need_level"}},
+  levelPlaceholder: {{T "box.level_placeholder"}},
+  levelHint:      {{T "box.level_hint"}},
+  needIvs:        {{T "box.need_ivs"}},
+  boxFull:        {{T "box.box_full"}},
+  addRejected:    {{T "box.add_rejected"}},
+  btnDeleteNamed: {{T "box.btn_delete_named"}}
+};</script>
+<script src="/static/js/box.js?v={{.AssetVersion}}"></script>
+{{end}}

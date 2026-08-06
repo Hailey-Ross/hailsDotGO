@@ -50,19 +50,6 @@ interface CalcResponse {
   species_candidates?: string[];
 }
 
-interface BoxEntry {
-  id: number;
-  pokemon_name: string;
-  form: string;
-  cp: number;
-  level: number;
-  atk_iv: number | null;
-  def_iv: number | null;
-  sta_iv: number | null;
-  iv_candidates: IVCandidate[] | null;
-  note: string;
-}
-
 function ivPokemonEntries(data: GameData): PickerEntry[] {
   const out: PickerEntry[] = [];
   for (const p of data.pokemon ?? []) {
@@ -403,6 +390,11 @@ function buildManualTab(data: GameData): HTMLElement {
               body: JSON.stringify({
                 pokemon_name: poke.pokemon_name,
                 form: poke.form,
+                // The status was already chosen to read the dust cost. Carry it
+                // into the box too: the raids page scores a shadow at +20% attack,
+                // which is often what decides whether it is worth bringing.
+                is_shadow: selectedStatus === "shadow",
+                is_purified: selectedStatus === "purified",
                 cp: c.cp,
                 level: c.level,
                 atk_iv: c.atk_iv,
@@ -628,6 +620,10 @@ function buildOCRTab(): HTMLElement {
         body: JSON.stringify({
           pokemon_name: lastPoke.pokemon_name,
           form: lastPoke.form,
+          // From the scan rather than a radio button on this tab, so it is only
+          // asserted when the screenshot actually showed it.
+          is_shadow: lastExt?.is_shadow ?? null,
+          is_purified: lastExt?.is_purified ?? null,
           cp: c.cp,
           level: c.level,
           atk_iv: c.atk_iv,
@@ -689,148 +685,10 @@ function buildOCRTab(): HTMLElement {
   return wrap;
 }
 
-function buildBoxTab(): HTMLElement {
-  if (!IV_CTX.loggedIn) {
-    const container = document.createElement("div");
-    container.className = "loading-state";
-    const p = document.createElement("p");
-    p.textContent = IV.boxHint;
-    container.appendChild(p);
-    return container;
-  }
-  const wrap = document.createElement("div");
-  wrap.className = "iv-box";
+// The box moved to its own page at /box, in the sidebar. It is reachable
+// without running a calculation first, and it is what the raids page reads
+// when it scores your Pokemon against the boss you have open.
 
-  const countEl = document.createElement("p");
-  countEl.className = "iv-box-count";
-  wrap.appendChild(countEl);
-
-  const list = document.createElement("div");
-  list.className = "iv-box-list";
-  wrap.appendChild(list);
-
-  let offset = 0;
-  const limit = 50;
-
-  async function loadPage() {
-    list.innerHTML = "";
-    try {
-      const resp = await fetch(`/api/iv/pokemon?limit=${limit}&offset=${offset}`);
-      const data: { pokemon: BoxEntry[]; total: number } = await resp.json();
-      countEl.textContent = IV.boxCount.replace("{n}", String(data.total));
-
-      if (data.pokemon.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "loading-state";
-        const p = document.createElement("p");
-        p.textContent = IV.boxEmpty;
-        empty.appendChild(p);
-        list.appendChild(empty);
-        return;
-      }
-
-      const table = document.createElement("table");
-      table.className = "iv-table";
-      const thead = document.createElement("thead");
-      const hr = document.createElement("tr");
-      [IV.fieldPokemon, IV.colLevel, IV.colIVPct, IV.colCP, IV.colActions].forEach((h) => {
-        const th = document.createElement("th");
-        th.textContent = h;
-        hr.appendChild(th);
-      });
-      thead.appendChild(hr);
-      table.appendChild(thead);
-
-      const tbody = document.createElement("tbody");
-      for (const e of data.pokemon) {
-        const tr = document.createElement("tr");
-
-        const nameTd = document.createElement("td");
-        nameTd.textContent = e.pokemon_name + (e.form && e.form !== "Normal" ? ` (${e.form})` : "");
-        tr.appendChild(nameTd);
-
-        const lvlTd = document.createElement("td");
-        lvlTd.textContent = String(e.level);
-        tr.appendChild(lvlTd);
-
-        const ivTd = document.createElement("td");
-        if (e.atk_iv !== null && e.def_iv !== null && e.sta_iv !== null) {
-          const pct = Math.round((e.atk_iv + e.def_iv + e.sta_iv) / 45 * 1000) / 10;
-          ivTd.textContent = pct.toFixed(1) + "%";
-        } else {
-          ivTd.textContent = "?";
-        }
-        tr.appendChild(ivTd);
-
-        const cpTd = document.createElement("td");
-        cpTd.textContent = String(e.cp);
-        tr.appendChild(cpTd);
-
-        const actTd = document.createElement("td");
-        const delBtn = document.createElement("button");
-        delBtn.type = "button";
-        delBtn.className = "btn btn-sm btn-danger";
-        delBtn.textContent = IV.btnDelete;
-        delBtn.addEventListener("click", async () => {
-          delBtn.disabled = true;
-          const r = await fetch(`/api/iv/pokemon/${e.id}`, {
-            method: "DELETE",
-            headers: { "X-CSRF-Token": CSRF_TOKEN },
-          });
-          if (r.ok) {
-            showToast(IV.deleteSuccess, true);
-            await loadPage();
-          } else {
-            showToast(IV.deleteFailed, false);
-            delBtn.disabled = false;
-          }
-        });
-        actTd.appendChild(delBtn);
-        tr.appendChild(actTd);
-
-        tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);
-      const btw = document.createElement("div");
-      btw.className = "table-wrap";
-      btw.appendChild(table);
-      list.appendChild(btw);
-
-      if (data.total > limit) {
-        const pag = document.createElement("div");
-        pag.className = "pagination";
-        if (offset > 0) {
-          const prev = document.createElement("button");
-          prev.type = "button";
-          prev.className = "btn btn-sm";
-          prev.textContent = "←";
-          prev.addEventListener("click", () => { offset -= limit; loadPage(); });
-          pag.appendChild(prev);
-        }
-        const pg = document.createElement("span");
-        pg.style.margin = "0 0.5rem";
-        pg.textContent = `${Math.floor(offset / limit) + 1} / ${Math.ceil(data.total / limit)}`;
-        pag.appendChild(pg);
-        if (offset + limit < data.total) {
-          const next = document.createElement("button");
-          next.type = "button";
-          next.className = "btn btn-sm";
-          next.textContent = "→";
-          next.addEventListener("click", () => { offset += limit; loadPage(); });
-          pag.appendChild(next);
-        }
-        list.appendChild(pag);
-      }
-    } catch {
-      const p = document.createElement("p");
-      p.textContent = IV.commonFailed;
-      list.appendChild(p);
-    }
-  }
-
-  loadPage();
-  return wrap;
-}
 
 async function main() {
   let data: GameData;
@@ -844,7 +702,7 @@ async function main() {
   const tabs = [
     { id: "manual", label: IV.tabManual, render: () => buildManualTab(data) },
     ...(IV_CTX.loggedIn ? [{ id: "ocr", label: IV.tabOCR, render: buildOCRTab }] : []),
-    ...(IV_CTX.loggedIn ? [{ id: "box", label: IV.tabBox, render: buildBoxTab }] : []),
+
   ];
 
   app.innerHTML = "";

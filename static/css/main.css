@@ -3904,3 +3904,84 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   padding: 0.2rem 0.7rem; cursor: pointer;
 }
 .verify-banner-btn:hover { background: rgba(91,156,246,0.2); }
+
+/* ── Pokemon Box (/box) and "your Pokemon vs this boss" on /raids ───────── */
+
+.box-add-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  /* Deliberately NOT overflow:hidden. The species picker's dropdown is absolutely
+     positioned and would be clipped to this box, cutting off half the matches
+     with no way to scroll to them. The summary row gets the rounded corners on
+     its own instead. */
+}
+.box-add-panel > .box-add-summary { border-radius: 12px 12px 0 0; }
+.box-add-summary {
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  list-style: none;
+}
+.box-add-summary::-webkit-details-marker { display: none; }
+.box-add-summary::before { content: "+ "; color: var(--gold); font-weight: 700; }
+.box-add-panel[open] .box-add-summary::before { content: "− "; }
+.box-add-body { padding: 0 1rem 1rem; }
+
+.box-field { margin-bottom: 0.75rem; }
+.box-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  margin-bottom: 0.25rem;
+}
+.box-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 0.5rem;
+}
+.box-field-narrow { margin-bottom: 0; }
+.box-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+.box-pager {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+/* Small status pills next to a name, in the box list and the raids table. */
+.box-tag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 5px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+.box-tag-shadow   { background: rgba(123,97,255,0.16); color: #b9a6ff; border: 1px solid #7b61ff; }
+.box-tag-purified { background: rgba(0,214,143,0.12); color: var(--green); border: 1px solid var(--green); }
+.box-tag-approx   { background: rgba(255,179,64,0.12); color: var(--gold); border: 1px solid var(--gold); cursor: help; }
+
+/* Sits ABOVE the top counters table, so the gap belongs underneath it rather
+   than above, where the panel's own heading block already provides one. */
+.box-vs-boss { margin-bottom: 1.75rem; }
+.box-dps-best { font-weight: 700; display: block; }
+/* The worst moveset sits under the best rather than beside it, because the
+   pair is one answer with a range and not two separate numbers. */
+.box-dps-worst {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-2);
+  font-weight: 400;
+}
+.box-show-all { margin-top: 0.6rem; }

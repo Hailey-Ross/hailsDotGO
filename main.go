@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"log"
 	"net/http"
@@ -38,6 +39,8 @@ func main() {
 		log.Fatalf("db ping: %v", err)
 	}
 	defer db.Close()
+
+	warnPendingMigrations(db)
 
 	// Register runtime locales (created through the translator workflow)
 	// before loading overlays. A missing locales table is tolerated so the
@@ -112,7 +115,7 @@ func main() {
 func loadCSRFKey() ([]byte, error) {
 	keyHex := os.Getenv("CSRF_KEY")
 	if keyHex == "" {
-		log.Println("WARNING: CSRF_KEY not set — generating random key. CSRF tokens will not survive restarts.")
+		log.Println("WARNING: CSRF_KEY not set, generating a random key. CSRF tokens will not survive restarts.")
 		key := make([]byte, 32)
 		if _, err := rand.Read(key); err != nil {
 			return nil, err
@@ -124,4 +127,41 @@ func loadCSRFKey() ([]byte, error) {
 		log.Fatal("CSRF_KEY must be a 64-character hex string (32 bytes). Generate with: openssl rand -hex 32")
 	}
 	return key, nil
+}
+
+// warnPendingMigrations checks the columns this build's queries name and shouts
+// if they are absent.
+//
+// Nothing runs migrations for us: deploy.ps1 uploads a binary and restarts the
+// service, and cmd/migrate is a separate thing a person has to remember. So
+// binary before migration is the DEFAULT ordering, not the unlucky one, and the
+// failure is not confined to a new feature: a query naming a missing column
+// takes the IV calculator's save button down with it, and the browser renders
+// that as "log in", which is the least diagnosable message available.
+//
+// It logs rather than refusing to start. A site that boots with one broken
+// feature and a loud journal line is better than one that will not boot at all,
+// and the operator sees this within seconds of the restart.
+func warnPendingMigrations(db *sql.DB) {
+	required := []struct{ table, column string }{
+		{"user_pokemon_box", "is_shadow"},
+		{"user_pokemon_box", "is_purified"},
+	}
+	for _, r := range required {
+		var n int
+		err := db.QueryRow(`
+			SELECT COUNT(*) FROM information_schema.COLUMNS
+			 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+			r.table, r.column,
+		).Scan(&n)
+		if err != nil {
+			log.Printf("migration check: could not inspect %s.%s: %v", r.table, r.column, err)
+			continue
+		}
+		if n == 0 {
+			log.Printf("MIGRATION PENDING: %s.%s is missing. This build's queries need it, "+
+				"so the Pokemon box and saving from the IV calculator will fail until you run "+
+				"`go run ./cmd/migrate`.", r.table, r.column)
+		}
+	}
 }

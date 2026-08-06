@@ -157,6 +157,20 @@
       <div class="cl-body">
 
         <div class="cl-item">
+          <h2 class="cl-title">The costume check now notices costumes it used to miss</h2>
+          <ul class="cl-list">
+            <li>Costumes are read straight out of the game's own files, so the site knows which ones exist, which Pokémon can wear each one, and whether the shiny version was ever made. A check in the admin panel asks whether the game has added any we do not have yet. It was answering the wrong question</li>
+            <li>It only ever looked for brand new costumes. When an existing costume was later given to more Pokémon, which is how most events extend one, it saw nothing to report, and anyone who caught the costume on one of the new species got a plain shiny with no costume art. It now spots that too, and names the species that were added</li>
+            <li>It could also have nagged forever about a costume that only exists in the female version of a sprite, asking for an update that would never have changed anything</li>
+            <li>The check counted every file in the game's art folder and then described the total as costumes. It now says how many costume sprites it actually looked at</li>
+            <li>Two presses of the button in quick succession no longer means two trips to the game files. The answer is held for a few minutes and pressing again asks for a fresh look, which stops the site running out of its allowance and reporting a limit as though the source had gone missing</li>
+            <li>The tool that rebuilds costume data used to report itself as out of date whenever the game's art repository received any commit at all, even one that touched nothing about costumes. It now separates a real costume change from that bookkeeping, so a warning means something again</li>
+            <li>Some costumes are in the game and still have no name on this site, so they cannot be recorded yet. Nothing you have already recorded is affected. They are named by hand on purpose, because the game's internal names are misleading (one called "May 2019" is a straw hat), and the admin panel now says plainly when there is no outside name to check a new one against</li>
+            <li>A costume name given by mistake can now be taken back. Until now a name vanished from the list the instant it was given, so a wrong one could not be reached to correct it. It can only be undone while nobody has recorded that costume, because removing a name people have used would blank the artwork on their entries</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
           <h2 class="cl-title">Accounts can now be deleted, not only suspended</h2>
           <ul class="cl-list">
             <li>Until now the strongest thing staff could do to an account was suspend it, which locks the trainer out but keeps everything on file. There is now a way to remove an account outright, for spam signups, throwaway test accounts, and anyone who asks for their data to be erased</li>
@@ -165,6 +179,29 @@
             <li>Other people's records are left standing. If the deleted account had rated or raided with someone, that trainer's own history and trust score are untouched rather than quietly shifting</li>
             <li>Strikes now outlive the staff member who issued them. Previously, deleting a moderator would have deleted every strike they had ever given out, wiping the record of the trainers they disciplined. The strike stays, still showing who issued it</li>
             <li>That last part is a database change. The upgrade tool applies it, and a brand new install needs nothing extra</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Your Pokémon now have a home, and the Raids page uses them</h2>
+          <ul class="cl-list">
+            <li>There is a new My Pokémon page in the menu. It holds the Pokémon you have saved, and you can now add one by hand as well as remove it. Until now the only way to put anything in there was to run an IV check first, or to use the companion app, which has not been released</li>
+            <li>Adding by hand is for a Pokémon whose appraisal you already know: pick it, set its CP, level and IVs, and mark it as shadow or purified. If you do not know the IVs, the IV Calculator still works them out from CP, HP and stardust, and saving from there fills the box as before</li>
+            <li>Open a raid boss on the Raids page and your own Pokémon are now ranked against it, shown first, above the general list of top counters. The best five appear straight away and the rest are one tap behind them, so the question of what to actually bring is answered before the question of what the theoretical best would be</li>
+            <li>Because your box records which Pokémon you own but not which moves they know, each one shows two numbers: what it does on its best moveset and what it does on its worst. A Pokémon whose IVs were never pinned down still appears, marked, using the average of the possibilities rather than pretending it is perfect</li>
+            <li>Shadow Pokémon are counted properly. Shadow hits noticeably harder in a raid, and the box can now record that, which often changes which of your Pokémon is actually the best pick</li>
+            <li>The old "Check your Pokémon" box at the top of the page is unchanged if you liked comparing one Pokémon across every current raid</li>
+            <li>This adds two columns to the database. The upgrade tool handles it, and a brand new install needs nothing extra</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Counter damage figures were wrong for most raid bosses</h2>
+          <ul class="cl-list">
+            <li>Every Shadow, Alolan, Hisuian, Galarian and Mega boss was being scored against a placeholder defence stat instead of its own, because those bosses are named differently from the Pokédex entry the site looked them up in. On a recent rotation that was 14 of the 19 bosses on the board</li>
+            <li>The order of the counters list was never affected, so the advice you were reading was sound. The DPS and TDO numbers next to it were not, and were often out by more than half</li>
+            <li>There were two halves to it. Bosses named with a prefix, like Shadow Slowpoke or Alolan Sandshrew, matched nothing at all and got a placeholder. Bosses named plainly, like Mewtwo or Deoxys, matched the wrong forme instead: Mewtwo was being scored as Armored Mewtwo and Deoxys as its Attack forme, which are not the ones you fight. Both are right now, and a check runs against the live boss list so it cannot drift back quietly</li>
+            <li>One gap remains and is worth being straight about: Mega bosses fall back to the ordinary form's defence, because the data we get does not carry Mega stats at all. That is closer than the old placeholder but it is not exact, and it cannot be until the source provides them</li>
           </ul>
         </div>
 

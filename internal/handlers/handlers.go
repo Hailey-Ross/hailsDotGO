@@ -172,7 +172,7 @@ var tmplFuncs = template.FuncMap{
 func (h *Handlers) loadTemplates() {
 	h.tmpl = make(map[string]*template.Template)
 	pages := []string{
-		"home", "raids", "dps", "pvp", "events", "iv", "credits", "maintenance",
+		"home", "raids", "dps", "pvp", "events", "iv", "box", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
 		"forgot_password", "reset_password", "verify_email",
@@ -480,6 +480,11 @@ func pageEnabled(page string, m PageMaintenance) bool {
 	case "events":
 		return m.EventsEnabled
 	case "iv":
+		return m.IVEnabled
+	case "box":
+		// The box rides the IV toggle rather than owning one. Without this the
+		// nav link would vanish while the page itself carried on serving, so the
+		// switch would look like it had worked and would not have.
 		return m.IVEnabled
 	case "trainers":
 		return m.TrainersEnabled

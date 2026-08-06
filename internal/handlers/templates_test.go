@@ -22,7 +22,7 @@ func TestTemplatesParse(t *testing.T) {
 	}
 
 	pages := []string{
-		"home", "raids", "dps", "pvp", "events", "iv", "credits", "maintenance",
+		"home", "raids", "dps", "pvp", "events", "iv", "box", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
 		"forgot_password", "reset_password", "verify_email",
