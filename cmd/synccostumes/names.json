@@ -423,6 +423,9 @@
   "f:POP_STAR": {
     "25": "Pop Star"
   },
+  "f:PXP_2026": {
+    "25": "PokémonXP"
+  },
   "f:ROCK_STAR": {
     "25": "Rock Star"
   },
@@ -470,6 +473,9 @@
   },
   "f:WCS_2025": {
     "25": "World Championships 2025"
+  },
+  "f:WCS_2026": {
+    "25": "World Championships 2026"
   },
   "f:WILDAREA_2024": {
     "143": "Studded Jacket"
