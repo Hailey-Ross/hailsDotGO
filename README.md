@@ -89,7 +89,7 @@ go run ./cmd/migrate -from v0.1.7c   # name the version you are on (v0.1.7b is t
 go run ./cmd/migrate                 # every upgrade after that
 ```
 
-v0.1.7e adds a table, so upgrading to it is not just a rebuild and a restart. Full steps are on the [Releases and Upgrading](https://github.com/Hailey-Ross/hailsDotGO/wiki/Releases-and-Upgrading) wiki page.
+v0.1.7f changes the schema in three places, so upgrading to it is not just a rebuild and a restart. Full steps are on the [Releases and Upgrading](https://github.com/Hailey-Ross/hailsDotGO/wiki/Releases-and-Upgrading) wiki page.
 
 When you are ready to put it on a server, see [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment).
 
