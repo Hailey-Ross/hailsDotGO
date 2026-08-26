@@ -6,17 +6,20 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 //go:embed fallback/*.json
@@ -639,7 +642,15 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 	case "max_battles":
 		s.maxBattles = data
 	case "events":
-		s.events = data
+		// The single writer to s.events, so decoding the feed's HTML entities
+		// here happens exactly once by construction, whatever supplied the
+		// bytes: the disk cache at boot, a scheduled refresh, or the admin
+		// scraper check. Decoding at fetch time instead decoded twice, because
+		// the already decoded bytes were written to cache/events.json and then
+		// decoded a second time by loadFromCache on the next boot, so the same
+		// title served differently depending on whether the process had last
+		// fetched or last restarted.
+		s.events = normalizeEventsFeed(data)
 	case "pokemon":
 		s.pokemon = data
 		var arr []struct {
@@ -1016,13 +1027,17 @@ func (s *Store) refreshMaxBattles() {
 	s.mu.Unlock()
 }
 
-// refreshEvents fetches current and upcoming events from ScrapedDuck (LeekDuck data)
-// and writes to disk cache. On failure the last good payload is kept.
 // eventsFeedURL is the ScrapedDuck mirror of the LeekDuck events list. It is
 // declared once because it used to be spelled out separately in refreshEvents
 // and in CheckScrapers, which is how those two would eventually have drifted
 // onto different branches or paths.
-const eventsFeedURL = "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
+//
+// It is a var rather than a const purely so a test can point the fetch path at a
+// local httptest server. That hook is not cosmetic: while this was a const,
+// nothing in the package could drive refreshEvents or fetchEvents, so the one
+// boundary where the double decode actually lived, between the network and the
+// disk cache, had no coverage at all. Tests must restore the original value.
+var eventsFeedURL = "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
 
 // arrayLen reports how many elements a JSON array payload holds and errors if
 // the payload is not an array at all.
@@ -1035,6 +1050,122 @@ func arrayLen(data json.RawMessage) (int, error) {
 		return 0, err
 	}
 	return len(arr), nil
+}
+
+// normalizeEventsFeed decodes HTML entities in the human readable title fields
+// of the ScrapedDuck events feed. applyResult is its only caller, which is what
+// makes it run exactly once per payload.
+//
+// The feed ships titles already HTML escaped, e.g. "PokémonXP &amp; 2026
+// Worlds". Nothing downstream decodes them: the client writes the title with
+// textContent, so "&amp;" renders as five literal characters on the card and in
+// the modal, and the same string leaks into the .ics SUMMARY, the Google
+// Calendar link and every img alt. Fixing it here fixes all of them at once.
+//
+// The payload is unmarshalled into []map[string]json.RawMessage rather than a
+// typed struct or map[string]any on purpose: every value that is not rewritten
+// is carried as its original raw bytes, so nested extraData survives
+// semantically intact and integers cannot be round tripped through float64,
+// which is the half that actually matters.
+// It is NOT byte for byte, and saying so would mislead the next reader:
+// re-encoding applies encoding/json's default HTML escaping, so a literal &, <
+// or > anywhere in the payload, inside extraData included, comes back as its
+// escaped form, and insignificant whitespace is compacted away.
+// That is the same JSON to any parser, and the escaping is left on deliberately:
+// it is free insurance for the day this blob is read somewhere other than an
+// application/json response.
+//
+// It is deliberately narrow to name and heading because those are the only
+// fields that arrive escaped. The events page renders plenty of other strings
+// as display text (extraData's spotlight bonus, spawn and raid boss names,
+// special research names, task and reward text, the bonus disclaimers), but
+// upstream ships every one of those already decoded: a "2x Catch Candy" bonus
+// arrives carrying a literal multiplication sign, not an entity. Widening the
+// helper would therefore gain nothing and would only risk rewriting a value
+// that merely looks like an entity. eventID is an identity used for cache keys
+// and detail lookups and must never be rewritten, and URLs are not entity
+// escaped by the feed, so touching them could only do harm.
+//
+// Only a real, properly terminated entity reference is decoded, and it takes two
+// guards to make that true rather than one. The first is strictEntity, which is
+// why this runs a regexp over the value instead of handing the whole string to
+// html.UnescapeString. That function follows the HTML5 spec, and the spec still
+// decodes the legacy named set WITHOUT its closing semicolon, so an ordinary
+// title turns into mojibake: "Raid Day &notify me" becomes "Raid Day ¬ify me",
+// and "Tour: Unova &copyright" becomes "Tour: Unova ©right". Upstream titles
+// carry bare ampersands routinely, so that is a live hazard rather than a
+// curiosity.
+//
+// The second guard is the rune count, and it is just as necessary. Matching a
+// token that ends in a semicolon is not enough on its own, because
+// html.UnescapeString applies that same legacy prefix rule INSIDE whatever token
+// it is handed: on its own it turns "&notarealentity;" into "¬arealentity;" and
+// "&times2026;" into "×2026;". Every genuine entity decodes to one rune or two,
+// whereas the prefix fallback always leaves the unmatched tail sitting behind
+// the decoded rune and so returns three or more. Counting the runes is therefore
+// how the fallback is spotted and the original token kept. Testing for a
+// trailing semicolon instead would be wrong, because "&semi;" is a genuine
+// entity that legitimately decodes to ";".
+//
+// A short name is not the problem, the missing semicolon is: "Wild Area &sect;1"
+// still decodes, correctly, because that entity is properly terminated.
+//
+// On any error, a payload that is not an array, malformed JSON, or a value that
+// is not a JSON string where one is expected, the input is returned completely
+// unchanged. A shape change upstream degrades to today's behaviour rather than
+// losing the feed.
+// strictEntity matches an entity reference that carries its closing semicolon,
+// named or numeric (decimal or hex). See normalizeEventsFeed for why the
+// semicolon is required rather than optional.
+var strictEntity = regexp.MustCompile(`&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});`)
+
+func normalizeEventsFeed(raw json.RawMessage) json.RawMessage {
+	var entries []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return raw
+	}
+	changed := false
+	for _, entry := range entries {
+		for _, key := range [...]string{"name", "heading"} {
+			val, ok := entry[key]
+			if !ok {
+				continue
+			}
+			var s string
+			if err := json.Unmarshal(val, &s); err != nil {
+				// Not a JSON string. Leave it exactly as it arrived.
+				continue
+			}
+			unescaped := strictEntity.ReplaceAllStringFunc(s, func(tok string) string {
+				decoded := html.UnescapeString(tok)
+				if utf8.RuneCountInString(decoded) > 2 {
+					// The legacy prefix fallback fired and left the rest of
+					// the token behind, so this was never a real entity.
+					return tok
+				}
+				return decoded
+			})
+			if unescaped == s {
+				continue
+			}
+			encoded, err := json.Marshal(unescaped)
+			if err != nil {
+				return raw
+			}
+			entry[key] = json.RawMessage(encoded)
+			changed = true
+		}
+	}
+	if !changed {
+		// Nothing to rewrite, so hand back the original bytes rather than a
+		// re-encoded copy that only differs in key order and whitespace.
+		return raw
+	}
+	out, err := json.Marshal(entries)
+	if err != nil {
+		return raw
+	}
+	return json.RawMessage(out)
 }
 
 // fetchEvents retrieves the events feed and refuses anything that is not a non
@@ -1063,6 +1194,9 @@ func (s *Store) fetchEvents() (json.RawMessage, int, error) {
 	if n == 0 {
 		return nil, 0, fmt.Errorf("no events parsed from %s", eventsFeedURL)
 	}
+	// The payload is handed back exactly as upstream sent it. Decoding the
+	// titles is applyResult's job, so cache/events.json keeps a faithful copy
+	// of the source and CheckScrapers can compare raw against raw.
 	return data, n, nil
 }
 
@@ -1093,12 +1227,22 @@ func (s *Store) refreshEvents() error {
 		}
 		return err
 	}
-	os.WriteFile(filepath.Join(s.cacheDir, "events.json"), data, 0644)
+	// persistAndApply rather than a hand rolled write plus applyResult. There has
+	// to be exactly ONE path from a payload to cache/events.json: while there
+	// were two, a test could cover the tidy one and prove nothing whatsoever
+	// about the other, and the double decode bug lived in the copy that used to
+	// sit right here.
+	s.persistAndApply("events", data)
+	// Its own short critical section, matching what CheckScrapers does. The
+	// timestamp is not part of what makes the write and the apply consistent, so
+	// it has no business widening that lock.
 	s.mu.Lock()
-	s.applyResult("events", data)
 	s.eventsFetchedAt = time.Now()
 	s.mu.Unlock()
 	log.Printf("pogodata: events refresh complete (%d events)", n)
+	// The raw upstream bytes, deliberately, not what applyResult stored: the
+	// detail scraper keys on eventID and reads link, and normalization touches
+	// neither, so handing it the normalized copy would only add a way to drift.
 	s.refreshEventDetails(data)
 	return nil
 }
