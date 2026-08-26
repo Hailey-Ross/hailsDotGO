@@ -81,7 +81,7 @@ func driftCheck(force bool) pogodata.ScraperCheck {
 
 	res.OK = true
 	res.Count = len(rep.Added) + len(rep.Grown)
-	res.Changed = res.Count > 0 || unnamed > 0
+	res.Changed = res.Count > 0 || unnamed > 0 || len(rep.Unflagged) > 0
 	res.DurationMs = time.Since(start).Milliseconds()
 
 	var notes []string
@@ -115,6 +115,16 @@ func driftCheck(force bool) pogodata.ScraperCheck {
 	}
 	if unnamed > 0 {
 		notes = append(notes, fmt.Sprintf("%d costume(s) have no label yet and cannot be recorded, see the Costumes tab", unnamed))
+	}
+	// Not folded into Added: `make costumes` alone will NOT pick these up, so telling an admin to
+	// run it would be a lie. They need a human to look at the sprite and write a label first.
+	if len(rep.Unflagged) > 0 {
+		show := rep.Unflagged
+		if len(show) > 5 {
+			show = show[:5]
+		}
+		notes = append(notes, fmt.Sprintf("%d code(s) upstream will not call costumes: %s%s, check the sprite and add a label if it is one",
+			len(rep.Unflagged), strings.Join(show, ", "), more(len(rep.Unflagged), len(show))))
 	}
 	// A dead third party must not turn this red: the .c half of the answer is still trustworthy,
 	// so report it and say plainly which half could not be checked.
@@ -150,10 +160,21 @@ type grown struct {
 type driftReport struct {
 	Added      []string // codes with shiny art we have never synced
 	Grown      []grown  // codes we have, that gained species upstream
+	Unflagged  []string // .f codes with a year that upstream will not call costumes, see below
 	Unverified int      // .f codes nobody could judge because the masterfile was unreachable
 	Scanned    int      // assets that matched the costume grammar, which is NOT len(files)
 	Female     int      // of those, the .g2 variants, which never make a code on their own
 }
+
+// eventYearRe finds a four-digit year token in a costume code, and separates the two kinds of .f
+// code the masterfile leaves unflagged: a permanent battle or regional form (MEGA, ALOLA,
+// GALARIAN, CROWNED_SWORD, UNOWN_A, the Vivillon patterns, the Spinda spot sets) never carries a
+// year, while an event costume nearly always does.
+//
+// It decides only what to SAY, never what to admit. cmd/synccostumes keeps an identical copy for
+// its UNFLAGGED report, and the two must stay in step for the same reason the .g2 parsers do:
+// this check must never name something `make costumes` would not act on.
+var eventYearRe = regexp.MustCompile(`(^|_)(19|20)\d{2}($|_)`)
 
 // newCodes reports what upstream has that the embedded catalog does not.
 //
@@ -260,12 +281,21 @@ func newCodes(files []string, known map[string][]int, curated map[string]bool, f
 			rep.Unverified++
 			continue
 		}
+		admitted := false
 		for _, dex := range dexes {
 			if isCostume(code, dex) {
 				counted[code] = true
 				rep.Added = append(rep.Added, code)
+				admitted = true
 				break
 			}
+		}
+		// Upstream has shiny art, we do not have the code, and nothing will admit it: neither the
+		// masterfile nor a label calls it a costume. Usually correct (every Mega, Alolan and Unown
+		// lands here), but it is also exactly where a real costume goes missing in silence, which
+		// f:COPY_2019 did for months. Say the ones carrying a year out loud so a human can look.
+		if !admitted && eventYearRe.MatchString(strings.TrimPrefix(code, "f:")) {
+			rep.Unflagged = append(rep.Unflagged, code)
 		}
 	}
 
@@ -278,6 +308,7 @@ func newCodes(files []string, known map[string][]int, curated map[string]bool, f
 	}
 
 	sort.Strings(rep.Added)
+	sort.Strings(rep.Unflagged)
 	sort.Slice(rep.Grown, func(i, j int) bool { return rep.Grown[i].Code < rep.Grown[j].Code })
 	return rep
 }

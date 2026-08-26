@@ -596,3 +596,111 @@ func TestWillowAliasesResolveToTheSameArt(t *testing.T) {
 		}
 	}
 }
+
+// yearTokenCases is the shared truth about which unflagged .f codes are worth reporting.
+//
+// It is DUPLICATED verbatim in cmd/synccostumes/unflagged_test.go, for the same reason
+// grammarCases is: cmd/synccostumes is package main and cannot import internal/costumes, so the
+// year rule exists twice. If the two copies drift, this check would name a code `make costumes`
+// would not act on, which is precisely the class of bug the .g2 case table was written to stop.
+//
+// Keep the two copies identical. If you add a case here, add it there.
+var yearTokenCases = []struct {
+	code string // the code WITHOUT its "f:" prefix
+	want bool
+}{
+	// Event costumes: every one of these carries a year.
+	{"WCS_2026", true},
+	{"PXP_2026", true},
+	{"SWIM_2025", true},
+	{"ANNIVERSARY_2026_MALAYSIA_01", true},
+	{"ANNIVERSARY_2026_PHILIPPINE_01", true},
+	{"COPY_2019", true}, // the false negative this whole rule exists for
+	{"COIN_A2_2026", true},
+	{"GOTOUR_2024_B_02", true},
+	{"2020", true}, // a bare year is still a year (Slowpoke's New Year Costume)
+
+	// Permanent battle, regional and pattern forms: none of these carries a year, and reporting
+	// any of them would be the noise that teaches people to scroll past the whole section.
+	{"MEGA", false},
+	{"MEGA_X", false},
+	{"ALOLA", false},
+	{"GALARIAN", false},
+	{"HISUIAN", false},
+	{"CROWNED_SWORD", false},
+	{"GIGANTAMAX", false},
+	{"UNOWN_A", false},
+	{"UNOWN_QUESTION_MARK", false},
+	{"BLUE_STRIPED", false},
+	{"COMPLETE_TEN_PERCENT", false},
+	{"FAMILY_OF_THREE", false},
+	{"BREAD_DOUGH_MODE_2", false},
+	{"TSHIRT_01", false},
+	{"FLYING_01", false},
+	{"00", false}, // a Spinda spot set, two digits, not a year
+	{"A", false},
+}
+
+// The drift check's half of the year rule. Its answers must match looksLikeEventCostume's,
+// case for case.
+func TestYearTokenRuleMatchesTheSyncTool(t *testing.T) {
+	for _, c := range yearTokenCases {
+		if got := eventYearRe.MatchString(c.code); got != c.want {
+			t.Errorf("eventYearRe.MatchString(%q) = %v, want %v", c.code, got, c.want)
+		}
+	}
+}
+
+// The blind spot itself. A .f code upstream has shiny art for, that the masterfile will not call a
+// costume and no label vouches for, is dropped by buildCatalog AND by this check, so the costume is
+// simply absent and nothing anywhere says why. f:COPY_2019 sat in that hole for months, and so did
+// the 2026 regional anniversary Pikachu until they were labelled by hand.
+func TestNewCodesReportsUnflaggedCodesThatCarryAYear(t *testing.T) {
+	files := []string{
+		"pm25.fANNIVERSARY_2026_MALAYSIA_01.s.icon.png", // a real costume upstream will not flag
+		"pm54.fSWIM_2025.s.icon.png",                    // ditto, on another species
+		"pm26.fALOLA.s.icon.png",                        // a regional form: no year, stays silent
+		"pm888.fCROWNED_SWORD.s.icon.png",               // a battle form: no year, stays silent
+		"pm201.fUNOWN_A.s.icon.png",                     // a pattern form: no year, stays silent
+	}
+
+	rep := newCodes(files, map[string][]int{}, map[string]bool{}, fakeForms{})
+
+	want := []string{"f:ANNIVERSARY_2026_MALAYSIA_01", "f:SWIM_2025"}
+	if !slices.Equal(rep.Unflagged, want) {
+		t.Errorf("unflagged = %v, want %v", rep.Unflagged, want)
+	}
+	// It must not be folded into Added: `make costumes` alone will not pick these up, so telling
+	// an admin to run it would be a lie.
+	if len(rep.Added) != 0 {
+		t.Errorf("added = %v, want none: nothing here is admissible yet", rep.Added)
+	}
+}
+
+// Once a human has looked at the sprite and written a label, the code is admitted for real and
+// must drop off the report entirely, rather than nagging forever.
+func TestNewCodesStopsReportingAnUnflaggedCodeOnceLabelled(t *testing.T) {
+	files := []string{"pm54.fSWIM_2025.s.icon.png"}
+	curated := map[string]bool{"f:SWIM_2025": true}
+
+	rep := newCodes(files, map[string][]int{}, curated, fakeForms{})
+
+	if len(rep.Unflagged) != 0 {
+		t.Errorf("unflagged = %v, want none once a label vouches for it", rep.Unflagged)
+	}
+	if !slices.Equal(rep.Added, []string{"f:SWIM_2025"}) {
+		t.Errorf("added = %v, want [f:SWIM_2025]", rep.Added)
+	}
+}
+
+// A code we have already synced is not news, whatever upstream thinks of it.
+func TestNewCodesDoesNotReportUnflaggedCodesWeAlreadyHave(t *testing.T) {
+	files := []string{"pm54.fSWIM_2025.s.icon.png"}
+	known := map[string][]int{"f:SWIM_2025": {54}}
+
+	rep := newCodes(files, known, map[string]bool{}, fakeForms{})
+
+	if len(rep.Unflagged) != 0 {
+		t.Errorf("unflagged = %v, want none for a code already in the catalog", rep.Unflagged)
+	}
+}

@@ -1,6 +1,6 @@
 {
-  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@6280ccb86615fe270fa0c9ba1772660f4bf3e360/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
-  "sourceCommit": "6280ccb86615fe270fa0c9ba1772660f4bf3e360",
+  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@acd2f4a5a98790c84782f24322c0840b1a4f1838/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
+  "sourceCommit": "acd2f4a5a98790c84782f24322c0840b1a4f1838",
   "codes": {
     "c:ANNIVERSARY": {
       "pretty": "Anniversary",
@@ -768,6 +768,46 @@
         25
       ]
     },
+    "f:ANNIVERSARY_2026_MALAYSIA_01": {
+      "pretty": "",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ],
+      "unconfirmed": true
+    },
+    "f:ANNIVERSARY_2026_PHILIPPINE_01": {
+      "pretty": "",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ],
+      "unconfirmed": true
+    },
+    "f:ANNIVERSARY_2026_SINGAPORE_01": {
+      "pretty": "",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ],
+      "unconfirmed": true
+    },
+    "f:ANNIVERSARY_2026_TAIWAN_01": {
+      "pretty": "",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ],
+      "unconfirmed": true
+    },
     "f:BB_2026": {
       "pretty": "Bb 2026",
       "dex": [
@@ -1228,6 +1268,13 @@
         25
       ]
     },
+    "f:PXP_2026": {
+      "pretty": "Pxp 2026",
+      "suggested": "PokémonXP",
+      "dex": [
+        25
+      ]
+    },
     "f:ROCK_STAR": {
       "pretty": "Rock Star",
       "suggested": "Rock Star",
@@ -1309,6 +1356,13 @@
       "female": [
         25
       ]
+    },
+    "f:SWIM_2025": {
+      "pretty": "",
+      "dex": [
+        54
+      ],
+      "unconfirmed": true
     },
     "f:TSHIRT_01": {
       "pretty": "Tshirt 01",
@@ -1394,6 +1448,13 @@
         25
       ],
       "female": [
+        25
+      ]
+    },
+    "f:WCS_2026": {
+      "pretty": "Wcs 2026",
+      "suggested": "World Championships 2026",
+      "dex": [
         25
       ]
     },

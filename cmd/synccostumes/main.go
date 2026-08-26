@@ -61,6 +61,19 @@ var httpc = &http.Client{Timeout: 60 * time.Second}
 // female-only asset is never mistaken for the default sprite.
 var assetRe = regexp.MustCompile(`^pm(\d+)(?:\.f([A-Za-z0-9_]+))?(?:\.c([A-Za-z0-9_]+))?(\.g2)?(\.s)?\.icon\.png$`)
 
+// eventYearRe finds a four-digit year token in a costume code. It is the one cheap signal that
+// separates the two kinds of .f code the masterfile leaves unflagged: a permanent battle or
+// regional form (MEGA, ALOLA, GALARIAN, CROWNED_SWORD, UNOWN_A, the Vivillon patterns, the
+// Spinda spot sets) never carries a year, while an event costume nearly always does. Used only
+// to decide what is worth a human's attention, never to admit anything.
+var eventYearRe = regexp.MustCompile(`(^|_)(19|20)\d{2}($|_)`)
+
+// looksLikeEventCostume reports whether an unflagged .f code is probably a costume we are
+// missing, and so worth printing. See unflaggedFindings for why this exists at all.
+func looksLikeEventCostume(code string) bool {
+	return strings.HasPrefix(code, "f:") && eventYearRe.MatchString(strings.TrimPrefix(code, "f:"))
+}
+
 type catalog struct {
 	AssetBase    string                   `json:"assetBase"`
 	SourceCommit string                   `json:"sourceCommit"`
@@ -129,7 +142,7 @@ func main() {
 	lab, err := loadLabels()
 	must(err, "read "+labelsPath)
 
-	cat, nameToDex := buildCatalog(sha, files, mf, lab.codes())
+	cat, nameToDex, unflagged := buildCatalog(sha, files, mf, lab.codes())
 	fmt.Printf("%d costume codes with shiny art\n", len(cat.Codes))
 
 	// What a costume is actually CALLED. Suggestion only: our curated labels always win.
@@ -148,6 +161,7 @@ func main() {
 	report("WARN", warns)
 	report("NAME CHECK", nameCheck(cat, lab, nameToDex, nm))
 	report("REVIEW", review)
+	report("UNFLAGGED", unflaggedFindings(unflagged))
 	suggestLabels(cat, lab, nm, dexToName)
 
 	if len(errs) > 0 {
@@ -334,7 +348,7 @@ func assetFiles(sha, token string) ([]string, error) {
 // negatives (PIKACHU_COPY_2019, Clone Pikachu, carries no flag at all despite its shiny asset
 // being live), and trusting the flag alone would silently drop a costume users have already
 // recorded. Curated-but-unconfirmed codes are reported so a human can eyeball them.
-func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[string]bool) (*catalog, map[string]int) {
+func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[string]bool) (*catalog, map[string]int, map[string]map[int]bool) {
 	cat := &catalog{
 		AssetBase:    fmt.Sprintf(cdnBase, sha),
 		SourceCommit: sha,
@@ -344,6 +358,7 @@ func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[s
 	femOf := map[string]map[int]bool{}
 	pretty := map[string]string{}
 	unconfirmed := map[string]bool{}
+	unflagged := map[string]map[int]bool{}
 
 	cName := make(map[string]string, len(mf.Costumes))
 	for _, c := range mf.Costumes {
@@ -371,7 +386,16 @@ func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[s
 			key = "f:" + m[2]
 			name, confirmed := mf.IsCostumeForm(dex, m[2])
 			if !confirmed && !curated[key] {
-				continue // an ordinary alternate form (Alolan, Mega, Crowned, ...), not a costume
+				// An ordinary alternate form (Alolan, Mega, Crowned, ...), not a costume.
+				// Unless it carries a year, in which case say so rather than dropping it in
+				// silence: that silence is how f:COPY_2019 stayed missing for months.
+				if m[4] != ".g2" && looksLikeEventCostume(key) {
+					if unflagged[key] == nil {
+						unflagged[key] = map[int]bool{}
+					}
+					unflagged[key][dex] = true
+				}
+				continue
 			}
 			if !confirmed {
 				unconfirmed[key] = true
@@ -404,7 +428,7 @@ func buildCatalog(sha string, files []string, mf *masterfile.Data, curated map[s
 			Unconfirmed: unconfirmed[key],
 		}
 	}
-	return cat, mf.NameToDex()
+	return cat, mf.NameToDex(), unflagged
 }
 
 type finding struct{ what, detail string }
@@ -500,6 +524,28 @@ func audit(cat *catalog, lab *labels, nameToDex map[string]int, nm names, noName
 
 func inDex(dex []int, d int) bool {
 	return slices.Contains(dex, d)
+}
+
+// unflaggedFindings lists .f codes that have shiny art and a year in their code, but that the
+// masterfile does not flag isCostume and no curated label vouches for.
+//
+// That combination is the one blind spot in this pipeline. buildCatalog drops such a code, and
+// the admin drift check applies the same rule, so it never names it either: the costume is
+// simply absent, and trainers who caught it see a plain shiny with no art and nothing anywhere
+// says why. f:COPY_2019 (Clone Pikachu) sat in that hole for months, and the 2026 regional
+// anniversary Pikachu and the Psyduck swim ring were found the same way.
+//
+// Reported only, never admitted. A code still enters the catalog exactly one way, by a human
+// looking at the sprite and writing a label for it, so an unreviewed sync stays safe.
+func unflaggedFindings(unflagged map[string]map[int]bool) []finding {
+	out := make([]finding, 0, len(unflagged))
+	for code, set := range unflagged {
+		out = append(out, finding{code, fmt.Sprintf(
+			"shiny art for %s, but upstream does not flag it a costume and no label vouches for it; look at the sprite, then add a label to %s if it is one",
+			compactDex(sortedKeys(set)), labelsPath)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].what < out[j].what })
+	return out
 }
 
 func report(kind string, fs []finding) {
