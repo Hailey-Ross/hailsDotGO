@@ -1,5 +1,6 @@
-// Asserts the upstream events feed still looks like the app expects, and that every event
-// type it carries is reachable from the calendar subscribe panel.
+// Asserts the upstream events feed still looks like the app expects, that every event type
+// it carries is reachable from the calendar subscribe panel, and that the titles our own API
+// serves came out the far side of that as readable text.
 //
 // Events are the one data path with no embedded fallback, by design: a compiled in events
 // list would be stale the day after it shipped. The trade is that a silent upstream reshape
@@ -15,11 +16,18 @@
 //
 // It defaults to the network because checking cache/events.json is checking our own copy of
 // upstream, which cannot detect the upstream drift this script exists to find.
+//
+// The final section is the odd one out: it reads our own served API rather than upstream, and
+// it is the only part that is allowed to skip itself, because our own site can be down or
+// mid deploy while upstream is perfectly fine. See the comment above checkServedApi.
+// An upstream feed we cannot read is NOT a skip. It is reported as a problem like any other,
+// because "upstream went away" is one of the failures this script is here to notice.
 
 import { readFileSync, existsSync } from "node:fs";
 
 const FEED_URL = "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json";
 const CACHE = "cache/events.json";
+const API_URL = "https://pogo.hails.app/api/events";
 
 // Keys the app reads. eventID, start and end are load bearing: the first is the detail lookup
 // key and the calendar UID, the other two decide current versus upcoming and every DTSTART.
@@ -34,8 +42,17 @@ const ID_PATTERN = /^[a-z0-9_-]{1,128}$/;
 const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const FLOATING_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?$/;
 
+// Named entities like &amp; and numeric ones like &#39;, which is what a title looks like when
+// it reached us as HTML and was stored without ever being decoded. Applied ONLY to our own
+// API. Upstream legitimately ships these, so running it over the feed above would report
+// their normal output as our bug.
+const HTML_ENTITY = /&(?:[a-zA-Z][a-zA-Z0-9]{1,31}|#\d{1,7}|#[xX][0-9a-fA-F]{1,6});/;
+
 const problems = [];
 const notes = [];
+const apiProblems = [];
+const apiNotes = [];
+let apiChecked = false;
 
 async function loadFeed() {
   if (process.argv.includes("--cached")) {
@@ -62,9 +79,22 @@ function curatedTypes() {
   return covered;
 }
 
-const feed = await loadFeed();
+// Distinct from a feed whose JSON body is literally null, which is a reportable shape below.
+const UNREADABLE = Symbol("upstream feed unreadable");
 
-if (!Array.isArray(feed)) {
+let feed = UNREADABLE;
+try {
+  feed = await loadFeed();
+} catch (err) {
+  // Without this the whole script dies here on a DNS failure or a dead host, printing a raw
+  // stack trace instead of saying what went wrong. Routed through problems so the exit code
+  // convention is unchanged: a genuine upstream problem still exits 1.
+  problems.push(`could not read the upstream feed: ${err.message}`);
+}
+
+if (feed === UNREADABLE) {
+  // Already reported above, and there is no feed to run the shape checks against.
+} else if (!Array.isArray(feed)) {
   problems.push(`feed is ${feed === null ? "null" : typeof feed}, expected an array`);
 } else if (feed.length === 0) {
   problems.push("feed is an empty array: the app now refuses this, but upstream should not send it");
@@ -120,13 +150,83 @@ if (!Array.isArray(feed)) {
   }
 }
 
+// Our own API, not upstream. The decode happens as the feed is read in, so the only place a
+// surviving entity proves anything is in what we serve. Everything that can go wrong here
+// other than an entity is a skip rather than a failure: our own site can be unreachable while
+// upstream is fine, and this gets run before a fix is deployed, and neither of those is the
+// served data being wrong. A skip says so in the output rather than passing quietly.
+// Note the asymmetry with the upstream feed above, which reports rather than skips: an
+// unreachable upstream is a fact about upstream, an unreachable pogo.hails.app usually is not.
+async function checkServedApi() {
+  if (process.argv.includes("--cached")) {
+    apiNotes.push(`skipped: --cached means work offline, and ${API_URL} can only be read over the network`);
+    return;
+  }
+  let served;
+  try {
+    const res = await fetch(API_URL, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      apiNotes.push(`skipped: ${API_URL} answered HTTP ${res.status}, so nothing was checked`);
+      return;
+    }
+    served = await res.json();
+  } catch (err) {
+    apiNotes.push(`skipped: could not read ${API_URL} (${err.message}), so nothing was checked`);
+    return;
+  }
+  if (!Array.isArray(served)) {
+    apiNotes.push(`skipped: ${API_URL} answered with ${served === null ? "null" : typeof served}, not an array, so nothing was checked`);
+    return;
+  }
+  let counted = 0;
+  for (const ev of served) {
+    if (ev === null || typeof ev !== "object" || Array.isArray(ev)) continue;
+    counted++;
+    const id = typeof ev.eventID === "string" ? ev.eventID : "(missing)";
+    for (const field of ["name", "heading"]) {
+      const v = ev[field];
+      if (typeof v === "string" && HTML_ENTITY.test(v)) {
+        apiProblems.push(`${id}: ${field} still carries an HTML entity: "${v}"`);
+      }
+    }
+  }
+  if (counted === 0) {
+    // Zero events is what a failed feed load and an unusable cache look like from out here.
+    // Passing on it would print a clean bill of health for data nobody actually examined.
+    apiNotes.push(`skipped: ${API_URL} served no events at all, so there was nothing to check`);
+    return;
+  }
+  apiChecked = true;
+  apiNotes.push(`read ${counted} served events and checked every name and heading for HTML entities`);
+}
+
+await checkServedApi();
+
+console.log("upstream feed:");
 for (const n of notes) console.log("  " + n);
 
 if (problems.length) {
   console.error(`\nevents feed check FAILED with ${problems.length} problem(s):`);
   for (const p of problems.slice(0, 25)) console.error("  " + p);
   if (problems.length > 25) console.error(`  ...and ${problems.length - 25} more`);
-  process.exit(1);
+} else {
+  console.log("events feed: shape, ids, timestamps and type coverage all check out.");
 }
 
-console.log("events feed: shape, ids, timestamps and type coverage all check out.");
+console.log("\nour own served API, which is a separate payload from the feed above:");
+for (const n of apiNotes) console.log("  " + n);
+
+if (apiProblems.length) {
+  console.error(`\nserved events check FAILED with ${apiProblems.length} problem(s):`);
+  for (const p of apiProblems.slice(0, 25)) console.error("  " + p);
+  if (apiProblems.length > 25) console.error(`  ...and ${apiProblems.length - 25} more`);
+  console.error("  a title we serve should read as plain text, so an entity here is a decode we missed");
+} else if (apiChecked) {
+  console.log("served events: no HTML entity survived into any name or heading.");
+}
+
+// exitCode rather than exit(): a failed fetch leaves a DNS handle mid teardown, and calling
+// process.exit() out from under it aborts the Node runtime on Windows with a libuv assertion
+// and exit code 127, which would hide the very failure we just printed. Setting the code lets
+// the loop drain and still exits 1.
+if (problems.length || apiProblems.length) process.exitCode = 1;

@@ -1125,7 +1125,11 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .subscribe-hint { color: var(--text-2); font-size: 0.76rem; line-height: 1.5; }
 
 /* Add-to-calendar buttons inside the event detail modal */
-.event-cal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
+/* A direct child of .event-modal-inner, which carries no side padding of its
+   own, so this row indents itself like every other child. */
+.event-cal-actions {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; padding: 0 1.5rem;
+}
 
 /* Event cards (events page) */
 .event-grid {
@@ -1194,24 +1198,41 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .event-disclaimer { padding: 0 1.5rem; color: var(--text-2); font-size: 0.72rem; line-height: 1.5; }
 .event-modal-link { padding: 0 1.5rem; }
 .event-modal-link a { font-size: 0.85rem; font-weight: 700; color: var(--blue); }
-.event-detail-loading { padding: 0 1.5rem; color: var(--text-2); font-size: 0.85rem; }
+/* ts/events.ts appends this inside the .event-detail-html body, never straight
+   into the modal, so it takes the side padding from there. Scoped to match,
+   which also lifts it over .event-detail-html p and restores the muted colour. */
+.event-detail-html .event-detail-loading { color: var(--text-2); font-size: 0.85rem; }
 
 /* Scraped LeekDuck event content, restyled to the site theme.
    Class names below come from leekduck.com event pages. */
-.event-detail-html { padding: 0 1.5rem; font-size: 0.88rem; line-height: 1.6; }
-.event-detail-html img { max-width: 100%; height: auto; }
+/* contain: paint makes this the containing block for any fixed position
+   descendant and clips it. The sanitizer allows class and id globally, so a
+   compromised upstream could otherwise claim a site class such as an overlay
+   and paint a full viewport panel inside our own origin. Every badge in here is
+   absolutely positioned against an inner element, never against this container,
+   so nothing real is clipped. */
+.event-detail-html {
+  padding: 0 1.5rem; font-size: 0.88rem; line-height: 1.6; overflow-wrap: break-word;
+  contain: paint;
+}
+.event-detail-html img { max-width: 100%; max-height: 220px; height: auto; }
 .event-detail-html a { color: var(--blue); }
 .event-detail-html p { margin: 0.55rem 0; color: var(--text); }
-.event-detail-html ul { margin: 0.55rem 0 0.55rem 1.2rem; }
+.event-detail-html ul, .event-detail-html ol { margin: 0.55rem 0 0.55rem 1.2rem; }
 .event-detail-html li { margin: 0.25rem 0; }
 .event-detail-html hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
-.event-detail-html h2, .event-detail-html h3 {
+.event-detail-html h2, .event-detail-html h3, .event-detail-html h4 {
   font-size: 0.95rem; font-weight: 800; margin: 1.1rem 0 0.5rem;
 }
 .event-detail-html h2.event-section-header {
+  display: flex; align-items: center; gap: 0.4rem;
   font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
   color: var(--text-2); border-bottom: 1px solid var(--border); padding-bottom: 0.35rem;
   margin: 1.3rem 0 0.6rem;
+}
+/* Upstream ships these icons at 50x50, so the shared cap is not enough. */
+.event-detail-html h2.event-section-header img {
+  width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; opacity: 0.85;
 }
 .event-detail-html .event-description p:first-child { margin-top: 0; }
 
@@ -1238,7 +1259,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 }
 .event-detail-html .pkmn-list-img img { width: 56px; height: 56px; object-fit: contain; }
 .event-detail-html img.shiny-icon {
-  position: absolute; top: 4px; right: 4px; width: 14px; height: 14px;
+  position: absolute; top: 4px; right: 4px; width: 14px; height: 14px; object-fit: contain;
 }
 .event-detail-html .pkmn-name { font-size: 0.68rem; line-height: 1.25; word-break: break-word; }
 
@@ -1261,9 +1282,60 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   display: inline-flex; align-items: center; justify-content: center; position: relative;
 }
 .event-detail-html img.reward-image { width: 24px; height: 24px; object-fit: contain; }
-.event-detail-html .quantity { font-size: 0.62rem; font-weight: 700; }
+/* Both spellings ship inside a 36px .reward-bubble as a second flex item.
+   Unstyled they push the icon aside and land on top of it, so they are
+   pinned to the bubble as a badge instead. The .reward-bubble qualifier is what
+   makes that absolute positioning safe: these bodies are scraped from a third
+   party, and a badge emitted outside a bubble would otherwise anchor to
+   whichever positioned ancestor it happened to find and float loose over the
+   modal. All 8 badges in the corpus sit inside a bubble. */
+.event-detail-html .reward-bubble .quantity,
+.event-detail-html .reward-bubble .item-quantity {
+  position: absolute; bottom: -4px; right: -6px;
+  font-size: 0.58rem; font-weight: 700; line-height: 1; white-space: nowrap;
+  padding: 0.12rem 0.32rem; border-radius: var(--r-pill);
+  background: rgba(0,0,0,0.85); border: 1px solid var(--border); color: var(--text);
+}
+/* A .resource-info overlay already owns the bottom right of the bubble, so the
+   badge moves to the top corner there. No bubble in the corpus carries both a
+   resource overlay and a shiny icon, so the two never contend for that corner.
+   Anchored to .reward-bubble for the same reason as the rule above, and still
+   one class ahead of it, so it keeps winning the corner. */
+.event-detail-html .reward-bubble:has(.resource-info) .quantity,
+.event-detail-html .reward-bubble:has(.resource-info) .item-quantity {
+  top: -4px; bottom: auto;
+}
 .event-detail-html .reward-label { font-size: 0.66rem; color: var(--text-2); }
-.event-detail-html .cp-values { font-size: 0.6rem; color: var(--text-2); }
+/* Upstream prints the count twice, once as the badge pinned to the bubble and
+   again inside the label ("Poke Ball x5"), so the label copy is dropped.
+   Two label shapes exist and only one of them carries a duplicate:
+     span.reward-label: "Poke Ball <span>x5</span>", name outside, count inside.
+     div.reward-label:  "<span>LEGO Pikachu Sticker x3</span>", name inside.
+   Hiding the inner span of a div label would blank the reward name outright,
+   which is how the LEGO sticker rewards lost their names, so this is pinned to
+   the span shape. The badge test is kept as a second condition so a span label
+   with no badge beside it, which carries the only copy of a long form name,
+   also survives. :only-child cannot separate them: it ignores text nodes, so
+   it matches both shapes. */
+.event-detail-html .reward-bubble:has(.quantity, .item-quantity) + span.reward-label > span {
+  display: none;
+}
+/* Upstream nests a block level label div inside each inline CP span, so all
+   four pieces stack unless the pair is laid out as its own little column. */
+.event-detail-html .cp-values {
+  display: inline-flex; align-items: flex-start; gap: 0.5rem;
+  font-size: 0.6rem; color: var(--text-2);
+}
+.event-detail-html .max-cp,
+.event-detail-html .min-cp {
+  display: inline-flex; flex-direction: column; align-items: center;
+  font-size: 0.8rem; font-weight: 800; line-height: 1.2; color: var(--text);
+}
+.event-detail-html .max-cp > div,
+.event-detail-html .min-cp > div {
+  font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-2);
+}
 .event-detail-html .reward.plus-more-rewards { display: none; }
 .event-detail-html .reward.hide-reward-overflow { display: inline-flex; }
 
@@ -1274,12 +1346,19 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .event-detail-html .step-item {
   border: 1px solid var(--border); border-radius: var(--r-sm);
   padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.03);
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.6rem;
 }
 .event-detail-html .step-name { font-weight: 800; font-size: 0.84rem; margin-bottom: 0.35rem; }
 .event-detail-html .task-reward {
   display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
-  font-size: 0.8rem; padding: 0.2rem 0;
+  flex-wrap: wrap; font-size: 0.8rem; padding: 0.2rem 0;
 }
+/* min-width is a floor, not zero: with zero the row squeezes instead of
+   wrapping, so at phone widths the task was crushed to a quarter of the row and
+   broken mid word while the reward beside it kept a full line. The floor makes
+   flex-wrap on .task-reward actually fire and the reward drops to its own row. */
+.event-detail-html .task-text { flex: 1; min-width: 8rem; font-weight: 400; }
+.event-detail-html .reward-text { display: inline-flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
 .event-detail-html .page-reward-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
 .event-detail-html .page-reward { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; }
 
@@ -1301,8 +1380,18 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 .event-detail-html .rank-text { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-2); }
 .event-detail-html .rank-number { font-size: 1rem; font-weight: 800; }
 .event-detail-html .rank-paths { display: flex; gap: 0.6rem; flex: 1; min-width: 0; }
-.event-detail-html .rank-rewards { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; flex: 1; }
-.event-detail-html .battle-pass-paths { display: flex; gap: 0.6rem; margin-top: 0.5rem; padding-left: calc(2.4rem + 0.7rem + 0.7rem); }
+/* min-width: 0 holds the two paths to half and half so they stay under
+   their BASIC and DELUXE headers when a reward name runs long. The old
+   margin-top pushed the rewards below the centred rank label. */
+.event-detail-html .rank-rewards { display: flex; flex-wrap: wrap; gap: 0.4rem; flex: 1; min-width: 0; }
+/* The header row is aligned over the reward columns by hand. The 1px is the
+   border of .rank-item, which sits outside its 0.7rem padding, and both sides
+   must be matched or the DELUXE header drifts right of its column. */
+.event-detail-html .battle-pass-paths {
+  display: flex; gap: 0.6rem; margin-top: 0.5rem;
+  padding-left: calc(2.4rem + 0.7rem + 0.7rem + 1px);
+  padding-right: calc(0.7rem + 1px);
+}
 .event-detail-html .path-column { flex: 1; }
 .event-detail-html .path-header { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-2); }
 .event-detail-html .reward-item { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; }
@@ -1316,8 +1405,225 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   display: flex; align-items: center; justify-content: center;
 }
 .event-detail-html div.reward-image img { width: 100%; height: 100%; object-fit: contain; }
-.event-detail-html .resource-info { position: absolute; bottom: -3px; right: -3px; }
-.event-detail-html .resource-info img { width: 14px; height: 14px; }
+/* Every overlay badge in these bodies already has a containing block: the
+   quantity pills and shiny icons anchor to .reward-bubble or li.pkmn-list-item,
+   and .resource-info anchors to div.reward-image or to .reward-bubble, all
+   relative above. */
+.event-detail-html .resource-info {
+  position: absolute; bottom: -3px; right: -3px; pointer-events: none;
+}
+/* The species overlay is itself a child of div.reward-image, so the 100% rule
+   above claims its img too and swells a 14px badge to the full 34px anchor,
+   which is what buried the reward icon and spilled into the row above. The div
+   qualifier here is load bearing: it lifts this pin to the same specificity as
+   that rule, and coming later it then wins. Every .resource-info in the corpus
+   is a div (79 plain, 3 that also carry .shadow-icon), so the qualifier leaves
+   nothing behind. object-fit stays because this rule pins both axes: a
+   non-square overlay asset would be stretched to fit without it. */
+.event-detail-html div.resource-info img { width: 14px; height: 14px; object-fit: contain; }
+
+/* Long reward names must not widen the modal. */
+.event-detail-html .reward-label,
+.event-detail-html .reward-name,
+.event-detail-html .reward-info,
+.event-detail-html .task,
+.event-detail-html .task-text,
+.event-detail-html .bonus-text,
+.event-detail-html .step-name,
+.event-detail-html .day-title,
+.event-detail-html .special-research-subtitle,
+.event-detail-html .pkmn-name { overflow-wrap: anywhere; min-width: 0; }
+
+/* Article images sit alone in a paragraph and carry no dimensions. */
+.event-detail-html img.center-image {
+  display: block; margin: 0.6rem auto;
+  max-width: 100%; max-height: 320px; height: auto; border-radius: var(--r-sm);
+}
+
+/* Special research steps. Upstream stacks the children of .step-label
+   absolutely over a painted background, which we do not reproduce, so the
+   decoration divs are hidden and the card is laid out as a row. */
+.event-detail-html .research-icon { flex-shrink: 0; width: 34px; }
+.event-detail-html .research-icon img { width: 100%; height: auto; display: block; }
+.event-detail-html .step-label {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex-shrink: 0; min-width: 2.4rem;
+}
+.event-detail-html .step-text { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-2); }
+.event-detail-html .step-number { font-size: 1rem; font-weight: 800; }
+.event-detail-html .step-background,
+.event-detail-html .bubble1,
+.event-detail-html .bubble2,
+.event-detail-html .bubble3,
+.event-detail-html .bubble4 { display: none; }
+.event-detail-html .task-reward-wrapper { flex: 1; min-width: 0; }
+
+/* Numbered claim steps, a second research shape upstream emits. */
+.event-detail-html .claiming-steps { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; }
+.event-detail-html .step-card {
+  display: flex; align-items: flex-start; gap: 0.7rem;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.03);
+}
+.event-detail-html .step-num {
+  flex-shrink: 0; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+  background: rgba(91,156,246,0.15); border: 1px solid var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.76rem; font-weight: 800; line-height: 1;
+}
+.event-detail-html .step-content { flex: 1; min-width: 0; }
+.event-detail-html .step-title { font-size: 0.84rem; font-weight: 800; line-height: 1.35; margin-bottom: 0.2rem; }
+.event-detail-html .step-description { font-size: 0.8rem; line-height: 1.55; color: var(--text-2); }
+
+/* GO Pass header. The compact chip track and its dead toggle are stripped
+   server side, so only the rank table below reaches the modal. */
+.event-detail-html .battle-pass-container { margin: 0.8rem 0; }
+.event-detail-html .battle-pass-header {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem;
+}
+.event-detail-html .pass-info { flex: 1; min-width: 0; }
+.event-detail-html .pass-name { font-size: 0.95rem; font-weight: 800; line-height: 1.3; margin: 0; }
+.event-detail-html .pass-subtitle { font-size: 0.76rem; line-height: 1.4; color: var(--text-2); margin: 0.15rem 0 0; }
+.event-detail-html .bp-header-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.event-detail-html .bp-points-pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: rgba(255,179,64,0.14); border: 1px solid var(--gold); color: var(--text);
+  border-radius: var(--r-pill); padding: 0.15rem 0.65rem;
+}
+.event-detail-html .points-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-2); }
+.event-detail-html .points-value { font-size: 0.78rem; font-weight: 800; }
+/* Margin only. Horizontal padding here would slide the reward columns out
+   from under the BASIC and DELUXE headers, which are aligned by hand. */
+.event-detail-html .battle-pass-rewards { margin-top: 0.5rem; }
+.event-detail-html .reward-name { font-size: 0.7rem; line-height: 1.35; color: var(--text); }
+
+/* Rows omitted marker: a .rank-item that carries no label and no paths. Must
+   sit after the .rank-item rule above to neutralise its card border. */
+.event-detail-html .rank-item.rank-ellipsis {
+  justify-content: center; align-items: center; border-color: transparent; background: none;
+  padding: 0.1rem 0.7rem; margin: 0;
+}
+.event-detail-html .rank-ellipsis-mark { font-size: 0.9rem; font-weight: 700; letter-spacing: 2px; line-height: 1; color: var(--text-3); }
+
+/* Remaining leaf classes from the scraped bodies. */
+.event-detail-html .rewards-header {
+  font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-3); align-self: center;
+}
+.event-detail-html .reward-banner { margin-bottom: 0.3rem; }
+.event-detail-html .reward-banner p {
+  margin: 0; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-2);
+}
+/* A sibling of .task-reward-wrapper inside .step-item, so it takes a full row
+   of the wrapped flex line rather than squeezing in beside it. */
+.event-detail-html .page-reward-wrapper {
+  flex-basis: 100%; width: 100%;
+  margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border);
+}
+.event-detail-html .page-reward-item {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.event-detail-html .no-rewards { font-size: 0.75rem; color: var(--text-3); }
+/* Upstream marks its asterisk footnotes up as h5 rather than as paragraphs.
+   The reset at the top of this file is an author rule, so it had already zeroed
+   the UA heading margins; what actually reached the modal was bold text at the
+   UA default 0.83em, roughly 11.7px against a 0.88rem parent, so smaller than
+   the body copy it trails, jammed flush against the paragraph above and not
+   muted. The weight comes off and the size and colour are set, and the margins
+   are added here rather than removed. Every h5 in the corpus is a footnote; the
+   real section headings are h2.event-section-header and h3, styled above.
+   .footnote keeps its own rule so it does not pick up the bottom margin: it is
+   a div at the end of a .day-card, where that would pad the card out. */
+.event-detail-html .footnote { font-size: 0.7rem; line-height: 1.5; color: var(--text-2); margin-top: 0.45rem; }
+.event-detail-html h5 {
+  font-size: 0.7rem; line-height: 1.5; color: var(--text-2);
+  font-weight: 400; margin: 0.45rem 0;
+}
+.event-detail-html .divider { border-top: 1px solid var(--border); margin: 0.4rem 0; }
+.event-detail-html .day-label { font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-2); }
+/* Full page infographics: 2000px wide dense text sheets that must fill the
+   modal, so they opt out of the shared 220px cap. The general sibling reaches
+   every later paragraph in the section's parent, which today is safe only
+   because Graphic happens to be the last section wherever it appears, so the
+   alt test bounds it to the sheets themselves: all 8 in the corpus carry
+   :not() bounds it instead. An alt text test was tried and dropped: it excluded
+   nothing the :not() does not already exclude, and it was the only rule here
+   depending on an upstream English string, so a localised alt would silently
+   drop these back to the 220px cap and make them unreadable again with no
+   visible symptom. Failing open costs a tall image in a modal that scrolls. */
+.event-detail-html h2.graphic ~ p img:not(.center-image) {
+  display: block; margin: 0.6rem auto; max-height: none; border-radius: var(--r-sm);
+}
+.event-detail-html .shadow-icon img { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65)); }
+
+/* The extraData fallback body (ts/events.ts renderExtraData), used when no
+   scrape is available. It pads its own sections, so it drops the scraped side
+   padding, but nothing spaces them apart: the modal's own 0.9rem gap reaches
+   only its direct children, and this container is one of them, so its sections
+   butt together. Repeating the gap here restores the rhythm one level down. */
+.event-detail-extra { display: flex; flex-direction: column; gap: 0.9rem; }
+/* The gap is between sections, so the loose spotlight paragraph, which sits
+   inside one next to the chip grid, still needs its own space back; the reset
+   zeroed the UA margin and .event-detail-html p cannot reach this subtree. */
+.event-detail-extra .event-detail-section > p:not(:first-child) { margin-top: 0.55rem; }
+/* A safety net that currently matches nothing: every image the fallback builds
+   is inside .event-poke or .event-bonus, both of which pin width and height
+   already. It stays to bound whatever renderExtraData draws next. Deliberately
+   max only: an auto width here would tie on specificity with .event-poke img
+   and .event-bonus img above and win on source order, blowing those chips up
+   to sprite size. */
+.event-detail-extra img { max-width: 100%; max-height: 220px; }
+
+/* Event bodies at phone widths. These are the first event rules in any media
+   query; the modal is min(680px, 92vw), so 640px is where the content box has
+   narrowed enough for the grids and rank rows to bind. */
+@media (max-width: 640px) {
+  .event-detail-html { padding: 0 1rem; }
+  /* The scraped body and the modal chrome around it must indent together. */
+  .event-modal-head,
+  .event-modal-times,
+  .event-cal-actions,
+  .event-detail-section,
+  .event-disclaimer,
+  .event-modal-link { padding-left: 1rem; padding-right: 1rem; }
+  .event-detail-html li.pkmn-list-item { min-width: 64px; max-width: 96px; padding: 0.4rem 0.45rem; }
+  .event-detail-html .pkmn-list-img img { width: 48px; height: 48px; }
+  .event-detail-html .rank-item { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .event-detail-html .rank-label { flex-direction: row; align-items: baseline; gap: 0.3rem; min-width: 0; }
+  .event-detail-html .rank-number { font-size: 0.85rem; }
+  .event-detail-html .rank-paths { width: 100%; }
+  /* The rank label no longer indents the paths, so realign the headers. */
+  .event-detail-html .battle-pass-paths {
+    padding-left: calc(0.7rem + 1px); padding-right: calc(0.7rem + 1px);
+  }
+  .event-detail-html .battle-pass-header { align-items: flex-start; }
+}
+
+@media (max-width: 380px) {
+  .event-detail-html { padding: 0 0.75rem; }
+  .event-modal-head,
+  .event-modal-times,
+  .event-cal-actions,
+  .event-detail-section,
+  .event-disclaimer,
+  .event-modal-link { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .event-detail-html .step-item,
+  .event-detail-html .step-card { flex-direction: column; align-items: stretch; gap: 0.4rem; }
+  .event-detail-html .step-label { flex-direction: row; align-items: baseline; gap: 0.3rem; min-width: 0; }
+  .event-detail-html .rank-paths { flex-direction: column; gap: 0.4rem; }
+  /* One column per path, so the shared header row gives way to a label
+     generated per path from its own basic or deluxe class. */
+  .event-detail-html .battle-pass-paths { display: none; }
+  .event-detail-html .rank-rewards::before {
+    flex-basis: 100%; font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-2);
+  }
+  .event-detail-html .rank-rewards.basic::before { content: "Basic"; }
+  .event-detail-html .rank-rewards.deluxe::before { content: "Deluxe"; }
+}
 
 /* ── Pokémon sprites ────────────────────────────────────────── */
 .poke-sprite {
@@ -3394,7 +3700,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
 
 /* ── Desktop layout (≥1024px) ───────────────────────────────── */
 @media (min-width: 1024px) {
-  /* Persistent sidebar -- always visible, no burger needed */
+  /* Persistent sidebar: always visible, no burger needed */
   .nav-sidebar {
     transform: none;
     transition: none;

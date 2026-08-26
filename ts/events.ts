@@ -118,8 +118,20 @@ function monSection(title: string, mons: NamedMon[]): HTMLElement | null {
 }
 
 // Full event details: sanitized LeekDuck page HTML, lazy-loaded per event and
-// cached for the session. Empty string in the cache means "use extraData fallback".
+// cached for the session. Only a real, non-empty result lives in here.
 const detailCache = new Map<string, string>();
+
+// Failures and empty bodies are cooled down, never cached for the session. The
+// server refills its scraped page cache after every deploy or restart at a
+// deliberate 1500ms per page, so for roughly a minute and a half
+// /api/events/{id} legitimately has nothing to serve for a page it has not
+// reached yet. Remembering that as "no detail" would pin the degraded fallback
+// for the rest of the trainer's session over a warmup that ends seconds later,
+// and only a full reload would clear it. The cooldown is what keeps the retry
+// cheap: the few events that really have no detail page do not refetch on every
+// click, and we stay well under the endpoint's 30 requests per 2 minutes.
+const DETAIL_RETRY_MS = 60000;
+const detailFailedAt = new Map<string, number>();
 
 function fillDetail(container: HTMLElement, html: string) {
   container.innerHTML = html; // sanitized server-side with bluemonday
@@ -132,10 +144,22 @@ function fillDetail(container: HTMLElement, html: string) {
 
 async function loadDetail(ev: PogoEvent, container: HTMLElement) {
   const cached = detailCache.get(ev.eventID);
-  if (cached !== undefined) {
-    if (cached) fillDetail(container, cached);
-    else renderExtraData(container, ev);
+  if (cached) {
+    fillDetail(container, cached);
     return;
+  }
+  const failedAt = detailFailedAt.get(ev.eventID);
+  if (failedAt !== undefined) {
+    // A negative age means the clock moved backwards under us (an NTP
+    // correction, a resume from sleep), so treat that as expired too. The worst
+    // a clock jump can cost is one extra fetch; it can never wedge the cooldown
+    // open forever.
+    const age = Date.now() - failedAt;
+    if (age >= 0 && age < DETAIL_RETRY_MS) {
+      renderExtraData(container, ev);
+      return;
+    }
+    detailFailedAt.delete(ev.eventID);
   }
   container.appendChild(el("p", "event-detail-loading", EV.loadingDetails));
   try {
@@ -143,18 +167,21 @@ async function loadDetail(ev: PogoEvent, container: HTMLElement) {
     if (!res.ok) throw new Error(`detail fetch failed: ${res.status}`);
     const data = (await res.json()) as { html?: string } | null;
     const html = data && typeof data.html === "string" ? data.html : "";
-    detailCache.set(ev.eventID, html);
     if (!html) throw new Error("empty detail");
+    detailCache.set(ev.eventID, html);
     fillDetail(container, html);
   } catch {
-    if (!detailCache.has(ev.eventID)) detailCache.set(ev.eventID, "");
+    detailFailedAt.set(ev.eventID, Date.now());
     container.innerHTML = "";
     renderExtraData(container, ev);
   }
 }
 
 function renderExtraData(container: HTMLElement, ev: PogoEvent) {
-  container.className = ""; // drop scraped-content padding; sections pad themselves
+  // Swap the scraped-content class for the fallback's own: the sections below
+  // pad themselves, so the scraped side padding goes, but the subtree still
+  // needs a class to hang an image size cap on.
+  container.className = "event-detail-extra";
   const before = container.childElementCount;
   const x = ev.extraData;
   if (x) {
