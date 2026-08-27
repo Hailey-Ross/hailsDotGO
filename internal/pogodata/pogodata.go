@@ -473,6 +473,19 @@ type raidBoss struct {
 	ImageURL      string   `json:"image_url,omitempty"`
 	Types         []string `json:"types,omitempty"`
 	CanBeShiny    bool     `json:"can_be_shiny,omitempty"`
+	// The fields below are stamped on by the event schedule (raidschedule.go) and are
+	// absent on any boss no rotation describes, which is every tier 1 and tier 3 entry.
+	// They are all omitempty so every existing consumer of this shape is untouched.
+	EventID  string `json:"event_id,omitempty"`
+	// StartsAt and EndsAt are the feed's own floating wall clock strings, passed
+	// through verbatim rather than resolved to an instant. Membership in the served
+	// list is decided here on the union window; the countdown a trainer reads is
+	// their own local time, which the browser gets by parsing these as local.
+	StartsAt string `json:"starts_at,omitempty"`
+	EndsAt   string `json:"ends_at,omitempty"`
+	// Source is "events" on a card this app built because the raid feed had not
+	// listed the boss yet.
+	Source string `json:"source,omitempty"`
 }
 
 type PokemonEntry struct {
@@ -507,7 +520,19 @@ var supportedLangCodes = func() map[string]bool {
 
 type Store struct {
 	mu                sync.RWMutex
+	// raids is DERIVED, not assigned: rebuildRaidsLocked reconciles the pristine
+	// upstream copy against the event schedule, dropping bosses whose rotation has
+	// shut and adding ones it has not caught up to. raidsUpstream holds what
+	// pokemon-go-api actually said, which is also what stays in cache/raids.json so
+	// the byte comparison in CheckScrapers keeps working. See raidschedule.go.
 	raids             json.RawMessage
+	raidsUpstream     json.RawMessage
+	raidsUpcoming     json.RawMessage
+	raidSchedule      []RaidWindow
+	raidStats         raidReconcileStats
+	// raidsBuiltFor is the next instant the reconciliation could answer differently,
+	// so the periodic rebuild is a clock comparison until a window opens or shuts.
+	raidsBuiltFor     time.Time
 	maxBattles        json.RawMessage
 	events            json.RawMessage
 	eventsFetchedAt   time.Time // zero until the first success; seeded from the cache file mtime at boot
@@ -631,6 +656,10 @@ func (s *Store) loadFromCache() {
 			}
 		}
 	}
+	// Only now. The keys above load in a fixed order with raids first, so a
+	// rebuild triggered from inside applyResult would reconcile against an events
+	// blob that had not been read yet and drop nothing.
+	s.rebuildRaidsLocked()
 	s.loadEventDetailsFromDisk()
 }
 
@@ -638,6 +667,9 @@ func (s *Store) loadFromCache() {
 func (s *Store) applyResult(key string, data json.RawMessage) {
 	switch key {
 	case "raids":
+		// The pristine copy only. s.raids is derived from this plus the event
+		// schedule, and callers rebuild once the other blobs are in place.
+		s.raidsUpstream = data
 		s.raids = data
 	case "max_battles":
 		s.maxBattles = data
@@ -847,6 +879,7 @@ func (s *Store) loadFallback() {
 		}
 		s.applyResult(key, json.RawMessage(data))
 	}
+	s.rebuildRaidsLocked()
 	log.Println("pogodata: loaded embedded fallback data")
 }
 
@@ -948,6 +981,15 @@ func (s *Store) Start() {
 			s.RefreshShinyDates()
 		}
 	}()
+	go func() {
+		// Crossing a rotation boundary changes who is live with no new data
+		// involved, and neither upstream fetch is anywhere near frequent enough
+		// to notice. This is a clock comparison every five minutes; the work only
+		// happens once raidsBuiltFor has actually passed.
+		for range time.NewTicker(5 * time.Minute).C {
+			s.maybeRebuildRaids()
+		}
+	}()
 	go s.scheduleRaidRefresh() // raids + max battles refresh on Mountain Time schedule
 }
 
@@ -1007,9 +1049,13 @@ func (s *Store) refreshRaids() {
 		log.Printf("pogodata: raids refresh: %v", err)
 		return
 	}
+	// The file keeps the raw upstream payload: CheckScrapers detects drift by
+	// byte comparing against it, so writing the reconciled blob here would make
+	// every check report a change.
 	os.WriteFile(filepath.Join(s.cacheDir, "raids.json"), data, 0644)
 	s.mu.Lock()
 	s.applyResult("raids", data)
+	s.rebuildRaidsLocked()
 	s.mu.Unlock()
 }
 
@@ -1238,6 +1284,10 @@ func (s *Store) refreshEvents() error {
 	// it has no business widening that lock.
 	s.mu.Lock()
 	s.eventsFetchedAt = time.Now()
+	// The events feed is the raid schedule, so a fresh one can change who is
+	// live. This is the path that actually fixes the staleness: events refresh
+	// every 30 minutes, where the raid feed is only fetched six times a day.
+	s.rebuildRaidsLocked()
 	s.mu.Unlock()
 	log.Printf("pogodata: events refresh complete (%d events)", n)
 	// The raw upstream bytes, deliberately, not what applyResult stored: the
@@ -1535,13 +1585,36 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 	}
 
 	// Raids and max battles are shown first (the sources Refresh() cannot reach).
+	//
+	// The note is stashed rather than written straight into the result because run
+	// calls after() before it appends, so there is no result to reach for yet.
+	raidNote := ""
 	run("raids", func() (json.RawMessage, int, error) {
 		d, err := s.fetchPGAPIRaids()
 		if err != nil {
 			return nil, 0, err
 		}
 		return d, groupedCount(d), nil
-	}, nil)
+	}, func(json.RawMessage) {
+		// Reconcile against the event schedule and say what that did, so a broken
+		// classification or name match shows up here as a number rather than as a
+		// quietly reshaped raids page.
+		s.mu.Lock()
+		s.rebuildRaidsLocked()
+		st := s.raidStats
+		s.mu.Unlock()
+		if st.Windows > 0 {
+			raidNote = fmt.Sprintf("schedule: %d rotations, %d live, %d expired dropped, %d built locally, %d awaiting upstream",
+				st.Windows, st.Active, st.Dropped, st.Synthesized, st.Pending)
+		}
+	})
+	if raidNote != "" {
+		for i := range out {
+			if out[i].Key == "raids" {
+				out[i].Note = raidNote
+			}
+		}
+	}
 	run("max_battles", func() (json.RawMessage, int, error) {
 		d, err := s.fetchMaxBattles()
 		if err != nil {
@@ -1724,6 +1797,9 @@ func (s *Store) AllData() json.RawMessage {
 		FastMoves     json.RawMessage            `json:"fastMoves"`
 		ChargedMoves  json.RawMessage            `json:"chargedMoves"`
 		Raids         json.RawMessage            `json:"raids"`
+		// UpcomingRaids is the rotation schedule ahead of the grid: the soonest
+		// rotation per tier, plus any that is live but has no card yet.
+		UpcomingRaids json.RawMessage            `json:"upcomingRaids,omitempty"`
 		MaxBattles    json.RawMessage            `json:"maxBattles"`
 		Shinies       json.RawMessage            `json:"shinies"`
 		// ShinyDex is the full National Dex with in_go/shiny_released flags. Shinies stays the
@@ -1755,6 +1831,7 @@ func (s *Store) AllData() json.RawMessage {
 		FastMoves:     s.fastMoves,
 		ChargedMoves:  s.chargedMoves,
 		Raids:         s.raids,
+		UpcomingRaids: s.raidsUpcoming,
 		MaxBattles:    s.maxBattles,
 		Shinies:       s.shinies,
 		ShinyDex:      s.shinyDex,

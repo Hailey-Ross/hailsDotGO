@@ -5,6 +5,8 @@
 declare var EV: Record<string, string>;
 declare var SITE_LANG: string;
 
+import { parseLocal, dateFmt, relTime } from "./shared/time";
+
 const app = document.getElementById("events-app")!;
 
 interface NamedMon {
@@ -49,28 +51,6 @@ interface PogoEvent {
   start: string | null;
   end: string | null;
   extraData: EventExtra | null;
-}
-
-// ScrapedDuck timestamps are timezone-less ISO strings ("2026-06-20T14:00:00.000").
-// JS parses those as local time, which matches the local-time semantics of most events.
-function parseLocal(s: string | null): Date | null {
-  if (!s) return null;
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-const dateFmt = new Intl.DateTimeFormat(typeof SITE_LANG !== "undefined" ? SITE_LANG : "en", {
-  weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-});
-
-function relTime(ms: number): string {
-  const totalMin = Math.max(1, Math.floor(ms / 60000));
-  const d = Math.floor(totalMin / 1440);
-  const h = Math.floor((totalMin % 1440) / 60);
-  const m = totalMin % 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
