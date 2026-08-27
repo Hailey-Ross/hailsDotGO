@@ -141,6 +141,10 @@ func driftCheck(force bool) pogodata.ScraperCheck {
 		notes = append(notes, fmt.Sprintf("upstream listing read %s, cached (press again to re-check now)", when))
 	}
 	res.Note = strings.Join(notes, " · ")
+	// Nothing here is applied: `make costumes`, and a human writing a label, are what
+	// act on this. The note is therefore the whole answer, and the panel must not dress
+	// it up with a sync state it has not earned. See ScraperCheck.Advisory.
+	res.Advisory = true
 	return res
 }
 

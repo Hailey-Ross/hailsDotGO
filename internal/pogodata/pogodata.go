@@ -1549,9 +1549,20 @@ type ScraperCheck struct {
 	Bytes      int    `json:"bytes"`   // size of the fetched payload
 	Changed    bool   `json:"changed"` // fresh data differs from what was already stored
 	DurationMs int64  `json:"duration_ms"`
-	// Note carries a human-readable follow-up for sources that report drift but deliberately
-	// do NOT auto-apply it, e.g. costumes, where a new code is useless until a human names it.
+	// Note carries a human-readable follow-up. Two different kinds of source set one,
+	// and Advisory below is what tells them apart.
 	Note string `json:"note,omitempty"`
+	// Advisory marks a source that reports drift but deliberately does NOT apply it,
+	// which today means costumes alone: a new code is useless until a human names it,
+	// and the check fetches no payload of its own to report a size for. For one of
+	// those the note stands in for the whole status line, because claiming "applied"
+	// would be a lie and "in sync" would be worse.
+	//
+	// Everything else DOES apply what it fetched, so its note is extra detail about a
+	// normal result (how the raid schedule reconciled, an events count that fell)
+	// rather than a task. Those keep their status line and their size, and the note is
+	// shown alongside instead of displacing them.
+	Advisory bool `json:"advisory,omitempty"`
 }
 
 // CheckScrapers synchronously fetches every scraped source fresh, compares it against
