@@ -980,6 +980,69 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   text-shadow: none;
 }
 
+/* ── Raid rotation windows / up next ────────────────────────── */
+/* A boss can legitimately read as "not started" or "ended" and still be on the
+   page: the server lists a rotation for as long as it is live ANYWHERE, UTC+14
+   through UTC-12, so the old and new sets overlap for about 26 hours at every
+   changeover. The three colours are what make that read as intentional. */
+.raid-window {
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 2px 7px; border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.raid-window-live {
+  color: var(--green);
+  border-color: rgba(0, 214, 143, 0.35);
+  background: rgba(0, 214, 143, 0.12);
+}
+.raid-window-early {
+  color: var(--blue);
+  border-color: rgba(91, 156, 246, 0.35);
+  background: rgba(91, 156, 246, 0.12);
+}
+.raid-window-late {
+  color: var(--gold);
+  border-color: rgba(255, 179, 64, 0.35);
+  background: rgba(255, 179, 64, 0.12);
+}
+
+.raid-upnext {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: var(--r);
+  padding: 1.25rem; margin-bottom: 1.5rem;
+  animation: fadeUp 0.3s ease both;
+}
+.raid-upnext-title {
+  font-size: 0.95rem; font-weight: 700;
+  margin: 0 0 0.9rem; color: var(--text);
+}
+.raid-upnext-row {
+  display: grid; gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.upnext-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 0.7rem 0.8rem;
+}
+.upnext-card-live { border-color: rgba(0, 214, 143, 0.4); }
+.upnext-tier {
+  font-size: 0.6rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.7px;
+}
+.upnext-mons { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.upnext-mon {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.75rem; font-weight: 600; color: var(--text);
+}
+.upnext-mon img { width: 26px; height: 26px; object-fit: contain; }
+.upnext-shiny { font-size: 0.65rem; }
+.upnext-note { font-size: 0.62rem; color: var(--text-3); }
+
 /* ── Events / shinies ───────────────────────────────────────── */
 .events-section {
   background: rgba(0,0,0,0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);

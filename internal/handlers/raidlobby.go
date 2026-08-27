@@ -69,14 +69,27 @@ func (h *Handlers) raidGuard(w http.ResponseWriter, r *http.Request) *auth.User 
 	return u
 }
 
+// currentBossTiers maps every boss the raids page is currently serving to its tier.
+// It gates lobby creation and queue joins, so it inherits the event schedule for
+// free: a boss whose rotation has ended is no longer in the served blob and so can
+// no longer have a non custom lobby opened for it.
 func (h *Handlers) currentBossTiers() map[string]uint8 {
+	return bossTiersFrom(h.store.Raids())
+}
+
+// bossTiersFrom is split out so the name matching can be tested without a store.
+// The keys are DISPLAY names and the match downstream is exact, including the
+// "Shadow " prefix, which is the one thing a change to the raid blob could quietly
+// break: a shadow boss the server built from the event schedule has to be spelled
+// the same way one from the raid feed is.
+func bossTiersFrom(raw json.RawMessage) map[string]uint8 {
 	var tiers map[string][]struct {
 		PokemonName string `json:"pokemon_name"`
 	}
-	if err := json.Unmarshal(h.store.Raids(), &tiers); err != nil {
-		return map[string]uint8{}
-	}
 	out := map[string]uint8{}
+	if err := json.Unmarshal(raw, &tiers); err != nil {
+		return out
+	}
 	for tierStr, bosses := range tiers {
 		t, _ := strconv.Atoi(tierStr)
 		for _, b := range bosses {

@@ -4,12 +4,79 @@ import { renderBoxVsBoss, renderBoxPlaceholder } from "./shared/boxcounters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
-import type { GameData, RaidBoss, PokemonStat } from "./shared/types";
+import type { GameData, RaidBoss, PokemonStat, UpcomingRaid } from "./shared/types";
+import { parseLocal, dateFmt, relTime } from "./shared/time";
 
 declare const JSC: Record<string, string>;
 declare const RD: Record<string, string>;
 
 const app = document.getElementById("raids-app")!;
+
+// Past this much time left, a countdown stops being useful and a date reads better.
+const WINDOW_DATE_THRESHOLD_MS = 48 * 60 * 60 * 1000;
+
+// tierLabel names a tier the way the tabs already do, so the up next strip and the
+// grid agree on what to call things.
+function tierLabel(tier: string, shadow?: boolean): string {
+  if (shadow) return RD.shadowRaids;
+  return tier === "6" ? RD.mega : RD.tierN.replace("{tier}", tier);
+}
+
+// paintWindowPill writes a rotation's state in the VIEWER'S OWN time.
+//
+// The server decided this boss belongs on the page using the widest possible reading
+// of the window, UTC+14 through UTC-12, so nobody loses a boss they can still raid.
+// That is why a card can legitimately say "not started yet" or "ended" and still be
+// here: at a changeover the old and new rotations genuinely coexist across the planet
+// for about 26 hours, and these two states are what make that legible instead of
+// looking like a bug.
+function paintWindowPill(pill: HTMLElement): void {
+  const end = parseLocal(pill.dataset.end);
+  if (!end) {
+    pill.style.display = "none";
+    return;
+  }
+  const start = parseLocal(pill.dataset.start);
+  const now = Date.now();
+  let cls = "raid-window raid-window-live";
+  let text: string;
+  let note = "";
+
+  if (pill.dataset.live === "1") {
+    text = RD.windowLiveNow;
+  } else if (start && now < start.getTime()) {
+    cls = "raid-window raid-window-early";
+    text = RD.windowStartsIn.replace("{t}", relTime(start.getTime() - now));
+    note = RD.windowEarlyNote;
+  } else if (now >= end.getTime()) {
+    cls = "raid-window raid-window-late";
+    text = RD.windowEndedLocal;
+    note = RD.windowLateNote;
+  } else if (end.getTime() - now > WINDOW_DATE_THRESHOLD_MS) {
+    text = RD.windowUntil.replace("{date}", dateFmt.format(end));
+  } else {
+    text = RD.windowEndsIn.replace("{t}", relTime(end.getTime() - now));
+  }
+
+  pill.className = cls;
+  pill.textContent = text;
+  if (note) pill.title = note;
+}
+
+function windowPill(startsAt: string | undefined, endsAt: string | undefined, live?: boolean): HTMLElement | null {
+  if (!endsAt) return null;
+  const pill = document.createElement("span");
+  pill.dataset.start = startsAt ?? "";
+  pill.dataset.end = endsAt;
+  if (live) pill.dataset.live = "1";
+  paintWindowPill(pill);
+  return pill;
+}
+
+// A minute is plenty: the shortest thing on screen is an hours-and-minutes countdown.
+function tickRaidWindows(): void {
+  app.querySelectorAll<HTMLElement>(".raid-window").forEach(paintWindowPill);
+}
 
 function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
   const card = document.createElement("div");
@@ -63,6 +130,9 @@ function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
       inner.appendChild(boosted);
     }
   }
+
+  const pill = windowPill(boss.starts_at, boss.ends_at);
+  if (pill) inner.appendChild(pill);
 
   card.appendChild(inner);
 
@@ -754,6 +824,80 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
   return wrap;
 }
 
+// buildUpNextSection renders what is coming, and what is already here but not yet
+// on the grid.
+//
+// The second case is the Mega one. The species data this app carries has no Mega
+// forms at all, and a Mega's typing differs from its base species, so a Mega the raid
+// feed has not caught up to cannot be turned into a real card without guessing at its
+// types and feeding the counter calculator a wrong answer. Naming it here is the
+// honest version: the card appears by itself once upstream lists it.
+function buildUpNextSection(data: GameData): HTMLElement | null {
+  const list: UpcomingRaid[] = data.upcomingRaids ?? [];
+  if (!list.length) return null;
+
+  const section = document.createElement("section");
+  section.className = "raid-upnext";
+
+  const heading = document.createElement("h2");
+  heading.className = "raid-upnext-title";
+  heading.textContent = RD.upNext;
+  section.appendChild(heading);
+
+  const row = document.createElement("div");
+  row.className = "raid-upnext-row";
+
+  for (const entry of list) {
+    const card = document.createElement("div");
+    card.className = entry.live ? "upnext-card upnext-card-live" : "upnext-card";
+
+    const tier = document.createElement("span");
+    tier.className = `upnext-tier tier-${entry.tier}`;
+    tier.textContent = tierLabel(entry.tier, entry.shadow);
+    card.appendChild(tier);
+
+    const mons = document.createElement("div");
+    mons.className = "upnext-mons";
+    for (const boss of entry.bosses) {
+      const chip = document.createElement("span");
+      chip.className = "upnext-mon";
+      if (boss.image) {
+        const img = document.createElement("img");
+        img.src = boss.image;
+        img.alt = boss.name;
+        img.loading = "lazy";
+        img.decoding = "async";
+        chip.appendChild(img);
+      }
+      chip.append(pokeName(data, boss.name));
+      if (boss.canBeShiny) {
+        const shiny = document.createElement("span");
+        shiny.className = "upnext-shiny";
+        shiny.textContent = "✨";
+        shiny.title = RD.shinyBadge;
+        chip.appendChild(shiny);
+      }
+      mons.appendChild(chip);
+    }
+    card.appendChild(mons);
+
+    const pill = windowPill(entry.starts_at, entry.ends_at, entry.live);
+    if (pill) card.appendChild(pill);
+
+    if (entry.live) {
+      const note = document.createElement("span");
+      note.className = "upnext-note";
+      note.textContent = RD.upNextDetailsPending;
+      card.appendChild(note);
+    }
+
+    row.appendChild(card);
+  }
+
+  section.appendChild(row);
+  return section;
+}
+
 async function init() {
   try {
     const data = await loadGameData();
@@ -766,9 +910,15 @@ async function init() {
 
     app.appendChild(buildRaidsView(data));
 
+    const upNext = buildUpNextSection(data);
+    if (upNext) app.appendChild(upNext);
+
     if (data.maxBattles && Object.keys(data.maxBattles).length > 0) {
       app.appendChild(buildMaxBattlesSection(data));
     }
+
+    // Countdowns go stale on their own; nothing else on this page re-renders.
+    setInterval(tickRaidWindows, 60000);
   } catch (err) {
     app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     console.error(err);

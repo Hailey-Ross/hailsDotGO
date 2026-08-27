@@ -160,6 +160,16 @@ type detailJob struct{ id, link string }
 // time, so it does not come back while the event is still listed.
 var anywhereOnEarth = time.FixedZone("AoE", -12*60*60)
 
+// earliestOnEarth is UTC+14, the first zone on the planet to reach any given wall
+// clock reading, and the mirror of anywhereOnEarth above.
+//
+// The pair is what makes a floating window honest at both ends. anywhereOnEarth
+// answers "is anyone still in this", earliestOnEarth answers "is anyone in it yet".
+// Using either one alone on a raid rotation is a bug in one direction or the other:
+// a boss that disappears while half the planet can still raid it, or one that has
+// not turned up yet for anybody. See raidWindowSpan in raidschedule.go.
+var earliestOnEarth = time.FixedZone("EoE", 14*60*60)
+
 // planDetailRefresh decides, for one feed, which events are still active and
 // which of their pages need scraping. It is pure so the rule can be tested
 // without a network or a store, which matters more here than anywhere else in
