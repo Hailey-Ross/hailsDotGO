@@ -250,13 +250,18 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// Dynamic and polled by the app, so a looser standalone limit.
 		r.With(httprate.LimitByIP(20, time.Minute)).Get("/raid/overview", h.MobileRaidOverview)
 
+		// Public for the same reason the website's nav is: an anonymous visitor already
+		// sees a disabled section missing from the nav and gets the 503 maintenance page
+		// if they ask for it anyway. Requiring a token here would only stop a logged-out
+		// app from greying out a section the site has switched off.
+		r.With(httprate.LimitByIP(20, time.Minute)).Get("/maintenance", h.MobileMaintenance)
+
 		// All remaining endpoints require authentication.
 		r.Group(func(r chi.Router) {
 			r.Use(h.MobileAuthMiddleware())
 			r.Use(httprate.LimitByIP(120, time.Minute)) // baseline abuse ceiling
 			r.Delete("/auth/session", h.MobileLogout)
 			r.Get("/auth/me", h.MobileMe)
-			r.Get("/maintenance", h.MobileMaintenance)
 			r.Put("/profile", h.MobilePutProfile)
 			r.Post("/push/token", h.RegisterPushToken)
 			r.Delete("/push/token", h.UnregisterPushToken)
