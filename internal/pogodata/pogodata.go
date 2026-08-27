@@ -541,6 +541,11 @@ type Store struct {
 	maxBattles        json.RawMessage
 	events            json.RawMessage
 	eventsFetchedAt   time.Time // zero until the first success; seeded from the cache file mtime at boot
+	// eventsApplied is called after a new feed has replaced the cached one, so
+	// consumers that pinned something to an event's start (currently the reminder
+	// subscriptions) can recompute it. A plain func keeps the dependency pointing
+	// one way: this package must not know about handlers or the database.
+	eventsApplied     func()
 	eventDetails      map[string]eventDetail
 	detailsRunning    atomic.Bool
 	pokemon           json.RawMessage
@@ -1324,6 +1329,15 @@ func (s *Store) refreshEvents() error {
 	s.rebuildRaidsLocked()
 	s.mu.Unlock()
 	log.Printf("pogodata: events refresh complete (%d events)", n)
+	// Before the detail scrape, not after: that pass is deliberately slow (a
+	// polite delay per page), and a reminder pinned to a start time the feed has
+	// just moved should not wait minutes behind it.
+	s.mu.RLock()
+	applied := s.eventsApplied
+	s.mu.RUnlock()
+	if applied != nil {
+		applied()
+	}
 	// The raw upstream bytes, deliberately, not what applyResult stored: the
 	// detail scraper keys on eventID and reads link, and normalization touches
 	// neither, so handing it the normalized copy would only add a way to drift.
@@ -1779,6 +1793,16 @@ func (s *Store) MaxBattles() json.RawMessage {
 }
 func (s *Store) Events() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.events
+}
+
+// SetEventsAppliedHook registers fn to run on the refresh goroutine each time a
+// new events feed has replaced the cached one, including the startup fetch and
+// its retries. Call it before Start; passing nil clears it.
+//
+// fn runs with no lock held and may call back into the store, but it runs inline
+// on the refresh path, so anything long lived belongs in a goroutine of its own.
+func (s *Store) SetEventsAppliedHook(fn func()) {
+	s.mu.Lock(); defer s.mu.Unlock(); s.eventsApplied = fn
 }
 func (s *Store) Pokemon() json.RawMessage {
 	s.mu.RLock(); defer s.mu.RUnlock(); return s.pokemon

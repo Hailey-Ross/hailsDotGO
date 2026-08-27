@@ -809,3 +809,47 @@ ALTER TABLE user_pokemon_box
 -- so adding a language to supportedApplyLangs fails the build rather than the
 -- applicant.
 ALTER TABLE translator_applications MODIFY languages VARCHAR(1000) NOT NULL;
+
+
+-- 49. Event reminder subscriptions (2026-08-27)
+-- The app has had a bell on every upcoming event card for a release now, with a
+-- per-event lead time and a default in Settings, and nothing behind it: the calls
+-- 404'd and the app fell back to its disk cache. This is the store behind them.
+--
+-- There is no foreign key on event_id because there is no events table. The feed
+-- is an in-memory blob mirrored to cache/events.json, so event_id is a loose
+-- string; the reconcile that runs after every feed refresh cancels rows whose id
+-- has left the feed, and that is what keeps it honest.
+--
+-- event_start is stored alongside the id, and is not the same as starts_at.
+-- starts_at is the absolute instant resolved in the subscriber's timezone;
+-- event_start is the feed's own start reading, always parsed as UTC, so it is a
+-- zone-independent fingerprint of what upstream said when the trainer subscribed.
+-- Comparing it against the feed on refresh is what tells a genuine time change
+-- apart from a different occurrence reusing a slug. Recurring Spotlight Hours
+-- embed their date in the id (pokemonspotlighthour2026-08-27), but GO Battle
+-- League slugs do not: gbl-forever-forward_great-league_ultra-league names the
+-- league split and can legitimately come round again on a later rotation.
+--
+-- reminded_at and started_at_sent are flag columns in the shape processRaidTimers
+-- already uses: set before the push is dispatched, so a re-send needs a crash at
+-- exactly the wrong moment rather than a slow HTTP call.
+CREATE TABLE IF NOT EXISTS event_subscriptions (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         INT UNSIGNED NOT NULL,
+  event_id        VARCHAR(128) NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+  timezone        VARCHAR(64) NOT NULL,
+  event_start     DATETIME NOT NULL,
+  remind_at       DATETIME NULL,
+  starts_at       DATETIME NOT NULL,
+  reminded_at     DATETIME NULL,
+  started_at_sent DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_evsub_user_event (user_id, event_id),
+  KEY idx_evsub_due (remind_at, reminded_at),
+  KEY idx_evsub_start (starts_at, started_at_sent),
+  CONSTRAINT fk_evsub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

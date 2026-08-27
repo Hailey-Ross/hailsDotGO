@@ -526,6 +526,39 @@ CREATE TABLE IF NOT EXISTS mobile_device_tokens (
   CONSTRAINT fk_mdt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Event reminder subscriptions: one row per trainer per event they have belled.
+--
+-- No foreign key on event_id: there is no events table. The feed is an in-memory
+-- blob mirrored to cache/events.json, so event_id is a loose string, and the
+-- reconcile that runs after every feed refresh cancels rows whose id has left the
+-- feed.
+--
+-- starts_at is the absolute instant resolved in the subscriber's timezone (most
+-- of the feed carries a floating wall clock: Spotlight Hour is 6pm wherever the
+-- trainer is standing). event_start is the feed's own reading parsed as UTC, a
+-- zone-independent fingerprint of what upstream said at subscribe time, so a
+-- genuine time change can be told apart from a different occurrence reusing a
+-- slug. GO Battle League ids carry no date and do recur.
+CREATE TABLE IF NOT EXISTS event_subscriptions (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         INT UNSIGNED NOT NULL,
+  event_id        VARCHAR(128) NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+  timezone        VARCHAR(64) NOT NULL,
+  event_start     DATETIME NOT NULL,
+  remind_at       DATETIME NULL,
+  starts_at       DATETIME NOT NULL,
+  reminded_at     DATETIME NULL,
+  started_at_sent DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_evsub_user_event (user_id, event_id),
+  KEY idx_evsub_due (remind_at, reminded_at),
+  KEY idx_evsub_start (starts_at, started_at_sent),
+  CONSTRAINT fk_evsub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Trainer avatar access locks: min_rank required to select an avatar slug.
 -- 0=all, 1=trusted+, 2=content_creator+, 4=tester+, 5=moderator+, 100=admin+
 -- Professors are auto-locked at rank 1 in code; this table covers admin-configured locks.
@@ -697,7 +730,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (45, 'Announced shiny release dates (2026-07-27)'),
   (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)'),
   (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)'),
-  (48, 'Room for every language a translator applicant can list (2026-08-27)');
+  (48, 'Room for every language a translator applicant can list (2026-08-27)'),
+  (49, 'Event reminder subscriptions (2026-08-27)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

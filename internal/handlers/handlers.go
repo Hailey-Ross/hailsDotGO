@@ -42,6 +42,12 @@ type Handlers struct {
 	// raidMu serializes queue matching and raid timer processing so the
 	// matcher never double-assigns a queue slot (single-instance app).
 	raidMu sync.Mutex
+
+	// eventSubMu serializes the event reminder sweep against the reconcile that
+	// runs after every events feed refresh, so one is never re-pinning a row the
+	// other is about to fire. Separate from raidMu on purpose: that lock has a
+	// documented job, and the two sweeps share nothing.
+	eventSubMu sync.Mutex
 }
 
 // PageMaintenance holds the enabled/disabled state for each page and section.
