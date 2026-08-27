@@ -135,6 +135,11 @@
         <tr><td><code>POST/DELETE /api/mobile/v1/social/{username}/friend</code>, <code>/block</code></td><td>{{T "credits.api.mobile_social_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
         <tr><td><code>POST/DELETE /api/mobile/v1/feedback/*</code>, <code>POST /api/mobile/v1/awards/{id}/grant</code></td><td>{{T "credits.api.mobile_feedback_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
         <tr><td><code>POST /api/mobile/v1/store/tag-request</code>, <code>/tag-color</code>, <code>/purchases/cancel</code></td><td>{{T "credits.api.mobile_store_tags_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET/PUT /api/mobile/v1/settings</code></td><td>{{T "credits.api.mobile_settings_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET /api/mobile/v1/settings/avatars</code></td><td>{{T "credits.api.mobile_avatars_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET /api/mobile/v1/trainers</code>, <code>/trainer/{username}</code>, <code>/social/{username}/lists</code></td><td>{{T "credits.api.mobile_trainers_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>POST /api/mobile/v1/auth/register</code></td><td>{{T "credits.api.mobile_register_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
+        <tr><td><code>POST /api/mobile/v1/auth/forgot-password</code></td><td>{{T "credits.api.mobile_forgot_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
       </tbody>
     </table>
     <p style="margin-top:1rem">{{T "credits.api.mobile_note"}}</p>
@@ -163,10 +168,18 @@
       <div class="cl-body">
 
         <div class="cl-item">
+          <h2 class="cl-title">Counter numbers for Mega raids add up now</h2>
+          <ul class="cl-list">
+            <li>Damage and survival estimates against a Mega boss were worked out from its ordinary form, which made every figure read about a third too high. They now use the Mega's own defence</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
           <h2 class="cl-title">Current Raids now ends bosses when they really end</h2>
           <ul class="cl-list">
             <li>Raid bosses are now tied to the event schedule, so one drops off the page when its rotation actually finishes instead of lingering for days</li>
             <li>A new boss shows up as soon as its rotation begins, and Shadow Raids are covered too</li>
+            <li>Mega raids too: a new Mega appears the moment its rotation starts, carrying its own typing and CP rather than its base form's</li>
             <li>Every boss now tells you how long it has left on your own clock, and during a changeover it says whether it is only just starting or still running in later time zones</li>
             <li>A new "Up next" strip shows the rotation coming after this one</li>
           </ul>
@@ -194,6 +207,16 @@
             <li>Bug and support threads now work in the app: opening one, reading the replies, answering, inviting someone in and rating the outcome. Until now the app could file a report but never see what came back</li>
             <li>Following, blocking and leaving feedback on a trainer work from the app too, as does granting a community award</li>
             <li>Supporter tag controls are available as well: requesting a tag, changing its colour and cancelling. Buying one still happens on the website</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Settings, trainers and signing up, all native in the app</h2>
+          <ul class="cl-list">
+            <li>Your trainer name, friend code, avatar, pronouns, location and favourite Pokémon can now be set in the app itself. The raid finder needs a name and a code before it will let you in, and until now that meant being sent out to a web page</li>
+            <li>The trainer directory, a trainer's profile and their friends list are all available in the app too</li>
+            <li>Signing up and asking for a password reset work in the app, so a new trainer no longer starts on a web page inside the app</li>
+            <li>A profile marked private now stays private everywhere: the app is told nothing but the username, in the same way the website shows nothing but the username</li>
           </ul>
         </div>
 

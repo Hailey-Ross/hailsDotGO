@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
@@ -8,6 +9,18 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// avatarURLMap maps a trainer class slug to its sprite URL. The catalogue is built
+// once at boot and never mutated, so rebuilding this per request is a cheap read
+// rather than a query. It was open coded in three places before.
+func (h *Handlers) avatarURLMap() map[string]string {
+	classes := h.store.TrainerClasses()
+	m := make(map[string]string, len(classes))
+	for _, tc := range classes {
+		m[tc.Slug] = tc.SpriteURL
+	}
+	return m
+}
 
 type tagEntry struct {
 	Name  string
@@ -89,12 +102,13 @@ func spriteURLSlug(slug, form string) string {
 	return base + slug + ".png"
 }
 
-func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
-	trainerClasses := h.store.TrainerClasses()
-	avatarURLBySlug := make(map[string]string, len(trainerClasses))
-	for _, tc := range trainerClasses {
-		avatarURLBySlug[tc.Slug] = tc.SpriteURL
-	}
+// listTrainers builds the directory: every account that is not hidden or disabled,
+// with tags, badges, ranks and sprites resolved, in display order.
+//
+// Extracted from TrainersPage so the mobile endpoint runs the same query rather
+// than a second copy of it that could drift on the visibility clause.
+func (h *Handlers) listTrainers() []trainerEntry {
+	avatarURLBySlug := h.avatarURLMap()
 
 	superDonators := h.superDonatorSet()
 
@@ -116,13 +130,6 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userGrantRank := -1
-	if u := h.currentUser(r); u != nil {
-		if u.IsMod() || h.settingBool("awards_community_grants_enabled") {
-			userGrantRank = userAwardGrantRank(u)
-		}
-	}
-
 	rows, err := h.db.Query(`
 		SELECT id, username, COALESCE(trainer_name,''), COALESCE(trainer_code,''), COALESCE(avatar,''),
 		       COALESCE(pronouns,''), COALESCE(region,''), COALESCE(country,''), COALESCE(location_display,'none'),
@@ -133,8 +140,7 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		WHERE directory_hidden = 0 AND disabled = 0
 		ORDER BY username ASC`)
 	if err != nil {
-		h.render(w, r, "trainers", trainersPageData{Trainers: []trainerEntry{}, UserGrantRank: userGrantRank})
-		return
+		return []trainerEntry{}
 	}
 	defer rows.Close()
 
@@ -207,7 +213,17 @@ func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
 		return nameA < nameB
 	})
 
-	h.render(w, r, "trainers", trainersPageData{Trainers: trainers, UserGrantRank: userGrantRank})
+	return trainers
+}
+
+func (h *Handlers) TrainersPage(w http.ResponseWriter, r *http.Request) {
+	userGrantRank := -1
+	if u := h.currentUser(r); u != nil {
+		if u.IsMod() || h.settingBool("awards_community_grants_enabled") {
+			userGrantRank = userAwardGrantRank(u)
+		}
+	}
+	h.render(w, r, "trainers", trainersPageData{Trainers: h.listTrainers(), UserGrantRank: userGrantRank})
 }
 
 type trainerProfileData struct {
@@ -227,14 +243,14 @@ type trainerProfileData struct {
 	FollowingCount  int
 }
 
-func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+// lookupTrainer loads one trainer for a profile view.
+//
+// It carries the visibility gate the profile page has always applied: a hidden or
+// disabled account is not found at all. Extracted so the mobile endpoint cannot
+// end up with a second copy of that WHERE clause that forgets half of it.
+func (h *Handlers) lookupTrainer(username string) (trainerEntry, uint, bool) {
 
-	trainerClasses := h.store.TrainerClasses()
-	avatarURLBySlug := make(map[string]string, len(trainerClasses))
-	for _, tc := range trainerClasses {
-		avatarURLBySlug[tc.Slug] = tc.SpriteURL
-	}
+	avatarURLBySlug := h.avatarURLMap()
 
 	var t trainerEntry
 	var userID uint
@@ -255,8 +271,7 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 			&t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt,
 			&profilePublicInt, &shiniesHiddenInt, &onlineInt)
 	if err != nil {
-		http.NotFound(w, r)
-		return
+		return trainerEntry{}, 0, false
 	}
 
 	t.ProfilePublic = profilePublicInt > 0
@@ -290,6 +305,17 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 		tags = []tagEntry{}
 	}
 	t.Tags = tags
+	return t, userID, true
+}
+
+func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+	avatarURLBySlug := h.avatarURLMap()
+	t, userID, found := h.lookupTrainer(username)
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
 
 	pd := trainerProfileData{Trainer: t}
 
@@ -386,4 +412,188 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 	pd.FeedbackOptions = options
 
 	h.render(w, r, "trainer", pd)
+}
+
+type mobileTag struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+// mobileTrainer is one trainer as a client sees them, with the privacy gates
+// already applied.
+//
+// This is a separate type rather than JSON tags on trainerEntry, deliberately.
+// Every gate on a private profile lives in the templates today: the SQL returns
+// the trainer name, friend code and pronouns of every account that is not hidden,
+// and trainers.html and trainer.html decide what to draw. Marshalling trainerEntry
+// straight out would hand a client exactly the fields the website hides, and the
+// comment at templates/trainer.html records that this already happened once, with
+// friend codes handed to any logged in visitor. Building a DTO makes the gate
+// something you have to pass through rather than something you have to remember.
+type mobileTrainer struct {
+	Username      string      `json:"username"`
+	DisplayName   string      `json:"display_name"`
+	TrainerName   string      `json:"trainer_name,omitempty"`
+	TrainerCode   string      `json:"trainer_code,omitempty"`
+	Avatar        string      `json:"avatar,omitempty"`
+	AvatarURL     string      `json:"avatar_url,omitempty"`
+	Pronouns      string      `json:"pronouns,omitempty"`
+	Region        string      `json:"region,omitempty"`
+	Country       string      `json:"country,omitempty"`
+	StaffBadge    string      `json:"staff_badge,omitempty"`
+	SpecialRank   string      `json:"special_rank,omitempty"`
+	FavPokemon    string      `json:"fav_pokemon,omitempty"`
+	FavSpriteURL  string      `json:"fav_sprite_url,omitempty"`
+	RaidXP        int         `json:"raid_xp"`
+	RaidRank      string      `json:"raid_rank,omitempty"`
+	JoinedAt      string      `json:"joined_at"`
+	Online        bool        `json:"online"`
+	SuperDonator  bool        `json:"super_donator"`
+	ProfilePublic bool        `json:"profile_public"`
+	ShiniesHidden bool        `json:"shinies_hidden"`
+	Tags          []mobileTag `json:"tags"`
+}
+
+// toMobileTrainer applies the same visibility rules the templates apply, so a JSON
+// client sees what the website shows and nothing more.
+//
+// isSelf lets a trainer see their own friend code on their own profile, which is
+// what trainer.html does. Every mobile route that reaches this is behind
+// MobileAuthMiddleware, so the "logged in visitor" half of the template condition
+// is always satisfied.
+func toMobileTrainer(t trainerEntry, isSelf bool) mobileTrainer {
+	out := mobileTrainer{
+		Username:      t.Username,
+		DisplayName:   t.Username,
+		Avatar:        t.Avatar,
+		AvatarURL:     absoluteURL(t.AvatarURL),
+		StaffBadge:    t.StaffBadge,
+		SpecialRank:   t.SpecialRank,
+		FavPokemon:    t.FavPokemon,
+		FavSpriteURL:  absoluteURL(t.FavSpriteURL),
+		RaidXP:        t.RaidXP,
+		RaidRank:      t.RaidRank,
+		JoinedAt:      t.JoinedAt.UTC().Format(time.RFC3339),
+		Online:        t.Online,
+		SuperDonator:  t.SuperDonator,
+		ProfilePublic: t.ProfilePublic,
+		ShiniesHidden: t.ShiniesHidden,
+		Tags:          []mobileTag{},
+	}
+	for _, tag := range t.Tags {
+		out.Tags = append(out.Tags, mobileTag{Name: tag.Name, Color: tag.Color})
+	}
+
+	// A private profile shows its username and nothing personal. The owner still
+	// sees their own details.
+	if !t.ProfilePublic && !isSelf {
+		return out
+	}
+
+	if t.TrainerName != "" {
+		out.TrainerName = t.TrainerName
+		out.DisplayName = t.TrainerName
+	}
+	out.Pronouns = t.Pronouns
+	out.TrainerCode = t.TrainerCodeFormatted
+
+	// location_display is the trainer's own choice about how precise to be, and it
+	// has to be honoured here rather than at render time: "none" must not put a
+	// country on the wire at all.
+	switch t.LocationDisplay {
+	case "full":
+		out.Region = t.Region
+		out.Country = t.Country
+	case "country":
+		out.Country = t.Country
+	}
+	return out
+}
+
+// MobileTrainers serves the trainers directory.
+func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
+	list := h.listTrainers()
+	out := make([]mobileTrainer, 0, len(list))
+	for _, t := range list {
+		out = append(out, toMobileTrainer(t, t.Username == u.Username))
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
+type mobileFriend struct {
+	Username    string `json:"username"`
+	TrainerName string `json:"trainer_name"`
+	Avatar      string `json:"avatar,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
+}
+
+type mobileTrainerProfile struct {
+	Trainer        mobileTrainer  `json:"trainer"`
+	IsOwnProfile   bool           `json:"is_own_profile"`
+	IsFollowing    bool           `json:"is_following"`
+	FollowsMe      bool           `json:"follows_me"`
+	IsFriend       bool           `json:"is_friend"`
+	IsBlocked      bool           `json:"is_blocked"`
+	TheyBlockedYou bool           `json:"they_blocked_you"`
+	RecentFriends  []mobileFriend `json:"recent_friends"`
+	FollowerCount  int            `json:"follower_count"`
+	FollowingCount int            `json:"following_count"`
+}
+
+// MobileTrainerProfile serves one trainer's profile.
+//
+// Only the parts that have no endpoint yet. Feedback, awards and the shiny
+// collection already have their own GETs that work over Bearer, so they are not
+// duplicated here.
+func (h *Handlers) MobileTrainerProfile(w http.ResponseWriter, r *http.Request) {
+	viewer, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
+	t, userID, found := h.lookupTrainer(chi.URLParam(r, "username"))
+	if !found {
+		writeJSONError(w, "trainer not found", http.StatusNotFound)
+		return
+	}
+
+	isSelf := userID == viewer.ID
+	out := mobileTrainerProfile{
+		Trainer:       toMobileTrainer(t, isSelf),
+		IsOwnProfile:  isSelf,
+		RecentFriends: []mobileFriend{},
+	}
+
+	if isSelf {
+		avatars := h.avatarURLMap()
+		if rows, err := h.db.Query(`
+			SELECT u.username, COALESCE(u.trainer_name,''), COALESCE(u.avatar,'')
+			FROM user_follows uf JOIN users u ON u.id = uf.friend_id
+			WHERE uf.user_id = ? ORDER BY uf.created_at DESC LIMIT 5`, viewer.ID); err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var f mobileFriend
+				if rows.Scan(&f.Username, &f.TrainerName, &f.Avatar) == nil {
+					f.AvatarURL = absoluteURL(avatars[f.Avatar])
+					out.RecentFriends = append(out.RecentFriends, f)
+				}
+			}
+		}
+	} else {
+		h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ? AND friend_id = ?`, viewer.ID, userID).Scan(&out.IsFollowing)
+		h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ? AND friend_id = ?`, userID, viewer.ID).Scan(&out.FollowsMe)
+		h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, viewer.ID, userID).Scan(&out.IsBlocked)
+		h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, userID, viewer.ID).Scan(&out.TheyBlockedYou)
+		out.IsFriend = out.IsFollowing && out.FollowsMe
+	}
+
+	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE friend_id = ?`, userID).Scan(&out.FollowerCount)
+	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ?`, userID).Scan(&out.FollowingCount)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
 }

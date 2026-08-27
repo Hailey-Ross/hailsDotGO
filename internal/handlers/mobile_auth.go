@@ -243,3 +243,95 @@ func (h *Handlers) MobileMaintenance(w http.ResponseWriter, r *http.Request) {
 		"store":             h.storeEnabled(),
 	})
 }
+
+// mobileSessionResponse writes the {token, expires_at, user} envelope MobileLogin
+// established. Shared so registration hands back exactly what a login does and the
+// app has one shape to parse.
+func (h *Handlers) mobileSessionResponse(w http.ResponseWriter, userID uint) {
+	token, err := auth.CreateSession(h.db, userID)
+	if err != nil {
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	u, err := auth.GetSession(h.db, token)
+	if err != nil || u == nil {
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	resp := userToMobileResponse(u)
+	h.db.QueryRow(`SELECT COALESCE(trainer_level,0) FROM users WHERE id = ?`, u.ID).Scan(&resp.TrainerLevel)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"token":      token,
+		"expires_at": time.Now().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339),
+		"user":       resp,
+	})
+}
+
+// MobileRegister creates an account and logs the caller straight in.
+//
+// The rules come from registerAccount, the same function the web form uses, so the
+// invite handling cannot diverge: a moderator or admin invite lands in pending_role
+// and confers nothing until an admin confirms it.
+//
+// Public, so it carries its own rate limit. The mobile group's 120/min baseline
+// applies only inside the authenticated subtree and would be far too generous for
+// account creation.
+func (h *Handlers) MobileRegister(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Invite   string `json:"invite"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	id, key, err := h.registerAccount(body.Username, body.Email, body.Password, body.Invite)
+	if key != "" {
+		status := http.StatusBadRequest
+		if key == "error.reg_closed" {
+			status = http.StatusForbidden
+		}
+		// The key travels with the message so the app can point at the offending
+		// field rather than matching on prose.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(map[string]string{"error": h.t(r, key), "code": key})
+		return
+	}
+	if err != nil {
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	h.mobileSessionResponse(w, id)
+}
+
+// MobileForgotPassword starts a password reset.
+//
+// The answer is deliberately identical whether or not the address matched an
+// account, including for a disabled one. Reporting "no such user" here would turn
+// the endpoint into a way to test whether somebody has an account.
+func (h *Handlers) MobileForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	email := strings.TrimSpace(body.Email)
+	if email == "" {
+		writeJSONError(w, "email required", http.StatusBadRequest)
+		return
+	}
+
+	h.issuePasswordReset(email)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "message": h.t(r, "forgot.sent")})
+}

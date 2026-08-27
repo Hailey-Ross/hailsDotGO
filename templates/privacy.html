@@ -1,0 +1,85 @@
+{{define "title"}}Privacy{{end}}
+
+{{define "content"}}
+<div class="page-header">
+  <h1>Privacy</h1>
+</div>
+
+<div class="credits-card">
+  <p>Last updated 27 August 2026. This describes what hailsDotGO actually does with
+     your data, on the website and in the Android app. It is written to match the
+     code rather than to cover every eventuality, and it is deliberately short.</p>
+</div>
+
+<div class="credits-card">
+  <h2>The IV scanner captures your screen</h2>
+  <p>This is the part worth reading. When you tap the scanner in the Android app,
+     it captures <strong>one frame of your entire screen</strong> and reads it
+     twice: once on your device, and once by sending that frame to this server,
+     where a recogniser reads the level arc, recovers a nicknamed Pokemon from its
+     candy label, and corrects a partly hidden CP.</p>
+  <p>The frame is the whole screen, not a crop of the Pokemon. Anything else
+     visible at that moment, such as a notification banner or a message preview,
+     is part of the image.</p>
+  <p>The image is held in memory and processed. It is <strong>not written to disk
+     on the server, and not stored anywhere afterwards</strong>. Release builds of
+     the app do not write it to your phone either.</p>
+  <p>You can turn this off. In the app, under App settings, switch off
+     <strong>Server-assisted scan</strong> and the frame never leaves your device.
+     The on-device reader is less accurate, and often cannot resolve IVs on its
+     own, which is why the server pass exists.</p>
+  <p>The values read from a scan, such as the species, CP, level and stardust
+     cost, are written to the server log. The image is not.</p>
+</div>
+
+<div class="credits-card">
+  <h2>Your account</h2>
+  <p>An account stores a username, an email address, and a password kept only as a
+     bcrypt hash. Optionally it stores a trainer name, friend code, trainer level,
+     pronouns, avatar, favourite Pokemon, and a city, region and country if you
+     choose to enter them.</p>
+  <p>You control how much of that is public. The location display setting can hide
+     your location entirely, show only your country, or show your city and region.
+     A private profile hides your trainer name and friend code from other
+     trainers.</p>
+  <p>Anything you save yourself, such as your Pokemon box, shiny collection and
+     raid history, is stored against your account.</p>
+</div>
+
+<div class="credits-card">
+  <h2>The app</h2>
+  <p>If you allow notifications, the app registers a Firebase Cloud Messaging
+     token with this server so it can tell you when a raid you joined is ready.
+     The token is stored with the device model name, and is removed when you sign
+     out.</p>
+  <p>Signing in stores a session token on your device in encrypted storage.</p>
+</div>
+
+<div class="credits-card">
+  <h2>Other trainers</h2>
+  <p>Raid lobbies, trainer feedback, player reports and bug report threads are
+     visible to the people involved, and to site staff who review them. Reports
+     are read by a human.</p>
+</div>
+
+<div class="credits-card">
+  <h2>Third parties</h2>
+  <p>There is no advertising, no analytics, and nothing is sold or shared for
+     marketing. Payments for supporter items are handled by PayPal, which receives
+     what it needs to take the payment; this site never sees your card details.</p>
+  <p>Pokemon sprites and event artwork are loaded from public sources including
+     PokeAPI and LeekDuck, and trainer avatars from Pokemon Showdown. Requesting
+     an image tells that host your IP address, as any image on any website does.</p>
+</div>
+
+<div class="credits-card">
+  <h2>Deleting your data</h2>
+  <p>Ask, and the account and everything attached to it is deleted. There is no
+     automated button for this yet; contact a staff member through the reports
+     page and it will be done.</p>
+</div>
+
+<div class="credits-card">
+  <p>{{T "credits.about.disclaimer"}}</p>
+</div>
+{{end}}

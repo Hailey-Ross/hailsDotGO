@@ -106,17 +106,30 @@ for (const { boss } of bosses) {
   let want = null;
   if (paren) want = paren[1].replace(/\s*forme?\s*$/i, "").trim().toLowerCase();
   else for (const [re, f] of FORM_EXPECTED) if (re.test(boss.pokemon_name)) { want = f; break; }
-  // An undecorated name means the ORDINARY form. Leaving want null here is what
-  // let plain Mewtwo resolve to Armored and still report a pass.
-  if (want === null && !/^(Mega|Primal)s+/i.test(boss.pokemon_name)) want = "normal";
-
-  // Mega and Primal have no entry in this dataset at all, so they legitimately
-  // fall back to the ordinary form. Reported, not failed.
-  if (/^(Mega|Primal)\s+/i.test(boss.pokemon_name)) {
-    notes.push(`${boss.pokemon_name}: no Mega stats upstream, using the base form's defence`);
+  // A Mega now has its own stat line, served in GameData.megas, so it must resolve
+  // to the Mega form rather than quietly borrowing its base species'. That silent
+  // borrow put every absolute figure against a Mega boss about 30 percent high.
+  //
+  // Primal still has no entry anywhere and legitimately falls back. Reported, not
+  // failed. Note the regex: the version here was `(Mega|Primal)s+`, missing its
+  // backslash, so it matched nothing and only the block below did any work.
+  if (/^Mega\s+/i.test(boss.pokemon_name)) {
+    if (form !== "mega") {
+      problems.push(`${boss.pokemon_name}: resolved to form "${form}", want the Mega stat line`);
+    } else {
+      resolved++;
+    }
+    continue;
+  }
+  if (/^Primal\s+/i.test(boss.pokemon_name)) {
+    notes.push(`${boss.pokemon_name}: no Primal stats upstream, using the base form's defence`);
     resolved++;
     continue;
   }
+
+  // An undecorated name means the ORDINARY form. Leaving want null here is what
+  // let plain Mewtwo resolve to Armored and still report a pass.
+  if (want === null) want = "normal";
   if (want && form !== want) {
     problems.push(`${boss.pokemon_name}: resolved to the "${stats.form}" forme (def ${stats.base_defense}), expected "${want}"`);
     continue;

@@ -283,6 +283,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// Login is public and rate-limited; everything else requires Bearer or cookie auth.
 	r.Route("/api/mobile/v1", func(r chi.Router) {
 		r.With(httprate.LimitByIP(15, time.Minute)).Post("/auth/login", h.MobileLogin)
+		// Public, so these sit outside MobileAuthMiddleware and the authenticated
+		// group's 120/min baseline does not reach them. Each carries its web route's
+		// own limit instead: account creation and reset requests are exactly the
+		// endpoints a loose ceiling would hurt.
+		r.With(httprate.LimitByIP(10, time.Minute)).Post("/auth/register", h.MobileRegister)
+		r.With(httprate.LimitByIP(8, time.Minute)).Post("/auth/forgot-password", h.MobileForgotPassword)
 
 		// Public game data aliases with stable versioned URLs for mobile clients.
 		// Rate-limited to match the legacy web API (server.go ~line 305).
@@ -306,6 +312,21 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Delete("/auth/session", h.MobileLogout)
 			r.Get("/auth/me", h.MobileMe)
 			r.Put("/profile", h.MobilePutProfile)
+
+			// Trainer settings. The write goes through applySettings, the same function
+			// the settings form uses, so the trainer name rules cannot be enforced on the
+			// web and skipped here. The avatar catalogue is separate because it runs to
+			// over 1700 entries and would dwarf the settings it belongs to.
+			r.Get("/settings", h.MobileSettingsGet)
+			r.Put("/settings", h.MobileSettingsPut)
+			r.Get("/settings/avatars", h.MobileSettingsAvatars)
+
+			// Trainers directory, one profile, and the social lists. All three go through
+			// toMobileTrainer, which applies the privacy gates the templates apply: a
+			// private profile must not put its friend code or pronouns on the wire.
+			r.Get("/trainers", h.MobileTrainers)
+			r.Get("/trainer/{username}", h.MobileTrainerProfile)
+			r.Get("/social/{username}/lists", h.MobileSocialLists)
 			r.Post("/push/token", h.RegisterPushToken)
 			r.Delete("/push/token", h.UnregisterPushToken)
 
@@ -413,6 +434,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/iv", h.GetIVPage)
 		r.Get("/box", h.GetBoxPage)
 		r.Get("/credits", h.Credits)
+		r.Get("/privacy", h.Privacy)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
 		})

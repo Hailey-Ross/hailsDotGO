@@ -533,6 +533,11 @@ type Store struct {
 	// raidsBuiltFor is the next instant the reconciliation could answer differently,
 	// so the periodic rebuild is a clock comparison until a window opens or shuts.
 	raidsBuiltFor     time.Time
+	// megaForms is PARSED at apply time rather than kept as a blob, the same way
+	// pokemonIDMap is: the upstream payload is a megabyte of full pokedex records and
+	// all the raid card synthesizer wants from it is a stat line, a typing and an
+	// image per Mega. The disk cache keeps the raw payload, memory keeps the trim.
+	megaForms         map[string]megaForm
 	maxBattles        json.RawMessage
 	events            json.RawMessage
 	eventsFetchedAt   time.Time // zero until the first success; seeded from the cache file mtime at boot
@@ -623,7 +628,7 @@ func (s *Store) cachedFetch(key, url string) (json.RawMessage, error) {
 // loadFromCache reads any previously saved JSON blobs from disk into the store.
 // Fast and synchronous, called before the HTTP server starts listening.
 func (s *Store) loadFromCache() {
-	keys := []string{"raids", "max_battles", "events", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_evolutions", "pokemon_names"}
+	keys := []string{"raids", "max_battles", "events", "megas", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_evolutions", "pokemon_names"}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, key := range keys {
@@ -752,6 +757,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 		s.cpMults = data
 	case "pokemon_evolutions":
 		s.evolutions = data
+	case "megas":
+		if m := parseMegaForms(data); len(m) > 0 {
+			s.megaForms = m
+		}
 	case "pokemon_types":
 		var arr []struct {
 			Form  string   `json:"form"`
@@ -959,6 +968,7 @@ func (s *Store) Start() {
 	go s.refresh()          // try PoGoAPI in background
 	go s.refreshRaids()     // try pokemon-go-api raids in background
 	go s.refreshMaxBattles() // try pokemon-go-api max battles in background
+	go s.refreshMegas()      // Mega stats and typings, so a Mega rotation can be built locally
 	go s.refreshEventsAtStartup() // try ScrapedDuck events in background, with retries
 	go s.refreshPokemonNames() // try PokeAPI localized names in background
 	go func() {
@@ -1071,6 +1081,30 @@ func (s *Store) refreshMaxBattles() {
 	s.mu.Lock()
 	s.applyResult("max_battles", data)
 	s.mu.Unlock()
+}
+
+// megasURL is pokemon-go-api's Mega only pokedex slice. It is a var so a test can
+// point the fetch somewhere local; tests must restore the original value.
+var megasURL = "https://pokemon-go-api.github.io/pokemon-go-api/api/pokedex/mega.json"
+
+// refreshMegas fetches Mega stats and typings, and rebuilds the raid list because a
+// Mega rotation that was waiting on this data can now be turned into a real card.
+//
+// It rides the raid schedule rather than the six hour data refresh because it exists
+// to serve the raid page: Mega base stats change only when Niantic ships a new Mega,
+// so the point is not freshness but being present when a rotation flips.
+func (s *Store) refreshMegas() {
+	data, err := s.cachedFetch("megas", megasURL)
+	if err != nil {
+		log.Printf("pogodata: megas refresh: %v", err)
+		return
+	}
+	s.mu.Lock()
+	s.applyResult("megas", data)
+	n := len(s.megaForms)
+	s.rebuildRaidsLocked()
+	s.mu.Unlock()
+	log.Printf("pogodata: megas: %d forms available", n)
 }
 
 // eventsFeedURL is the ScrapedDuck mirror of the LeekDuck events list. It is
@@ -1411,6 +1445,7 @@ func (s *Store) scheduleRaidRefresh() {
 		time.Sleep(time.Until(next))
 		s.refreshRaids()
 		s.refreshMaxBattles()
+		s.refreshMegas()
 	}
 }
 
@@ -1824,6 +1859,10 @@ func (s *Store) AllData() json.RawMessage {
 		TypeChart     json.RawMessage            `json:"typeChart"`
 		CPMultipliers json.RawMessage            `json:"cpMultipliers"`
 		PokemonTypes  json.RawMessage            `json:"pokemonTypes"`
+		// Megas keyed by lowercased display name ("mega gyarados"). Nothing in the
+		// Pokemon list describes a Mega, and a Mega cannot be derived from its base
+		// species, so the counter table needs this to divide by the right defense.
+		Megas         map[string]megaForm        `json:"megas,omitempty"`
 		PokemonNames  map[string]map[string]string `json:"pokemonNames,omitempty"`
 	}
 	// Build englishName → {lang_code → translated} from pokemonNamesById + pokemonIDMap.
@@ -1852,6 +1891,7 @@ func (s *Store) AllData() json.RawMessage {
 		TypeChart:     s.typeChart,
 		CPMultipliers: s.cpMults,
 		PokemonTypes:  s.pokemonTypes,
+		Megas:         s.megaForms,
 		PokemonNames:  pokemonNames,
 	})
 	return data

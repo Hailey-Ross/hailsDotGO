@@ -152,65 +152,55 @@ func (h *Handlers) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "register", authData{})
 }
 
-func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
-		return
-	}
+// registerAccount creates an account, applying every rule the registration form
+// applies. The web form and the mobile endpoint both go through it, so neither can
+// grant something the other would refuse.
+//
+// The invite handling is the reason this is shared rather than reimplemented: a
+// moderator or admin invite must land in pending_role, held until an admin
+// confirms it, while a tester invite sets the role outright. A second copy of that
+// switch getting it wrong would grant staff on signup.
+//
+// Returns the new user id, an i18n key naming the rule that refused the
+// registration, or an error for a server failure.
+func (h *Handlers) registerAccount(username, email, password, inviteToken string) (uint, string, error) {
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(email)
+	inviteToken = strings.TrimSpace(inviteToken)
 
-	inviteToken := strings.TrimSpace(r.FormValue("invite"))
+	// An invite that is expired or used up is ignored rather than rejected: the
+	// caller simply falls through to the ordinary open-registration check.
 	usingInvite := inviteToken != "" && h.validInvite(inviteToken)
-
 	if !usingInvite && !h.registrationOpen() {
-		http.Error(w, h.t(r, "error.reg_closed"), http.StatusForbidden)
-		return
-	}
-
-	username := strings.TrimSpace(r.FormValue("username"))
-	email := strings.TrimSpace(r.FormValue("email"))
-	password := r.FormValue("password")
-
-	fail := func(msg string) {
-		h.render(w, r, "register", authData{
-			Error:       msg,
-			Form:        map[string]string{"username": username, "email": email},
-			InviteToken: inviteToken,
-		})
+		return 0, "error.reg_closed", nil
 	}
 
 	if username == "" || email == "" || password == "" {
-		fail(h.t(r, "error.all_fields"))
-		return
+		return 0, "error.all_fields", nil
 	}
 	if len(username) < 2 || len(username) > 32 {
-		fail(h.t(r, "error.username_length"))
-		return
+		return 0, "error.username_length", nil
 	}
 	for _, c := range username {
 		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '_' && c != '-' {
-			fail(h.t(r, "error.username_chars"))
-			return
+			return 0, "error.username_chars", nil
 		}
 	}
 	if len(password) < 8 {
-		fail(h.t(r, "error.password_length"))
-		return
+		return 0, "error.password_length", nil
 	}
 	if len(email) > 254 {
-		fail(h.t(r, "error.email_invalid"))
-		return
+		return 0, "error.email_invalid", nil
 	}
 	// ParseAddress accepts "Name <a@b>" forms; requiring Address == email
 	// limits input to a bare address.
 	if addr, err := netmail.ParseAddress(email); err != nil || addr.Address != email {
-		fail(h.t(r, "error.email_invalid"))
-		return
+		return 0, "error.email_invalid", nil
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
-		fail(h.t(r, "error.server"))
-		return
+		return 0, "", err
 	}
 
 	result, err := h.db.Exec(
@@ -218,17 +208,17 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		username, email, string(hash),
 	)
 	if err != nil {
+		// A duplicate key has to say which field collided, or the caller cannot
+		// tell the user anything useful. The index name is the only signal MySQL
+		// gives.
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
 			if strings.Contains(mysqlErr.Message, "uk_username") {
-				fail(h.t(r, "error.username_taken"))
-			} else {
-				fail(h.t(r, "error.email_taken"))
+				return 0, "error.username_taken", nil
 			}
-			return
+			return 0, "error.email_taken", nil
 		}
-		fail(h.t(r, "error.server"))
-		return
+		return 0, "", err
 	}
 
 	id, _ := result.LastInsertId()
@@ -250,8 +240,41 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	// Soft verify: confirmation email only; nothing is gated on it.
 	h.sendVerificationEmail(uint(id), username, email)
 
-	token, err := auth.CreateSession(h.db, uint(id))
+	return uint(id), "", nil
+}
+
+func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
+
+	inviteToken := strings.TrimSpace(r.FormValue("invite"))
+	username := strings.TrimSpace(r.FormValue("username"))
+	email := strings.TrimSpace(r.FormValue("email"))
+	password := r.FormValue("password")
+
+	id, key, err := h.registerAccount(username, email, password, inviteToken)
+	if key == "error.reg_closed" {
+		http.Error(w, h.t(r, key), http.StatusForbidden)
+		return
+	}
+	if key != "" || err != nil {
+		msg := h.t(r, "error.server")
+		if key != "" {
+			msg = h.t(r, key)
+		}
+		h.render(w, r, "register", authData{
+			Error:       msg,
+			Form:        map[string]string{"username": username, "email": email},
+			InviteToken: inviteToken,
+		})
+		return
+	}
+
+	token, err := auth.CreateSession(h.db, id)
 	if err != nil {
+		// The account exists; the visitor just is not logged in yet.
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}

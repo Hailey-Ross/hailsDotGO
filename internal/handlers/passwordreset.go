@@ -109,6 +109,46 @@ func (h *Handlers) ForgotPasswordPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "forgot_password", resetPageData{})
 }
 
+// issuePasswordReset emails a reset link if the address belongs to an enabled
+// account, and reports nothing about whether it did.
+//
+// That silence is the point. The caller must answer identically for a hit and a
+// miss, or the endpoint becomes a way to test whether somebody has an account
+// here. The send happens in a goroutine so the extra work on a hit cannot be
+// timed either.
+func (h *Handlers) issuePasswordReset(email string) {
+	// Opportunistic cleanup of long-expired tokens.
+	h.db.Exec(`DELETE FROM email_tokens WHERE expires_at < NOW() - INTERVAL 7 DAY`)
+
+	var userID uint
+	var username string
+	var disabled bool
+	err := h.db.QueryRow(`SELECT id, username, disabled FROM users WHERE email = ?`, email).
+		Scan(&userID, &username, &disabled)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Printf("forgot password: lookup: %v", err)
+		}
+		return
+	}
+	if disabled {
+		return
+	}
+
+	raw, terr := h.createEmailToken(userID, purposeReset, resetTokenTTL)
+	if terr != nil {
+		log.Printf("forgot password: create token for user %d: %v", userID, terr)
+		return
+	}
+	link := baseURL + "/reset-password?token=" + raw
+	subject, htmlBody, textBody := mail.PasswordResetEmail(username, link)
+	go func() {
+		if serr := h.mailer.Send(email, subject, htmlBody, textBody); serr != nil {
+			log.Printf("forgot password: send to user %d: %v", userID, serr)
+		}
+	}()
+}
+
 func (h *Handlers) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
@@ -120,30 +160,7 @@ func (h *Handlers) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Opportunistic cleanup of long-expired tokens.
-	h.db.Exec(`DELETE FROM email_tokens WHERE expires_at < NOW() - INTERVAL 7 DAY`)
-
-	var userID uint
-	var username string
-	var disabled bool
-	err := h.db.QueryRow(`SELECT id, username, disabled FROM users WHERE email = ?`, email).
-		Scan(&userID, &username, &disabled)
-	if err == nil && !disabled {
-		raw, terr := h.createEmailToken(userID, purposeReset, resetTokenTTL)
-		if terr != nil {
-			log.Printf("forgot password: create token for user %d: %v", userID, terr)
-		} else {
-			link := baseURL + "/reset-password?token=" + raw
-			subject, htmlBody, textBody := mail.PasswordResetEmail(username, link)
-			go func() {
-				if serr := h.mailer.Send(email, subject, htmlBody, textBody); serr != nil {
-					log.Printf("forgot password: send to user %d: %v", userID, serr)
-				}
-			}()
-		}
-	} else if err != nil && err != sql.ErrNoRows {
-		log.Printf("forgot password: lookup: %v", err)
-	}
+	h.issuePasswordReset(email)
 
 	// Always the same response, whether or not the email matched an account.
 	h.render(w, r, "forgot_password", resetPageData{Info: h.t(r, "forgot.sent")})
