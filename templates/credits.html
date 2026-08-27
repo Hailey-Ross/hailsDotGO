@@ -157,6 +157,14 @@
       <div class="cl-body">
 
         <div class="cl-item">
+          <h2 class="cl-title">The app can see which sections are switched off</h2>
+          <ul class="cl-list">
+            <li>New <code>GET /api/mobile/v1/maintenance</code> tells the companion app which pages and sections are enabled, the store included, so it can grey out anything the site has turned off instead of opening a screen that will not load</li>
+            <li>It needs no login, which matches the website, where a switched off section is already missing from the menu</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
           <h2 class="cl-title">Event listings cleaned up</h2>
           <ul class="cl-list">
             <li>Event names with an ampersand in them read properly again, on the card, in the details panel and in the calendar feed.</li>
