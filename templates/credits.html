@@ -131,6 +131,10 @@
         <tr><td><code>GET /api/mobile/v1/costumes</code></td><td>{{T "credits.api.mobile_costumes_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
         <tr><td><code>/api/mobile/v1/raid/*</code></td><td>{{T "credits.api.mobile_raid_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
         <tr><td><code>POST /api/mobile/v1/player-reports</code></td><td>{{T "credits.api.mobile_player_reports_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET/POST /api/mobile/v1/bug-reports</code>, <code>/bug-reports/{id}</code>, <code>/messages</code>, <code>/invite</code>, <code>/status</code>, <code>/rating</code></td><td>{{T "credits.api.mobile_bug_reports_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>POST/DELETE /api/mobile/v1/social/{username}/friend</code>, <code>/block</code></td><td>{{T "credits.api.mobile_social_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>POST/DELETE /api/mobile/v1/feedback/*</code>, <code>POST /api/mobile/v1/awards/{id}/grant</code></td><td>{{T "credits.api.mobile_feedback_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>POST /api/mobile/v1/store/tag-request</code>, <code>/tag-color</code>, <code>/purchases/cancel</code></td><td>{{T "credits.api.mobile_store_tags_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
       </tbody>
     </table>
     <p style="margin-top:1rem">{{T "credits.api.mobile_note"}}</p>
@@ -181,6 +185,15 @@
           <ul class="cl-list">
             <li>Writing your reasons in Japanese, Thai or Hindi could be turned away as the wrong length when it was comfortably inside the limit. The count matches what the form asks for now</li>
             <li>Ticking a long list of languages, or adding one of your own, could fail the application outright with nothing on screen to explain it. There is room for every language on offer</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">More of the companion app stops needing the website</h2>
+          <ul class="cl-list">
+            <li>Bug and support threads now work in the app: opening one, reading the replies, answering, inviting someone in and rating the outcome. Until now the app could file a report but never see what came back</li>
+            <li>Following, blocking and leaving feedback on a trainer work from the app too, as does granting a community award</li>
+            <li>Supporter tag controls are available as well: requesting a tag, changing its colour and cancelling. Buying one still happens on the website</li>
           </ul>
         </div>
 

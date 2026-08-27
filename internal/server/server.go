@@ -346,6 +346,46 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			// session-specific, so it is reused verbatim. The tighter limit is the web route's:
 			// the group's 120/min baseline is far too loose for a moderation endpoint.
 			r.With(httprate.LimitByIP(6, time.Minute)).Post("/player-reports", h.CreatePlayerReport)
+
+			// Bug report threads. Same story as /player-reports above: the writes sit inside
+			// the CSRF group, so the app can file a player report today but cannot read the
+			// thread it just created. Every one of these handlers is session-generic, so they
+			// are reused verbatim. The two GETs already worked over Bearer on their web paths;
+			// they are repeated here so the screen has one base path instead of straddling
+			// /api/bug-reports and /api/mobile/v1/bug-reports.
+			//
+			// The create limit is the web route's 6/min, restated for the same reason as above.
+			r.With(httprate.LimitByIP(6, time.Minute)).Post("/bug-reports", h.CreateBugReport)
+			r.Get("/bug-reports", h.APIListBugReports)
+			r.Get("/bug-reports/{id}", h.APIGetBugReport)
+			r.Post("/bug-reports/{id}/messages", h.APIPostBugMessage)
+			r.Post("/bug-reports/{id}/invite", h.APIBugInvite)
+			r.Post("/bug-reports/{id}/status", h.APIBugReportStatus)
+			r.Post("/bug-reports/{id}/rating", h.APIBugReportRating)
+
+			// Profile actions: follow, block, feedback and community award grants.
+			//
+			// APIFriend and APIBlock switch on r.Method internally rather than being separate
+			// handlers, so each needs both registrations. With only the Post, a DELETE reaches
+			// the handler and falls out of its method switch as a plain text 405.
+			r.Post("/social/{username}/friend", h.APIFriend)
+			r.Delete("/social/{username}/friend", h.APIFriend)
+			r.Post("/social/{username}/block", h.APIBlock)
+			r.Delete("/social/{username}/block", h.APIBlock)
+			r.Post("/feedback/{username}", h.APIPostFeedback)
+			r.Delete("/feedback/entry/{id}", h.APIDeleteFeedback)
+			// Registered bare, unlike its web twin: APIAwardGrant is wrapped in RequireAuth
+			// there, which answers a 303 redirect to /login instead of JSON. The group
+			// middleware already gates this tree, and the handler makes its own 401 check.
+			r.Post("/awards/{id}/grant", h.APIAwardGrant)
+
+			// Supporter tag controls. Checkout itself stays in the WebView, since it is a real
+			// money PayPal redirect out to /store/return, but these three are ordinary JSON
+			// writes that only CSRF was blocking. Bare for the same RequireAuth reason as the
+			// award grant above; each already answers its own 401.
+			r.Post("/store/tag-request", h.StoreTagRequestSubmit)
+			r.Post("/store/tag-color", h.StoreTagColorUpdate)
+			r.Post("/store/purchases/cancel", h.StorePurchaseCancel)
 		})
 	})
 
