@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "live.hails.hailsdotgo",
       "sha256_cert_fingerprints": [
-        "0E:93:87:9D:4B:A2:A7:AD:EB:F9:67:7A:B2:13:E2:10:79:B2:2E:C9:BB:25:60:6E:FA:C2:E7:0D:3C:B7:AC:6B"
+        "0E:93:87:9D:4B:A2:A7:AD:EB:F9:67:7A:B2:13:E2:10:79:B2:2E:C9:BB:25:60:6E:FA:C2:E7:0D:3C:B7:AC:6B",
+        "5B:22:10:B9:DD:3A:5E:41:CD:D2:47:C9:AC:D5:FC:48:4B:BF:43:7F:19:33:20:07:50:5E:00:D3:76:E1:33:D4"
       ]
     }
   }

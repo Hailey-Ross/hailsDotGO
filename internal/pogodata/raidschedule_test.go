@@ -31,7 +31,15 @@ func testLookup(t *testing.T) speciesLookup {
 		}
 		return json.RawMessage(bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF}))
 	}
-	return newSpeciesLookup(read("pokemon.json"), read("pokemon_types.json"))
+	return newSpeciesLookup(read("pokemon.json"), read("pokemon_types.json"), testMegas)
+}
+
+// testMegas is the trimmed Mega data the store holds after a megas refresh, using
+// the real upstream numbers for Mega Gyarados. Note the stamina matches plain
+// Gyarados while the attack, defense and typing all differ, which is exactly why a
+// Mega cannot be derived from its base species.
+var testMegas = map[string]megaForm{
+	"mega gyarados": {Name: "Mega Gyarados", Types: []string{"Water", "Dark"}, Atk: 292, Def: 247, Sta: 216},
 }
 
 func testCPMs(t *testing.T) raidCPMs {
@@ -234,22 +242,26 @@ func TestReconcileDropsExpiredAndAddsStarted(t *testing.T) {
 			t.Errorf("%s is live but was not added: tier 5 = %v", want, names(tiers["5"]))
 		}
 	}
-	// A Mega cannot be built locally, so tier 6 empties and the rotation moves to
-	// the up next strip rather than becoming a typeless card in the grid.
-	if len(tiers["6"]) != 0 {
-		t.Errorf("tier 6 = %v, want empty while upstream has not caught up", names(tiers["6"]))
+	// Mega Gyarados started on the 26th and upstream still has not listed it, so it
+	// is built from the Mega data instead of leaving the tier empty.
+	if !hasName(tiers["6"], "Mega Gyarados") {
+		t.Errorf("Mega Gyarados is live but was not added: tier 6 = %v", names(tiers["6"]))
 	}
-	var liveMega *UpcomingRaid
-	for i := range upcoming {
-		if upcoming[i].Tier == "6" && upcoming[i].Live {
-			liveMega = &upcoming[i]
+	for _, b := range tiers["6"] {
+		if b.PokemonName != "Mega Gyarados" {
+			continue
+		}
+		// Its OWN typing, not Gyarados's Water and Flying: the counter table ranks
+		// against these, so borrowing the base species would rank the wrong things.
+		if len(b.Types) != 2 || b.Types[0] != "Water" || b.Types[1] != "Dark" {
+			t.Errorf("Mega Gyarados types = %v, want [Water Dark]", b.Types)
 		}
 	}
-	if liveMega == nil {
-		t.Fatalf("Mega Gyarados is live but absent from up next: %+v", upcoming)
-	}
-	if liveMega.Bosses[0].Name != "Mega Gyarados" {
-		t.Errorf("up next names %q, want Mega Gyarados", liveMega.Bosses[0].Name)
+	// Nothing is left waiting, so the up next strip carries no live placeholder.
+	for _, u := range upcoming {
+		if u.Live {
+			t.Errorf("up next still holds a live placeholder: %+v", u)
+		}
 	}
 
 	// Tiers nothing schedules are upstream's business alone.
@@ -260,8 +272,8 @@ func TestReconcileDropsExpiredAndAddsStarted(t *testing.T) {
 		t.Errorf("tier 3 = %v, want it untouched", got)
 	}
 
-	if stats.Dropped != 2 || stats.Synthesized != 3 || stats.Pending != 1 {
-		t.Errorf("stats = %+v, want 2 dropped, 3 synthesized, 1 pending", stats)
+	if stats.Dropped != 2 || stats.Synthesized != 4 || stats.Pending != 0 {
+		t.Errorf("stats = %+v, want 2 dropped, 4 synthesized, 0 pending", stats)
 	}
 }
 
@@ -344,16 +356,84 @@ func TestReconcileFailsOpen(t *testing.T) {
 	}
 }
 
-func TestReconcileKeepsBossesNoRotationDescribes(t *testing.T) {
-	// A tier 5 entry that no event ever mentions is upstream's to decide. Dropping
-	// it would mean an Elite Raid, or anything the feed has no vocabulary for yet,
-	// silently vanishing from the page.
+func TestReconcileLeavesAGroupWithNothingScheduledAlone(t *testing.T) {
+	// With no rotation running for a group, the schedule has nothing to say about it
+	// and upstream is the only source. This is what keeps an Elite Raid, or a gap in
+	// the feed, from silently emptying a tier.
 	upstream := json.RawMessage(`{"5":[{"pokemon_name":"Regigigas","cp":2000,"types":["Normal"]}]}`)
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
-	served, _, stats := reconcileRaids(upstream, windows, utc(t, "2026-08-27T12:00:00Z"), testLookup(t), testCPMs(t))
+	// Long after every rotation in the fixture has finished.
+	served, _, stats := reconcileRaids(upstream, windows, utc(t, "2027-01-01T00:00:00Z"), testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 	if !hasName(tiers["5"], "Regigigas") {
-		t.Errorf("an undescribed boss was dropped: %v", names(tiers["5"]))
+		t.Errorf("a boss was dropped with nothing scheduled to drop it: %v", names(tiers["5"]))
+	}
+	if stats.Dropped != 0 {
+		t.Errorf("dropped %d, want 0", stats.Dropped)
+	}
+}
+
+func TestReconcileDropsAStaleBossWhoseRotationLeftTheFeed(t *testing.T) {
+	// The regression that put Lunala and Mega Swampert back on the live page on
+	// 2026-08-27.
+	//
+	// The drop rule used to require finding an expired window that named the boss.
+	// The events feed prunes a rotation a day or so after it ends, so once that
+	// happened the boss was described by nothing, was read as "upstream knows best",
+	// and came straight back, with upstream still serving it a week later. What
+	// decides now is whether the schedule has an ACTIVE rotation for that group.
+	//
+	// Note this fixture contains no Lunala or Mega Swampert event at all, which is
+	// exactly the state the feed reaches.
+	events := json.RawMessage(`[
+	{"eventID":"shadow-giratina-altered-in-shadow-raids-august-2026","name":"Shadow Giratina (Altered Forme) in Shadow Raids","eventType":"raid-battles","start":"2026-08-05T06:00:00.000","end":"2026-09-08T22:00:00.000","extraData":{"raidbattles":{"bosses":[{"name":"Giratina (Altered)"}]}}},
+	{"eventID":"mega-gyarados-in-mega-raids-august-2026","name":"Mega Gyarados in Mega Raids","eventType":"raid-battles","start":"2026-08-26T06:00:00.000","end":"2026-09-08T22:00:00.000","extraData":{"raidbattles":{"bosses":[{"name":"Mega Gyarados"}]}}},
+	{"eventID":"regirock-regice-registeel-in-5-star-raid-battles-august-2026","name":"Regirock, Regice, and Registeel in 5-star Raid Battles","eventType":"raid-battles","start":"2026-08-26T06:00:00.000","end":"2026-09-08T22:00:00.000","extraData":{"raidbattles":{"bosses":[{"name":"Regirock"},{"name":"Regice"},{"name":"Registeel"}]}}}
+	]`)
+	windows := parseRaidWindows(events)
+	served, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows,
+		utc(t, "2026-08-31T12:00:00Z"), testLookup(t), testCPMs(t))
+	tiers := decodeTiers(t, served)
+
+	if hasName(tiers["5"], "Lunala") {
+		t.Errorf("Lunala came back once its rotation left the feed: %v", names(tiers["5"]))
+	}
+	if hasName(tiers["6"], "Mega Swampert") {
+		t.Errorf("Mega Swampert came back once its rotation left the feed: %v", names(tiers["6"]))
+	}
+	// The shadow half of tier 5 is scheduled separately and is still running.
+	if !hasName(tiers["5"], "Shadow Giratina (Altered Forme)") {
+		t.Errorf("the live shadow boss was dropped with it: %v", names(tiers["5"]))
+	}
+	if !hasName(tiers["6"], "Mega Gyarados") || !hasName(tiers["5"], "Registeel") {
+		t.Errorf("the live rotations were not built: 5=%v 6=%v", names(tiers["5"]), names(tiers["6"]))
+	}
+	if stats.Dropped != 2 {
+		t.Errorf("dropped %d, want 2", stats.Dropped)
+	}
+	// Tiers the schedule never governs are untouched by any of this.
+	if len(tiers["1"]) != 1 || len(tiers["3"]) != 1 {
+		t.Errorf("an ungoverned tier changed: 1=%v 3=%v", names(tiers["1"]), names(tiers["3"]))
+	}
+}
+
+func TestReconcileGovernsShadowAndNormalSeparately(t *testing.T) {
+	// Tier 5 shadow and tier 5 normal are scheduled independently. A live shadow
+	// rotation must not make the schedule the authority on the normal half, or a
+	// legitimate 5 star boss the feed happens not to describe would be wiped.
+	events := json.RawMessage(`[
+	{"eventID":"shadow-giratina-altered-in-shadow-raids-august-2026","name":"Shadow Giratina (Altered Forme) in Shadow Raids","eventType":"raid-battles","start":"2026-08-05T06:00:00.000","end":"2026-09-08T22:00:00.000","extraData":{"raidbattles":{"bosses":[{"name":"Giratina (Altered)"}]}}}
+	]`)
+	windows := parseRaidWindows(events)
+	served, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows,
+		utc(t, "2026-08-31T12:00:00Z"), testLookup(t), testCPMs(t))
+	tiers := decodeTiers(t, served)
+
+	if !hasName(tiers["5"], "Lunala") {
+		t.Errorf("the normal half of tier 5 was wiped by a shadow rotation: %v", names(tiers["5"]))
+	}
+	if !hasName(tiers["6"], "Mega Swampert") {
+		t.Errorf("tier 6 was wiped with nothing scheduled for it: %v", names(tiers["6"]))
 	}
 	if stats.Dropped != 0 {
 		t.Errorf("dropped %d, want 0", stats.Dropped)
@@ -430,10 +510,25 @@ func TestSynthesizeResolvesFormsAcrossTheFeeds(t *testing.T) {
 		t.Error("Altered and Origin resolved to the same stat line")
 	}
 
-	// Megas have no stat line or typing in this dataset at all, and guessing from
-	// the base species would give the counter calculator the wrong types.
-	if _, ok := synthesizeBoss(WindowBoss{Name: "Mega Gyarados"}, RaidWindow{Tier: "6"}, lookup, cpms); ok {
-		t.Error("a Mega was synthesized from data that carries no Mega forms")
+	// A Mega comes from its own dataset. These are the published figures for Mega
+	// Gyarados, and matching them is the whole argument for building a card locally.
+	mega, ok := synthesizeBoss(WindowBoss{Name: "Mega Gyarados"}, RaidWindow{Tier: "6"}, lookup, cpms)
+	if !ok {
+		t.Fatal("Mega Gyarados did not resolve")
+	}
+	if mega.CP != 2597 || mega.CPMax != 2695 || mega.CPBoostedMin != 3247 || mega.CPBoostedMax != 3369 {
+		t.Errorf("Mega Gyarados CP %d-%d boosted %d-%d, want 2597-2695 and 3247-3369",
+			mega.CP, mega.CPMax, mega.CPBoostedMin, mega.CPBoostedMax)
+	}
+	// Water and Dark, never the base species' Water and Flying.
+	if len(mega.Types) != 2 || mega.Types[0] != "Water" || mega.Types[1] != "Dark" {
+		t.Errorf("Mega Gyarados types = %v, want [Water Dark]", mega.Types)
+	}
+
+	// A Mega with no data must produce NO card. Falling through to the base species
+	// would be worse than refusing, because the typing would be wrong.
+	if _, ok := synthesizeBoss(WindowBoss{Name: "Mega Rayquaza"}, RaidWindow{Tier: "6"}, lookup, cpms); ok {
+		t.Error("a Mega with no data borrowed something to render anyway")
 	}
 	if _, ok := synthesizeBoss(WindowBoss{Name: "Notapokemon"}, RaidWindow{Tier: "5"}, lookup, cpms); ok {
 		t.Error("an unknown species was synthesized")
@@ -548,5 +643,119 @@ func TestAllDataCarriesTheRaidSchedule(t *testing.T) {
 	}
 	if annotated != 4 {
 		t.Errorf("%d of tier 5 carried a window, want all 4", annotated)
+	}
+}
+
+func TestReconcileFallsBackToUpNextWithoutMegaData(t *testing.T) {
+	// A fresh install, or a megas fetch that failed, must still behave: the expired
+	// Mega goes, the incoming one is named in the up next strip rather than becoming
+	// a card with no typing, and the tier is simply empty for a while.
+	pk, err := os.ReadFile("fallback/pokemon.json")
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	ty, err := os.ReadFile("fallback/pokemon_types.json")
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	lookup := newSpeciesLookup(json.RawMessage(pk), json.RawMessage(ty), nil)
+
+	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
+	served, upcoming, stats := reconcileRaids(json.RawMessage(staleUpstream), windows,
+		utc(t, "2026-08-27T12:00:00Z"), lookup, testCPMs(t))
+	tiers := decodeTiers(t, served)
+
+	if hasName(tiers["6"], "Mega Swampert") {
+		t.Errorf("the expired Mega survived: %v", names(tiers["6"]))
+	}
+	if len(tiers["6"]) != 0 {
+		t.Errorf("tier 6 = %v, want empty with no Mega data to build from", names(tiers["6"]))
+	}
+	var live *UpcomingRaid
+	for i := range upcoming {
+		if upcoming[i].Tier == "6" && upcoming[i].Live {
+			live = &upcoming[i]
+		}
+	}
+	if live == nil {
+		t.Fatalf("Mega Gyarados is live but absent from up next: %+v", upcoming)
+	}
+	if live.Bosses[0].Name != "Mega Gyarados" {
+		t.Errorf("up next names %q, want Mega Gyarados", live.Bosses[0].Name)
+	}
+	// The 5 star side is unaffected: it never needed the Mega data.
+	if !hasName(tiers["5"], "Regirock") || stats.Synthesized != 3 || stats.Pending != 1 {
+		t.Errorf("stats = %+v, want the 5 star trio still built and 1 pending", stats)
+	}
+}
+
+func TestPgapiTypeName(t *testing.T) {
+	for raw, want := range map[string]string{
+		"POKEMON_TYPE_WATER":  "Water",
+		"POKEMON_TYPE_DARK":   "Dark",
+		"POKEMON_TYPE_FLYING": "Flying",
+		"POKEMON_TYPE_ICE":    "Ice",
+		"":                    "",
+	} {
+		if got := pgapiTypeName(raw); got != want {
+			t.Errorf("pgapiTypeName(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+func TestParseMegaForms(t *testing.T) {
+	// Shaped like the real pokemon-go-api Mega slice, including the repeat it
+	// actually contains: a species is listed once per form, so the same Mega turns
+	// up more than once.
+	raw := json.RawMessage(`[
+	{"megaEvolutions":{"GYARADOS_MEGA":{
+		"names":{"English":"Mega Gyarados"},
+		"stats":{"stamina":216,"attack":292,"defense":247},
+		"primaryType":{"type":"POKEMON_TYPE_WATER"},
+		"secondaryType":{"type":"POKEMON_TYPE_DARK"},
+		"assets":{"image":"https://example.invalid/pm130.fMEGA.icon.png"}}}},
+	{"megaEvolutions":{
+		"CHARIZARD_MEGA_X":{"names":{"English":"Mega Charizard X"},
+			"stats":{"stamina":186,"attack":273,"defense":213},
+			"primaryType":{"type":"POKEMON_TYPE_FIRE"},"secondaryType":{"type":"POKEMON_TYPE_DRAGON"}},
+		"CHARIZARD_MEGA_Y":{"names":{"English":"Mega Charizard Y"},
+			"stats":{"stamina":186,"attack":319,"defense":212},
+			"primaryType":{"type":"POKEMON_TYPE_FIRE"},"secondaryType":{"type":"POKEMON_TYPE_FLYING"}}}},
+	{"megaEvolutions":{"CHARIZARD_MEGA_X":{"names":{"English":"Mega Charizard X"},
+		"stats":{"stamina":186,"attack":273,"defense":213},
+		"primaryType":{"type":"POKEMON_TYPE_FIRE"},"secondaryType":{"type":"POKEMON_TYPE_DRAGON"}}}},
+	{"megaEvolutions":{"BROKEN":{"names":{"English":"Mega Nothing"},"stats":{"stamina":1,"attack":0,"defense":1}}}},
+	{"dexNr":25}
+	]`)
+	got := parseMegaForms(raw)
+
+	if len(got) != 3 {
+		t.Fatalf("parsed %d forms (%v), want 3", len(got), got)
+	}
+	g := got["mega gyarados"]
+	if g.Atk != 292 || g.Def != 247 || g.Sta != 216 {
+		t.Errorf("Mega Gyarados stats = %d/%d/%d, want 292/247/216", g.Atk, g.Def, g.Sta)
+	}
+	if len(g.Types) != 2 || g.Types[0] != "Water" || g.Types[1] != "Dark" {
+		t.Errorf("Mega Gyarados types = %v, want [Water Dark]", g.Types)
+	}
+	if g.Image == "" {
+		t.Error("Mega Gyarados lost its image")
+	}
+	// The two Charizards must stay apart: same species, different stats and typing.
+	x, y := got["mega charizard x"], got["mega charizard y"]
+	if x.Atk != 273 || y.Atk != 319 {
+		t.Errorf("Charizard X/Y attack = %d/%d, want 273/319", x.Atk, y.Atk)
+	}
+	if len(y.Types) != 2 || y.Types[1] != "Flying" {
+		t.Errorf("Mega Charizard Y types = %v, want [Fire Flying]", y.Types)
+	}
+	// A record with no usable stat line is skipped rather than stored as zeroes.
+	if _, ok := got["mega nothing"]; ok {
+		t.Error("a Mega with no attack stat was kept")
+	}
+
+	if parseMegaForms(json.RawMessage(`not json`)) != nil {
+		t.Error("junk should parse to nil, so the previous data is kept")
 	}
 }

@@ -176,7 +176,7 @@ func (h *Handlers) loadTemplates() {
 		"home", "raids", "dps", "pvp", "events", "iv", "box", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
-		"forgot_password", "reset_password", "verify_email",
+		"forgot_password", "reset_password", "verify_email", "privacy",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(
@@ -337,6 +337,13 @@ func (h *Handlers) Events(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Credits(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "credits", nil)
+}
+
+// Privacy is a static document. It is public and unauthenticated on purpose:
+// the Android app links to it from its own settings, and someone deciding
+// whether to install must be able to read it without an account.
+func (h *Handlers) Privacy(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "privacy", nil)
 }
 
 func (h *Handlers) APIData(w http.ResponseWriter, r *http.Request) {

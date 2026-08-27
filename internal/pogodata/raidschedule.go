@@ -295,6 +295,104 @@ func CPForLevel(baseAtk, baseDef, baseSta, atkIV, defIV, staIV int, cpm float64)
 	return cp
 }
 
+// megaForm is one Mega's stat line and typing, trimmed out of pokemon-go-api's
+// Mega pokedex slice.
+//
+// Megas need their own source because nothing else the app carries describes them.
+// pokemon.json and pokemon_types.json have no Mega rows at all, and a Mega cannot be
+// derived from its base species either: it keeps the base stamina but its attack,
+// defense and typing all change (Mega Gyarados is 292/247/216 and Water plus Dark,
+// where Gyarados is 237/186/216 and Water plus Flying).
+type megaForm struct {
+	Name  string   `json:"name"`
+	Types []string `json:"types"`
+	Atk   int      `json:"atk"`
+	Def   int      `json:"def"`
+	Sta   int      `json:"sta"`
+	Image string   `json:"image,omitempty"`
+}
+
+// megaPokedexEntry is the slice of a pokemon-go-api pokedex record this file needs.
+type megaPokedexEntry struct {
+	MegaEvolutions map[string]struct {
+		Names struct {
+			English string `json:"English"`
+		} `json:"names"`
+		Stats struct {
+			Stamina int `json:"stamina"`
+			Attack  int `json:"attack"`
+			Defense int `json:"defense"`
+		} `json:"stats"`
+		PrimaryType *struct {
+			Type string `json:"type"`
+		} `json:"primaryType"`
+		SecondaryType *struct {
+			Type string `json:"type"`
+		} `json:"secondaryType"`
+		Assets struct {
+			Image string `json:"image"`
+		} `json:"assets"`
+	} `json:"megaEvolutions"`
+}
+
+// parseMegaForms trims the upstream payload down to what a boss card needs, keyed by
+// the same normalized name the raid and events feeds are joined on.
+//
+// The feed lists a species once per form, so the same Mega appears more than once
+// (Charizard X and Y each turn up twice). Identical repeats, so first one wins.
+func parseMegaForms(data json.RawMessage) map[string]megaForm {
+	var entries []megaPokedexEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		log.Printf("pogodata: megas: parse: %v", err)
+		return nil
+	}
+	out := map[string]megaForm{}
+	for _, e := range entries {
+		for _, m := range e.MegaEvolutions {
+			if m.Names.English == "" || m.Stats.Attack == 0 {
+				continue
+			}
+			key := normalizeBossName(m.Names.English)
+			if _, seen := out[key]; seen {
+				continue
+			}
+			var types []string
+			if m.PrimaryType != nil {
+				if t := pgapiTypeName(m.PrimaryType.Type); t != "" {
+					types = append(types, t)
+				}
+			}
+			if m.SecondaryType != nil {
+				if t := pgapiTypeName(m.SecondaryType.Type); t != "" {
+					types = append(types, t)
+				}
+			}
+			if len(types) == 0 {
+				continue // a card with no typing is not worth building; see speciesLookup
+			}
+			out[key] = megaForm{
+				Name:  m.Names.English,
+				Types: types,
+				Atk:   m.Stats.Attack,
+				Def:   m.Stats.Defense,
+				Sta:   m.Stats.Stamina,
+				Image: m.Assets.Image,
+			}
+		}
+	}
+	return out
+}
+
+// pgapiTypeName turns "POKEMON_TYPE_WATER" into "Water", which is how every other
+// type string in this app is spelled.
+func pgapiTypeName(raw string) string {
+	t := strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(raw)), "POKEMON_TYPE_")
+	if t == "" {
+		return ""
+	}
+	return strings.ToUpper(t[:1]) + strings.ToLower(t[1:])
+}
+
 // speciesStats is everything needed to build a boss card from scratch.
 type speciesStats struct {
 	Types         []string
@@ -302,11 +400,12 @@ type speciesStats struct {
 }
 
 // speciesLookup resolves a boss name to its stats and typing. ok is false when the
-// species or its form is absent from the dataset, which is always the case for a
-// Mega: pokemon.json and pokemon_types.json carry no Mega forms at all, and a Mega's
-// typing differs from its base species (Mega Gyarados is Water and Dark, Gyarados is
-// Water and Flying), so falling back to the base species would feed the counter
-// calculator the wrong answer.
+// species is absent from every dataset, in which case no card is built at all rather
+// than one carrying a guess.
+//
+// Megas are answered from their own source (see megaForm). Falling back to the base
+// species for one would be worse than refusing: the typing is different, so the
+// counter table would rank against the wrong weaknesses entirely.
 type speciesLookup func(name string) (speciesStats, bool)
 
 type speciesStatRow struct {
@@ -332,7 +431,7 @@ type speciesTypeRow struct {
 // flattens that to a species keyed map, preferring the Normal form, and that
 // flattened map is what the store actually holds. Reading only one of the two would
 // leave the synthesizer working in tests and typeless in production, or the reverse.
-func newSpeciesLookup(pokemon, types json.RawMessage) speciesLookup {
+func newSpeciesLookup(pokemon, types json.RawMessage, megas map[string]megaForm) speciesLookup {
 	var (
 		statsByKey     map[string]speciesStats
 		formsBySpecies map[string][]string
@@ -384,11 +483,21 @@ func newSpeciesLookup(pokemon, types json.RawMessage) speciesLookup {
 		}
 	}
 	return func(name string) (speciesStats, bool) {
+		key := normalizeBossName(name)
+		// Megas first, and never fall through to the base species on a miss: a Mega
+		// this app has no data for must produce no card.
+		if strings.HasPrefix(key, "mega ") {
+			m, ok := megas[key]
+			if !ok {
+				return speciesStats{}, false
+			}
+			return speciesStats{Types: m.Types, Atk: m.Atk, Def: m.Def, Sta: m.Sta}, true
+		}
 		if !built {
 			build()
 			built = true
 		}
-		species, want := splitSpeciesForm(normalizeBossName(name))
+		species, want := splitSpeciesForm(key)
 		form, ok := resolveSpeciesForm(species, want, formsBySpecies)
 		if !ok {
 			return speciesStats{}, false
@@ -474,6 +583,15 @@ func containsString(hay []string, needle string) bool {
 	return false
 }
 
+// raidGroupKey identifies one schedulable group: a tier, and whether it is the
+// shadow half of that tier.
+func raidGroupKey(tier string, shadow bool) string {
+	if shadow {
+		return tier + ":shadow"
+	}
+	return tier
+}
+
 // activeBoss pairs a boss the schedule says is live with the rotation that says so.
 type activeBoss struct {
 	boss   WindowBoss
@@ -500,18 +618,20 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		return upstream, nil, stats
 	}
 
+	// A group is one tier's worth of one kind of raid: tier 5 normal and tier 5
+	// shadow are governed separately, because the feed schedules them separately and
+	// one being described says nothing about the other.
 	active := map[string]activeBoss{}
-	governed := map[string]bool{}
+	authoritative := map[string]bool{}
 	for _, w := range windows {
-		if !governedTiers[w.Tier] {
+		if !governedTiers[w.Tier] || !w.Active(now) {
 			continue
 		}
+		// The schedule has something to say about this group right now, so it is
+		// the authority on the whole of it. See the drop rule below.
+		authoritative[raidGroupKey(w.Tier, w.Shadow)] = true
 		for _, b := range w.Bosses {
 			key := bossKey(b.Name, w.Shadow)
-			governed[key] = true
-			if !w.Active(now) {
-				continue
-			}
 			// A boss can be named by two overlapping rotations at a changeover.
 			// Keep the one that ends last, which is the incoming one.
 			if prev, ok := active[key]; ok && prev.window.EndsUTC.After(w.EndsUTC) {
@@ -531,7 +651,8 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		}
 		kept := make([]raidBoss, 0, len(bosses))
 		for _, b := range bosses {
-			key := bossKey(b.PokemonName, isShadowName(b.PokemonName))
+			shadow := isShadowName(b.PokemonName)
+			key := bossKey(b.PokemonName, shadow)
 			if a, ok := active[key]; ok {
 				annotateBoss(&b, a.window)
 				stats.Annotated++
@@ -539,15 +660,23 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 				kept = append(kept, b)
 				continue
 			}
-			if governed[key] {
-				// The schedule named this boss and its window is shut. This is the
-				// stale entry the whole exercise exists to remove.
+			if authoritative[raidGroupKey(tier, shadow)] {
+				// The schedule knows what is running in this group right now, and
+				// this boss is not it.
+				//
+				// The drop deliberately does NOT depend on finding an expired window
+				// naming this boss. It used to, and that quietly undid the whole fix:
+				// a rotation is pruned from the events feed a day or so after it
+				// ends, at which point the boss stopped being described by anything,
+				// was read as "upstream knows best", and came straight back onto the
+				// page. Lunala and Mega Swampert returned that way on 2026-08-27
+				// while upstream was still serving both.
 				stats.Dropped++
 				continue
 			}
-			// Never described by any rotation, so nothing here knows better than
-			// upstream does. An Elite Raid, or anything new the events feed has no
-			// vocabulary for, stays visible.
+			// Nothing is scheduled for this group at all, so there is nothing here
+			// that knows better than upstream. An Elite Raid, a gap in the feed, or
+			// anything new it has no vocabulary for, stays visible.
 			kept = append(kept, b)
 		}
 		out[tier] = kept
@@ -629,10 +758,7 @@ func buildUpcoming(windows []RaidWindow, carded map[string]bool, now time.Time) 
 		if !governedTiers[w.Tier] {
 			continue
 		}
-		group := w.Tier
-		if w.Shadow {
-			group += ":shadow"
-		}
+		group := raidGroupKey(w.Tier, w.Shadow)
 		if w.Active(now) {
 			// Only interesting while none of its bosses made it onto the grid.
 			anyCarded := false
@@ -728,7 +854,7 @@ func nextRaidBoundary(windows []RaidWindow, now time.Time) time.Time {
 func (s *Store) rebuildRaidsLocked() {
 	now := time.Now()
 	windows := parseRaidWindows(s.events)
-	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, now, newSpeciesLookup(s.pokemon, s.pokemonTypes), raidCPMsFrom(s.cpMults))
+	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, now, newSpeciesLookup(s.pokemon, s.pokemonTypes, s.megaForms), raidCPMsFrom(s.cpMults))
 	s.raids = served
 	s.raidSchedule = windows
 	s.raidStats = stats
