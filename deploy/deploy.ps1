@@ -52,4 +52,4 @@ systemctl restart hailsdotgo
 systemctl is-active hailsdotgo
 "@
 
-Write-Host "`n==> Done! Visit https://pogo.hails.live" -ForegroundColor Green
+Write-Host "`n==> Done! Visit https://pogo.hails.app" -ForegroundColor Green
