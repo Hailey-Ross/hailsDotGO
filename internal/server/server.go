@@ -320,6 +320,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/shinies", h.MobileShiniesGet)
 			r.Post("/shinies", h.MobileShiniesAdd)
 			r.Get("/shinies/reference", h.MobileShiniesReference)
+			// The costume catalog, precomputed per species. Not user-specific, but it sits in
+			// the authenticated group beside the rest of the shiny collection because that is
+			// the only screen that asks for it, and the group baseline is limit enough.
+			r.Get("/costumes", h.MobileCostumes)
 			r.Put("/shinies/{id}", h.APIShiniesUpdate)
 			r.Delete("/shinies/{id}", h.APIShiniesDelete)
 			r.Post("/shinies/{id}/evolve", h.APIShiniesEvolve)
@@ -335,6 +339,13 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Post("/raid/lobbies/{id}/invited", h.APIRaidLobbyInvited)
 			r.Post("/raid/lobbies/{id}/report", h.MobileRaidLobbyReport)
 			r.Post("/raid/lobbies/{id}/feedback", h.MobileRaidLobbyFeedback)
+
+			// Player ("bad actor") reports. The web route is unreachable from the app: it sits
+			// inside the CSRF group, which rejects a Bearer request before auth is ever
+			// consulted, and does so as text/plain. CreatePlayerReport itself needs nothing
+			// session-specific, so it is reused verbatim. The tighter limit is the web route's:
+			// the group's 120/min baseline is far too loose for a moderation endpoint.
+			r.With(httprate.LimitByIP(6, time.Minute)).Post("/player-reports", h.CreatePlayerReport)
 		})
 	})
 
