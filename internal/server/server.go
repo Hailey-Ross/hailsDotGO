@@ -202,6 +202,37 @@ func (f *redactingLogFormatter) NewLogEntry(r *http.Request) middleware.LogEntry
 	return f.inner.NewLogEntry(&scrubbed)
 }
 
+// assetLinksPath is where the Digital Asset Links statement lives on disk. It stays a
+// real file rather than an embedded literal so a signing fingerprint can be added on
+// the VPS without a rebuild. Relative to the working directory, like http.Dir("static")
+// below; the unit runs with WorkingDirectory=/opt/hailsdotgo.
+const assetLinksPath = "static/.well-known/assetlinks.json"
+
+// assetLinks serves the Digital Asset Links statement that lets the Android app
+// (live.hails.hailsdotgo) claim pogo.hails.app links as its own, so tapping one opens
+// the app instead of the browser. See .claude/assetlinks-for-mobile.md.
+//
+// Google's verifier is strict and fails silently: it wants this exact URL over HTTPS,
+// answering 200 with a JSON content type, with no redirect and no authentication. It is
+// fetched by Google's servers rather than the device, so an IP rate limiter would refuse
+// a request we never see. Hence a bare registration outside every group.
+func assetLinks(path string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			// Deliberately no Cache-Control here: a missing file means a deploy went
+			// wrong, and caching that 404 for an hour would outlive the fix.
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		// securityHeaders sets nosniff, so the correct type is mandatory, not advisory.
+		w.Header().Set("Content-Type", "application/json")
+		// Short, so a fingerprint can be added without waiting out a long cache.
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Write(b)
+	}
+}
+
 func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	r := chi.NewRouter()
 	// First in the stack: every limiter and the request log below read RemoteAddr,
@@ -235,6 +266,18 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		w.Header().Set("Cache-Control", "public, max-age=31536000")
 		staticFS.ServeHTTP(w, req)
 	}))
+
+	// Digital Asset Links for the Android app. Registered here, directly on r, so the
+	// CSRF group, the per-route rate limiters and RequireAuth never touch it.
+	//
+	// HEAD is registered alongside GET on purpose: chi answers 405 to an unregistered
+	// method, which would make a `curl -I` health check on this path look like a failure.
+	//
+	// Note this file is ALSO reachable at /static/.well-known/assetlinks.json, because
+	// http.FileServer does not hide dot-directories. Harmless: the platform reads only
+	// the canonical path below, and nothing links to the other one.
+	r.Method(http.MethodGet, "/.well-known/assetlinks.json", assetLinks(assetLinksPath))
+	r.Method(http.MethodHead, "/.well-known/assetlinks.json", assetLinks(assetLinksPath))
 
 	// Mobile API -- outside CSRF group (Bearer tokens are not CSRF-vulnerable).
 	// Login is public and rate-limited; everything else requires Bearer or cookie auth.
