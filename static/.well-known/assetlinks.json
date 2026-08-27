@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "live.hails.hailsdotgo",
+      "sha256_cert_fingerprints": [
+        "0E:93:87:9D:4B:A2:A7:AD:EB:F9:67:7A:B2:13:E2:10:79:B2:2E:C9:BB:25:60:6E:FA:C2:E7:0D:3C:B7:AC:6B"
+      ]
+    }
+  }
+]

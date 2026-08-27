@@ -223,6 +223,11 @@ $trackedDirs = @(
     @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" },
     @{ src = "static\sprites\pex";        dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/pex" },
     @{ src = "static\sprites\platinum";   dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/platinum" },
+    # Digital Asset Links for the Android app, served at /.well-known/assetlinks.json.
+    # Tracked as a DIRECTORY, not a file: PutDir runs `mkdir -p` on the remote path and
+    # Put (plain scp) does not, so a $trackedFiles entry would fail against a VPS that
+    # has no static/.well-known yet.
+    @{ src = "static\.well-known"; dst = "/opt/hailsdotgo/static"; key = "static/.well-known" },
     # OCR microservice: syncs file CONTENTS into /opt/hailsdotgo-ocr and restarts the OCR
     # service. NOTE: a requirements.txt change still needs a manual `pip install` on the VPS.
     @{ src = "ocr-service"; dst = "/opt/hailsdotgo-ocr"; key = "ocr-service"; stripTop = $true; restartOcr = $true }
