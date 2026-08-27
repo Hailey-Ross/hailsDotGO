@@ -221,9 +221,14 @@ func (h *Handlers) UnregisterPushToken(w http.ResponseWriter, r *http.Request) {
 // rendered into templates, leaving a mobile client with no way to see them.
 // Store sits in its own setting rather than PageMaintenance, so it is folded in
 // here to save the app a second call.
+//
+// No auth: this is the same state the nav already shows anonymous visitors, and a
+// logged-out app needs it too. Never cached, since a toggle has to take effect at
+// once, and the response is small enough that a fresh read costs nothing.
 func (h *Handlers) MobileMaintenance(w http.ResponseWriter, r *http.Request) {
 	m := h.maintenanceSettings()
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	json.NewEncoder(w).Encode(map[string]bool{
 		"raids":             m.RaidsEnabled,
 		"dps":               m.DPSEnabled,
