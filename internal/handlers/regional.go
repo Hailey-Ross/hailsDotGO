@@ -15,8 +15,9 @@ import (
 // panel can list every form and let an admin flip one without a deploy. See
 // regionalShinyUnreleased below.
 //
-// Keep this file and the TS one in sync. That used to be a comment and a hope;
-// scripts/check-regional-form-parity.mjs now enforces it.
+// Keep this file and the TS one in sync. scripts/check-regional-form-parity.mjs
+// checks that they agree, but nothing runs it for you: there is no CI in this repo,
+// so it only fires when someone types `npm run check`. Treat drift as possible.
 
 var validRegions = map[string]bool{
 	"":         true,
