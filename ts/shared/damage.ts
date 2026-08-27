@@ -31,6 +31,13 @@ export function trueDPS(
   fastEff = 1,
   chargedEff = 1
 ): number {
+  // A fast move that generates no energy can never fill a charged move, so the cycle
+  // this function measures does not exist. Transform (Ditto) is the only one in the
+  // data. Returning 0 is not cosmetic: the division would otherwise yield Infinity,
+  // then NaN, and a NaN dps makes the ranking comparator in counters.ts inconsistent,
+  // which reorders the WHOLE counters list rather than just this entry.
+  if (fast.energy_delta <= 0 || fast.duration <= 0 || charged.duration <= 0) return 0;
+
   const fastDmg = calcDamage(fast.power, attackerAtk, defenderDef, fastEff);
   const chargedDmg = calcDamage(charged.power, attackerAtk, defenderDef, chargedEff);
   const energyCost = Math.abs(charged.energy_delta);

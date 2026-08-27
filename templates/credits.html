@@ -157,6 +157,15 @@
       <div class="cl-body">
 
         <div class="cl-item">
+          <h2 class="cl-title">Raid counters were naming the wrong Pokémon</h2>
+          <ul class="cl-list">
+            <li>The counter list under every raid boss was in the wrong order, and several of the strongest attackers were missing from it completely. Against Shadow Slowpoke it opened Regieleki, Gengar, Arcanine when the truth is Regieleki, Zacian, Deoxys, and Zacian, Deoxys, Xurkitree, Darkrai and Kartana never appeared at all</li>
+            <li>The cause was Ditto. Its only fast move never charges an attack, so its score came out as not a number, and that one value was enough to unsettle the ordering of the whole table for every boss</li>
+            <li>The Compare tab on the DPS page and the scoring of your own box against a boss went wrong the same way whenever a Ditto was in the mix. All of them are correct now</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
           <h2 class="cl-title">The app can see which sections are switched off</h2>
           <ul class="cl-list">
             <li>New <code>GET /api/mobile/v1/maintenance</code> tells the companion app which pages and sections are enabled, the store included, so it can grey out anything the site has turned off instead of opening a screen that will not load</li>
