@@ -125,7 +125,7 @@
   "credits.api.your_access_title":        "Dein privater API-Zugang",
   "credits.api.your_access_body":         "Your account has been granted access to the private API. The private endpoints mirror the public API but carry no rate limit and are intended for trusted server-side use.",
   "credits.api.your_access_how_title":    "How to authenticate",
-  "credits.api.your_access_cookie_note":  "Include the hgo_session cookie in each request. Find its value in your browser's developer tools: Application → Cookies → pogo.hails.live.",
+  "credits.api.your_access_cookie_note":  "Include the hgo_session cookie in each request. Find its value in your browser's developer tools: Application → Cookies → pogo.hails.app.",
   "credits.api.your_access_example_label": "Example curl request:",
   "credits.api.your_access_warning":      "Keep your session token private. If you believe it has been exposed, log out and back in to generate a new one.",
   "credits.api.notes_title":   "Nutzungshinweise",
