@@ -256,6 +256,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Use(httprate.LimitByIP(120, time.Minute)) // baseline abuse ceiling
 			r.Delete("/auth/session", h.MobileLogout)
 			r.Get("/auth/me", h.MobileMe)
+			r.Get("/maintenance", h.MobileMaintenance)
 			r.Put("/profile", h.MobilePutProfile)
 			r.Post("/push/token", h.RegisterPushToken)
 			r.Delete("/push/token", h.UnregisterPushToken)
