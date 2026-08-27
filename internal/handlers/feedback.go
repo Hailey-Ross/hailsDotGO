@@ -75,7 +75,10 @@ func (h *Handlers) APIGetFeedback(w http.ResponseWriter, r *http.Request) {
 
 // APIPostFeedback upserts the caller's feedback on a target user (one per pair).
 func (h *Handlers) APIPostFeedback(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
@@ -120,7 +123,10 @@ func (h *Handlers) APIPostFeedback(w http.ResponseWriter, r *http.Request) {
 
 // APIDeleteFeedback removes a feedback entry. Authors can delete their own; mods can delete any.
 func (h *Handlers) APIDeleteFeedback(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil || id == 0 {

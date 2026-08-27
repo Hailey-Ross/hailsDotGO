@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -114,7 +115,8 @@ func title(s string) string {
 		if p == "" {
 			continue
 		}
-		parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		r, size := utf8.DecodeRuneInString(p)
+		parts[i] = strings.ToUpper(string(r)) + p[size:]
 	}
 	return strings.Join(parts, " ")
 }

@@ -451,7 +451,7 @@ func humanizeRegion(v string) string {
 		if word == "" {
 			continue
 		}
-		words[i] = strings.ToUpper(word[:1]) + word[1:]
+		words[i] = upperFirst(word)
 	}
 	return strings.Join(words, " ")
 }

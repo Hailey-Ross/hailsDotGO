@@ -137,9 +137,7 @@ func (h *Handlers) AdminTagRequestReject(w http.ResponseWriter, r *http.Request)
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	reason := strings.TrimSpace(body.Reason)
-	if len(reason) > 255 {
-		reason = reason[:255]
-	}
+	reason = truncRunes(reason, 255)
 
 	var userID uint
 	var tagName, currentStatus string
@@ -196,9 +194,7 @@ func (h *Handlers) AdminTagRequestRevision(w http.ResponseWriter, r *http.Reques
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	notes := strings.TrimSpace(body.Notes)
-	if len(notes) > 255 {
-		notes = notes[:255]
-	}
+	notes = truncRunes(notes, 255)
 
 	var userID uint
 	var tagName, currentStatus string

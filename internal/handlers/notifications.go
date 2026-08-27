@@ -21,7 +21,10 @@ func (h *Handlers) NotificationsPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) APIGetNotifications(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 
 	rows, err := h.db.Query(`
 		SELECT rl.id, rl.boss_name, rl.boss_tier, rl.state, rl.created_at,

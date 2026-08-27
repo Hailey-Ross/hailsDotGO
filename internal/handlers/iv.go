@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"pogo.hails.cc/internal/pogodata"
 )
 
 type ivPageData struct {
@@ -193,15 +195,11 @@ func cpmLookup(cpms []cpmEntry) map[float64]float64 {
 	return m
 }
 
+// cpForLevelCalc delegates to pogodata.CPForLevel. The formula moved there because
+// the raid card synthesizer needs it too and pogodata cannot import this package;
+// this wrapper keeps every caller and test here spelled the same way.
 func cpForLevelCalc(baseAtk, baseDef, baseSta, atkIV, defIV, staIV int, cpm float64) int {
-	atk := float64(baseAtk + atkIV)
-	def := float64(baseDef + defIV)
-	sta := float64(baseSta + staIV)
-	cp := int(math.Floor(atk * math.Sqrt(def) * math.Sqrt(sta) * cpm * cpm / 10))
-	if cp < 10 {
-		return 10
-	}
-	return cp
+	return pogodata.CPForLevel(baseAtk, baseDef, baseSta, atkIV, defIV, staIV, cpm)
 }
 
 func hpForLevel(baseSta, staIV int, cpm float64) int {

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"html/template"
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -17,9 +16,11 @@ func TestTemplatesParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	if err := os.Chdir(root); err != nil {
-		t.Fatalf("chdir to repo root: %v", err)
-	}
+	// t.Chdir, not os.Chdir: the process wide directory is restored when this test
+	// ends. A bare os.Chdir left every test that ran afterwards looking at the repo
+	// root, so a relative path in one of them resolved somewhere else entirely and
+	// failed only when the whole package ran.
+	t.Chdir(root)
 
 	pages := []string{
 		"home", "raids", "dps", "pvp", "events", "iv", "box", "credits", "maintenance",

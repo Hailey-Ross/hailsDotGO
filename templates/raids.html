@@ -46,7 +46,22 @@ const RD = {
   colBoss:     {{T "raids.js.col_boss"}},
   colTier:     {{T "raids.js.col_tier"}},
   maxBattles:  {{T "raids.js.max_battles"}},
-  unavailable: {{T "raids.js.unavailable"}}
+  unavailable: {{T "raids.js.unavailable"}},
+
+  // Raid rotation windows. The server decides which bosses are listed using the
+  // widest reading of each window (UTC+14 through UTC-12) so nobody loses a boss
+  // they can still raid; these strings say what that window means on the viewer's
+  // own clock.
+  windowStartsIn:  {{T "raids.js.window_starts_in"}},
+  windowEarlyNote: {{T "raids.js.window_early_note"}},
+  windowEndsIn:    {{T "raids.js.window_ends_in"}},
+  windowUntil:     {{T "raids.js.window_until"}},
+  windowEndedLocal:{{T "raids.js.window_ended_local"}},
+  windowLateNote:  {{T "raids.js.window_late_note"}},
+  windowLiveNow:   {{T "raids.js.window_live_now"}},
+  upNext:          {{T "raids.js.up_next"}},
+  upNextDetailsPending: {{T "raids.js.up_next_details_pending"}},
+  shadowRaids:     {{T "raids.js.shadow_raids"}}
 };
 </script>
 <script src="/static/js/raids.js?v={{.AssetVersion}}"></script>
