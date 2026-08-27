@@ -294,7 +294,7 @@ INSERT INTO locales (code, enabled) VALUES ('es', 1), ('fr', 1), ('de', 1);
 CREATE TABLE IF NOT EXISTS translator_applications (
   id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
   user_id       INT UNSIGNED  NOT NULL,
-  languages     VARCHAR(500)  NOT NULL,
+  languages     VARCHAR(1000) NOT NULL,
   motivation    TEXT          NOT NULL,
   experience    VARCHAR(2000) NOT NULL DEFAULT '',
   country       VARCHAR(100)  NOT NULL DEFAULT '',
@@ -696,7 +696,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (44, 'Shiny dex availability overrides (2026-07-25)'),
   (45, 'Announced shiny release dates (2026-07-27)'),
   (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)'),
-  (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)');
+  (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)'),
+  (48, 'Room for every language a translator applicant can list (2026-08-27)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

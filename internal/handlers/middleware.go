@@ -56,6 +56,35 @@ func (h *Handlers) currentUserBearer(r *http.Request) *auth.User {
 	return u
 }
 
+// requireUserAPI re-resolves the caller inside a handler that already sits behind
+// auth middleware, and answers 401 rather than panicking when the session is gone.
+//
+// The middleware check and the handler use are two independent session lookups,
+// and on the mobile tree they are not even the same function: the group gates on
+// currentUserBearer, then the handler re-resolves through currentUser. A session
+// that expires or is deleted between the two handed the handler a nil user, and
+// the first field access panicked where a 401 was wanted.
+func (h *Handlers) requireUserAPI(w http.ResponseWriter, r *http.Request) (*auth.User, bool) {
+	u := h.currentUser(r)
+	if u == nil {
+		writeJSONError(w, "authentication required", http.StatusUnauthorized)
+		return nil, false
+	}
+	return u, true
+}
+
+// requireUserPage is requireUserAPI for handlers that render HTML or redirect,
+// where a JSON 401 would be the wrong answer. It sends the caller to the login
+// page exactly as RequireAuth does.
+func (h *Handlers) requireUserPage(w http.ResponseWriter, r *http.Request) (*auth.User, bool) {
+	u := h.currentUser(r)
+	if u == nil {
+		http.Redirect(w, r, "/login?next="+r.URL.Path, http.StatusSeeOther)
+		return nil, false
+	}
+	return u, true
+}
+
 func (h *Handlers) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.currentUser(r) == nil {

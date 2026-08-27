@@ -34,9 +34,34 @@ export interface RaidBoss {
   image_url?: string;
   types?: string[];
   can_be_shiny?: boolean;
+  // Stamped on by the server's raid schedule, and absent on any boss no rotation
+  // describes, which is every tier 1 and tier 3 entry.
+  event_id?: string;
+  // The feed's own floating wall clock strings. Parse them as local (see
+  // shared/time.ts): the server has already decided the boss belongs on the page,
+  // and these say what the rotation means on the viewer's own clock.
+  starts_at?: string;
+  ends_at?: string;
+  // "events" on a card the server built because the raid feed had not listed the
+  // boss yet.
+  source?: string;
 }
 
 export type RaidTiers = Record<string, RaidBoss[]>;
+
+// One entry of the "up next" strip: the soonest rotation for a tier, or one that is
+// already live but has no card on the grid yet (a Mega the raid feed has not caught
+// up to, which cannot be built locally because no Mega typing data ships with the app).
+export interface UpcomingRaid {
+  event_id: string;
+  name: string;
+  tier: string;
+  shadow?: boolean;
+  bosses: { name: string; image: string; canBeShiny?: boolean }[];
+  starts_at: string;
+  ends_at: string;
+  live?: boolean;
+}
 
 export interface ShinyPokemon {
   id: number;
@@ -85,6 +110,7 @@ export interface GameData {
   fastMoves: FastMove[] | null;
   chargedMoves: ChargedMove[] | null;
   raids: RaidTiers | null;
+  upcomingRaids?: UpcomingRaid[] | null;
   maxBattles: RaidTiers | null;
   shinies: Record<string, ShinyPokemon> | null;
   // Both are omitted by the server when no baseline is embedded, and every
