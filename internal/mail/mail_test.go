@@ -60,12 +60,12 @@ func TestSendReportsAPIError(t *testing.T) {
 }
 
 func TestPasswordResetEmail(t *testing.T) {
-	subject, htmlBody, textBody := PasswordResetEmail("Hails", "https://pogo.hails.live/reset-password?token=abc")
+	subject, htmlBody, textBody := PasswordResetEmail("Hails", "https://pogo.hails.app/reset-password?token=abc")
 	if subject == "" {
 		t.Fatal("empty subject")
 	}
 	for _, body := range []string{htmlBody, textBody} {
-		if !strings.Contains(body, "https://pogo.hails.live/reset-password?token=abc") {
+		if !strings.Contains(body, "https://pogo.hails.app/reset-password?token=abc") {
 			t.Errorf("body missing link: %s", body)
 		}
 		if !strings.Contains(body, "Hails") {
