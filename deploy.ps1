@@ -114,12 +114,25 @@ function PutBinary([string]$src, [string]$dst) {
     throw "Binary upload failed after $rounds rounds: $src"
 }
 
+# Which `tar` actually runs matters here. Windows ships bsdtar at System32\tar.exe, which
+# takes a drive letter literally. A Git for Windows PATH can put GNU tar ahead of it, and
+# GNU tar reads any argument containing a colon as host:path, so the C:\...\*.tar.gz
+# archive below makes it try to resolve a host named "C" and the dir upload dies with
+# "Cannot connect to C: resolve failed". Pin to the Windows one; --force-local is the
+# escape hatch if only GNU tar is present, since bsdtar does not accept that flag.
+$tarExe   = Join-Path $env:SystemRoot "System32\tar.exe"
+$tarLocal = @()
+if (-not (Test-Path $tarExe)) {
+    $tarExe   = "tar"
+    $tarLocal = @("--force-local")
+}
+
 function PutDir([string]$relDir, [string]$remoteDst) {
     $srcPath = Join-Path $root $relDir
     $parent  = Split-Path $srcPath -Parent
     $leaf    = Split-Path $srcPath -Leaf
     $tmpTar  = Join-Path $env:TEMP "hailsdotgo-dir.tar.gz"
-    & tar -czf $tmpTar -C $parent $leaf
+    & $tarExe @tarLocal -czf $tmpTar -C $parent $leaf
     if ($LASTEXITCODE -ne 0) { throw "tar failed: $relDir" }
     Run "mkdir -p $remoteDst"
     $keyPath = "$env:USERPROFILE\.ssh\hailsdotgo"
@@ -134,7 +147,7 @@ function PutDir([string]$relDir, [string]$remoteDst) {
 function PutDirContents([string]$relDir, [string]$remoteDst) {
     $srcPath = Join-Path $root $relDir
     $tmpTar  = Join-Path $env:TEMP "hailsdotgo-dir.tar.gz"
-    & tar -czf $tmpTar -C $srcPath --exclude=venv --exclude=__pycache__ .
+    & $tarExe @tarLocal -czf $tmpTar -C $srcPath --exclude=venv --exclude=__pycache__ .
     if ($LASTEXITCODE -ne 0) { throw "tar failed: $relDir" }
     Run "mkdir -p $remoteDst"
     $keyPath = "$env:USERPROFILE\.ssh\hailsdotgo"
@@ -210,6 +223,11 @@ $trackedDirs = @(
     @{ src = "static\sprites\dreamstone"; dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/dreamstone" },
     @{ src = "static\sprites\pex";        dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/pex" },
     @{ src = "static\sprites\platinum";   dst = "/opt/hailsdotgo/static/sprites"; key = "static/sprites/platinum" },
+    # Digital Asset Links for the Android app, served at /.well-known/assetlinks.json.
+    # Tracked as a DIRECTORY, not a file: PutDir runs `mkdir -p` on the remote path and
+    # Put (plain scp) does not, so a $trackedFiles entry would fail against a VPS that
+    # has no static/.well-known yet.
+    @{ src = "static\.well-known"; dst = "/opt/hailsdotgo/static"; key = "static/.well-known" },
     # OCR microservice: syncs file CONTENTS into /opt/hailsdotgo-ocr and restarts the OCR
     # service. NOTE: a requirements.txt change still needs a manual `pip install` on the VPS.
     @{ src = "ocr-service"; dst = "/opt/hailsdotgo-ocr"; key = "ocr-service"; stripTop = $true; restartOcr = $true }
