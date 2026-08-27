@@ -70,7 +70,10 @@ func slugify(s string) string {
 }
 
 func (h *Handlers) AdminAwardCreate(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	var body struct {
 		Name         string `json:"name"`
 		Description  string `json:"description"`
@@ -236,7 +239,10 @@ func (h *Handlers) AdminTrustEvents(w http.ResponseWriter, r *http.Request) {
 // AdminTrustAdjust inserts an auditable staff_adjust event instead of
 // editing the cached column directly.
 func (h *Handlers) AdminTrustAdjust(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)

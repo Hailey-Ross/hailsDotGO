@@ -98,12 +98,18 @@ func (h *Handlers) SocialPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) FriendsRedirect(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserPage(w, r)
+	if !ok {
+		return
+	}
 	http.Redirect(w, r, "/social/"+u.Username, http.StatusMovedPermanently)
 }
 
 func (h *Handlers) APIGetSocialState(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
@@ -148,7 +154,10 @@ func (h *Handlers) APIGetSocialState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) APIFriend(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
@@ -184,7 +193,10 @@ func (h *Handlers) APIFriend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) APIBlock(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint

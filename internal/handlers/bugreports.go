@@ -147,7 +147,10 @@ func (h *Handlers) ReportsPage(w http.ResponseWriter, r *http.Request) {
 // CreateBugReport opens a new report for the logged-in caller. (Anonymous
 // reporting is deferred; see the plan's "Deferred: anonymous reporting".)
 func (h *Handlers) CreateBugReport(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 
 	var body struct {
 		Subject string `json:"subject"`
@@ -214,7 +217,10 @@ func (h *Handlers) CreateBugReport(w http.ResponseWriter, r *http.Request) {
 
 // APIListBugReports lists the reports the caller participates in.
 func (h *Handlers) APIListBugReports(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 
 	rows, err := h.db.Query(`
 		SELECT r.id, r.type, r.subject, r.status, r.last_activity_at, p.role, p.last_seen_at, COALESCE(ru.username, '')
@@ -271,7 +277,10 @@ func (h *Handlers) APIListBugReports(w http.ResponseWriter, r *http.Request) {
 // APIGetBugReport returns the full thread for a report the caller can access.
 // Internal (staff-only) messages are included only for staff viewers.
 func (h *Handlers) APIGetBugReport(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -419,7 +428,10 @@ func (h *Handlers) loadBugLabels(reportID uint) []bugLabelDTO {
 // APIPostBugMessage appends a reply to a report. Non-staff posts are always
 // public; staff may post an internal (private) note via visibility=internal.
 func (h *Handlers) APIPostBugMessage(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -477,7 +489,10 @@ func (h *Handlers) APIPostBugMessage(w http.ResponseWriter, r *http.Request) {
 // APIBugInvite adds another user to a report. The reporter and collaborators may
 // invite up to maxReporterCollaborators collaborators total; staff may invite anyone.
 func (h *Handlers) APIBugInvite(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -582,7 +597,10 @@ func (h *Handlers) systemNote(reportID, authorID uint, text string) {
 // collaborator) may only resolve or reopen; staff get the full set via the admin
 // endpoint, but this also accepts staff for convenience.
 func (h *Handlers) APIBugReportStatus(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -629,7 +647,10 @@ func (h *Handlers) APIBugReportStatus(w http.ResponseWriter, r *http.Request) {
 // APIBugReportRating records the reporter's satisfaction rating on a resolved or
 // closed report. Only the reporter, only once.
 func (h *Handlers) APIBugReportRating(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -676,9 +697,7 @@ func (h *Handlers) APIBugReportRating(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	comment := strings.TrimSpace(body.Comment)
-	if len(comment) > 500 {
-		comment = comment[:500]
-	}
+	comment = truncRunes(comment, 500)
 
 	if firstTime {
 		// rated_at anchors the one-week change window; set it once.

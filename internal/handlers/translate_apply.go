@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-sql-driver/mysql"
@@ -50,6 +51,18 @@ func (h *Handlers) loadTranslatorApplication(userID uint) (*translatorApplicatio
 
 var supportedApplyLangs = []string{"de", "es", "fr", "ja", "pt", "it", "nl", "ko", "zh", "pl", "ru", "tr", "ar"}
 
+// maxOtherLangChars caps the free text "other" language box. It matches the
+// form's maxlength, and TestTranslatorLanguagesFitColumn uses it to prove the
+// assembled JSON still fits translator_applications.languages.
+const maxOtherLangChars = 50
+
+// langEntry is one row of the applicant's answer. The slice of these is stored
+// as JSON in translator_applications.languages.
+type langEntry struct {
+	Code  string `json:"code"`
+	Level string `json:"level"`
+}
+
 func (h *Handlers) TranslatorApply(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -70,11 +83,6 @@ func (h *Handlers) TranslatorApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type langEntry struct {
-		Code  string `json:"code"`
-		Level string `json:"level"`
-	}
-
 	validLevels := map[string]bool{"native": true, "fluent": true, "intermediate": true}
 	entries := []langEntry{}
 	for _, code := range supportedApplyLangs {
@@ -87,9 +95,7 @@ func (h *Handlers) TranslatorApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if other := strings.TrimSpace(r.FormValue("lang_other_text")); other != "" {
-		if len(other) > 50 {
-			other = other[:50]
-		}
+		other = truncRunes(other, maxOtherLangChars)
 		level := r.FormValue("level_other")
 		if !validLevels[level] {
 			level = "intermediate"
@@ -100,12 +106,8 @@ func (h *Handlers) TranslatorApply(w http.ResponseWriter, r *http.Request) {
 	motivation := strings.TrimSpace(r.FormValue("motivation"))
 	experience := strings.TrimSpace(r.FormValue("experience"))
 	country := strings.TrimSpace(r.FormValue("country"))
-	if len(experience) > 2000 {
-		experience = experience[:2000]
-	}
-	if len(country) > 100 {
-		country = country[:100]
-	}
+	experience = truncRunes(experience, 2000)
+	country = truncRunes(country, 100)
 
 	renderFormError := func(msg string) {
 		langsJSON, _ := json.Marshal(entries)
@@ -125,7 +127,12 @@ func (h *Handlers) TranslatorApply(w http.ResponseWriter, r *http.Request) {
 		renderFormError(h.t(r, "translate.apply.err_no_langs"))
 		return
 	}
-	if len(motivation) < 20 || len(motivation) > 2000 {
+	// Characters, not bytes, on both bounds. The form asks for between 20 and 2000
+	// characters and enforces the ceiling with maxlength, so a byte count rejected
+	// an application the form had just accepted: 700 characters of Japanese is
+	// 2100 bytes. The floor was the same mistake in reverse, since 20 bytes of a
+	// three-byte script is only six characters.
+	if n := utf8.RuneCountInString(motivation); n < 20 || n > 2000 {
 		renderFormError(h.t(r, "translate.apply.err_motivation"))
 		return
 	}
@@ -245,9 +252,7 @@ func (h *Handlers) AdminTranslatorAppSetStatus(w http.ResponseWriter, r *http.Re
 			writeJSONError(w, h.t(r, "error.adm_reason_required"), http.StatusBadRequest)
 			return
 		}
-		if len(reason) > 255 {
-			reason = reason[:255]
-		}
+		reason = truncRunes(reason, 255)
 		res, err := h.db.Exec(`
 			UPDATE translator_applications
 			SET status = 'rejected', reject_reason = ?, reviewed_by = ?, reviewed_at = NOW()

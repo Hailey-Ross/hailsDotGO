@@ -795,3 +795,17 @@ ALTER TABLE user_strikes
 ALTER TABLE user_pokemon_box
   ADD COLUMN is_shadow   TINYINT(1) NULL DEFAULT NULL AFTER form,
   ADD COLUMN is_purified TINYINT(1) NULL DEFAULT NULL AFTER is_shadow;
+
+-- 48. Room for every language a translator applicant can list (2026-08-27)
+-- translator_applications.languages holds the applicant's answer as JSON, one
+-- object per language: [{"code":"de","level":"intermediate"}, ...]. The form
+-- offers 13 languages plus a free text "other" box capped at 50 characters, and
+-- with all 14 selected at the longest level that JSON is 573 characters. The
+-- column was VARCHAR(500), so the insert failed and the applicant was turned
+-- away with a generic error and no way through.
+--
+-- 1000 leaves headroom for roughly eleven more languages before this needs
+-- revisiting. TestTranslatorLanguagesFitColumn asserts the worst case still fits,
+-- so adding a language to supportedApplyLangs fails the build rather than the
+-- applicant.
+ALTER TABLE translator_applications MODIFY languages VARCHAR(1000) NOT NULL;

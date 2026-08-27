@@ -161,9 +161,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 	var pronouns string
 	if pronounsChoice == "custom" {
 		pronouns = strings.TrimSpace(r.FormValue("pronouns_custom"))
-		if len(pronouns) > 32 {
-			pronouns = pronouns[:32]
-		}
+		pronouns = truncRunes(pronouns, 32)
 	} else if predefinedPronouns[pronounsChoice] {
 		pronouns = pronounsChoice
 	}
@@ -191,9 +189,7 @@ func (h *Handlers) SettingsUpdate(w http.ResponseWriter, r *http.Request) {
 		favPokemon = ""
 		favPokemonForm = ""
 	}
-	if len(favPokemon) > 64 {
-		favPokemon = favPokemon[:64]
-	}
+	favPokemon = truncRunes(favPokemon, 64)
 
 	fail := func(msg string) {
 		h.render(w, r, "settings", settingsData{
