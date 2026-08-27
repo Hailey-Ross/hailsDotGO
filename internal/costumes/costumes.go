@@ -177,6 +177,28 @@ func LabelsForDex(dex int, species string) []string {
 	return out
 }
 
+// AliasesFor lists the other spellings that resolve to a label. It is the reverse of the aliases
+// map, which runs typed text -> label, and it exists so a picker can MATCH on the name the game
+// uses while still SHOWING ours: searching "Professor Willow's Assistant" has to find "Willow's
+// Lab Coat". ts/shared/costumes.ts carries the same function for the browser's copy.
+//
+// Sorted for the same reason LabelsForDex sorts: a client must not see the order reshuffle
+// between requests. Returns nil when a label has no other spellings.
+func AliasesFor(label string) []string {
+	if label == "" {
+		return nil
+	}
+	l := labels()
+	var out []string
+	for alias, canonical := range l.Aliases {
+		if canonical == label {
+			out = append(out, alias)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // SpriteURLFor is the shiny sprite for one species wearing one costume, or false if that species
 // has no art for it.
 //

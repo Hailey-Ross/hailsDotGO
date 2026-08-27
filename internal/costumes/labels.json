@@ -136,10 +136,7 @@
     "Noivern": { "Headband": "c:HALLOWEEN_2025" },
     "Cubchoo": { "Holiday Outfit": "f:WINTER_2020" },
     "Beartic": { "Holiday Outfit": "f:WINTER_2020" },
-    "Delibird": {
-      "Holiday Ribbon": "f:WINTER_2020",
-      "Holiday Outfit": "f:WINTER_2020"
-    },
+    "Delibird": { "Holiday Outfit": "f:WINTER_2020" },
     "Spheal": { "Festive Outfit": "c:HOLIDAY_2021_NOEVOLVE" },
     "Psyduck": { "Holiday Attire": "c:HOLIDAY_2023", "Swim Ring": "f:SWIM_2025" },
     "Gengar": { "Halloween Costume": "f:COSTUME_2020" },
@@ -206,7 +203,9 @@
     "Professor Willow's Assistant": "Willow's Lab Coat",
     "Professor Willow's assistant": "Willow's Lab Coat",
     "Professor Willow’s Assistant": "Willow's Lab Coat",
-    "Professor Willow’s assistant": "Willow's Lab Coat"
+    "Professor Willow’s assistant": "Willow's Lab Coat",
+
+    "Holiday Ribbon": "Holiday Outfit"
   },
 
   "_hidden_comment": [

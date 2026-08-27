@@ -128,7 +128,9 @@
         <tr><td><code>GET /api/mobile/v1/data</code>, <code>/pokemon</code>, <code>/raids</code>, <code>/events</code>, <code>/raid/overview</code></td><td>{{T "credits.api.mobile_data_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
         <tr><td><code>POST /api/mobile/v1/iv/calculate</code>, <code>/iv/ocr</code></td><td>{{T "credits.api.mobile_iv_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
         <tr><td><code>GET/POST/DELETE /api/mobile/v1/iv/pokemon</code></td><td>{{T "credits.api.mobile_box_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>GET /api/mobile/v1/costumes</code></td><td>{{T "credits.api.mobile_costumes_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
         <tr><td><code>/api/mobile/v1/raid/*</code></td><td>{{T "credits.api.mobile_raid_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
+        <tr><td><code>POST /api/mobile/v1/player-reports</code></td><td>{{T "credits.api.mobile_player_reports_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
       </tbody>
     </table>
     <p style="margin-top:1rem">{{T "credits.api.mobile_note"}}</p>
@@ -155,6 +157,22 @@
         <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-26</div>
       <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Costumes in the app, picked instead of typed</h2>
+          <ul class="cl-list">
+            <li>The companion app can now show you every costume a Pokémon can wear, each with its shiny picture, so you no longer have to know the exact name and type it</li>
+            <li>The names the game uses are matched too, so searching for "Professor Willow's Assistant" finds "Willow's Lab Coat"</li>
+            <li>Delibird's winter costume was listed twice under two names. It is now listed once, as "Holiday Outfit", the same name its family already uses, and anything recorded under the old name still shows its art</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Report a player from the app</h2>
+          <ul class="cl-list">
+            <li>Reporting a player used to work only on the website. The companion app can now file one too, and it lands in the same queue for staff</li>
+          </ul>
+        </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Raid counters were naming the wrong Pokémon</h2>

@@ -1,6 +1,7 @@
 package costumes
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -242,4 +243,102 @@ func itoa(i int) string {
 		i /= 10
 	}
 	return string(b)
+}
+
+// A species must never be offered the same ART under two labels, whichever tier the labels came
+// from. Otherwise the picker shows one sprite twice under two names and whichever a trainer picks
+// is a coin toss, and on the mobile API, which serves LabelsForDex's output precomputed, it arrives
+// as two identical rows.
+//
+// Two sources can cause it. A shared costume colliding with a species' own override is what the
+// usedCodes set in LabelsForDex guards against. Two OVERRIDE labels on one code is a data mistake
+// instead, and the file says so itself: labels.json is append-only because a label is user data, so
+// a costume being renamed keeps its old spelling in "aliases", not as a second override. Delibird
+// carried "Holiday Ribbon" and "Holiday Outfit" on f:WINTER_2020 until the ribbon was retired into
+// the alias map, which is why this checks both tiers rather than only the one with a guard.
+//
+// Every dex a species' codes cover is checked, rather than one guessed dex: costume codes are
+// shared across species (f:WINTER_2020 covers Pikachu, Delibird, Cubchoo and Beartic), so there is
+// no single right answer to "which dex is this species" inside this package.
+func TestNoSpeciesIsOfferedTheSameArtTwice(t *testing.T) {
+	for species, byLabel := range lab.Species {
+		dexes := map[int]bool{}
+		for _, code := range byLabel {
+			if e, ok := cat.Codes[code]; ok {
+				for _, d := range e.Dex {
+					dexes[d] = true
+				}
+			}
+		}
+		for dex := range dexes {
+			seen := map[string]string{} // sprite url -> the label that claimed it first
+			for _, label := range LabelsForDex(dex, species) {
+				url, ok := SpriteURL(dex, species, label)
+				if !ok {
+					continue
+				}
+				if first, clash := seen[url]; clash {
+					t.Errorf("%s (dex %d): %q and %q are the same art (%s); retire one into aliases",
+						species, dex, first, label, url)
+					continue
+				}
+				seen[url] = label
+			}
+		}
+	}
+}
+
+// A retired label must keep resolving: user_shinies.costume is free text, so a trainer who recorded
+// a Delibird before the rename has "Holiday Ribbon" saved and their costume art has to survive it.
+// The whole family carries "Holiday Outfit" for this code, which is why the ribbon was the spelling
+// that moved.
+func TestRetiredDelibirdLabelStillResolves(t *testing.T) {
+	ribbon, ok := SpriteURL(225, "Delibird", "Holiday Ribbon")
+	if !ok {
+		t.Fatal("a Delibird saved as \"Holiday Ribbon\" lost its costume art")
+	}
+	outfit, ok := SpriteURL(225, "Delibird", "Holiday Outfit")
+	if !ok {
+		t.Fatal("Delibird Holiday Outfit did not resolve")
+	}
+	if ribbon != outfit {
+		t.Errorf("the alias resolves elsewhere: %s vs %s", ribbon, outfit)
+	}
+	// The family it was aligned with must be unaffected: the alias map is global, so a rewrite in
+	// the wrong direction would have stranded these three.
+	for _, s := range []struct {
+		dex     int
+		species string
+	}{{25, "Pikachu"}, {613, "Cubchoo"}, {614, "Beartic"}} {
+		if _, ok := SpriteURL(s.dex, s.species, "Holiday Outfit"); !ok {
+			t.Errorf("%s lost Holiday Outfit", s.species)
+		}
+	}
+	// And the picker offers it once, not twice.
+	if got := LabelsForDex(225, "Delibird"); len(got) != 1 || got[0] != "Holiday Outfit" {
+		t.Errorf("Delibird picker offers %v, want exactly [Holiday Outfit]", got)
+	}
+}
+
+// AliasesFor is the reverse of the aliases map, and the mobile picker MATCHES on what it returns
+// while SHOWING the canonical label. Four spellings point at the lab coat, two of them with a curly
+// apostrophe, and every one of them has to come back: a trainer searching the name the game uses
+// finding nothing is the bug the alias map was added to prevent.
+func TestAliasesForReversesTheAliasMap(t *testing.T) {
+	for alias, canonical := range lab.Aliases {
+		got := AliasesFor(canonical)
+		if !slices.Contains(got, alias) {
+			t.Errorf("AliasesFor(%q) = %v, missing the alias %q that resolves to it", canonical, got, alias)
+		}
+	}
+	if got := AliasesFor("Willow's Lab Coat"); len(got) != 4 {
+		t.Errorf("Willow's Lab Coat: want 4 spellings, got %d (%v)", len(got), got)
+	}
+	// A canonical label with no aliases, and the empty string, must not invent one.
+	if got := AliasesFor("Party Hat"); len(got) != 0 {
+		t.Errorf("Party Hat has no aliases, got %v", got)
+	}
+	if got := AliasesFor(""); got != nil {
+		t.Errorf(`AliasesFor("") = %v, want nil`, got)
+	}
 }

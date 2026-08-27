@@ -187,6 +187,8 @@
   "credits.api.mobile_iv_desc":    "Run the IV calculator, or upload a screenshot for OCR (10 per minute per IP)",
   "credits.api.mobile_box_desc":   "Save, list, and delete Pokémon in the user's IV box",
   "credits.api.mobile_raid_desc":  "Full Raid Finder lifecycle: queue, lobbies, confirm, leave, kick, invite, report, and feedback",
+  "credits.api.mobile_costumes_desc": "Every costume the picker offers, precomputed per species, each with its resolved shiny sprite and any alternate spellings",
+  "credits.api.mobile_player_reports_desc": "File a report about another player (6 per minute per IP); the reason comes from a fixed list and a description is required",
   "credits.api.mobile_note":   "These endpoints back the official companion app. See the project wiki's API Reference for full request and response details.",
   "credits.changelog.intro":   "A running log of updates and improvements.",
 
