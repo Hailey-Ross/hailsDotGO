@@ -212,3 +212,29 @@ func (h *Handlers) UnregisterPushToken(w http.ResponseWriter, r *http.Request) {
 	h.db.Exec(`DELETE FROM mobile_device_tokens WHERE push_token = ? AND user_id = ?`, body.PushToken, u.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// MobileMaintenance reports which pages and sections are currently enabled, so
+// the app can grey out what the site has switched off instead of offering a
+// screen that will answer 503 or simply come back empty.
+//
+// The same flags drive the website's own navigation; they were previously only
+// rendered into templates, leaving a mobile client with no way to see them.
+// Store sits in its own setting rather than PageMaintenance, so it is folded in
+// here to save the app a second call.
+func (h *Handlers) MobileMaintenance(w http.ResponseWriter, r *http.Request) {
+	m := h.maintenanceSettings()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{
+		"raids":             m.RaidsEnabled,
+		"dps":               m.DPSEnabled,
+		"pvp":               m.PVPEnabled,
+		"events":            m.EventsEnabled,
+		"iv":                m.IVEnabled,
+		"trainers":          m.TrainersEnabled,
+		"trainer_directory": m.TrainerDirectoryEnabled,
+		"raid_finder":       m.RaidFinderEnabled,
+		"shinies":           m.ShiniesEnabled,
+		"translator_apps":   m.TranslatorAppsEnabled,
+		"store":             h.storeEnabled(),
+	})
+}
