@@ -1,6 +1,7 @@
 package costumes
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -242,4 +243,75 @@ func itoa(i int) string {
 		i /= 10
 	}
 	return string(b)
+}
+
+// The invariant the usedCodes set in LabelsForDex exists to hold: a shared costume must never be
+// offered to a species whose own curated override already covers that art. Otherwise the picker
+// shows the same sprite twice under two names and whichever a trainer picks is a coin toss.
+//
+// This is pinned here rather than only in the handler because the mobile API now serves
+// LabelsForDex's output precomputed, so a duplicate reaches the app as two identical picker rows.
+//
+// Every dex a species' override codes cover is checked, rather than one guessed dex: costume codes
+// are shared across species (f:WINTER_2020 covers Pikachu, Delibird, Cubchoo and Beartic), so there
+// is no single right answer to "which dex is this species" inside this package.
+//
+// Two override labels on ONE code are deliberate and allowed. labels.json is append-only because
+// user_shinies.costume stores the label as free text, so a relabelled costume keeps its old name
+// alongside the new one. Delibird's "Holiday Ribbon" and "Holiday Outfit" are that case.
+func TestSharedCostumeNeverDuplicatesAnOverride(t *testing.T) {
+	for species, byLabel := range lab.Species {
+		dexes := map[int]bool{}
+		for _, code := range byLabel {
+			if e, ok := cat.Codes[code]; ok {
+				for _, d := range e.Dex {
+					dexes[d] = true
+				}
+			}
+		}
+		for dex := range dexes {
+			overrideArt := map[string]string{} // sprite url -> the override label that claimed it
+			for label := range byLabel {
+				if url, ok := SpriteURL(dex, species, label); ok {
+					overrideArt[url] = label
+				}
+			}
+			for _, label := range LabelsForDex(dex, species) {
+				if _, isOverride := byLabel[label]; isOverride {
+					continue
+				}
+				url, ok := SpriteURL(dex, species, label)
+				if !ok {
+					continue
+				}
+				if first, clash := overrideArt[url]; clash {
+					t.Errorf("%s (dex %d): shared %q is the same art as override %q (%s)",
+						species, dex, label, first, url)
+				}
+			}
+		}
+	}
+}
+
+// AliasesFor is the reverse of the aliases map, and the mobile picker MATCHES on what it returns
+// while SHOWING the canonical label. Four spellings point at the lab coat, two of them with a curly
+// apostrophe, and every one of them has to come back: a trainer searching the name the game uses
+// finding nothing is the bug the alias map was added to prevent.
+func TestAliasesForReversesTheAliasMap(t *testing.T) {
+	for alias, canonical := range lab.Aliases {
+		got := AliasesFor(canonical)
+		if !slices.Contains(got, alias) {
+			t.Errorf("AliasesFor(%q) = %v, missing the alias %q that resolves to it", canonical, got, alias)
+		}
+	}
+	if got := AliasesFor("Willow's Lab Coat"); len(got) != 4 {
+		t.Errorf("Willow's Lab Coat: want 4 spellings, got %d (%v)", len(got), got)
+	}
+	// A canonical label with no aliases, and the empty string, must not invent one.
+	if got := AliasesFor("Party Hat"); len(got) != 0 {
+		t.Errorf("Party Hat has no aliases, got %v", got)
+	}
+	if got := AliasesFor(""); got != nil {
+		t.Errorf(`AliasesFor("") = %v, want nil`, got)
+	}
 }
