@@ -66,7 +66,10 @@ func (h *Handlers) bucketStaffIDs() []uint {
 
 // CreatePlayerReport files a report against another player.
 func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 
 	var body struct {
 		Username string `json:"username"`
@@ -88,9 +91,7 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "please describe the issue", http.StatusBadRequest)
 		return
 	}
-	if len(details) > 4000 {
-		details = details[:4000]
-	}
+	details = truncRunes(details, 4000)
 
 	var reportedID uint
 	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, username).Scan(&reportedID); err != nil {
@@ -163,7 +164,10 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 // reporter (push + a public thread message). Enforcement itself is done in the
 // Users admin tab; this only records the outcome and notifies the reporter.
 func (h *Handlers) AdminPlayerReportActioned(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)

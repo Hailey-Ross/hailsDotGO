@@ -62,7 +62,10 @@ type translateKeyRecord struct {
 }
 
 func (h *Handlers) APITranslateKeys(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	lang := r.URL.Query().Get("lang")
 	if !editableLang(lang) {
 		writeJSONError(w, h.t(r, "error.tl_invalid_lang"), http.StatusBadRequest)
@@ -170,7 +173,10 @@ func sanitizeTranslation(text string) (string, string) {
 }
 
 func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	var body struct {
 		Lang    string `json:"lang"`
 		Key     string `json:"key"`
@@ -219,7 +225,10 @@ func (h *Handlers) APITranslateSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) APITranslateWithdraw(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
@@ -291,7 +300,10 @@ func (h *Handlers) APITranslateLocales(w http.ResponseWriter, r *http.Request) {
 // APITranslateLocaleCreate registers a new runtime locale. It starts disabled
 // (hidden from the public switcher) but is immediately translatable.
 func (h *Handlers) APITranslateLocaleCreate(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	var body struct {
 		Code string `json:"code"`
 	}
@@ -542,9 +554,7 @@ func (h *Handlers) AdminTranslationReject(w http.ResponseWriter, r *http.Request
 		writeJSONError(w, h.t(r, "error.tl_reason_required"), http.StatusBadRequest)
 		return
 	}
-	if len(reason) > 255 {
-		reason = reason[:255]
-	}
+	reason = truncRunes(reason, 255)
 
 	res, err := h.db.Exec(
 		`UPDATE translation_edits SET status = 'rejected', reject_reason = ?, reviewed_by = ?, reviewed_at = NOW()

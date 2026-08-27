@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/csrf"
@@ -577,4 +578,36 @@ func writeJSON(w http.ResponseWriter, data json.RawMessage) {
 		return
 	}
 	w.Write(data)
+}
+
+// truncRunes cuts s to at most n characters, counting runes rather than bytes.
+//
+// Every column this guards is utf8mb4, and MySQL counts VARCHAR lengths in
+// characters, so slicing bytes never protected against overflow the way it was
+// meant to. It also breaks: a byte cut can land inside a multi-byte rune, MySQL
+// rejects the invalid sequence with error 1366, the insert fails, and the
+// handler answers 500. The reporter cannot retry past it, and it is invisible to
+// anyone writing in English.
+func truncRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
+// upperFirst capitalises the first character of s, counting runes rather than
+// bytes.
+//
+// The shape this replaces, strings.ToUpper(s[:1]) + s[1:], splits one byte off
+// the front. On a multi-byte first character that byte is not a character at
+// all: ToUpper hands back a replacement rune, the remaining bytes stay orphaned,
+// and the result is neither the input nor valid UTF-8. Everything fed through
+// here happens to be ASCII today, which is exactly why it went unnoticed.
+func upperFirst(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if size == 0 {
+		return s
+	}
+	return strings.ToUpper(string(r)) + s[size:]
 }

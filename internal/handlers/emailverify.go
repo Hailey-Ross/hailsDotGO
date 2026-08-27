@@ -61,7 +61,10 @@ func (h *Handlers) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ResendVerification(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserPage(w, r)
+	if !ok {
+		return
+	}
 	if u.EmailVerified {
 		h.render(w, r, "verify_email", verifyPageData{Success: true})
 		return

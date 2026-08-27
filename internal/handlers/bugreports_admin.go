@@ -37,7 +37,10 @@ type adminBugReportItem struct {
 // AdminBugReportsList lists all reports with optional filters (?status= ?label=
 // ?assignee=me|<id> ?q=<search>) and sorting (?sort=recent|status|opener|awaiting|priority).
 func (h *Handlers) AdminBugReportsList(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportType := r.URL.Query().Get("type")
 	status := r.URL.Query().Get("status")
 	labelID, _ := strconv.ParseUint(r.URL.Query().Get("label"), 10, 64)
@@ -178,7 +181,10 @@ func (h *Handlers) labelsForReports(ids []uint) map[uint][]bugLabelDTO {
 
 // AdminBugReportStatus changes a report's status and records a system note.
 func (h *Handlers) AdminBugReportStatus(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -403,7 +409,10 @@ func (h *Handlers) AdminStaffList(w http.ResponseWriter, r *http.Request) {
 // AdminBugReportAssign sets (or clears, with empty username) a report's assignee.
 // The assignee must be a staff member; the new assignee is pushed a notification.
 func (h *Handlers) AdminBugReportAssign(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -451,7 +460,10 @@ func (h *Handlers) AdminBugReportAssign(w http.ResponseWriter, r *http.Request) 
 
 // AdminBugReportPriority sets a report's priority.
 func (h *Handlers) AdminBugReportPriority(w http.ResponseWriter, r *http.Request) {
-	u := h.currentUser(r)
+	u, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	reportID, ok := parseBugReportID(r)
 	if !ok {
 		writeJSONError(w, "invalid id", http.StatusBadRequest)
@@ -503,7 +515,10 @@ func (h *Handlers) AdminBugMacros(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(out)
 
 	case http.MethodPost:
-		u := h.currentUser(r)
+		u, ok := h.requireUserAPI(w, r)
+		if !ok {
+			return
+		}
 		title, mbody, ok := decodeMacroBody(w, r)
 		if !ok {
 			return

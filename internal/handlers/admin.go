@@ -678,7 +678,10 @@ func (h *Handlers) AdminSetSpecialRank(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
-	caller := h.currentUser(r)
+	caller, ok := h.requireUserAPI(w, r)
+	if !ok {
+		return
+	}
 	if auth.SuperadminUser != "" && targetUsername == auth.SuperadminUser && !caller.IsSuperAdmin() {
 		writeJSONError(w, h.t(r, "error.adm_modify_superadmin"), http.StatusForbidden)
 		return
@@ -761,9 +764,7 @@ func (h *Handlers) AdminStrikesAdd(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.adm_reason_required"), http.StatusBadRequest)
 		return
 	}
-	if len(body.Reason) > 255 {
-		body.Reason = body.Reason[:255]
-	}
+	body.Reason = truncRunes(body.Reason, 255)
 	targetUsername, targetRole, ok := h.targetUser(w, r, id)
 	if !ok {
 		return
