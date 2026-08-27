@@ -1551,15 +1551,23 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
       var detail;
       if (!c.ok) {
         detail = '<span style="color:#f85149">' + escapeHtml(c.error || '') + '</span>';
-      } else if (c.note) {
+      } else if (c.advisory && c.note) {
         // A source that reports drift but does NOT auto-apply it (costumes): saying "applied"
-        // here would be a lie, so show what actually needs doing instead.
+        // here would be a lie, and it fetches no payload of its own to size, so the note is
+        // the whole answer. Amber, because it names something a human still has to do.
         detail = '<span style="color:#d29922">' + escapeHtml(c.note) + '</span>'
           + ' · ' + c.duration_ms + 'ms';
       } else {
         var count = c.count ? (c.count + ' items, ') : '';
         detail = (c.changed ? STRINGS.scrapersApplied : STRINGS.scrapersInSync)
           + ' · ' + count + fmtBytes(c.bytes) + ' · ' + c.duration_ms + 'ms';
+        // An applied source can carry a note too, and it must not cost that row its sync
+        // state or its size: those are exactly what you want when asking whether upstream
+        // is still stale. So it goes underneath, and stays muted rather than amber, because
+        // it describes a normal result rather than a task.
+        if (c.note) {
+          detail += '<br><span style="color:var(--text-3)">' + escapeHtml(c.note) + '</span>';
+        }
       }
       return '<tr>'
         + '<td style="padding:0.2rem 0.6rem 0.2rem 0;font-family:monospace">' + escapeHtml(c.key) + '</td>'
