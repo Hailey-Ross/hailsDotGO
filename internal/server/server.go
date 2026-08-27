@@ -248,8 +248,15 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 	h := handlers.New(store, db)
 	h.StartRaidSweeper()
+	h.StartEventReminderSweeper()
 	h.StartTranslationAutoSync()
 	h.StartCostumeAutoSync()
+
+	// Event reminders are pinned to a start time the feed can move under them, so
+	// they are re-resolved every time a new feed lands rather than only at
+	// subscribe time. The store calls this; it knows nothing about the database.
+	// Registered before Start, so the startup fetch is covered too.
+	store.SetEventsAppliedHook(h.ReconcileEventSubscriptions)
 
 	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
 	// Counts aggregate bytes across all seven public API endpoints for the same IP.
@@ -295,6 +302,16 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/pokemon", h.APIPokemon)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/raids", h.APIRaids)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/events", h.APIEvents)
+		// The detail route existed only on the CSRF-protected web path and the
+		// private path, so the app reached it at /api/events/{id} and got away with
+		// it because it is a GET. That made it the one events call outside the
+		// versioned tree; this is its alias.
+		//
+		// The static /events/subscriptions routes registered in the authenticated
+		// group below still win over this parameter: chi matches a static segment
+		// before a wildcard, so an unauthenticated GET there is a 401 and not an
+		// "unknown event" 404.
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/events/{id}", h.APIEventDetail)
 		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/data", h.APIData)
 		// Dynamic and polled by the app, so a looser standalone limit.
 		r.With(httprate.LimitByIP(20, time.Minute)).Get("/raid/overview", h.MobileRaidOverview)
@@ -329,6 +346,24 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/social/{username}/lists", h.MobileSocialLists)
 			r.Post("/push/token", h.RegisterPushToken)
 			r.Delete("/push/token", h.UnregisterPushToken)
+
+			// Event reminders. The app has had the UI for a release (a bell per
+			// upcoming event card, a per-event lead time, a default in Settings)
+			// and these three are what make it do anything: without them the calls
+			// 404 and it falls back to its disk cache.
+			//
+			// PUT is an upsert, so subscribing and changing a lead time are one
+			// call and a retry after a dropped connection is safe to repeat. It is
+			// also what the app re-sends for every subscription when the device's
+			// timezone changes, which is the one burst these see, so the group's
+			// 120/min baseline is the limit that matters.
+			//
+			// The event id is a path parameter and reaches a LIKE-free
+			// parameterized query; the handlers validate it against the single
+			// eventIDPattern in events_ics.go.
+			r.Get("/events/subscriptions", h.APIEventSubscriptions)
+			r.Put("/events/subscriptions/{eventId}", h.APIEventSubscribe)
+			r.Delete("/events/subscriptions/{eventId}", h.APIEventUnsubscribe)
 
 			r.Post("/iv/calculate", h.IVCalculate)
 			r.With(httprate.LimitByIP(10, time.Minute)).Post("/iv/ocr", h.IVFromOCR)

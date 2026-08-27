@@ -12,6 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	// Event reminders turn an IANA zone id sent by the app into an instant with
+	// time.LoadLocation, which otherwise reads the host's zoneinfo database. The
+	// VPS has one; a slim container image would not, and every subscribe would
+	// 400 with nothing to explain it. Roughly 450 KB of binary to take that whole
+	// failure mode off the table.
+	_ "time/tzdata"
+
 	"pogo.hails.cc/internal/auth"
 	"pogo.hails.cc/internal/costumes"
 	appdb "pogo.hails.cc/internal/db"
@@ -77,11 +84,18 @@ func main() {
 	}
 
 	store := pogodata.New()
+
+	// The router is built BEFORE the store is started, not after. server.New
+	// registers the store's events-applied hook, and the startup events fetch runs
+	// on its own goroutine with retries: starting the store first is a race in
+	// which the first feed of the process can land with nothing listening, and the
+	// event reminders it should have re-pinned wait for the 30 minute tick.
+	handler := server.New(store, db, csrfKey)
 	store.Start()
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           server.New(store, db, csrfKey),
+		Handler:           handler,
 		ReadHeaderTimeout: 15 * time.Second,
 		// Without a ReadTimeout, a client that sends headers promptly and then dribbles
 		// its body one byte at a time holds the connection open indefinitely. Generous
