@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -199,5 +202,143 @@ func TestLeadPhraseCoversThePicker(t *testing.T) {
 func TestEventReminderLeadMaxCoversThePicker(t *testing.T) {
 	if eventReminderLeadMax < 10080 {
 		t.Errorf("eventReminderLeadMax = %d, below the picker's own maximum of 10080", eventReminderLeadMax)
+	}
+}
+// A trainer can now ask for a day's warning AND a thirty minute one for the same
+// event. lead_minutes therefore arrives as either a bare int or an array, and
+// both shapes have to survive: build 15 of the app is on testers' phones sending
+// the scalar, and a tidy-up that deletes that path breaks every one of those
+// installs with no error the trainer can act on.
+func TestLeadSetAcceptsBothWireShapes(t *testing.T) {
+	var scalar, array leadSet
+	if err := json.Unmarshal([]byte(`30`), &scalar); err != nil {
+		t.Fatalf("bare int rejected: %v", err)
+	}
+	if err := json.Unmarshal([]byte(`[30]`), &array); err != nil {
+		t.Fatalf("array rejected: %v", err)
+	}
+	gotScalar, bad := scalar.normalize()
+	if bad != "" {
+		t.Fatalf("scalar 30 rejected: %s", bad)
+	}
+	gotArray, bad := array.normalize()
+	if bad != "" {
+		t.Fatalf("array [30] rejected: %s", bad)
+	}
+	if !slices.Equal(gotScalar, gotArray) {
+		t.Errorf("30 stored as %v but [30] stored as %v; the two must be the same request", gotScalar, gotArray)
+	}
+	if !slices.Equal(gotScalar, []int{30}) {
+		t.Errorf("normalize(30) = %v, want [30]", gotScalar)
+	}
+}
+
+// Zero is a real choice in the picker, not an absent value, and it has to survive
+// the scalar path too.
+func TestLeadSetKeepsZero(t *testing.T) {
+	var l leadSet
+	if err := json.Unmarshal([]byte(`0`), &l); err != nil {
+		t.Fatalf("0 rejected: %v", err)
+	}
+	got, bad := l.normalize()
+	if bad != "" {
+		t.Fatalf("0 rejected by normalize: %s", bad)
+	}
+	if !slices.Equal(got, []int{0}) {
+		t.Errorf("normalize(0) = %v, want [0]", got)
+	}
+}
+
+func TestLeadSetNormalize(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      []int
+		want    []int
+		wantBad bool
+	}{
+		// Longest lead first, which is also the order they arrive in, so the app
+		// can take the head as "the next one".
+		{"orders longest lead first", []int{30, 1440}, []int{1440, 30}, false},
+		{"de-duplicates", []int{30, 30, 1440}, []int{1440, 30}, false},
+		// Clearing every reminder is a DELETE. An empty array here is a malformed
+		// write, and treating it as an unsubscribe would turn a client bug into a
+		// silently cancelled reminder.
+		{"refuses empty", []int{}, nil, true},
+		{"refuses six distinct", []int{1, 2, 3, 4, 5, 6}, nil, true},
+		// Six entries but one real reminder: correct the client rather than
+		// refusing it, since nothing fans out.
+		{"de-duplicates before capping", []int{30, 30, 30, 30, 30, 30}, []int{30}, false},
+		{"accepts five", []int{5, 10, 15, 30, 60}, []int{60, 30, 15, 10, 5}, false},
+		{"refuses negative", []int{-1}, nil, true},
+		{"refuses beyond a week", []int{10081}, nil, true},
+		{"accepts exactly a week", []int{10080}, []int{10080}, false},
+	}
+	for _, c := range cases {
+		got, bad := leadSet(c.in).normalize()
+		if (bad != "") != c.wantBad {
+			t.Errorf("%s: rejected=%v (%q), want rejected=%v", c.name, bad != "", bad, c.wantBad)
+			continue
+		}
+		if !c.wantBad && !slices.Equal(got, c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// The set is resolved per reminder, and a lead time whose moment has already gone
+// is stored already marked so the sweep never fires it late. The important part
+// is that this is decided PER reminder: one past lead time must not pre-mark the
+// others.
+func TestPlanRemindersMarksOnlyThePastOnes(t *testing.T) {
+	now := time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)
+	startsAt := now.Add(2 * time.Hour) // 14:00
+
+	planned := planReminders(startsAt, []int{1440, 30}, now)
+	if len(planned) != 2 {
+		t.Fatalf("got %d reminders, want 2", len(planned))
+	}
+	// A day before a start two hours away is well past.
+	if planned[0].lead != 1440 || planned[0].remindedAt == nil {
+		t.Errorf("the day-before reminder should be stored already marked, got %+v", planned[0])
+	}
+	// Thirty minutes before is still an hour and a half away.
+	if planned[1].lead != 30 || planned[1].remindedAt != nil {
+		t.Errorf("the 30 minute reminder should still be pending, got %+v", planned[1])
+	}
+	if planned[1].remindAt == nil || !planned[1].remindAt.Equal(startsAt.Add(-30*time.Minute)) {
+		t.Errorf("30 minute remind_at = %v, want %v", planned[1].remindAt, startsAt.Add(-30*time.Minute))
+	}
+	// A zero lead time has no advance reminder at all, and therefore no flag.
+	zero := planReminders(startsAt, []int{0}, now)
+	if zero[0].remindAt != nil || zero[0].remindedAt != nil {
+		t.Errorf("a zero lead time produced %+v, want no reminder and no flag", zero[0])
+	}
+}
+
+// build 15 reads the top-level pair off the response and knows nothing about the
+// array. It has to see the reminder that arrives first.
+func TestLegacyFieldsMirrorTheFirstReminder(t *testing.T) {
+	now := time.Date(2026, 8, 27, 0, 0, 0, 0, time.UTC)
+	startsAt := now.Add(72 * time.Hour)
+	s := eventSubscription{Reminders: wireReminders(planReminders(startsAt, []int{1440, 30}, now))}
+	s.withLegacyFields()
+
+	if s.LeadMinutes != 1440 {
+		t.Errorf("legacy lead_minutes = %d, want the first reminder's 1440", s.LeadMinutes)
+	}
+	if s.RemindAt == nil || s.Reminders[0].RemindAt == nil || *s.RemindAt != *s.Reminders[0].RemindAt {
+		t.Error("legacy remind_at does not match the first reminder's")
+	}
+
+	// A subscription with no reminders must still marshal its array as [], never
+	// null: the app iterates it.
+	empty := eventSubscription{}
+	empty.withLegacyFields()
+	b, err := json.Marshal(empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"reminders":[]`) {
+		t.Errorf("empty subscription marshalled as %s, want reminders:[]", b)
 	}
 }

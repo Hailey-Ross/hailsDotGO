@@ -759,7 +759,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 	case "type_chart":
 		s.typeChart = data
 	case "cp_multipliers":
-		s.cpMults = data
+		// Merged, never replaced. Upstream is truncated at level 45, and a straight
+		// assignment here let one successful refresh overwrite the complete embedded
+		// table with a short one. See cpmultipliers.go.
+		s.cpMults = mergeCPMultipliers(data)
 	case "pokemon_evolutions":
 		s.evolutions = data
 	case "megas":

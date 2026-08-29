@@ -16,6 +16,7 @@ A fan-made Pokémon GO companion web app built in Go.
 - Supporter store with optional donation perks (PayPal)
 - Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates
 - Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
+- **FlexDex**, an Android companion app on the same account and the same database, which scans a Pokémon straight off your screen while you play
 
 ---
 
@@ -32,6 +33,7 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 | Deploy to a Linux server | [Deployment](https://github.com/Hailey-Ross/hailsDotGO/wiki/Deployment) |
 | Run the site day to day | [Operations](https://github.com/Hailey-Ross/hailsDotGO/wiki/Operations) |
 | Use the JSON API | [API Reference](https://github.com/Hailey-Ross/hailsDotGO/wiki/API-Reference) |
+| Use the Android companion app | [Companion App](https://github.com/Hailey-Ross/hailsDotGO/wiki/Companion-App) |
 | Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
 | Understand roles and permissions | [Accounts and Roles](https://github.com/Hailey-Ross/hailsDotGO/wiki/Accounts-and-Roles), [Admin Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Admin-Guide) |
 | Report a bug or a player, and triage reports | [Bug Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Bug-Reports), [Player Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Player-Reports) |
@@ -53,6 +55,32 @@ For how to build from a tagged release and how to upgrade an existing install to
 ## Preview
 
 **[pogo.hails.app](https://pogo.hails.app)** is live and free to use.
+
+---
+
+## Companion App
+
+**FlexDex is coming soon to an Android device near you.**
+
+FlexDex is the Android companion app for hailsDotGO. It signs in to the same account, reads the same data, and writes to the same database as the website, so a shiny logged on your phone is on your profile before you put it down. It is a separate repository from this one.
+
+**▶ [Watch a short tour of build 32](https://youtube.com/shorts/N03vO9PLuy8)**
+
+The headline feature is the scanner. Tap a floating bubble while looking at any Pokémon in Pokémon GO and the app grabs a single frame and reads it twice: on the device with Google ML Kit for an instant answer, and against the site's own recognizer for the rest of the card. It recovers a nicknamed Pokémon from its candy label, traces the level arc when the CP is covered, reads the appraisal bars, and works out shadow, purified and lucky from the power-up cost. Anything it deduced rather than read is highlighted, with a sentence saying where the value came from.
+
+Beyond that:
+
+- Raid bosses by tier with CP and weather-boosted ranges, expanding to their top counters, with the ranking maths ported from the website and unit tested for parity
+- Raid Finder queues and lobbies end to end: confirm, invite, report the outcome, rate the host, and report a player from inside the lobby
+- Shiny collection plus the full shiny dex as a searchable checklist, both working offline
+- Pokémon Box, the IV calculator, a DPS calculator and the PvP IV ranker, with the battle maths running on the phone rather than being fetched
+- Events with detail pages, and a bell that sets up to five reminders per event, resolved in your own timezone by the server
+- Push notifications for the raid lifecycle and for event reminders
+- Native profile and trainer settings; the trainer directory, social, reports, the store and the translator workspace open signed in inside the app
+
+Requires Android 8.0 or newer. It is in alpha (v0.1.0, build 32) and goes out through Firebase App Distribution to an invited tester group rather than a store listing, so there is no public download link yet.
+
+Full detail, including what it deliberately cannot do yet: [Companion App](https://github.com/Hailey-Ross/hailsDotGO/wiki/Companion-App).
 
 ---
 

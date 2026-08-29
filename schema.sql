@@ -539,6 +539,10 @@ CREATE TABLE IF NOT EXISTS mobile_device_tokens (
 -- zone-independent fingerprint of what upstream said at subscribe time, so a
 -- genuine time change can be told apart from a different occurrence reusing a
 -- slug. GO Battle League ids carry no date and do recur.
+--
+-- lead_minutes, remind_at and reminded_at on THIS table are a legacy mirror of
+-- the first reminder, kept only for build 15 of the app. Nothing on the server
+-- reads them: event_subscription_reminders is the source of truth.
 CREATE TABLE IF NOT EXISTS event_subscriptions (
   id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id         INT UNSIGNED NOT NULL,
@@ -557,6 +561,29 @@ CREATE TABLE IF NOT EXISTS event_subscriptions (
   KEY idx_evsub_due (remind_at, reminded_at),
   KEY idx_evsub_start (starts_at, started_at_sent),
   CONSTRAINT fk_evsub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One row per reminder on an event subscription. A trainer can ask for a day's
+-- warning AND a thirty minute one for the same event, so lead_minutes is a set
+-- rather than a scalar.
+--
+-- reminded_at lives HERE and not on the parent. On the parent, the first push of
+-- the evening would mark the whole subscription sent and silently eat the rest.
+--
+-- UNIQUE (subscription_id, lead_minutes) makes the upsert idempotent and stops a
+-- repeated lead time turning into two identical pushes.
+CREATE TABLE IF NOT EXISTS event_subscription_reminders (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  subscription_id BIGINT UNSIGNED NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL,
+  remind_at       DATETIME NULL,
+  reminded_at     DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_esr_sub_lead (subscription_id, lead_minutes),
+  KEY idx_esr_due (remind_at, reminded_at),
+  CONSTRAINT fk_esr_sub FOREIGN KEY (subscription_id)
+    REFERENCES event_subscriptions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Trainer avatar access locks: min_rank required to select an avatar slug.
@@ -731,7 +758,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)'),
   (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)'),
   (48, 'Room for every language a translator applicant can list (2026-08-27)'),
-  (49, 'Event reminder subscriptions (2026-08-27)');
+  (49, 'Event reminder subscriptions (2026-08-27)'),
+  (50, 'Several reminders per event subscription (2026-08-27)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';
