@@ -853,3 +853,47 @@ CREATE TABLE IF NOT EXISTS event_subscriptions (
   KEY idx_evsub_start (starts_at, started_at_sent),
   CONSTRAINT fk_evsub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 50. Several reminders per event subscription (2026-08-27)
+-- A trainer can now ask for a day's warning AND a thirty minute one for the same
+-- event: one to plan around, one to stop what you are doing. lead_minutes was a
+-- scalar, so it becomes a set, and the three columns that describe ONE
+-- notification move off the parent onto a row each.
+--
+-- The split is not cosmetic. timezone, event_start, starts_at and
+-- started_at_sent are genuinely properties of the subscription: the zone it was
+-- pinned in, the start it was pinned to, and whether the at-start push has gone
+-- out. lead_minutes, remind_at and reminded_at are properties of one reminder.
+--
+-- reminded_at moving to the child row is the load bearing part. Left on the
+-- parent, the first push of the evening marks the subscription sent and silently
+-- eats the rest, and the symptom ("I only ever get the earliest one") is very
+-- hard to notice and harder still to attribute.
+--
+-- UNIQUE (subscription_id, lead_minutes) is what makes the upsert idempotent and
+-- stops a repeated lead time turning into two identical pushes.
+CREATE TABLE IF NOT EXISTS event_subscription_reminders (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  subscription_id BIGINT UNSIGNED NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL,
+  remind_at       DATETIME NULL,
+  reminded_at     DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_esr_sub_lead (subscription_id, lead_minutes),
+  KEY idx_esr_due (remind_at, reminded_at),
+  CONSTRAINT fk_esr_sub FOREIGN KEY (subscription_id)
+    REFERENCES event_subscriptions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Carry the existing subscriptions across rather than starting empty. There are
+-- live rows and they are somebody's reminders.
+INSERT IGNORE INTO event_subscription_reminders
+    (subscription_id, lead_minutes, remind_at, reminded_at)
+SELECT id, lead_minutes, remind_at, reminded_at FROM event_subscriptions;
+
+-- event_subscriptions.lead_minutes, remind_at and reminded_at are deliberately
+-- NOT dropped. Build 15 of the app is on testers' phones and reads the first two
+-- off the response, and dropping a column is the one migration that cannot be
+-- fixed by re-running this file. The server keeps them written as a mirror of
+-- the first reminder and reads neither: event_subscription_reminders is the only
+-- source of truth from here. They come out once no install below 16 is in use.

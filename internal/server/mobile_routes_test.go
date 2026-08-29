@@ -69,6 +69,11 @@ func TestMobileAliasesAreRegistered(t *testing.T) {
 		`r.Post("/store/tag-color", h.StoreTagColorUpdate)`,
 		`r.Post("/store/purchases/cancel", h.StorePurchaseCancel)`,
 		`.Post("/player-reports", h.CreatePlayerReport)`,
+		// Event reminders. The app's bells are inert without these three, and the
+		// failure is quiet: the calls 404 and it falls back to its disk cache.
+		`r.Get("/events/subscriptions", h.APIEventSubscriptions)`,
+		`r.Put("/events/subscriptions/{eventId}", h.APIEventSubscribe)`,
+		`r.Delete("/events/subscriptions/{eventId}", h.APIEventUnsubscribe)`,
 	}
 	for _, line := range want {
 		if !strings.Contains(group, line) {
