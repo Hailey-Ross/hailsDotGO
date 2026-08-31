@@ -328,6 +328,10 @@
   "admin.settings.save":       "Save Settings",
   "admin.settings.saved":      "Settings saved.",
   "admin.settings.save_error": "Error saving settings. Please try again.",
+  "admin.mobile_build.title":   "Companion App Build",
+  "admin.mobile_build.desc":    "The newest published build number of the Android app. An install with a lower build number shows an update prompt. The mobile release step can also set this over the API.",
+  "admin.mobile_build.label":   "Latest build number",
+  "admin.mobile_build.invalid": "Build number must be a whole number between 1 and 1000000.",
 
   "admin.invite.title":    "Invite Links",
   "admin.invite.desc":     "Generate an invite link valid for 7 days. Multi-use invites may only grant the User role. Staff invites (Moderator / Admin) are single-use and require confirmation by an admin before permissions activate.",
