@@ -211,6 +211,8 @@ func (s *Store) rebuildRegionalShinyLocked() {
 		}
 	}
 
+	s.regionalShinyFlags = flags
+	s.regionalShinyDays = dates
 	s.regionalShiny = marshalOverlay(flags, "shiny flags")
 	s.regionalShinyDates = marshalOverlay(dates, "release dates")
 }
@@ -309,6 +311,7 @@ func (s *Store) rebuildShinyLocked() {
 		// No baseline: behave exactly as the store did before this file existed.
 		s.shinies = s.shinyUpstream
 		s.shinyDex = nil
+		s.shinyDexTable = nil
 		return
 	}
 
@@ -395,6 +398,7 @@ func (s *Store) rebuildShinyLocked() {
 		log.Printf("pogodata: shiny dex: marshal released: %v", err)
 		s.shinies = s.shinyUpstream
 	}
+	s.shinyDexTable = dexTable
 	if data, err := json.Marshal(dexTable); err == nil {
 		s.shinyDex = data
 	} else {
@@ -431,6 +435,64 @@ func (s *Store) ShinyDexAdmin() []AdminShinySpecies {
 	// Map iteration order is random and the admin table renders in dex order.
 	sort.Slice(out, func(i, j int) bool { return out[i].Dex < out[j].Dex })
 	return out
+}
+
+// ShinyDexCards returns the resolved dex table, sorted by dex.
+//
+// This is the source the shiny dex manifest builds its species cards from, and it
+// is deliberately NOT ShinyDexAdmin: that one ranges over the embedded baseline
+// alone, so it drops the fallback rows rebuildShinyLocked adds for a species
+// upstream lists and the baseline has never heard of. Those rows exist precisely
+// so a new generation landing upstream before the baseline is regenerated still
+// renders a card, and building the manifest from the baseline would put the
+// silent omission straight back.
+//
+// Empty when the baseline is missing, which is a supported state: the caller
+// serves nothing rather than half a dex.
+func (s *Store) ShinyDexCards() []BaselineSpecies {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]BaselineSpecies, 0, len(s.shinyDexTable))
+	for _, row := range s.shinyDexTable {
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// RegionalShinyState returns the resolved regional overlays: species name -> region
+// tag -> shiny released, and the same shape carrying the announced day.
+//
+// These are the SPARSE overlays, exactly as the client receives them, and they are
+// only the exceptions. A pair absent from the flags map has no admin opinion and
+// falls back to the caller's compiled-in default, which is what
+// regionalShinyDefault answers in the handlers package. Reading an absent pair as
+// false would mark every ordinary form unreleased.
+//
+// Copied on the way out. The maps are rebuilt in place on every override write, so
+// handing out the live ones would race a refresh against a request.
+func (s *Store) RegionalShinyState() (flags map[string]map[string]bool, dates map[string]map[string]string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	flags = make(map[string]map[string]bool, len(s.regionalShinyFlags))
+	for species, byRegion := range s.regionalShinyFlags {
+		inner := make(map[string]bool, len(byRegion))
+		for region, v := range byRegion {
+			inner[region] = v
+		}
+		flags[species] = inner
+	}
+	dates = make(map[string]map[string]string, len(s.regionalShinyDays))
+	for species, byRegion := range s.regionalShinyDays {
+		inner := make(map[string]string, len(byRegion))
+		for region, v := range byRegion {
+			inner[region] = v
+		}
+		dates[species] = inner
+	}
+	return flags, dates
 }
 
 // ShinyEffectiveDefaults returns the flags a species would have with NO admin override: the

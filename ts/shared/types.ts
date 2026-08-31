@@ -50,8 +50,8 @@ export interface RaidBoss {
 export type RaidTiers = Record<string, RaidBoss[]>;
 
 // One entry of the "up next" strip: the soonest rotation for a tier, or one that is
-// already live but has no card on the grid yet (a Mega the raid feed has not caught
-// up to, which cannot be built locally because no Mega typing data ships with the app).
+// already live but has no card on the grid yet, which now only happens for a species
+// no dataset the server holds can describe.
 export interface UpcomingRaid {
   event_id: string;
   name: string;

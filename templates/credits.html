@@ -114,38 +114,6 @@
   {{end}}{{end}}
 
   <div class="credits-card">
-    <h2>{{T "credits.api.mobile_title"}}</h2>
-    <p>{{T "credits.api.mobile_body"}}</p>
-    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>Authorization: Bearer &lt;your-token&gt;</code></pre>
-    <table class="api-table">
-      <thead><tr><th>{{T "credits.api.col_endpoint"}}</th><th>{{T "credits.api.col_desc"}}</th><th>{{T "credits.api.mobile_col_auth"}}</th></tr></thead>
-      <tbody>
-        <tr><td><code>POST /api/mobile/v1/auth/login</code></td><td>{{T "credits.api.mobile_login_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
-        <tr><td><code>DELETE /api/mobile/v1/auth/session</code></td><td>{{T "credits.api.mobile_logout_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET /api/mobile/v1/auth/me</code></td><td>{{T "credits.api.mobile_me_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>PUT /api/mobile/v1/profile</code></td><td>{{T "credits.api.mobile_profile_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>POST/DELETE /api/mobile/v1/push/token</code></td><td>{{T "credits.api.mobile_push_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET /api/mobile/v1/data</code>, <code>/pokemon</code>, <code>/raids</code>, <code>/events</code>, <code>/raid/overview</code></td><td>{{T "credits.api.mobile_data_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
-        <tr><td><code>POST /api/mobile/v1/iv/calculate</code>, <code>/iv/ocr</code></td><td>{{T "credits.api.mobile_iv_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET/POST/DELETE /api/mobile/v1/iv/pokemon</code></td><td>{{T "credits.api.mobile_box_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET /api/mobile/v1/costumes</code></td><td>{{T "credits.api.mobile_costumes_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>/api/mobile/v1/raid/*</code></td><td>{{T "credits.api.mobile_raid_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>POST /api/mobile/v1/player-reports</code></td><td>{{T "credits.api.mobile_player_reports_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET/POST /api/mobile/v1/bug-reports</code>, <code>/bug-reports/{id}</code>, <code>/messages</code>, <code>/invite</code>, <code>/status</code>, <code>/rating</code></td><td>{{T "credits.api.mobile_bug_reports_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>POST/DELETE /api/mobile/v1/social/{username}/friend</code>, <code>/block</code></td><td>{{T "credits.api.mobile_social_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>POST/DELETE /api/mobile/v1/feedback/*</code>, <code>POST /api/mobile/v1/awards/{id}/grant</code></td><td>{{T "credits.api.mobile_feedback_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>POST /api/mobile/v1/store/tag-request</code>, <code>/tag-color</code>, <code>/purchases/cancel</code></td><td>{{T "credits.api.mobile_store_tags_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET/PUT /api/mobile/v1/settings</code></td><td>{{T "credits.api.mobile_settings_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET /api/mobile/v1/settings/avatars</code></td><td>{{T "credits.api.mobile_avatars_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>GET /api/mobile/v1/trainers</code>, <code>/trainer/{username}</code>, <code>/social/{username}/lists</code></td><td>{{T "credits.api.mobile_trainers_desc"}}</td><td>{{T "credits.api.mobile_auth_bearer"}}</td></tr>
-        <tr><td><code>POST /api/mobile/v1/auth/register</code></td><td>{{T "credits.api.mobile_register_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
-        <tr><td><code>POST /api/mobile/v1/auth/forgot-password</code></td><td>{{T "credits.api.mobile_forgot_desc"}}</td><td>{{T "credits.api.mobile_auth_none"}}</td></tr>
-      </tbody>
-    </table>
-    <p style="margin-top:1rem">{{T "credits.api.mobile_note"}}</p>
-  </div>
-
-  <div class="credits-card">
     <h2>{{T "credits.api.notes_title"}}</h2>
     <ul class="credits-list">
       <li>{{T "credits.api.note_json"}} <code>application/json</code>.</li>
@@ -163,6 +131,43 @@
 
   <div class="changelog">
 
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-08-31</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Pokedex entries in the app</h2>
+          <ul class="cl-list">
+            <li>The app's Pokedex details now come from this site instead of an outside service, so tapping a card no longer tells anyone else which Pokemon you are looking at</li>
+            <li>Pokedex entries now appear in your own language rather than always in English</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Tag requests sent back for changes no longer jump the queue</h2>
+          <ul class="cl-list">
+            <li>The staff tag request queue now lists requests waiting on staff first, instead of putting ones already sent back to the requester at the top</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Raids announced only on an event page now show up</h2>
+          <ul class="cl-list">
+            <li>Current Raids now reads the raid line up out of an event's own page, so bosses like the Mega Ascension Megas appear instead of being missed</li>
+            <li>Events that run a different line up each day now show the right bosses for the day</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Raid bosses appear sooner after a rotation</h2>
+          <ul class="cl-list">
+            <li>Current Raids now refreshes ten times a day instead of six, so a new boss shows up within a couple of hours of the game announcing it rather than up to four</li>
+            <li>When a rotation starts before its boss details are available, the site now keeps checking every few minutes instead of waiting for the next scheduled refresh</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-30</div>
       <div class="cl-body">

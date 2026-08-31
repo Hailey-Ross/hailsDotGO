@@ -827,11 +827,12 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
 // buildUpNextSection renders what is coming, and what is already here but not yet
 // on the grid.
 //
-// The second case is the Mega one. The species data this app carries has no Mega
-// forms at all, and a Mega's typing differs from its base species, so a Mega the raid
-// feed has not caught up to cannot be turned into a real card without guessing at its
-// types and feeding the counter calculator a wrong answer. Naming it here is the
-// honest version: the card appears by itself once upstream lists it.
+// The second case is now rare. It used to be every Mega, because a Mega's typing
+// differs from its base species and nothing the app carried described one; the
+// server has shipped Mega stats and typings for a while, so a Mega is built like
+// anything else. A boss still lands here when no dataset knows the species at all,
+// and naming it is the honest version: the card appears by itself once the data
+// arrives.
 function buildUpNextSection(data: GameData): HTMLElement | null {
   const list: UpcomingRaid[] = data.upcomingRaids ?? [];
   if (!list.length) return null;

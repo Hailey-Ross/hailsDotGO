@@ -75,27 +75,35 @@ func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	regOpen := "0"
-	if r.FormValue("registration_open") == "1" {
-		regOpen = "1"
-	}
-	storeOn := "0"
-	if r.FormValue("store_enabled") == "1" {
-		storeOn = "1"
+	// Which keys the submitted form actually carries, named by its hidden
+	// _settings inputs.
+	//
+	// An unchecked checkbox sends nothing, so "this form does not own the key"
+	// and "the key is switched off" arrive looking identical. Two separate forms
+	// post here, each carrying one toggle, so reading every key from every
+	// submission meant saving the registration toggle switched the store off and
+	// saving the store toggle closed registration.
+	owned := make(map[string]bool, len(r.Form["_settings"]))
+	for _, k := range r.Form["_settings"] {
+		owned[k] = true
 	}
 
 	saveErr := false
-	for _, kv := range [][2]string{
-		{"registration_open", regOpen},
-		{"store_enabled", storeOn},
-	} {
+	for _, key := range []string{"registration_open", "store_enabled"} {
+		if !owned[key] {
+			continue
+		}
+		val := "0"
+		if r.FormValue(key) == "1" {
+			val = "1"
+		}
 		if _, err := h.db.Exec(`
 			INSERT INTO site_settings (setting_key, setting_value)
 			VALUES (?, ?)
 			ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-			kv[0], kv[1],
+			key, val,
 		); err != nil {
-			log.Printf("admin: save settings %s: %v", kv[0], err)
+			log.Printf("admin: save settings %s: %v", key, err)
 			saveErr = true
 		}
 	}
@@ -107,9 +115,11 @@ func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		msgOK = false
 	}
 
+	// Read both back rather than echoing the form, so the toggle this submission
+	// did not carry renders its real value instead of a default.
 	h.render(w, r, "admin", adminData{
-		RegistrationOpen: regOpen == "1",
-		StoreEnabled:     storeOn == "1",
+		RegistrationOpen: h.registrationOpen(),
+		StoreEnabled:     h.storeEnabled(),
 		Maintenance:      h.maintenanceSettings(),
 		MobileBuild:      h.mobileBuildNumber(),
 		Message:          msg,
@@ -131,18 +141,15 @@ func (h *Handlers) AdminGenerateInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grantedRole := r.FormValue("granted_role")
-	validRoles := map[string]bool{"user": true, "tester": true, "moderator": true, "admin": true}
-	if !validRoles[grantedRole] {
-		grantedRole = "user"
-	}
-
 	maxUses := 1
-	if v, err := strconv.Atoi(r.FormValue("max_uses")); err == nil && v >= 1 && v <= 50 {
+	if v, err := strconv.Atoi(r.FormValue("max_uses")); err == nil {
 		maxUses = v
 	}
+	// Shared with the JSON path in mobile_admin.go, so the two cannot disagree
+	// about who may be invited as what. Both rules exist so an invite link that
+	// leaks cannot mint more than one moderator.
+	grantedRole, maxUses, refusal := inviteRules(r.FormValue("granted_role"), maxUses)
 
-	isStaff := grantedRole == "moderator" || grantedRole == "admin"
 	fail := func(msg string) {
 		h.render(w, r, "admin", adminData{
 			RegistrationOpen: h.registrationOpen(),
@@ -155,12 +162,8 @@ func (h *Handlers) AdminGenerateInvite(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if maxUses > 1 && grantedRole != "user" {
-		fail(h.t(r, "error.invite_multiuse_role"))
-		return
-	}
-	if isStaff && maxUses != 1 {
-		fail(h.t(r, "error.invite_staff_single"))
+	if refusal != "" {
+		fail(h.t(r, refusal))
 		return
 	}
 
@@ -250,21 +253,16 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	keys := []string{
-		"page_raids_enabled",
-		"page_dps_enabled",
-		"page_pvp_enabled",
-		"page_events_enabled",
-		"page_iv_enabled",
-		"page_trainers_enabled",
-		"section_trainer_directory_enabled",
-		"section_raid_finder_enabled",
-		"page_shinies_enabled",
-		"section_translator_apps_enabled",
-	}
-
+	// The key list lives in mobile_admin.go, keyed by the client-facing name the
+	// JSON path and GET /maintenance both use. One list, so a new toggle added for
+	// one path cannot be missing from the other.
+	//
+	// Iteration order does not matter: each key is written independently, and this
+	// form owns all of them, which is why it can safely rebuild every one from the
+	// submission. That is NOT true of AdminUpdateSettings above; see the comment
+	// there about _settings.
 	saveErr := false
-	for _, key := range keys {
+	for _, key := range pageSettingKeys {
 		val := "0"
 		if r.FormValue(key) == "1" {
 			val = "1"

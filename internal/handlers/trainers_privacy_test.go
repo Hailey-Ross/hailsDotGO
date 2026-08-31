@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -156,5 +158,133 @@ func TestTagsAreNeverNull(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `"tags":[]`) {
 		t.Errorf("tags did not serialise as an empty array:\n%s", body)
+	}
+}
+
+// ── Directory search ──────────────────────────────────────────────────────────
+
+// The search parameter must not become a way to read a name the profile refuses
+// to show. Filtering the gated DTO is what prevents it; this pins that, because
+// moving the filter onto trainerEntry would be an easy and quiet optimisation.
+func TestSearchCannotFindAPrivateTrainerName(t *testing.T) {
+	priv := toMobileTrainer(privateTrainer(), false)
+
+	pub := privateTrainer()
+	pub.Username = "openbook"
+	pub.TrainerName = "Secretive"
+	pub.ProfilePublic = true
+
+	list := []mobileTrainer{priv, toMobileTrainer(pub, false)}
+
+	// "Secretive" is the private trainer's real trainer name AND the public
+	// trainer's, so a leak shows up as two hits instead of one.
+	got := filterMobileTrainers(list, "secretive")
+	if len(got) != 1 {
+		t.Fatalf("searching a private trainer name matched %d trainers, want only the public one", len(got))
+	}
+	if got[0].Username != "openbook" {
+		t.Errorf("matched %q, want the public profile", got[0].Username)
+	}
+
+	// The username is public on every profile, so it stays searchable.
+	if got := filterMobileTrainers(list, "someone"); len(got) != 1 || got[0].Username != "someone" {
+		t.Errorf("username search did not find the private trainer: %+v", got)
+	}
+}
+
+func TestSearchIsCaseInsensitiveAndOrderPreserving(t *testing.T) {
+	mk := func(username, name string) mobileTrainer {
+		e := privateTrainer()
+		e.Username = username
+		e.TrainerName = name
+		e.ProfilePublic = true
+		return toMobileTrainer(e, false)
+	}
+	list := []mobileTrainer{mk("zeta", "Alpha"), mk("alpha", "Zeta"), mk("beta", "Gamma")}
+
+	got := filterMobileTrainers(list, "  ALPHA  ")
+	if len(got) != 2 {
+		t.Fatalf("matched %d, want 2 (one by username, one by trainer name)", len(got))
+	}
+	if got[0].Username != "zeta" || got[1].Username != "alpha" {
+		t.Errorf("filter reordered results: %q then %q", got[0].Username, got[1].Username)
+	}
+
+	if got := filterMobileTrainers(list, "   "); len(got) != 3 {
+		t.Errorf("a blank query filtered the list down to %d, want all 3", len(got))
+	}
+}
+
+// The rank colour is public ornamentation and already renders on a private
+// trainer's card on the website, so it must survive the privacy gate. It sits
+// above the early return; a later edit that moves it below would drop it.
+func TestRaidRankClassSurvivesThePrivacyGate(t *testing.T) {
+	in := privateTrainer()
+	in.RaidRank = "Youngster"
+	in.RaidRankClass = "youngster"
+
+	if got := toMobileTrainer(in, false); got.RaidRankClass != "youngster" {
+		t.Errorf("raid_rank_class = %q on a private profile, want it kept", got.RaidRankClass)
+	}
+}
+
+func TestClampQueryInt(t *testing.T) {
+	cases := []struct {
+		query string
+		def   int
+		max   int
+		want  int
+	}{
+		{"", 10, 100, 10},        // absent falls back
+		{"n=abc", 10, 100, 10},   // unparseable falls back rather than erroring
+		{"n=5", 10, 100, 5},      // parsed
+		{"n=-3", 10, 100, 0},     // negative clamps to 0, which out[offset:] needs
+		{"n=9999", 10, 100, 100}, // oversized clamps to the ceiling
+		{"n=0", 10, 100, 0},      // an explicit zero is honoured, not treated as absent
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(http.MethodGet, "/api/mobile/v1/trainers?"+c.query, nil)
+		if got := clampQueryInt(r, "n", c.def, 0, c.max); got != c.want {
+			t.Errorf("clampQueryInt(%q) = %d, want %d", c.query, got, c.want)
+		}
+	}
+}
+
+// ── Social lists ─────────────────────────────────────────────────────────────
+
+// MobileSocialLists and SocialPage must apply the same visibility clause. They are
+// two entry points to one screen, and the mobile one was written second, which is
+// exactly how a gate gets dropped from a copy.
+//
+// A source-level assertion rather than a live request: both handlers query, and
+// this package has no database harness. What is worth guarding is the clause
+// itself, which is text.
+//
+// The answer this pins, recorded so nobody has to re-derive it: NEITHER gates on
+// profile_public or directory_hidden. Both serve any non-disabled trainer's
+// follower and following lists to any signed-in caller, which is what the website
+// has always done. The mobile endpoint is not more permissive than the page.
+func TestSocialListsShareTheirVisibilityClause(t *testing.T) {
+	src := readHandlerSource(t, "social.go")
+
+	// The full query, not just its WHERE: the bare clause appears four times in
+	// this file, because APIGetSocialState and APIFriend resolve a target the same
+	// way. Only the two list handlers select the trainer name alongside the id.
+	const query = "SELECT id, COALESCE(trainer_name,'') FROM users WHERE username = ? AND disabled = 0"
+	if n := strings.Count(src, query); n != 2 {
+		t.Fatalf("found %d copies of the social list lookup, want exactly 2 (SocialPage and MobileSocialLists):\n  %s", n, query)
+	}
+
+	// Both must reach the lists through the same helper. A second query built by
+	// hand is how the two would diverge without either clause changing.
+	if n := strings.Count(src, "h.socialLists(targetID)"); n != 2 {
+		t.Errorf("socialLists is called %d times in social.go, want 2; one of the handlers has grown its own query", n)
+	}
+
+	// And the mobile one must still require a caller. It is the only difference
+	// between them that is meant to exist: the page is readable logged out.
+	mobile := src[strings.Index(src, "func (h *Handlers) MobileSocialLists"):]
+	if !strings.Contains(mobile[:400], "requireUserAPI") {
+		t.Error("MobileSocialLists no longer requires a caller")
 	}
 }

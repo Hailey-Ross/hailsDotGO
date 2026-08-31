@@ -923,3 +923,81 @@ SELECT id, lead_minutes, remind_at, reminded_at FROM event_subscriptions;
 ALTER TABLE user_pokemon_box
   ADD COLUMN provenance ENUM('manual','scan_web','scan_app','scan_app_attested','unknown')
       NOT NULL DEFAULT 'unknown' AFTER note;
+
+-- 52. Raid boss history, as a star schema (2026-08-31)
+-- cache/raids.json is overwritten on every refresh, so the day a rotation ends it
+-- is gone. Nothing could answer "what was in tier 5 last week" or "when did this
+-- boss last run", and the events feed prunes a rotation a day or so after it ends,
+-- which is already recorded as a source of trouble in raidschedule.go.
+--
+-- Two tables rather than one, because a flat table would repeat a boss's stats,
+-- typing, CP range and sprite on every appearance: the same few hundred bytes
+-- rewritten every couple of hours forever, and no single row to compare against
+-- when asking whether a boss has changed. So the expensive part is resolved ONCE,
+-- on first sight, and every later sighting is a narrow row pointing at it.
+--
+-- raid_boss_dim is the dimension. The natural key is (species, form, tier, shadow):
+-- the same species at tier 5 and as a Mega are different bosses with different
+-- stats, and a shadow is a different boss again.
+--
+-- appearance_count and last_seen_at are denormalised on purpose. They are the two
+-- questions asked most often about a boss, and answering either from the fact
+-- table alone is a scan.
+--
+-- Slowly changing dimension, TYPE 1: a rebalance overwrites in place and moves
+-- stats_updated_at. Type 2 versioning would let the site answer "what were this
+-- boss's stats last March", which nothing asks and which doubles the join on every
+-- read. If that is ever wanted it is additive: add valid_from/valid_to and stop
+-- overwriting.
+CREATE TABLE IF NOT EXISTS raid_boss_dim (
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  species           VARCHAR(96)  NOT NULL,
+  form              VARCHAR(64)  NOT NULL DEFAULT '',
+  tier              VARCHAR(8)   NOT NULL,
+  shadow            TINYINT(1)   NOT NULL DEFAULT 0,
+  is_mega           TINYINT(1)   NOT NULL DEFAULT 0,
+  types             VARCHAR(64)  NOT NULL DEFAULT '',
+  cp_min            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_max            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_min    INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_max    INT UNSIGNED NOT NULL DEFAULT 0,
+  image_url         VARCHAR(512) NOT NULL DEFAULT '',
+  can_be_shiny      TINYINT(1)   NOT NULL DEFAULT 0,
+  first_seen_at     DATETIME     NOT NULL,
+  last_seen_at      DATETIME     NOT NULL,
+  appearance_count  INT UNSIGNED NOT NULL DEFAULT 0,
+  stats_updated_at  DATETIME     NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_boss (species, form, tier, shadow),
+  KEY idx_raid_boss_last_seen (last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- raid_appearance_fact is the fact table: one narrow row per boss per rotation.
+--
+-- No stats, no sprite, no typing. Anything derivable by joining the dimension does
+-- not belong here.
+--
+-- The unique key is doing real work rather than being defensive decoration: the
+-- served list is rebuilt on a short ticker and on every refresh, so the same
+-- rotation is offered for recording many times over its run.
+--
+-- Retention: KEPT INDEFINITELY, on purpose. The dimension is small and permanent;
+-- this grows at roughly one row per boss per rotation, which is a few thousand rows
+-- a year. Do not add a cleanup job without deciding that history is not wanted.
+CREATE TABLE IF NOT EXISTS raid_appearance_fact (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  boss_id       INT UNSIGNED    NOT NULL,
+  window_start  DATETIME        NOT NULL,
+  window_end    DATETIME        NOT NULL,
+  event_id      VARCHAR(128)    NOT NULL DEFAULT '',
+  -- 'upstream' came from the raid feed; 'events' is a card this app built from the
+  -- rotation schedule because the feed had not listed the boss yet. Worth keeping:
+  -- a later reader should be able to tell a published boss from an inferred one.
+  source        ENUM('upstream','events') NOT NULL DEFAULT 'upstream',
+  recorded_at   DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_appearance (boss_id, window_start),
+  KEY idx_raid_appearance_window (window_start),
+  CONSTRAINT fk_raid_appearance_boss FOREIGN KEY (boss_id)
+    REFERENCES raid_boss_dim (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

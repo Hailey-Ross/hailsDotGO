@@ -113,6 +113,11 @@ func (h *Handlers) reloadShinyOverrides() {
 		})
 	}
 
+	// The manifest is assembled from these, so it has to be dropped in step with
+	// them. Before the store writes, so a request racing this rebuild can only ever
+	// rebuild too early and be re-invalidated, never cache the pre-write answer.
+	invalidateShinyDexManifest()
+
 	h.store.SetShinyOverrides(species)
 	// Rows, not a finished blob: the store resolves a passed release date on its own clock, so a
 	// form's announced day arrives on the hourly tick rather than waiting for the next admin write.

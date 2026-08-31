@@ -27,6 +27,62 @@ type trainerFeedbackEntry struct {
 	UpdatedAt      time.Time
 }
 
+// enabledFeedbackOptions loads the options a trainer is allowed to pick from, in
+// display order. Never nil, so a caller can range over it and a client always
+// gets an array.
+//
+// Extracted from TrainerProfilePage so the mobile endpoint runs the same query.
+// The admin CRUD at /api/admin/feedback-options is the only other place this list
+// existed, and that one is RequireAdmin: without this, an ordinary trainer could
+// read feedback but had no way to learn what they were allowed to say.
+func (h *Handlers) enabledFeedbackOptions() []feedbackOptionRow {
+	options := []feedbackOptionRow{}
+	rows, err := h.db.Query(`
+		SELECT id, label, sentiment, sort_order, enabled
+		FROM feedback_options WHERE enabled = 1
+		ORDER BY sort_order, id`)
+	if err != nil {
+		return options
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var o feedbackOptionRow
+		var enabledInt int
+		if rows.Scan(&o.ID, &o.Label, &o.Sentiment, &o.SortOrder, &enabledInt) == nil {
+			o.Enabled = enabledInt > 0
+			options = append(options, o)
+		}
+	}
+	return options
+}
+
+// mobileFeedbackOption is one option as a client sees it.
+//
+// A separate type from feedbackOptionRow purely to drop `enabled`. Every row this
+// endpoint serves is enabled by construction, and shipping the column invites a
+// client to filter on it, which is a filter that can only ever be wrong: an option
+// that is switched off is absent, not present and false.
+type mobileFeedbackOption struct {
+	ID        uint   `json:"id"`
+	Label     string `json:"label"`
+	Sentiment string `json:"sentiment"`
+	SortOrder int    `json:"sort_order"`
+}
+
+// MobileFeedbackOptions serves the feedback dropdown for the profile screen.
+func (h *Handlers) MobileFeedbackOptions(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireUserAPI(w, r); !ok {
+		return
+	}
+	rows := h.enabledFeedbackOptions()
+	out := make([]mobileFeedbackOption, 0, len(rows))
+	for _, o := range rows {
+		out = append(out, mobileFeedbackOption{ID: o.ID, Label: o.Label, Sentiment: o.Sentiment, SortOrder: o.SortOrder})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 // APIGetFeedback returns the feedback list for a given username (public endpoint).
 func (h *Handlers) APIGetFeedback(w http.ResponseWriter, r *http.Request) {
 	targetUsername := chi.URLParam(r, "username")

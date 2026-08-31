@@ -73,6 +73,13 @@ type ivRequest struct {
 	IsLucky       *bool  `json:"is_lucky"`       // nil = unknown; dust interpretations stay fuzzy
 	IsShadow      *bool  `json:"is_shadow"`
 	IsPurified    *bool  `json:"is_purified"`
+	// ArcLevel is the level the caller read off the power-up arc, in half-level
+	// steps. Optional, and nil means "no arc reading" rather than level zero.
+	//
+	// It exists for the arc rescue: a client that gets no candidates for the CP it
+	// scanned can re-ask with CP 0 and this set, and the solver falls back to the
+	// arc. See IVCalculate for why that cannot be done on the device.
+	ArcLevel *float64 `json:"arc_level"`
 }
 
 // dustBrackets maps the BASE stardust power-up cost to the level range it implies.
@@ -215,6 +222,13 @@ func hpForLevel(baseSta, staIV int, cpm float64) int {
 // status flags, then enumerates matching IV combinations.
 func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool) {
 	ranges := dustCandidates(req.DustCost, req.IsLucky, req.IsShadow, req.IsPurified)
+	// An arc reading narrows the sweep, and when the dust is unreadable it is the
+	// only thing bounding it at all. intersectRangesWithLevel already falls back to
+	// the bare arc window when nothing overlaps, so there is no second fallback to
+	// write here; this is the same call runOCRSearch makes for its own rescue.
+	if req.ArcLevel != nil {
+		ranges = intersectRangesWithLevel(ranges, *req.ArcLevel, 0.5)
+	}
 	return enumerateWithBuddyRetry(req, ranges, poke, cpms)
 }
 
@@ -363,9 +377,22 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	if req.PokemonName == "" || req.CP < 10 || req.CP > 50000 ||
+	// CP 0 means "unknown", which is the arc rescue below. Anything from 1 to 9 is
+	// still nonsense rather than a signal, so the floor stays: a client that means
+	// "no CP" says 0, and one that read a single digit off the screen misread it.
+	if req.PokemonName == "" || req.CP < 0 || (req.CP > 0 && req.CP < 10) || req.CP > 50000 ||
 		req.HP < 1 || req.HP > 999 || req.TrainerLevel < 1 || req.TrainerLevel > 51 {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	if req.ArcLevel != nil && (*req.ArcLevel < 1 || *req.ArcLevel > 51) {
+		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	// Nothing to solve against: no CP to match and no arc to sweep would enumerate
+	// every level for every spread and answer with noise.
+	if req.CP == 0 && req.ArcLevel == nil {
+		writeJSONError(w, "cp or arc_level is required", http.StatusBadRequest)
 		return
 	}
 
@@ -411,12 +438,20 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	candidates, buddyAssumed := enumerateIVs(req, *poke, cpms)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"candidates":         candidates,
-		"count":              len(candidates),
-		"definitive":         len(candidates) == 1,
-		"pokemon":            poke,
+		"candidates": candidates,
+		"count":      len(candidates),
+		"definitive": len(candidates) == 1,
+		"pokemon":    poke,
+		// arc_rescue says the answer came from the arc rather than from a CP.
+		//
+		// LOAD BEARING, not telemetry. The client must be able to tell the trainer
+		// that the CP on the card was CORRECTED rather than read: a silent
+		// correction is worse than none, because the card would quietly disagree
+		// with what is on their screen and never say why.
+		"arc_rescue":         req.CP == 0 && req.ArcLevel != nil,
 		"best_buddy_assumed": buddyAssumed,
 	})
 }

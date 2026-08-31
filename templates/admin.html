@@ -74,6 +74,10 @@
     <p class="admin-desc">{{T "admin.settings.reg_desc"}}</p>
     <form method="POST" action="/admin/settings" class="admin-form">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <!-- Names the key this form owns. An unchecked box sends nothing, so without
+           this the handler cannot tell "off" from "not on this form", and saving here
+           switched off every other toggle that posts to the same route. -->
+      <input type="hidden" name="_settings" value="registration_open">
       <label class="admin-toggle-label">
         <input type="checkbox" name="registration_open" value="1"
                {{if .Data.RegistrationOpen}}checked{{end}}>
@@ -167,6 +171,7 @@
     <p class="admin-desc">{{T "admin.donations.desc"}}</p>
     <form method="POST" action="/admin/settings" class="admin-form">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <input type="hidden" name="_settings" value="store_enabled">
       <label class="admin-toggle-label">
         <input type="checkbox" name="store_enabled" value="1"
                {{if .Data.StoreEnabled}}checked{{end}}>

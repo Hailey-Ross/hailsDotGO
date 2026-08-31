@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -758,4 +762,391 @@ func TestParseMegaForms(t *testing.T) {
 	if parseMegaForms(json.RawMessage(`not json`)) != nil {
 		t.Error("junk should parse to nil, so the previous data is kept")
 	}
+}
+
+// ── Pending rotations ────────────────────────────────────────────────────────
+
+// Pending used to be a count, and a count only ever reached a log line: the set
+// was discarded on every rebuild, so nothing could act on it and the only fix was
+// the next scheduled refresh, hours away, with the tier a boss short the whole
+// time. This is the same fixture as TestReconcileFallsBackToUpNextWithoutMegaData,
+// asking what the pending entry actually says.
+func TestPendingListNamesWhatItIsWaitingOn(t *testing.T) {
+	pk, err := os.ReadFile("fallback/pokemon.json")
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	ty, err := os.ReadFile("fallback/pokemon_types.json")
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	// No Mega table, so the live Mega rotation cannot be built.
+	lookup := newSpeciesLookup(json.RawMessage(pk), json.RawMessage(ty), nil)
+
+	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
+	now := utc(t, "2026-08-27T12:00:00Z")
+	_, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, now, lookup, testCPMs(t))
+
+	if len(stats.PendingList) != stats.Pending {
+		t.Fatalf("PendingList has %d entries but Pending counts %d", len(stats.PendingList), stats.Pending)
+	}
+	if len(stats.PendingList) != 1 {
+		t.Fatalf("want exactly one pending rotation, got %+v", stats.PendingList)
+	}
+
+	p := stats.PendingList[0]
+	if p.Species != "Mega Gyarados" {
+		t.Errorf("pending species = %q, want Mega Gyarados", p.Species)
+	}
+	if p.Tier != "6" {
+		t.Errorf("pending tier = %q, want 6", p.Tier)
+	}
+	if p.Reason != "mega stats not loaded" {
+		t.Errorf("pending reason = %q; an admin needs to know this is our data gap, not upstream being behind", p.Reason)
+	}
+	if p.EndsUTC.IsZero() || !p.EndsUTC.After(now) {
+		t.Errorf("pending window ends at %v, which is not in the future; it would be dropped as expired at once", p.EndsUTC)
+	}
+	if p.Expired(now) {
+		t.Error("a live rotation reports itself expired")
+	}
+	if !p.Expired(p.EndsUTC) {
+		t.Error("a rotation is not expired at its own end instant")
+	}
+}
+
+// A rotation that ended while still pending is history, not work. Keeping it would
+// hold the retry loop open forever on something that can never succeed, and the
+// backoff would never reset.
+func TestSetRaidsPendingDropsExpiredAndPersists(t *testing.T) {
+	s := New()
+	s.cacheDir = t.TempDir()
+
+	// Anchored to the wall clock, not a fixed date: RaidsPending filters against
+	// time.Now() on purpose, because a rotation expires while the process runs and
+	// not only when something rebuilds. A fixed date here would be expired by the
+	// time anyone ran the test.
+	now := time.Now().UTC()
+	live := RaidPending{Species: "Mega Gyarados", Tier: "6", Reason: "mega stats not loaded",
+		StartsUTC: now.Add(-time.Hour), EndsUTC: now.Add(time.Hour)}
+	over := RaidPending{Species: "Mega Swampert", Tier: "6", Reason: "mega stats not loaded",
+		StartsUTC: now.Add(-48 * time.Hour), EndsUTC: now.Add(-24 * time.Hour)}
+
+	s.mu.Lock()
+	s.setRaidsPendingLocked([]RaidPending{live, over}, now)
+	s.mu.Unlock()
+	s.persistRaidsPending()
+
+	got := s.RaidsPending()
+	if len(got) != 1 || got[0].Species != "Mega Gyarados" {
+		t.Fatalf("pending = %+v, want only the live rotation", got)
+	}
+
+	// Persisted, so a restart does not forget what it was waiting for.
+	raw, err := os.ReadFile(filepath.Join(s.cacheDir, raidsPendingFile))
+	if err != nil {
+		t.Fatalf("pending set was not written to disk: %v", err)
+	}
+	var round []RaidPending
+	if err := json.Unmarshal(raw, &round); err != nil {
+		t.Fatalf("pending cache is not readable JSON: %v", err)
+	}
+	if len(round) != 1 || round[0].Species != "Mega Gyarados" {
+		t.Errorf("round tripped %+v, want the live rotation", round)
+	}
+
+	// And an emptied set is written too, or the next boot reads back a stale one.
+	s.mu.Lock()
+	s.setRaidsPendingLocked(nil, now)
+	s.mu.Unlock()
+	s.persistRaidsPending()
+	if got := s.RaidsPending(); len(got) != 0 {
+		t.Errorf("pending = %+v after clearing, want empty", got)
+	}
+	s2 := New()
+	s2.cacheDir = s.cacheDir
+	s2.loadRaidsPending()
+	if got := s2.RaidsPending(); len(got) != 0 {
+		t.Errorf("a restart read back %+v from an emptied cache", got)
+	}
+}
+
+func TestLoadRaidsPendingRestoresAcrossARestart(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now().UTC()
+
+	s := New()
+	s.cacheDir = dir
+	s.mu.Lock()
+	s.setRaidsPendingLocked([]RaidPending{{
+		Species: "Mega Latios", Tier: "6", Reason: "mega stats not loaded",
+		StartsUTC: now.Add(-time.Hour), EndsUTC: now.Add(6 * time.Hour),
+	}}, now)
+	s.mu.Unlock()
+	s.persistRaidsPending()
+
+	restarted := New()
+	restarted.cacheDir = dir
+	restarted.loadRaidsPending()
+
+	got := restarted.RaidsPending()
+	if len(got) != 1 || got[0].Species != "Mega Latios" {
+		t.Fatalf("after a restart pending = %+v, want the Mega Latios rotation", got)
+	}
+	if got[0].Reason == "" {
+		t.Error("the reason did not survive the round trip, so the retry cannot tell what to refetch")
+	}
+}
+
+func TestPendingSummary(t *testing.T) {
+	if got := pendingSummary(nil); got != "" {
+		t.Errorf("empty set summarised as %q", got)
+	}
+
+	one := []RaidPending{{Species: "Mega Gyarados", Reason: "mega stats not loaded"}}
+	if got := pendingSummary(one); got != "Mega Gyarados: mega stats not loaded" {
+		t.Errorf("summary = %q", got)
+	}
+
+	// Capped, because this lands on one line in the admin panel and a changeover
+	// can leave a whole tier pending at once. The count in the sentence before it
+	// carries the total.
+	many := make([]RaidPending, 6)
+	for i := range many {
+		many[i] = RaidPending{Species: "Boss", Reason: "species unknown"}
+	}
+	got := pendingSummary(many)
+	if !strings.Contains(got, "and 3 more") {
+		t.Errorf("summary = %q, want the tail collapsed", got)
+	}
+	if strings.Count(got, "Boss:") != 3 {
+		t.Errorf("summary named %d bosses, want 3 then a count", strings.Count(got, "Boss:"))
+	}
+}
+
+func TestIsMegaName(t *testing.T) {
+	for name, want := range map[string]bool{
+		"Mega Gyarados":  true,
+		"mega latios":    true,
+		"Primal Groudon": true,
+		"Gyarados":       false,
+		"Shadow Mewtwo":  false,
+		"Megalith":       false, // prefix match must not fire on a name that merely starts with the letters
+		"":               false,
+	} {
+		if got := isMegaName(name); got != want {
+			t.Errorf("isMegaName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// ── Archive export ───────────────────────────────────────────────────────────
+
+// RaidArchiveRows is what the warehouse writes from. It must read the SERVED list,
+// not upstream: what is worth recording is what trainers actually saw, and after
+// reconciliation those are not the same list.
+func TestRaidArchiveRowsReadTheServedList(t *testing.T) {
+	pk, err := os.ReadFile("fallback/pokemon.json")
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+	ty, err := os.ReadFile("fallback/pokemon_types.json")
+	if err != nil {
+		t.Fatalf("read fallback: %v", err)
+	}
+
+	s := New()
+	s.cacheDir = t.TempDir()
+	s.mu.Lock()
+	s.applyResult("pokemon", json.RawMessage(pk))
+	s.applyResult("pokemon_types", json.RawMessage(ty))
+	s.applyResult("events", json.RawMessage(changeoverEvents))
+	s.applyResult("raids", json.RawMessage(staleUpstream))
+	s.rebuildRaidsLocked()
+	s.mu.Unlock()
+
+	rows := s.RaidArchiveRows()
+	if len(rows) == 0 {
+		t.Fatal("no archive rows from a served list that has bosses in it")
+	}
+
+	byName := map[string]RaidArchiveRow{}
+	for _, r := range rows {
+		byName[r.Species] = r
+	}
+
+	// The expired boss was dropped from the served list, so it must not be
+	// archived: recording it would claim it ran when it did not.
+	if _, present := byName["Mega Swampert"]; present {
+		t.Error("an expired boss reached the archive; it is not in the served list")
+	}
+
+	// A live 5 star boss is there, with a resolved window it can be keyed on.
+	regirock, ok := byName["Regirock"]
+	if !ok {
+		t.Fatalf("Regirock is served but absent from the archive rows: %v", names5(rows))
+	}
+	if !regirock.HasWindow() {
+		t.Error("a governed rotation has no resolved window, so it cannot be recorded as an appearance")
+	}
+	if regirock.WindowEnd.Before(regirock.WindowStart) {
+		t.Error("window ends before it starts")
+	}
+	if regirock.Tier != "5" {
+		t.Errorf("Regirock tier = %q, want 5", regirock.Tier)
+	}
+	if len(regirock.Types) == 0 {
+		t.Error("no typing, so the dimension row would be written blank on first sight")
+	}
+	if regirock.Source == "" {
+		t.Error("no source, so a later reader cannot tell a published boss from an inferred one")
+	}
+
+	// Stable order, so a diff of two runs reads as a diff and not a reshuffle.
+	for i := 1; i < len(rows); i++ {
+		a, b := rows[i-1], rows[i]
+		if a.Tier > b.Tier || (a.Tier == b.Tier && a.Species > b.Species) {
+			t.Fatalf("archive rows are not sorted: %q/%q then %q/%q", a.Tier, a.Species, b.Tier, b.Species)
+		}
+	}
+}
+
+// A boss no rotation describes still identifies something worth remembering, but
+// there is no window to key an appearance on. Inventing one would put a row in the
+// fact table recording something that did not happen.
+func TestArchiveRowWithoutAWindowIsNotAnAppearance(t *testing.T) {
+	r := RaidArchiveRow{Species: "Mewtwo", Tier: "1"}
+	if r.HasWindow() {
+		t.Error("a row with no window claims it can be recorded as an appearance")
+	}
+	r.WindowStart = time.Now()
+	if r.HasWindow() {
+		t.Error("a half-resolved window counts as a window")
+	}
+	r.WindowEnd = r.WindowStart.Add(time.Hour)
+	if !r.HasWindow() {
+		t.Error("a fully resolved window is not recognised")
+	}
+}
+
+// names5 lists what came back, for a failure message worth reading.
+func names5(rows []RaidArchiveRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.Tier+":"+r.Species)
+	}
+	return out
+}
+
+// A rebuild is a pure in-memory operation. Several tests drive rebuildRaidsLocked
+// directly on a store with no cache directory, and this used to scatter a
+// raids_pending.json through the package directory when persistence lived inside
+// setRaidsPendingLocked.
+func TestRebuildDoesNotWriteThePendingCache(t *testing.T) {
+	s := New()
+	s.cacheDir = "" // no cache directory at all, the state a test-built store is in
+
+	s.mu.Lock()
+	s.setRaidsPendingLocked([]RaidPending{{
+		Species: "Mega Latios", EndsUTC: time.Now().Add(time.Hour),
+	}}, time.Now())
+	s.mu.Unlock()
+
+	// Held in memory...
+	if got := s.RaidsPending(); len(got) != 1 {
+		t.Fatalf("pending = %+v, want the entry held in memory", got)
+	}
+	// ...and persisting is a no-op rather than a write to the working directory.
+	s.persistRaidsPending()
+	if _, err := os.Stat(raidsPendingFile); err == nil {
+		os.Remove(raidsPendingFile)
+		t.Errorf("a store with no cache directory wrote %s into the working directory", raidsPendingFile)
+	}
+}
+
+// Every path that rebuilds the served raid list must tell whoever is listening,
+// or the raid history silently stops recording.
+//
+// This started as one missed call in CheckScrapers and turned out to be three:
+// refreshMegas (a pending Mega becomes a real card), refreshEvents (the schedule
+// IS who is live, and it refreshes every 30 minutes) and CheckScrapers itself.
+// Each was a rebuild whose result nothing downstream ever heard about, and the
+// symptom was not an error: it was a history with gaps in it, noticed weeks later
+// if at all.
+//
+// A source-level assertion because the alternative is a fake store and a fake
+// clock to observe a callback, which would test the harness more than the code.
+// internal/server guards its route table the same way.
+func TestEveryRaidRebuildNotifies(t *testing.T) {
+	src := readPogodataSource(t, "pogodata.go") + "\n" + readPogodataSource(t, "raidschedule.go")
+
+	// The two boot paths hold s.mu across their whole body and cannot unlock to
+	// notify. They do not need to: handlers.StartRaidHistory archives once at
+	// startup precisely because a boot that serves the disk cache unchanged has
+	// no rebuild to hook. Anything else added to this list needs the same kind of
+	// reason written down beside it.
+	exempt := map[string]string{
+		"loadFromCache": "boot; holds the lock for its whole body, and StartRaidHistory archives at startup",
+		"loadFallback":  "boot; same as loadFromCache",
+	}
+
+	funcRe := regexp.MustCompile(`^func (?:\(s \*Store\) )?(\w+)\(`)
+	var current string
+	bodies := map[string][]string{}
+	order := []string{}
+	for _, line := range strings.Split(src, "\n") {
+		if m := funcRe.FindStringSubmatch(line); m != nil {
+			current = m[1]
+			if _, seen := bodies[current]; !seen {
+				order = append(order, current)
+			}
+		}
+		if current != "" {
+			bodies[current] = append(bodies[current], line)
+		}
+	}
+
+	checked := 0
+	for _, name := range order {
+		body := strings.Join(bodies[name], "\n")
+		if !strings.Contains(body, "s.rebuildRaidsLocked()") {
+			continue
+		}
+		// The definition of the helper itself, and the ones that only mention it
+		// in prose, are not call sites.
+		if name == "rebuildRaidsLocked" {
+			continue
+		}
+		checked++
+		if why, ok := exempt[name]; ok {
+			if strings.Contains(body, "s.notifyRaidsApplied()") {
+				t.Errorf("%s is on the exempt list (%s) but now notifies; remove it from the list", name, why)
+			}
+			continue
+		}
+		if !strings.Contains(body, "s.notifyRaidsApplied()") {
+			t.Errorf("%s rebuilds the served raid list without calling notifyRaidsApplied, so the raid history will not see it", name)
+		}
+	}
+
+	// A guard that checks nothing is worse than no guard: it passes forever while
+	// the thing it was written for quietly stops existing.
+	if checked < 4 {
+		t.Fatalf("only found %d rebuild sites; this test has stopped matching the code it guards", checked)
+	}
+	t.Logf("checked %d raid rebuild sites", checked)
+}
+
+// readPogodataSource returns one file from this package as text.
+func readPogodataSource(t *testing.T, name string) string {
+	t.Helper()
+	_, self, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("could not locate this test file")
+	}
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(self), name))
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return strings.ReplaceAll(string(raw), "\r\n", "\n")
 }

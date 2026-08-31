@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -285,6 +288,167 @@ func TestMaxPowerUpLevel(t *testing.T) {
 	}{{30, 40}, {38, 48}, {40, 50}, {46, 50}, {50, 50}} {
 		if got := maxPowerUpLevel(tc.tl); got != tc.want {
 			t.Errorf("maxPowerUpLevel(%d) = %v, want %v", tc.tl, got, tc.want)
+		}
+	}
+}
+
+// ── Arc rescue ───────────────────────────────────────────────────────────────
+
+// The arc rescue exists because the device cannot do it. Server-assisted scanning
+// was removed from the app on 2026-08-31, and with it went the one thing that
+// caught a MISREAD CP: the solver finding no spread for the scanned CP, discarding
+// it, and re-solving against the arc level the device had read.
+//
+// The device's own CP_FROM_ARC only covers unreadable CP digits. It does nothing
+// when they are readable and wrong, so without this a misread CP produces an empty
+// candidate list with no explanation.
+// intersectRangesWithLevel is what the arc rescue is built on, and it had no test
+// of its own until it started backing a public endpoint.
+//
+// The third case is the one that matters most and the one the mobile handoff asked
+// for a second, separate fallback for: when the arc reading and the dust reading
+// disagree completely, the arc STANDS ALONE. That fallback is already in here, so
+// adding another outside it would widen the window twice.
+func TestIntersectRangesWithLevel(t *testing.T) {
+	dust3000 := []levelRange{{MinLvl: 21, MaxLvl: 22.5}}
+
+	// Overlapping: the window is clipped to the intersection.
+	got := intersectRangesWithLevel(dust3000, 21, 0.5)
+	if len(got) != 1 || got[0].MinLvl != 21 || got[0].MaxLvl != 21.5 {
+		t.Errorf("overlapping arc gave %+v, want a single 21 to 21.5 window", got)
+	}
+
+	// Non-overlapping: the arc window replaces the dust window entirely.
+	got = intersectRangesWithLevel(dust3000, 40, 0.5)
+	if len(got) != 1 || got[0].MinLvl != 39.5 || got[0].MaxLvl != 40.5 {
+		t.Errorf("non-overlapping arc gave %+v, want the bare 39.5 to 40.5 window", got)
+	}
+
+	// No dust reading at all: same fallback, which is the case where the arc is
+	// the only thing bounding the sweep.
+	got = intersectRangesWithLevel(nil, 15, 0.5)
+	if len(got) != 1 || got[0].MinLvl != 14.5 || got[0].MaxLvl != 15.5 {
+		t.Errorf("arc with no dust gave %+v, want 14.5 to 15.5", got)
+	}
+
+	// Level 1 is the floor: a level 1 Pokemon must not sweep from 0.5.
+	got = intersectRangesWithLevel(nil, 1, 0.5)
+	if got[0].MinLvl != 1 {
+		t.Errorf("arc at level 1 swept from %v, want a floor of 1", got[0].MinLvl)
+	}
+}
+
+// The end to end wiring: an arc reading supplied to a CP-free solve reaches the
+// enumerator and bounds it.
+//
+// The data is the same Machamp the other tests use, whose HP of 140 is reachable
+// only at the top of the 3000-dust bracket. That matters: an arc level
+// inconsistent with the HP finds nothing on the first pass and the Best Buddy
+// retry shifts the window a level, which looks exactly like the arc being ignored.
+func TestArcLevelIsAppliedToACPFreeSolve(t *testing.T) {
+	cpms := loadCPMs(t)
+
+	arc := 22.5
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 0, HP: 140, DustCost: 3000, TrainerLevel: 46,
+		IsLucky: boolPtr(false), IsShadow: boolPtr(false), IsPurified: boolPtr(false),
+		ArcLevel: &arc,
+	}
+	candidates, buddy := enumerateIVs(req, machamp, cpms)
+	if buddy {
+		t.Fatal("the Best Buddy retry fired, so the first pass found nothing and this is not testing the arc window")
+	}
+	if len(candidates) == 0 {
+		t.Fatal("an arc-bounded CP-free solve returned nothing")
+	}
+
+	// 3000 dust alone spans 21 to 22.5; the arc cuts the bottom off at 22.
+	for _, c := range candidates {
+		if c.Level < 22 || c.Level > 22.5 {
+			t.Errorf("candidate outside the arc-narrowed window: %+v", c)
+		}
+		if c.CP <= 0 {
+			t.Errorf("candidate missing its computed CP, which is the value the client adopts: %+v", c)
+		}
+	}
+
+	// And the real spread is still in there, which is the point: the rescue has to
+	// recover the answer, not just a smaller wrong set.
+	for _, c := range candidates {
+		if c.AtkIV == 15 && c.DefIV == 15 && c.StaIV == 15 && c.Level == 22.5 && c.CP == 1964 {
+			return
+		}
+	}
+	t.Error("the hundo the scanned CP would have matched is not among the rescued candidates")
+}
+
+// An arc reading must not change an ordinary solve that already agrees with it.
+func TestArcLevelLeavesAMatchingSolveAlone(t *testing.T) {
+	cpms := loadCPMs(t)
+
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 1964, HP: 140, DustCost: 3000, TrainerLevel: 46,
+	}
+	without, _ := enumerateIVs(req, machamp, cpms)
+
+	arc := 22.5
+	req.ArcLevel = &arc
+	with, _ := enumerateIVs(req, machamp, cpms)
+
+	if len(with) == 0 {
+		t.Fatal("adding an agreeing arc reading emptied the candidate set")
+	}
+	for _, c := range with {
+		if c.AtkIV == 15 && c.DefIV == 15 && c.StaIV == 15 && c.Level == 22.5 {
+			return
+		}
+	}
+	t.Errorf("the hundo at 22.5 fell out when an agreeing arc level was supplied (%d without, %d with)", len(without), len(with))
+}
+
+// The request bounds, checked before the store is ever consulted, so a bare
+// Handlers is enough to drive them.
+//
+// CP 0 is now legal and means "unknown", which is what makes the arc rescue
+// possible. Everything else about the old bound stays: 1 through 9 is a misread
+// digit rather than a signal, and something has to constrain the sweep.
+func TestIVCalculateRequestBounds(t *testing.T) {
+	h := &Handlers{}
+
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"cp 0 with an arc level is the rescue", `{"pokemon_name":"Machamp","cp":0,"hp":140,"trainer_level":46,"arc_level":22.5}`, 0},
+		{"cp 0 with no arc level has nothing to solve against", `{"pokemon_name":"Machamp","cp":0,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+		{"a single digit cp is a misread, not a signal", `{"pokemon_name":"Machamp","cp":7,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+		{"cp 9 is still refused", `{"pokemon_name":"Machamp","cp":9,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+		{"cp 10 is the floor and is accepted", `{"pokemon_name":"Machamp","cp":10,"hp":140,"trainer_level":46}`, 0},
+		{"a negative cp is refused", `{"pokemon_name":"Machamp","cp":-5,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+		{"an absurd cp is refused", `{"pokemon_name":"Machamp","cp":50001,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+		{"an arc level below 1 is refused", `{"pokemon_name":"Machamp","cp":0,"hp":140,"trainer_level":46,"arc_level":0.5}`, http.StatusBadRequest},
+		{"an arc level above 51 is refused", `{"pokemon_name":"Machamp","cp":0,"hp":140,"trainer_level":46,"arc_level":52}`, http.StatusBadRequest},
+		{"no name is refused", `{"pokemon_name":"","cp":1964,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+	}
+
+	for _, c := range cases {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/mobile/v1/iv/calculate", strings.NewReader(c.body))
+
+		// A request that passes validation goes on to read the store, which a bare
+		// Handlers does not have. Only the refusals can be driven to completion
+		// here, so an accepted request is recognised by NOT being a 400.
+		func() {
+			defer func() { recover() }()
+			h.IVCalculate(w, r)
+		}()
+
+		if c.want == http.StatusBadRequest && w.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", c.name, w.Code)
+		}
+		if c.want == 0 && w.Code == http.StatusBadRequest {
+			t.Errorf("%s: refused with 400 and body %s", c.name, w.Body.String())
 		}
 	}
 }
