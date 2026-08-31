@@ -706,6 +706,60 @@ CREATE TABLE IF NOT EXISTS bug_report_label_map (
   CONSTRAINT fk_brlm_label  FOREIGN KEY (label_id)  REFERENCES bug_report_labels (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Raid boss history, warehoused as a star schema.
+--
+-- The dimension holds everything expensive to resolve about a boss (stats, typing,
+-- CP range, sprite), written ONCE on first sight. The fact table holds one narrow
+-- row per boss per rotation. A flat table would repeat the whole dimension on
+-- every appearance, rewriting the same few hundred bytes every couple of hours
+-- forever, and leave no single row to compare against when asking whether a boss
+-- has been rebalanced.
+--
+-- Slowly changing dimension, type 1: a rebalance overwrites in place and moves
+-- stats_updated_at. See migrate.sql section 52 for why type 2 was not used.
+CREATE TABLE IF NOT EXISTS raid_boss_dim (
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  species           VARCHAR(96)  NOT NULL,
+  form              VARCHAR(64)  NOT NULL DEFAULT '',
+  tier              VARCHAR(8)   NOT NULL,
+  shadow            TINYINT(1)   NOT NULL DEFAULT 0,
+  is_mega           TINYINT(1)   NOT NULL DEFAULT 0,
+  types             VARCHAR(64)  NOT NULL DEFAULT '',
+  cp_min            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_max            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_min    INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_max    INT UNSIGNED NOT NULL DEFAULT 0,
+  image_url         VARCHAR(512) NOT NULL DEFAULT '',
+  can_be_shiny      TINYINT(1)   NOT NULL DEFAULT 0,
+  first_seen_at     DATETIME     NOT NULL,
+  last_seen_at      DATETIME     NOT NULL,
+  appearance_count  INT UNSIGNED NOT NULL DEFAULT 0,
+  stats_updated_at  DATETIME     NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_boss (species, form, tier, shadow),
+  KEY idx_raid_boss_last_seen (last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per boss per rotation. No stats, no sprite, no typing: anything
+-- derivable by joining the dimension does not belong here.
+--
+-- Retention: kept indefinitely, on purpose. A few thousand rows a year. Do not add
+-- a cleanup job without first deciding that the history is not wanted.
+CREATE TABLE IF NOT EXISTS raid_appearance_fact (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  boss_id       INT UNSIGNED    NOT NULL,
+  window_start  DATETIME        NOT NULL,
+  window_end    DATETIME        NOT NULL,
+  event_id      VARCHAR(128)    NOT NULL DEFAULT '',
+  source        ENUM('upstream','events') NOT NULL DEFAULT 'upstream',
+  recorded_at   DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_appearance (boss_id, window_start),
+  KEY idx_raid_appearance_window (window_start),
+  CONSTRAINT fk_raid_appearance_boss FOREIGN KEY (boss_id)
+    REFERENCES raid_boss_dim (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Migration history baseline (regenerate with: go run ./cmd/migrate -dump-seed)
 -- A fresh install is current, so every migrate.sql section is recorded as
 -- applied. The migrate tool reads this to know what is already in place.
@@ -766,7 +820,9 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)'),
   (48, 'Room for every language a translator applicant can list (2026-08-27)'),
   (49, 'Event reminder subscriptions (2026-08-27)'),
-  (50, 'Several reminders per event subscription (2026-08-27)');
+  (50, 'Several reminders per event subscription (2026-08-27)'),
+  (51, 'Where a boxed Pokemon came from (2026-08-30)'),
+  (52, 'Raid boss history, as a star schema (2026-08-31)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

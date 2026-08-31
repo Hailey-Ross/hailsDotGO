@@ -49,273 +49,273 @@ func init() {
 }
 
 var showdownModernClasses = []TrainerClass{
-	{Slug: "youngster",    Label: "Youngster",    SpriteURL: showdownBase + "youngster.png"},
-	{Slug: "lass",         Label: "Lass",          SpriteURL: showdownBase + "lass.png"},
-	{Slug: "bug-catcher",  Label: "Bug Catcher",   SpriteURL: showdownBase + "bugcatcher.png"},
-	{Slug: "biker",        Label: "Biker",          SpriteURL: showdownBase + "biker.png"},
-	{Slug: "blackbelt",    Label: "Black Belt",     SpriteURL: showdownBase + "blackbelt.png"},
-	{Slug: "hiker",        Label: "Hiker",          SpriteURL: showdownBase + "hiker.png"},
-	{Slug: "fisherman",    Label: "Fisherman",      SpriteURL: showdownBase + "fisherman.png"},
-	{Slug: "sailor",       Label: "Sailor",         SpriteURL: showdownBase + "sailor.png"},
-	{Slug: "firebreather", Label: "Fire Breather",  SpriteURL: showdownBase + "firebreather.png"},
-	{Slug: "birdkeeper",   Label: "Bird Keeper",    SpriteURL: showdownBase + "birdkeeper.png"},
-	{Slug: "juggler",      Label: "Juggler",        SpriteURL: showdownBase + "juggler.png"},
-	{Slug: "gambler",      Label: "Gambler",        SpriteURL: showdownBase + "gambler.png"},
-	{Slug: "burglar",      Label: "Burglar",        SpriteURL: showdownBase + "burglar.png"},
-	{Slug: "beauty",       Label: "Beauty",         SpriteURL: showdownBase + "beauty.png"},
-	{Slug: "picnicker",    Label: "Picnicker",      SpriteURL: showdownBase + "picnicker.png"},
-	{Slug: "camper",       Label: "Camper",         SpriteURL: showdownBase + "camper.png"},
-	{Slug: "swimmer",      Label: "Swimmer",        SpriteURL: showdownBase + "swimmer.png"},
-	{Slug: "battlegirl",   Label: "Battle Girl",    SpriteURL: showdownBase + "battlegirl.png"},
-	{Slug: "dancer",       Label: "Dancer",         SpriteURL: showdownBase + "dancer.png"},
-	{Slug: "psychic",      Label: "Psychic",        SpriteURL: showdownBase + "psychic.png"},
-	{Slug: "ace-trainer",  Label: "Ace Trainer",    SpriteURL: showdownBase + "acetrainer.png"},
-	{Slug: "dragontamer",  Label: "Dragon Tamer",   SpriteURL: showdownBase + "dragontamer.png"},
-	{Slug: "pokemaniac",   Label: "Pokemaniac",     SpriteURL: showdownBase + "pokemaniac.png"},
-	{Slug: "super-nerd",   Label: "Super Nerd",     SpriteURL: showdownBase + "supernerd.png"},
-	{Slug: "gentleman",    Label: "Gentleman",      SpriteURL: showdownBase + "gentleman.png"},
-	{Slug: "medium",       Label: "Medium",         SpriteURL: showdownBase + "medium.png"},
-	{Slug: "worker",       Label: "Worker",         SpriteURL: showdownBase + "worker.png"},
+	{Slug: "youngster", Label: "Youngster", SpriteURL: showdownBase + "youngster.png"},
+	{Slug: "lass", Label: "Lass", SpriteURL: showdownBase + "lass.png"},
+	{Slug: "bug-catcher", Label: "Bug Catcher", SpriteURL: showdownBase + "bugcatcher.png"},
+	{Slug: "biker", Label: "Biker", SpriteURL: showdownBase + "biker.png"},
+	{Slug: "blackbelt", Label: "Black Belt", SpriteURL: showdownBase + "blackbelt.png"},
+	{Slug: "hiker", Label: "Hiker", SpriteURL: showdownBase + "hiker.png"},
+	{Slug: "fisherman", Label: "Fisherman", SpriteURL: showdownBase + "fisherman.png"},
+	{Slug: "sailor", Label: "Sailor", SpriteURL: showdownBase + "sailor.png"},
+	{Slug: "firebreather", Label: "Fire Breather", SpriteURL: showdownBase + "firebreather.png"},
+	{Slug: "birdkeeper", Label: "Bird Keeper", SpriteURL: showdownBase + "birdkeeper.png"},
+	{Slug: "juggler", Label: "Juggler", SpriteURL: showdownBase + "juggler.png"},
+	{Slug: "gambler", Label: "Gambler", SpriteURL: showdownBase + "gambler.png"},
+	{Slug: "burglar", Label: "Burglar", SpriteURL: showdownBase + "burglar.png"},
+	{Slug: "beauty", Label: "Beauty", SpriteURL: showdownBase + "beauty.png"},
+	{Slug: "picnicker", Label: "Picnicker", SpriteURL: showdownBase + "picnicker.png"},
+	{Slug: "camper", Label: "Camper", SpriteURL: showdownBase + "camper.png"},
+	{Slug: "swimmer", Label: "Swimmer", SpriteURL: showdownBase + "swimmer.png"},
+	{Slug: "battlegirl", Label: "Battle Girl", SpriteURL: showdownBase + "battlegirl.png"},
+	{Slug: "dancer", Label: "Dancer", SpriteURL: showdownBase + "dancer.png"},
+	{Slug: "psychic", Label: "Psychic", SpriteURL: showdownBase + "psychic.png"},
+	{Slug: "ace-trainer", Label: "Ace Trainer", SpriteURL: showdownBase + "acetrainer.png"},
+	{Slug: "dragontamer", Label: "Dragon Tamer", SpriteURL: showdownBase + "dragontamer.png"},
+	{Slug: "pokemaniac", Label: "Pokemaniac", SpriteURL: showdownBase + "pokemaniac.png"},
+	{Slug: "super-nerd", Label: "Super Nerd", SpriteURL: showdownBase + "supernerd.png"},
+	{Slug: "gentleman", Label: "Gentleman", SpriteURL: showdownBase + "gentleman.png"},
+	{Slug: "medium", Label: "Medium", SpriteURL: showdownBase + "medium.png"},
+	{Slug: "worker", Label: "Worker", SpriteURL: showdownBase + "worker.png"},
 
 	// -- Villains & Team Bosses --
-	{Slug: "giovanni",  Label: "Giovanni",        SpriteURL: showdownBase + "giovanni.png"},
-	{Slug: "cyrus",     Label: "Cyrus",            SpriteURL: showdownBase + "cyrus.png"},
-	{Slug: "ghetsis",   Label: "Ghetsis",          SpriteURL: showdownBase + "ghetsis.png"},
-	{Slug: "lysandre",  Label: "Lysandre",         SpriteURL: showdownBase + "lysandre.png"},
-	{Slug: "lusamine",  Label: "Lusamine",         SpriteURL: showdownBase + "lusamine.png"},
-	{Slug: "guzma",     Label: "Guzma",            SpriteURL: showdownBase + "guzma.png"},
-	{Slug: "rose",      Label: "Chairman Rose",    SpriteURL: showdownBase + "rose.png"},
-	{Slug: "volo",      Label: "Volo",             SpriteURL: showdownBase + "volo.png"},
+	{Slug: "giovanni", Label: "Giovanni", SpriteURL: showdownBase + "giovanni.png"},
+	{Slug: "cyrus", Label: "Cyrus", SpriteURL: showdownBase + "cyrus.png"},
+	{Slug: "ghetsis", Label: "Ghetsis", SpriteURL: showdownBase + "ghetsis.png"},
+	{Slug: "lysandre", Label: "Lysandre", SpriteURL: showdownBase + "lysandre.png"},
+	{Slug: "lusamine", Label: "Lusamine", SpriteURL: showdownBase + "lusamine.png"},
+	{Slug: "guzma", Label: "Guzma", SpriteURL: showdownBase + "guzma.png"},
+	{Slug: "rose", Label: "Chairman Rose", SpriteURL: showdownBase + "rose.png"},
+	{Slug: "volo", Label: "Volo", SpriteURL: showdownBase + "volo.png"},
 
 	// -- Rivals --
-	{Slug: "blue",      Label: "Blue",             SpriteURL: showdownBase + "blue.png"},
-	{Slug: "silver",    Label: "Silver",           SpriteURL: showdownBase + "silver.png"},
-	{Slug: "wally",     Label: "Wally",            SpriteURL: showdownBase + "wally.png"},
-	{Slug: "barry",     Label: "Barry",            SpriteURL: showdownBase + "barry.png"},
-	{Slug: "cheren",    Label: "Cheren",           SpriteURL: showdownBase + "cheren.png"},
-	{Slug: "bianca",    Label: "Bianca",           SpriteURL: showdownBase + "bianca.png"},
-	{Slug: "hugh",      Label: "Hugh",             SpriteURL: showdownBase + "hugh.png"},
-	{Slug: "calem",     Label: "Calem",            SpriteURL: showdownBase + "calem.png"},
-	{Slug: "serena",    Label: "Serena",           SpriteURL: showdownBase + "serena.png"},
-	{Slug: "hop",       Label: "Hop",              SpriteURL: showdownBase + "hop.png"},
-	{Slug: "bede",      Label: "Bede",             SpriteURL: showdownBase + "bede.png"},
-	{Slug: "marnie",    Label: "Marnie",           SpriteURL: showdownBase + "marnie.png"},
-	{Slug: "kieran",    Label: "Kieran",           SpriteURL: showdownBase + "kieran.png"},
+	{Slug: "blue", Label: "Blue", SpriteURL: showdownBase + "blue.png"},
+	{Slug: "silver", Label: "Silver", SpriteURL: showdownBase + "silver.png"},
+	{Slug: "wally", Label: "Wally", SpriteURL: showdownBase + "wally.png"},
+	{Slug: "barry", Label: "Barry", SpriteURL: showdownBase + "barry.png"},
+	{Slug: "cheren", Label: "Cheren", SpriteURL: showdownBase + "cheren.png"},
+	{Slug: "bianca", Label: "Bianca", SpriteURL: showdownBase + "bianca.png"},
+	{Slug: "hugh", Label: "Hugh", SpriteURL: showdownBase + "hugh.png"},
+	{Slug: "calem", Label: "Calem", SpriteURL: showdownBase + "calem.png"},
+	{Slug: "serena", Label: "Serena", SpriteURL: showdownBase + "serena.png"},
+	{Slug: "hop", Label: "Hop", SpriteURL: showdownBase + "hop.png"},
+	{Slug: "bede", Label: "Bede", SpriteURL: showdownBase + "bede.png"},
+	{Slug: "marnie", Label: "Marnie", SpriteURL: showdownBase + "marnie.png"},
+	{Slug: "kieran", Label: "Kieran", SpriteURL: showdownBase + "kieran.png"},
 
 	// -- Named Side Characters --
-	{Slug: "n",         Label: "N",                SpriteURL: showdownBase + "n.png"},
-	{Slug: "colress",   Label: "Colress",          SpriteURL: showdownBase + "colress.png"},
-	{Slug: "gladion",   Label: "Gladion",          SpriteURL: showdownBase + "gladion.png"},
-	{Slug: "lillie",    Label: "Lillie",           SpriteURL: showdownBase + "lillie.png"},
-	{Slug: "hau",       Label: "Hau",              SpriteURL: showdownBase + "hau.png"},
-	{Slug: "plumeria",  Label: "Plumeria",         SpriteURL: showdownBase + "plumeria.png"},
-	{Slug: "sonia",     Label: "Sonia",            SpriteURL: showdownBase + "sonia.png"},
-	{Slug: "penny",     Label: "Penny",            SpriteURL: showdownBase + "penny.png"},
+	{Slug: "n", Label: "N", SpriteURL: showdownBase + "n.png"},
+	{Slug: "colress", Label: "Colress", SpriteURL: showdownBase + "colress.png"},
+	{Slug: "gladion", Label: "Gladion", SpriteURL: showdownBase + "gladion.png"},
+	{Slug: "lillie", Label: "Lillie", SpriteURL: showdownBase + "lillie.png"},
+	{Slug: "hau", Label: "Hau", SpriteURL: showdownBase + "hau.png"},
+	{Slug: "plumeria", Label: "Plumeria", SpriteURL: showdownBase + "plumeria.png"},
+	{Slug: "sonia", Label: "Sonia", SpriteURL: showdownBase + "sonia.png"},
+	{Slug: "penny", Label: "Penny", SpriteURL: showdownBase + "penny.png"},
 
 	// -- Champions & Elite Four --
-	{Slug: "cynthia",   Label: "Cynthia",          SpriteURL: showdownBase + "cynthia.png"},
-	{Slug: "diantha",   Label: "Diantha",          SpriteURL: showdownBase + "diantha.png"},
-	{Slug: "iris",      Label: "Iris",             SpriteURL: showdownBase + "iris.png"},
-	{Slug: "alder",     Label: "Alder",            SpriteURL: showdownBase + "alder.png"},
-	{Slug: "leon",      Label: "Leon",             SpriteURL: showdownBase + "leon.png"},
-	{Slug: "geeta",     Label: "Geeta",            SpriteURL: showdownBase + "geeta.png"},
-	{Slug: "steven",    Label: "Steven",           SpriteURL: showdownBase + "steven.png"},
+	{Slug: "cynthia", Label: "Cynthia", SpriteURL: showdownBase + "cynthia.png"},
+	{Slug: "diantha", Label: "Diantha", SpriteURL: showdownBase + "diantha.png"},
+	{Slug: "iris", Label: "Iris", SpriteURL: showdownBase + "iris.png"},
+	{Slug: "alder", Label: "Alder", SpriteURL: showdownBase + "alder.png"},
+	{Slug: "leon", Label: "Leon", SpriteURL: showdownBase + "leon.png"},
+	{Slug: "geeta", Label: "Geeta", SpriteURL: showdownBase + "geeta.png"},
+	{Slug: "steven", Label: "Steven", SpriteURL: showdownBase + "steven.png"},
 
 	// -- Gym Leaders: Kanto --
-	{Slug: "brock",     Label: "Brock",            SpriteURL: showdownBase + "brock.png"},
-	{Slug: "misty",     Label: "Misty",            SpriteURL: showdownBase + "misty.png"},
-	{Slug: "lt-surge",  Label: "Lt. Surge",        SpriteURL: showdownBase + "ltsurge.png"},
-	{Slug: "erika",     Label: "Erika",            SpriteURL: showdownBase + "erika.png"},
-	{Slug: "koga",      Label: "Koga",             SpriteURL: showdownBase + "koga.png"},
-	{Slug: "sabrina",   Label: "Sabrina",          SpriteURL: showdownBase + "sabrina.png"},
-	{Slug: "blaine",    Label: "Blaine",           SpriteURL: showdownBase + "blaine.png"},
+	{Slug: "brock", Label: "Brock", SpriteURL: showdownBase + "brock.png"},
+	{Slug: "misty", Label: "Misty", SpriteURL: showdownBase + "misty.png"},
+	{Slug: "lt-surge", Label: "Lt. Surge", SpriteURL: showdownBase + "ltsurge.png"},
+	{Slug: "erika", Label: "Erika", SpriteURL: showdownBase + "erika.png"},
+	{Slug: "koga", Label: "Koga", SpriteURL: showdownBase + "koga.png"},
+	{Slug: "sabrina", Label: "Sabrina", SpriteURL: showdownBase + "sabrina.png"},
+	{Slug: "blaine", Label: "Blaine", SpriteURL: showdownBase + "blaine.png"},
 
 	// -- Gym Leaders: Johto --
-	{Slug: "falkner",   Label: "Falkner",          SpriteURL: showdownBase + "falkner.png"},
-	{Slug: "bugsy",     Label: "Bugsy",            SpriteURL: showdownBase + "bugsy.png"},
-	{Slug: "whitney",   Label: "Whitney",          SpriteURL: showdownBase + "whitney.png"},
-	{Slug: "morty",     Label: "Morty",            SpriteURL: showdownBase + "morty.png"},
-	{Slug: "jasmine",   Label: "Jasmine",          SpriteURL: showdownBase + "jasmine.png"},
-	{Slug: "pryce",     Label: "Pryce",            SpriteURL: showdownBase + "pryce.png"},
-	{Slug: "clair",     Label: "Clair",            SpriteURL: showdownBase + "clair.png"},
+	{Slug: "falkner", Label: "Falkner", SpriteURL: showdownBase + "falkner.png"},
+	{Slug: "bugsy", Label: "Bugsy", SpriteURL: showdownBase + "bugsy.png"},
+	{Slug: "whitney", Label: "Whitney", SpriteURL: showdownBase + "whitney.png"},
+	{Slug: "morty", Label: "Morty", SpriteURL: showdownBase + "morty.png"},
+	{Slug: "jasmine", Label: "Jasmine", SpriteURL: showdownBase + "jasmine.png"},
+	{Slug: "pryce", Label: "Pryce", SpriteURL: showdownBase + "pryce.png"},
+	{Slug: "clair", Label: "Clair", SpriteURL: showdownBase + "clair.png"},
 
 	// -- Scientists, Professors & Researchers --
-	{Slug: "scientist", Label: "Scientist",        SpriteURL: showdownBase + "scientist.png"},
-	{Slug: "doctor",    Label: "Doctor",           SpriteURL: showdownBase + "doctor.png"},
-	{Slug: "nurse",     Label: "Nurse",            SpriteURL: showdownBase + "nurse.png"},
-	{Slug: "elm",       Label: "Prof. Elm",        SpriteURL: showdownBase + "elm.png"},
-	{Slug: "birch",     Label: "Prof. Birch",      SpriteURL: showdownBase + "birch.png"},
-	{Slug: "rowan",     Label: "Prof. Rowan",      SpriteURL: showdownBase + "rowan.png"},
-	{Slug: "sycamore",  Label: "Prof. Sycamore",   SpriteURL: showdownBase + "sycamore.png"},
-	{Slug: "kukui",     Label: "Prof. Kukui",      SpriteURL: showdownBase + "kukui.png"},
-	{Slug: "burnet",    Label: "Prof. Burnet",     SpriteURL: showdownBase + "burnet.png"},
-	{Slug: "juniper",   Label: "Prof. Juniper",    SpriteURL: showdownBase + "juniper.png"},
-	{Slug: "magnolia",  Label: "Prof. Magnolia",   SpriteURL: showdownBase + "magnolia.png"},
-	{Slug: "laventon",  Label: "Prof. Laventon",   SpriteURL: showdownBase + "laventon.png"},
-	{Slug: "turo",      Label: "Prof. Turo",       SpriteURL: showdownBase + "turo.png"},
-	{Slug: "sada",      Label: "Prof. Sada",       SpriteURL: showdownBase + "sada.png"},
-	{Slug: "willow",    Label: "Prof. Willow",     SpriteURL: showdownBase + "willow.png"},
-	{Slug: "faba",      Label: "Faba",             SpriteURL: showdownBase + "faba.png"},
-	{Slug: "molayne",   Label: "Molayne",          SpriteURL: showdownBase + "molayne.png"},
+	{Slug: "scientist", Label: "Scientist", SpriteURL: showdownBase + "scientist.png"},
+	{Slug: "doctor", Label: "Doctor", SpriteURL: showdownBase + "doctor.png"},
+	{Slug: "nurse", Label: "Nurse", SpriteURL: showdownBase + "nurse.png"},
+	{Slug: "elm", Label: "Prof. Elm", SpriteURL: showdownBase + "elm.png"},
+	{Slug: "birch", Label: "Prof. Birch", SpriteURL: showdownBase + "birch.png"},
+	{Slug: "rowan", Label: "Prof. Rowan", SpriteURL: showdownBase + "rowan.png"},
+	{Slug: "sycamore", Label: "Prof. Sycamore", SpriteURL: showdownBase + "sycamore.png"},
+	{Slug: "kukui", Label: "Prof. Kukui", SpriteURL: showdownBase + "kukui.png"},
+	{Slug: "burnet", Label: "Prof. Burnet", SpriteURL: showdownBase + "burnet.png"},
+	{Slug: "juniper", Label: "Prof. Juniper", SpriteURL: showdownBase + "juniper.png"},
+	{Slug: "magnolia", Label: "Prof. Magnolia", SpriteURL: showdownBase + "magnolia.png"},
+	{Slug: "laventon", Label: "Prof. Laventon", SpriteURL: showdownBase + "laventon.png"},
+	{Slug: "turo", Label: "Prof. Turo", SpriteURL: showdownBase + "turo.png"},
+	{Slug: "sada", Label: "Prof. Sada", SpriteURL: showdownBase + "sada.png"},
+	{Slug: "willow", Label: "Prof. Willow", SpriteURL: showdownBase + "willow.png"},
+	{Slug: "faba", Label: "Faba", SpriteURL: showdownBase + "faba.png"},
+	{Slug: "molayne", Label: "Molayne", SpriteURL: showdownBase + "molayne.png"},
 
 	// -- Playable Characters --
-	{Slug: "kris",      Label: "Kris",             SpriteURL: showdownBase + "kris.png"},
-	{Slug: "ethan",     Label: "Ethan",            SpriteURL: showdownBase + "ethan.png"},
-	{Slug: "lyra",      Label: "Lyra",             SpriteURL: showdownBase + "lyra.png"},
-	{Slug: "hilbert",   Label: "Hilbert",          SpriteURL: showdownBase + "hilbert.png"},
-	{Slug: "hilda",     Label: "Hilda",            SpriteURL: showdownBase + "hilda.png"},
-	{Slug: "dawn",      Label: "Dawn",             SpriteURL: showdownBase + "dawn.png"},
-	{Slug: "lucas",     Label: "Lucas",            SpriteURL: showdownBase + "lucas.png"},
-	{Slug: "nate",      Label: "Nate",             SpriteURL: showdownBase + "nate.png"},
-	{Slug: "rosa",      Label: "Rosa",             SpriteURL: showdownBase + "rosa.png"},
-	{Slug: "elio",      Label: "Elio",             SpriteURL: showdownBase + "elio.png"},
-	{Slug: "selene",    Label: "Selene",           SpriteURL: showdownBase + "selene.png"},
-	{Slug: "victor",    Label: "Victor",           SpriteURL: showdownBase + "victor.png"},
-	{Slug: "gloria",    Label: "Gloria",           SpriteURL: showdownBase + "gloria.png"},
-	{Slug: "florian-s",        Label: "Florian",              SpriteURL: showdownBase + "florian-s.png"},
-	{Slug: "florian-bb",       Label: "Florian (Blueberry)",  SpriteURL: showdownBase + "florian-bb.png"},
-	{Slug: "florian-festival", Label: "Florian (Festival)",   SpriteURL: showdownBase + "florian-festival.png"},
-	{Slug: "juliana-s",        Label: "Juliana",              SpriteURL: showdownBase + "juliana-s.png"},
-	{Slug: "juliana-bb",       Label: "Juliana (Blueberry)",  SpriteURL: showdownBase + "juliana-bb.png"},
-	{Slug: "juliana-festival", Label: "Juliana (Festival)",   SpriteURL: showdownBase + "juliana-festival.png"},
-	{Slug: "arven-s",   Label: "Arven (S)",        SpriteURL: showdownBase + "arven-s.png"},
-	{Slug: "arven-v",   Label: "Arven (V)",        SpriteURL: showdownBase + "arven-v.png"},
+	{Slug: "kris", Label: "Kris", SpriteURL: showdownBase + "kris.png"},
+	{Slug: "ethan", Label: "Ethan", SpriteURL: showdownBase + "ethan.png"},
+	{Slug: "lyra", Label: "Lyra", SpriteURL: showdownBase + "lyra.png"},
+	{Slug: "hilbert", Label: "Hilbert", SpriteURL: showdownBase + "hilbert.png"},
+	{Slug: "hilda", Label: "Hilda", SpriteURL: showdownBase + "hilda.png"},
+	{Slug: "dawn", Label: "Dawn", SpriteURL: showdownBase + "dawn.png"},
+	{Slug: "lucas", Label: "Lucas", SpriteURL: showdownBase + "lucas.png"},
+	{Slug: "nate", Label: "Nate", SpriteURL: showdownBase + "nate.png"},
+	{Slug: "rosa", Label: "Rosa", SpriteURL: showdownBase + "rosa.png"},
+	{Slug: "elio", Label: "Elio", SpriteURL: showdownBase + "elio.png"},
+	{Slug: "selene", Label: "Selene", SpriteURL: showdownBase + "selene.png"},
+	{Slug: "victor", Label: "Victor", SpriteURL: showdownBase + "victor.png"},
+	{Slug: "gloria", Label: "Gloria", SpriteURL: showdownBase + "gloria.png"},
+	{Slug: "florian-s", Label: "Florian", SpriteURL: showdownBase + "florian-s.png"},
+	{Slug: "florian-bb", Label: "Florian (Blueberry)", SpriteURL: showdownBase + "florian-bb.png"},
+	{Slug: "florian-festival", Label: "Florian (Festival)", SpriteURL: showdownBase + "florian-festival.png"},
+	{Slug: "juliana-s", Label: "Juliana", SpriteURL: showdownBase + "juliana-s.png"},
+	{Slug: "juliana-bb", Label: "Juliana (Blueberry)", SpriteURL: showdownBase + "juliana-bb.png"},
+	{Slug: "juliana-festival", Label: "Juliana (Festival)", SpriteURL: showdownBase + "juliana-festival.png"},
+	{Slug: "arven-s", Label: "Arven (S)", SpriteURL: showdownBase + "arven-s.png"},
+	{Slug: "arven-v", Label: "Arven (V)", SpriteURL: showdownBase + "arven-v.png"},
 
 	// -- Elite Four: Sinnoh --
-	{Slug: "aaron",     Label: "Aaron",            SpriteURL: showdownBase + "aaron.png"},
-	{Slug: "bertha",    Label: "Bertha",           SpriteURL: showdownBase + "bertha.png"},
-	{Slug: "flint",     Label: "Flint",            SpriteURL: showdownBase + "flint.png"},
-	{Slug: "lucian",    Label: "Lucian",           SpriteURL: showdownBase + "lucian.png"},
-	{Slug: "volkner",   Label: "Volkner",          SpriteURL: showdownBase + "volkner.png"},
+	{Slug: "aaron", Label: "Aaron", SpriteURL: showdownBase + "aaron.png"},
+	{Slug: "bertha", Label: "Bertha", SpriteURL: showdownBase + "bertha.png"},
+	{Slug: "flint", Label: "Flint", SpriteURL: showdownBase + "flint.png"},
+	{Slug: "lucian", Label: "Lucian", SpriteURL: showdownBase + "lucian.png"},
+	{Slug: "volkner", Label: "Volkner", SpriteURL: showdownBase + "volkner.png"},
 
 	// -- Elite Four: Kalos --
-	{Slug: "malva",     Label: "Malva",            SpriteURL: showdownBase + "malva.png"},
-	{Slug: "wikstrom",  Label: "Wikstrom",         SpriteURL: showdownBase + "wikstrom.png"},
-	{Slug: "siebold",   Label: "Siebold",          SpriteURL: showdownBase + "siebold.png"},
-	{Slug: "drasna",    Label: "Drasna",           SpriteURL: showdownBase + "drasna.png"},
+	{Slug: "malva", Label: "Malva", SpriteURL: showdownBase + "malva.png"},
+	{Slug: "wikstrom", Label: "Wikstrom", SpriteURL: showdownBase + "wikstrom.png"},
+	{Slug: "siebold", Label: "Siebold", SpriteURL: showdownBase + "siebold.png"},
+	{Slug: "drasna", Label: "Drasna", SpriteURL: showdownBase + "drasna.png"},
 
 	// -- Gym Leaders: Galar --
-	{Slug: "nessa",     Label: "Nessa",            SpriteURL: showdownBase + "nessa.png"},
-	{Slug: "kabu",      Label: "Kabu",             SpriteURL: showdownBase + "kabu.png"},
-	{Slug: "bea",       Label: "Bea",              SpriteURL: showdownBase + "bea.png"},
-	{Slug: "allister",  Label: "Allister",         SpriteURL: showdownBase + "allister.png"},
-	{Slug: "opal",      Label: "Opal",             SpriteURL: showdownBase + "opal.png"},
-	{Slug: "gordie",    Label: "Gordie",           SpriteURL: showdownBase + "gordie.png"},
-	{Slug: "melony",    Label: "Melony",           SpriteURL: showdownBase + "melony.png"},
-	{Slug: "piers",     Label: "Piers",            SpriteURL: showdownBase + "piers.png"},
-	{Slug: "raihan",    Label: "Raihan",           SpriteURL: showdownBase + "raihan.png"},
+	{Slug: "nessa", Label: "Nessa", SpriteURL: showdownBase + "nessa.png"},
+	{Slug: "kabu", Label: "Kabu", SpriteURL: showdownBase + "kabu.png"},
+	{Slug: "bea", Label: "Bea", SpriteURL: showdownBase + "bea.png"},
+	{Slug: "allister", Label: "Allister", SpriteURL: showdownBase + "allister.png"},
+	{Slug: "opal", Label: "Opal", SpriteURL: showdownBase + "opal.png"},
+	{Slug: "gordie", Label: "Gordie", SpriteURL: showdownBase + "gordie.png"},
+	{Slug: "melony", Label: "Melony", SpriteURL: showdownBase + "melony.png"},
+	{Slug: "piers", Label: "Piers", SpriteURL: showdownBase + "piers.png"},
+	{Slug: "raihan", Label: "Raihan", SpriteURL: showdownBase + "raihan.png"},
 
 	// -- Gym Leaders: Paldea --
-	{Slug: "brassius",  Label: "Brassius",         SpriteURL: showdownBase + "brassius.png"},
-	{Slug: "iono",      Label: "Iono",             SpriteURL: showdownBase + "iono.png"},
-	{Slug: "larry",     Label: "Larry",            SpriteURL: showdownBase + "larry.png"},
-	{Slug: "ryme",      Label: "Ryme",             SpriteURL: showdownBase + "ryme.png"},
-	{Slug: "tulip",     Label: "Tulip",            SpriteURL: showdownBase + "tulip.png"},
-	{Slug: "grusha",    Label: "Grusha",           SpriteURL: showdownBase + "grusha.png"},
-	{Slug: "hassel",    Label: "Hassel",           SpriteURL: showdownBase + "hassel.png"},
-	{Slug: "poppy",     Label: "Poppy",            SpriteURL: showdownBase + "poppy.png"},
+	{Slug: "brassius", Label: "Brassius", SpriteURL: showdownBase + "brassius.png"},
+	{Slug: "iono", Label: "Iono", SpriteURL: showdownBase + "iono.png"},
+	{Slug: "larry", Label: "Larry", SpriteURL: showdownBase + "larry.png"},
+	{Slug: "ryme", Label: "Ryme", SpriteURL: showdownBase + "ryme.png"},
+	{Slug: "tulip", Label: "Tulip", SpriteURL: showdownBase + "tulip.png"},
+	{Slug: "grusha", Label: "Grusha", SpriteURL: showdownBase + "grusha.png"},
+	{Slug: "hassel", Label: "Hassel", SpriteURL: showdownBase + "hassel.png"},
+	{Slug: "poppy", Label: "Poppy", SpriteURL: showdownBase + "poppy.png"},
 }
 
 // dreamstoneTrainerClasses are trainer front sprites from Pokémon Dreamstone Mysteries
 // (github.com/dsmyst/dreamstone-mysteries), an open-source pokeemerald ROM hack.
 // Sprites are stored locally under static/sprites/dreamstone/ and served as static files.
 var dreamstoneTrainerClasses = []TrainerClass{
-	{Slug: "ds-aqua_admin_f",         Label: "Aqua Admin F (DS)",         SpriteURL: "/static/sprites/dreamstone/aqua_admin_f.png"},
-	{Slug: "ds-aqua_admin_m",         Label: "Aqua Admin M (DS)",         SpriteURL: "/static/sprites/dreamstone/aqua_admin_m.png"},
-	{Slug: "ds-aqua_grunt_f",         Label: "Aqua Grunt F (DS)",         SpriteURL: "/static/sprites/dreamstone/aqua_grunt_f.png"},
-	{Slug: "ds-aqua_grunt_m",         Label: "Aqua Grunt M (DS)",         SpriteURL: "/static/sprites/dreamstone/aqua_grunt_m.png"},
-	{Slug: "ds-aqua_leader_archie",   Label: "Aqua Leader Archie (DS)",   SpriteURL: "/static/sprites/dreamstone/aqua_leader_archie.png"},
-	{Slug: "ds-arena_tycoon_greta",   Label: "Arena Tycoon Greta (DS)",   SpriteURL: "/static/sprites/dreamstone/arena_tycoon_greta.png"},
-	{Slug: "ds-aroma_lady",           Label: "Aroma Lady (DS)",           SpriteURL: "/static/sprites/dreamstone/aroma_lady.png"},
-	{Slug: "ds-battle_girl",          Label: "Battle Girl (DS)",          SpriteURL: "/static/sprites/dreamstone/battle_girl.png"},
-	{Slug: "ds-beauty",               Label: "Beauty (DS)",               SpriteURL: "/static/sprites/dreamstone/beauty.png"},
-	{Slug: "ds-bird_keeper",          Label: "Bird Keeper (DS)",          SpriteURL: "/static/sprites/dreamstone/bird_keeper.png"},
-	{Slug: "ds-black_belt",           Label: "Black Belt (DS)",           SpriteURL: "/static/sprites/dreamstone/black_belt.png"},
-	{Slug: "ds-brendan",              Label: "Brendan (DS)",              SpriteURL: "/static/sprites/dreamstone/brendan.png"},
-	{Slug: "ds-brendan_oras",         Label: "Brendan ORAS (DS)",         SpriteURL: "/static/sprites/dreamstone/brendan_oras.png"},
-	{Slug: "ds-brendan_rs",           Label: "Brendan RS (DS)",           SpriteURL: "/static/sprites/dreamstone/brendan_rs.png"},
-	{Slug: "ds-bug_catcher",          Label: "Bug Catcher (DS)",          SpriteURL: "/static/sprites/dreamstone/bug_catcher.png"},
-	{Slug: "ds-bug_maniac",           Label: "Bug Maniac (DS)",           SpriteURL: "/static/sprites/dreamstone/bug_maniac.png"},
-	{Slug: "ds-camper",               Label: "Camper (DS)",               SpriteURL: "/static/sprites/dreamstone/camper.png"},
-	{Slug: "ds-champion_wallace",     Label: "Champion Wallace (DS)",     SpriteURL: "/static/sprites/dreamstone/champion_wallace.png"},
-	{Slug: "ds-collector",            Label: "Collector (DS)",            SpriteURL: "/static/sprites/dreamstone/collector.png"},
-	{Slug: "ds-cooltrainer_f",        Label: "Cool Trainer F (DS)",       SpriteURL: "/static/sprites/dreamstone/cooltrainer_f.png"},
-	{Slug: "ds-cooltrainer_m",        Label: "Cool Trainer M (DS)",       SpriteURL: "/static/sprites/dreamstone/cooltrainer_m.png"},
+	{Slug: "ds-aqua_admin_f", Label: "Aqua Admin F (DS)", SpriteURL: "/static/sprites/dreamstone/aqua_admin_f.png"},
+	{Slug: "ds-aqua_admin_m", Label: "Aqua Admin M (DS)", SpriteURL: "/static/sprites/dreamstone/aqua_admin_m.png"},
+	{Slug: "ds-aqua_grunt_f", Label: "Aqua Grunt F (DS)", SpriteURL: "/static/sprites/dreamstone/aqua_grunt_f.png"},
+	{Slug: "ds-aqua_grunt_m", Label: "Aqua Grunt M (DS)", SpriteURL: "/static/sprites/dreamstone/aqua_grunt_m.png"},
+	{Slug: "ds-aqua_leader_archie", Label: "Aqua Leader Archie (DS)", SpriteURL: "/static/sprites/dreamstone/aqua_leader_archie.png"},
+	{Slug: "ds-arena_tycoon_greta", Label: "Arena Tycoon Greta (DS)", SpriteURL: "/static/sprites/dreamstone/arena_tycoon_greta.png"},
+	{Slug: "ds-aroma_lady", Label: "Aroma Lady (DS)", SpriteURL: "/static/sprites/dreamstone/aroma_lady.png"},
+	{Slug: "ds-battle_girl", Label: "Battle Girl (DS)", SpriteURL: "/static/sprites/dreamstone/battle_girl.png"},
+	{Slug: "ds-beauty", Label: "Beauty (DS)", SpriteURL: "/static/sprites/dreamstone/beauty.png"},
+	{Slug: "ds-bird_keeper", Label: "Bird Keeper (DS)", SpriteURL: "/static/sprites/dreamstone/bird_keeper.png"},
+	{Slug: "ds-black_belt", Label: "Black Belt (DS)", SpriteURL: "/static/sprites/dreamstone/black_belt.png"},
+	{Slug: "ds-brendan", Label: "Brendan (DS)", SpriteURL: "/static/sprites/dreamstone/brendan.png"},
+	{Slug: "ds-brendan_oras", Label: "Brendan ORAS (DS)", SpriteURL: "/static/sprites/dreamstone/brendan_oras.png"},
+	{Slug: "ds-brendan_rs", Label: "Brendan RS (DS)", SpriteURL: "/static/sprites/dreamstone/brendan_rs.png"},
+	{Slug: "ds-bug_catcher", Label: "Bug Catcher (DS)", SpriteURL: "/static/sprites/dreamstone/bug_catcher.png"},
+	{Slug: "ds-bug_maniac", Label: "Bug Maniac (DS)", SpriteURL: "/static/sprites/dreamstone/bug_maniac.png"},
+	{Slug: "ds-camper", Label: "Camper (DS)", SpriteURL: "/static/sprites/dreamstone/camper.png"},
+	{Slug: "ds-champion_wallace", Label: "Champion Wallace (DS)", SpriteURL: "/static/sprites/dreamstone/champion_wallace.png"},
+	{Slug: "ds-collector", Label: "Collector (DS)", SpriteURL: "/static/sprites/dreamstone/collector.png"},
+	{Slug: "ds-cooltrainer_f", Label: "Cool Trainer F (DS)", SpriteURL: "/static/sprites/dreamstone/cooltrainer_f.png"},
+	{Slug: "ds-cooltrainer_m", Label: "Cool Trainer M (DS)", SpriteURL: "/static/sprites/dreamstone/cooltrainer_m.png"},
 	{Slug: "ds-cycling_triathlete_f", Label: "Cycling Triathlete F (DS)", SpriteURL: "/static/sprites/dreamstone/cycling_triathlete_f.png"},
 	{Slug: "ds-cycling_triathlete_m", Label: "Cycling Triathlete M (DS)", SpriteURL: "/static/sprites/dreamstone/cycling_triathlete_m.png"},
-	{Slug: "ds-dome_ace_tucker",      Label: "Dome Ace Tucker (DS)",      SpriteURL: "/static/sprites/dreamstone/dome_ace_tucker.png"},
-	{Slug: "ds-dragon_tamer",         Label: "Dragon Tamer (DS)",         SpriteURL: "/static/sprites/dreamstone/dragon_tamer.png"},
-	{Slug: "ds-elite_four_drake",     Label: "Elite Four Drake (DS)",     SpriteURL: "/static/sprites/dreamstone/elite_four_drake.png"},
-	{Slug: "ds-elite_four_glacia",    Label: "Elite Four Glacia (DS)",    SpriteURL: "/static/sprites/dreamstone/elite_four_glacia.png"},
-	{Slug: "ds-elite_four_phoebe",    Label: "Elite Four Phoebe (DS)",    SpriteURL: "/static/sprites/dreamstone/elite_four_phoebe.png"},
-	{Slug: "ds-elite_four_sidney",    Label: "Elite Four Sidney (DS)",    SpriteURL: "/static/sprites/dreamstone/elite_four_sidney.png"},
-	{Slug: "ds-expert_f",             Label: "Expert F (DS)",             SpriteURL: "/static/sprites/dreamstone/expert_f.png"},
-	{Slug: "ds-expert_m",             Label: "Expert M (DS)",             SpriteURL: "/static/sprites/dreamstone/expert_m.png"},
-	{Slug: "ds-factory_head_noland",  Label: "Factory Head Noland (DS)",  SpriteURL: "/static/sprites/dreamstone/factory_head_noland.png"},
-	{Slug: "ds-fisherman",            Label: "Fisherman (DS)",            SpriteURL: "/static/sprites/dreamstone/fisherman.png"},
-	{Slug: "ds-gentleman",            Label: "Gentleman (DS)",            SpriteURL: "/static/sprites/dreamstone/gentleman.png"},
-	{Slug: "ds-guitarist",            Label: "Guitarist (DS)",            SpriteURL: "/static/sprites/dreamstone/guitarist.png"},
-	{Slug: "ds-hex_maniac",           Label: "Hex Maniac (DS)",           SpriteURL: "/static/sprites/dreamstone/hex_maniac.png"},
-	{Slug: "ds-hiker",                Label: "Hiker (DS)",                SpriteURL: "/static/sprites/dreamstone/hiker.png"},
-	{Slug: "ds-interviewer",          Label: "Interviewer (DS)",          SpriteURL: "/static/sprites/dreamstone/interviewer.png"},
-	{Slug: "ds-kindler",              Label: "Kindler (DS)",              SpriteURL: "/static/sprites/dreamstone/kindler.png"},
-	{Slug: "ds-lady",                 Label: "Lady (DS)",                 SpriteURL: "/static/sprites/dreamstone/lady.png"},
-	{Slug: "ds-lass",                 Label: "Lass (DS)",                 SpriteURL: "/static/sprites/dreamstone/lass.png"},
-	{Slug: "ds-leader_brawly",        Label: "Leader Brawly (DS)",        SpriteURL: "/static/sprites/dreamstone/leader_brawly.png"},
-	{Slug: "ds-leader_flannery",      Label: "Leader Flannery (DS)",      SpriteURL: "/static/sprites/dreamstone/leader_flannery.png"},
-	{Slug: "ds-leader_juan",          Label: "Leader Juan (DS)",          SpriteURL: "/static/sprites/dreamstone/leader_juan.png"},
-	{Slug: "ds-leader_norman",        Label: "Leader Norman (DS)",        SpriteURL: "/static/sprites/dreamstone/leader_norman.png"},
-	{Slug: "ds-leader_roxanne",       Label: "Leader Roxanne (DS)",       SpriteURL: "/static/sprites/dreamstone/leader_roxanne.png"},
-	{Slug: "ds-leader_tate_and_liza", Label: "Leader Tate & Liza (DS)",   SpriteURL: "/static/sprites/dreamstone/leader_tate_and_liza.png"},
-	{Slug: "ds-leader_wattson",       Label: "Leader Wattson (DS)",       SpriteURL: "/static/sprites/dreamstone/leader_wattson.png"},
-	{Slug: "ds-leader_winona",        Label: "Leader Winona (DS)",        SpriteURL: "/static/sprites/dreamstone/leader_winona.png"},
-	{Slug: "ds-leaf",                 Label: "Leaf (DS)",                 SpriteURL: "/static/sprites/dreamstone/leaf.png"},
-	{Slug: "ds-magma_admin",          Label: "Magma Admin (DS)",          SpriteURL: "/static/sprites/dreamstone/magma_admin.png"},
-	{Slug: "ds-magma_grunt_f",        Label: "Magma Grunt F (DS)",        SpriteURL: "/static/sprites/dreamstone/magma_grunt_f.png"},
-	{Slug: "ds-magma_grunt_m",        Label: "Magma Grunt M (DS)",        SpriteURL: "/static/sprites/dreamstone/magma_grunt_m.png"},
-	{Slug: "ds-magma_leader_maxie",   Label: "Magma Leader Maxie (DS)",   SpriteURL: "/static/sprites/dreamstone/magma_leader_maxie.png"},
-	{Slug: "ds-may",                  Label: "May (DS)",                  SpriteURL: "/static/sprites/dreamstone/may.png"},
-	{Slug: "ds-may_oras",             Label: "May ORAS (DS)",             SpriteURL: "/static/sprites/dreamstone/may_oras.png"},
-	{Slug: "ds-may_rs",               Label: "May RS (DS)",               SpriteURL: "/static/sprites/dreamstone/may_rs.png"},
-	{Slug: "ds-ninja_boy",            Label: "Ninja Boy (DS)",            SpriteURL: "/static/sprites/dreamstone/ninja_boy.png"},
-	{Slug: "ds-old_couple",           Label: "Old Couple (DS)",           SpriteURL: "/static/sprites/dreamstone/old_couple.png"},
+	{Slug: "ds-dome_ace_tucker", Label: "Dome Ace Tucker (DS)", SpriteURL: "/static/sprites/dreamstone/dome_ace_tucker.png"},
+	{Slug: "ds-dragon_tamer", Label: "Dragon Tamer (DS)", SpriteURL: "/static/sprites/dreamstone/dragon_tamer.png"},
+	{Slug: "ds-elite_four_drake", Label: "Elite Four Drake (DS)", SpriteURL: "/static/sprites/dreamstone/elite_four_drake.png"},
+	{Slug: "ds-elite_four_glacia", Label: "Elite Four Glacia (DS)", SpriteURL: "/static/sprites/dreamstone/elite_four_glacia.png"},
+	{Slug: "ds-elite_four_phoebe", Label: "Elite Four Phoebe (DS)", SpriteURL: "/static/sprites/dreamstone/elite_four_phoebe.png"},
+	{Slug: "ds-elite_four_sidney", Label: "Elite Four Sidney (DS)", SpriteURL: "/static/sprites/dreamstone/elite_four_sidney.png"},
+	{Slug: "ds-expert_f", Label: "Expert F (DS)", SpriteURL: "/static/sprites/dreamstone/expert_f.png"},
+	{Slug: "ds-expert_m", Label: "Expert M (DS)", SpriteURL: "/static/sprites/dreamstone/expert_m.png"},
+	{Slug: "ds-factory_head_noland", Label: "Factory Head Noland (DS)", SpriteURL: "/static/sprites/dreamstone/factory_head_noland.png"},
+	{Slug: "ds-fisherman", Label: "Fisherman (DS)", SpriteURL: "/static/sprites/dreamstone/fisherman.png"},
+	{Slug: "ds-gentleman", Label: "Gentleman (DS)", SpriteURL: "/static/sprites/dreamstone/gentleman.png"},
+	{Slug: "ds-guitarist", Label: "Guitarist (DS)", SpriteURL: "/static/sprites/dreamstone/guitarist.png"},
+	{Slug: "ds-hex_maniac", Label: "Hex Maniac (DS)", SpriteURL: "/static/sprites/dreamstone/hex_maniac.png"},
+	{Slug: "ds-hiker", Label: "Hiker (DS)", SpriteURL: "/static/sprites/dreamstone/hiker.png"},
+	{Slug: "ds-interviewer", Label: "Interviewer (DS)", SpriteURL: "/static/sprites/dreamstone/interviewer.png"},
+	{Slug: "ds-kindler", Label: "Kindler (DS)", SpriteURL: "/static/sprites/dreamstone/kindler.png"},
+	{Slug: "ds-lady", Label: "Lady (DS)", SpriteURL: "/static/sprites/dreamstone/lady.png"},
+	{Slug: "ds-lass", Label: "Lass (DS)", SpriteURL: "/static/sprites/dreamstone/lass.png"},
+	{Slug: "ds-leader_brawly", Label: "Leader Brawly (DS)", SpriteURL: "/static/sprites/dreamstone/leader_brawly.png"},
+	{Slug: "ds-leader_flannery", Label: "Leader Flannery (DS)", SpriteURL: "/static/sprites/dreamstone/leader_flannery.png"},
+	{Slug: "ds-leader_juan", Label: "Leader Juan (DS)", SpriteURL: "/static/sprites/dreamstone/leader_juan.png"},
+	{Slug: "ds-leader_norman", Label: "Leader Norman (DS)", SpriteURL: "/static/sprites/dreamstone/leader_norman.png"},
+	{Slug: "ds-leader_roxanne", Label: "Leader Roxanne (DS)", SpriteURL: "/static/sprites/dreamstone/leader_roxanne.png"},
+	{Slug: "ds-leader_tate_and_liza", Label: "Leader Tate & Liza (DS)", SpriteURL: "/static/sprites/dreamstone/leader_tate_and_liza.png"},
+	{Slug: "ds-leader_wattson", Label: "Leader Wattson (DS)", SpriteURL: "/static/sprites/dreamstone/leader_wattson.png"},
+	{Slug: "ds-leader_winona", Label: "Leader Winona (DS)", SpriteURL: "/static/sprites/dreamstone/leader_winona.png"},
+	{Slug: "ds-leaf", Label: "Leaf (DS)", SpriteURL: "/static/sprites/dreamstone/leaf.png"},
+	{Slug: "ds-magma_admin", Label: "Magma Admin (DS)", SpriteURL: "/static/sprites/dreamstone/magma_admin.png"},
+	{Slug: "ds-magma_grunt_f", Label: "Magma Grunt F (DS)", SpriteURL: "/static/sprites/dreamstone/magma_grunt_f.png"},
+	{Slug: "ds-magma_grunt_m", Label: "Magma Grunt M (DS)", SpriteURL: "/static/sprites/dreamstone/magma_grunt_m.png"},
+	{Slug: "ds-magma_leader_maxie", Label: "Magma Leader Maxie (DS)", SpriteURL: "/static/sprites/dreamstone/magma_leader_maxie.png"},
+	{Slug: "ds-may", Label: "May (DS)", SpriteURL: "/static/sprites/dreamstone/may.png"},
+	{Slug: "ds-may_oras", Label: "May ORAS (DS)", SpriteURL: "/static/sprites/dreamstone/may_oras.png"},
+	{Slug: "ds-may_rs", Label: "May RS (DS)", SpriteURL: "/static/sprites/dreamstone/may_rs.png"},
+	{Slug: "ds-ninja_boy", Label: "Ninja Boy (DS)", SpriteURL: "/static/sprites/dreamstone/ninja_boy.png"},
+	{Slug: "ds-old_couple", Label: "Old Couple (DS)", SpriteURL: "/static/sprites/dreamstone/old_couple.png"},
 	{Slug: "ds-palace_maven_spenser", Label: "Palace Maven Spenser (DS)", SpriteURL: "/static/sprites/dreamstone/palace_maven_spenser.png"},
-	{Slug: "ds-parasol_lady",         Label: "Parasol Lady (DS)",         SpriteURL: "/static/sprites/dreamstone/parasol_lady.png"},
-	{Slug: "ds-picnicker",            Label: "Picnicker (DS)",            SpriteURL: "/static/sprites/dreamstone/picnicker.png"},
-	{Slug: "ds-pike_queen_lucy",      Label: "Pike Queen Lucy (DS)",      SpriteURL: "/static/sprites/dreamstone/pike_queen_lucy.png"},
-	{Slug: "ds-pokefan_f",            Label: "Pokefan F (DS)",            SpriteURL: "/static/sprites/dreamstone/pokefan_f.png"},
-	{Slug: "ds-pokefan_m",            Label: "Pokefan M (DS)",            SpriteURL: "/static/sprites/dreamstone/pokefan_m.png"},
-	{Slug: "ds-pokemaniac",           Label: "Pokemaniac (DS)",           SpriteURL: "/static/sprites/dreamstone/pokemaniac.png"},
-	{Slug: "ds-pokemon_breeder_f",    Label: "Pokemon Breeder F (DS)",    SpriteURL: "/static/sprites/dreamstone/pokemon_breeder_f.png"},
-	{Slug: "ds-pokemon_breeder_m",    Label: "Pokemon Breeder M (DS)",    SpriteURL: "/static/sprites/dreamstone/pokemon_breeder_m.png"},
-	{Slug: "ds-pokemon_ranger_f",     Label: "Pokemon Ranger F (DS)",     SpriteURL: "/static/sprites/dreamstone/pokemon_ranger_f.png"},
-	{Slug: "ds-pokemon_ranger_m",     Label: "Pokemon Ranger M (DS)",     SpriteURL: "/static/sprites/dreamstone/pokemon_ranger_m.png"},
-	{Slug: "ds-psychic_f",            Label: "Psychic F (DS)",            SpriteURL: "/static/sprites/dreamstone/psychic_f.png"},
-	{Slug: "ds-psychic_m",            Label: "Psychic M (DS)",            SpriteURL: "/static/sprites/dreamstone/psychic_m.png"},
+	{Slug: "ds-parasol_lady", Label: "Parasol Lady (DS)", SpriteURL: "/static/sprites/dreamstone/parasol_lady.png"},
+	{Slug: "ds-picnicker", Label: "Picnicker (DS)", SpriteURL: "/static/sprites/dreamstone/picnicker.png"},
+	{Slug: "ds-pike_queen_lucy", Label: "Pike Queen Lucy (DS)", SpriteURL: "/static/sprites/dreamstone/pike_queen_lucy.png"},
+	{Slug: "ds-pokefan_f", Label: "Pokefan F (DS)", SpriteURL: "/static/sprites/dreamstone/pokefan_f.png"},
+	{Slug: "ds-pokefan_m", Label: "Pokefan M (DS)", SpriteURL: "/static/sprites/dreamstone/pokefan_m.png"},
+	{Slug: "ds-pokemaniac", Label: "Pokemaniac (DS)", SpriteURL: "/static/sprites/dreamstone/pokemaniac.png"},
+	{Slug: "ds-pokemon_breeder_f", Label: "Pokemon Breeder F (DS)", SpriteURL: "/static/sprites/dreamstone/pokemon_breeder_f.png"},
+	{Slug: "ds-pokemon_breeder_m", Label: "Pokemon Breeder M (DS)", SpriteURL: "/static/sprites/dreamstone/pokemon_breeder_m.png"},
+	{Slug: "ds-pokemon_ranger_f", Label: "Pokemon Ranger F (DS)", SpriteURL: "/static/sprites/dreamstone/pokemon_ranger_f.png"},
+	{Slug: "ds-pokemon_ranger_m", Label: "Pokemon Ranger M (DS)", SpriteURL: "/static/sprites/dreamstone/pokemon_ranger_m.png"},
+	{Slug: "ds-psychic_f", Label: "Psychic F (DS)", SpriteURL: "/static/sprites/dreamstone/psychic_f.png"},
+	{Slug: "ds-psychic_m", Label: "Psychic M (DS)", SpriteURL: "/static/sprites/dreamstone/psychic_m.png"},
 	{Slug: "ds-pyramid_king_brandon", Label: "Pyramid King Brandon (DS)", SpriteURL: "/static/sprites/dreamstone/pyramid_king_brandon.png"},
-	{Slug: "ds-red",                  Label: "Red (DS)",                  SpriteURL: "/static/sprites/dreamstone/red.png"},
-	{Slug: "ds-rich_boy",             Label: "Rich Boy (DS)",             SpriteURL: "/static/sprites/dreamstone/rich_boy.png"},
-	{Slug: "ds-ruin_maniac",          Label: "Ruin Maniac (DS)",          SpriteURL: "/static/sprites/dreamstone/ruin_maniac.png"},
+	{Slug: "ds-red", Label: "Red (DS)", SpriteURL: "/static/sprites/dreamstone/red.png"},
+	{Slug: "ds-rich_boy", Label: "Rich Boy (DS)", SpriteURL: "/static/sprites/dreamstone/rich_boy.png"},
+	{Slug: "ds-ruin_maniac", Label: "Ruin Maniac (DS)", SpriteURL: "/static/sprites/dreamstone/ruin_maniac.png"},
 	{Slug: "ds-running_triathlete_f", Label: "Running Triathlete F (DS)", SpriteURL: "/static/sprites/dreamstone/running_triathlete_f.png"},
 	{Slug: "ds-running_triathlete_m", Label: "Running Triathlete M (DS)", SpriteURL: "/static/sprites/dreamstone/running_triathlete_m.png"},
-	{Slug: "ds-sailor",               Label: "Sailor (DS)",               SpriteURL: "/static/sprites/dreamstone/sailor.png"},
-	{Slug: "ds-salon_maiden_anabel",  Label: "Salon Maiden Anabel (DS)",  SpriteURL: "/static/sprites/dreamstone/salon_maiden_anabel.png"},
-	{Slug: "ds-school_kid_f",         Label: "School Kid F (DS)",         SpriteURL: "/static/sprites/dreamstone/school_kid_f.png"},
-	{Slug: "ds-school_kid_m",         Label: "School Kid M (DS)",         SpriteURL: "/static/sprites/dreamstone/school_kid_m.png"},
-	{Slug: "ds-sis_and_bro",          Label: "Sis & Bro (DS)",            SpriteURL: "/static/sprites/dreamstone/sis_and_bro.png"},
-	{Slug: "ds-somber_grunt_f",       Label: "Somber Grunt F (DS)",       SpriteURL: "/static/sprites/dreamstone/somber_grunt_f.png"},
-	{Slug: "ds-sr_and_jr",            Label: "Sr. & Jr. (DS)",            SpriteURL: "/static/sprites/dreamstone/sr_and_jr.png"},
-	{Slug: "ds-steven",               Label: "Steven (DS)",               SpriteURL: "/static/sprites/dreamstone/steven.png"},
-	{Slug: "ds-swimmer_f",            Label: "Swimmer F (DS)",            SpriteURL: "/static/sprites/dreamstone/swimmer_f.png"},
-	{Slug: "ds-swimmer_m",            Label: "Swimmer M (DS)",            SpriteURL: "/static/sprites/dreamstone/swimmer_m.png"},
-	{Slug: "ds-swimming_triathlete_f",Label: "Swimming Triathlete F (DS)",SpriteURL: "/static/sprites/dreamstone/swimming_triathlete_f.png"},
-	{Slug: "ds-swimming_triathlete_m",Label: "Swimming Triathlete M (DS)",SpriteURL: "/static/sprites/dreamstone/swimming_triathlete_m.png"},
-	{Slug: "ds-tuber_f",              Label: "Tuber F (DS)",              SpriteURL: "/static/sprites/dreamstone/tuber_f.png"},
-	{Slug: "ds-tuber_m",              Label: "Tuber M (DS)",              SpriteURL: "/static/sprites/dreamstone/tuber_m.png"},
-	{Slug: "ds-twins",                Label: "Twins (DS)",                SpriteURL: "/static/sprites/dreamstone/twins.png"},
-	{Slug: "ds-wally",                Label: "Wally (DS)",                SpriteURL: "/static/sprites/dreamstone/wally.png"},
-	{Slug: "ds-young_couple",         Label: "Young Couple (DS)",         SpriteURL: "/static/sprites/dreamstone/young_couple.png"},
-	{Slug: "ds-youngster",            Label: "Youngster (DS)",            SpriteURL: "/static/sprites/dreamstone/youngster.png"},
+	{Slug: "ds-sailor", Label: "Sailor (DS)", SpriteURL: "/static/sprites/dreamstone/sailor.png"},
+	{Slug: "ds-salon_maiden_anabel", Label: "Salon Maiden Anabel (DS)", SpriteURL: "/static/sprites/dreamstone/salon_maiden_anabel.png"},
+	{Slug: "ds-school_kid_f", Label: "School Kid F (DS)", SpriteURL: "/static/sprites/dreamstone/school_kid_f.png"},
+	{Slug: "ds-school_kid_m", Label: "School Kid M (DS)", SpriteURL: "/static/sprites/dreamstone/school_kid_m.png"},
+	{Slug: "ds-sis_and_bro", Label: "Sis & Bro (DS)", SpriteURL: "/static/sprites/dreamstone/sis_and_bro.png"},
+	{Slug: "ds-somber_grunt_f", Label: "Somber Grunt F (DS)", SpriteURL: "/static/sprites/dreamstone/somber_grunt_f.png"},
+	{Slug: "ds-sr_and_jr", Label: "Sr. & Jr. (DS)", SpriteURL: "/static/sprites/dreamstone/sr_and_jr.png"},
+	{Slug: "ds-steven", Label: "Steven (DS)", SpriteURL: "/static/sprites/dreamstone/steven.png"},
+	{Slug: "ds-swimmer_f", Label: "Swimmer F (DS)", SpriteURL: "/static/sprites/dreamstone/swimmer_f.png"},
+	{Slug: "ds-swimmer_m", Label: "Swimmer M (DS)", SpriteURL: "/static/sprites/dreamstone/swimmer_m.png"},
+	{Slug: "ds-swimming_triathlete_f", Label: "Swimming Triathlete F (DS)", SpriteURL: "/static/sprites/dreamstone/swimming_triathlete_f.png"},
+	{Slug: "ds-swimming_triathlete_m", Label: "Swimming Triathlete M (DS)", SpriteURL: "/static/sprites/dreamstone/swimming_triathlete_m.png"},
+	{Slug: "ds-tuber_f", Label: "Tuber F (DS)", SpriteURL: "/static/sprites/dreamstone/tuber_f.png"},
+	{Slug: "ds-tuber_m", Label: "Tuber M (DS)", SpriteURL: "/static/sprites/dreamstone/tuber_m.png"},
+	{Slug: "ds-twins", Label: "Twins (DS)", SpriteURL: "/static/sprites/dreamstone/twins.png"},
+	{Slug: "ds-wally", Label: "Wally (DS)", SpriteURL: "/static/sprites/dreamstone/wally.png"},
+	{Slug: "ds-young_couple", Label: "Young Couple (DS)", SpriteURL: "/static/sprites/dreamstone/young_couple.png"},
+	{Slug: "ds-youngster", Label: "Youngster (DS)", SpriteURL: "/static/sprites/dreamstone/youngster.png"},
 }
 
 // pexTrainerClasses are FRLG-style trainer front sprites from pokeemerald-expansion
@@ -324,102 +324,102 @@ var dreamstoneTrainerClasses = []TrainerClass{
 // Attribution: Rom Hacking Hideout (RHH).
 var pexTrainerClasses = []TrainerClass{
 	// -- Kanto Gym Leaders (FRLG) --
-	{Slug: "pex-leader_brock_frlg",    Label: "Brock (FRLG)",        SpriteURL: "/static/sprites/pex/leader_brock_frlg.png"},
-	{Slug: "pex-leader_misty_frlg",    Label: "Misty (FRLG)",        SpriteURL: "/static/sprites/pex/leader_misty_frlg.png"},
-	{Slug: "pex-leader_lt_surge_frlg", Label: "Lt. Surge (FRLG)",    SpriteURL: "/static/sprites/pex/leader_lt_surge_frlg.png"},
-	{Slug: "pex-leader_erika_frlg",    Label: "Erika (FRLG)",        SpriteURL: "/static/sprites/pex/leader_erika_frlg.png"},
-	{Slug: "pex-leader_koga_frlg",     Label: "Koga (FRLG)",         SpriteURL: "/static/sprites/pex/leader_koga_frlg.png"},
-	{Slug: "pex-leader_sabrina_frlg",  Label: "Sabrina (FRLG)",      SpriteURL: "/static/sprites/pex/leader_sabrina_frlg.png"},
-	{Slug: "pex-leader_blaine_frlg",   Label: "Blaine (FRLG)",       SpriteURL: "/static/sprites/pex/leader_blaine_frlg.png"},
-	{Slug: "pex-leader_giovanni_frlg", Label: "Giovanni (FRLG)",     SpriteURL: "/static/sprites/pex/leader_giovanni_frlg.png"},
+	{Slug: "pex-leader_brock_frlg", Label: "Brock (FRLG)", SpriteURL: "/static/sprites/pex/leader_brock_frlg.png"},
+	{Slug: "pex-leader_misty_frlg", Label: "Misty (FRLG)", SpriteURL: "/static/sprites/pex/leader_misty_frlg.png"},
+	{Slug: "pex-leader_lt_surge_frlg", Label: "Lt. Surge (FRLG)", SpriteURL: "/static/sprites/pex/leader_lt_surge_frlg.png"},
+	{Slug: "pex-leader_erika_frlg", Label: "Erika (FRLG)", SpriteURL: "/static/sprites/pex/leader_erika_frlg.png"},
+	{Slug: "pex-leader_koga_frlg", Label: "Koga (FRLG)", SpriteURL: "/static/sprites/pex/leader_koga_frlg.png"},
+	{Slug: "pex-leader_sabrina_frlg", Label: "Sabrina (FRLG)", SpriteURL: "/static/sprites/pex/leader_sabrina_frlg.png"},
+	{Slug: "pex-leader_blaine_frlg", Label: "Blaine (FRLG)", SpriteURL: "/static/sprites/pex/leader_blaine_frlg.png"},
+	{Slug: "pex-leader_giovanni_frlg", Label: "Giovanni (FRLG)", SpriteURL: "/static/sprites/pex/leader_giovanni_frlg.png"},
 
 	// -- Kanto Elite Four & Champions (FRLG) --
-	{Slug: "pex-elite_four_lorelei_frlg", Label: "Lorelei (FRLG)",      SpriteURL: "/static/sprites/pex/elite_four_lorelei_frlg.png"},
-	{Slug: "pex-elite_four_bruno_frlg",   Label: "Bruno (FRLG)",         SpriteURL: "/static/sprites/pex/elite_four_bruno_frlg.png"},
-	{Slug: "pex-elite_four_agatha_frlg",  Label: "Agatha (FRLG)",        SpriteURL: "/static/sprites/pex/elite_four_agatha_frlg.png"},
-	{Slug: "pex-elite_four_lance_frlg",   Label: "Lance (FRLG)",         SpriteURL: "/static/sprites/pex/elite_four_lance_frlg.png"},
-	{Slug: "pex-champion_steven_frlg",    Label: "Steven (FRLG)",        SpriteURL: "/static/sprites/pex/champion_steven_frlg.png"},
-	{Slug: "pex-champion_rival_frlg",     Label: "Blue (FRLG)",          SpriteURL: "/static/sprites/pex/champion_rival_frlg.png"},
-	{Slug: "pex-rival_early_frlg",        Label: "Blue Early (FRLG)",    SpriteURL: "/static/sprites/pex/rival_early_frlg.png"},
-	{Slug: "pex-rival_late_frlg",         Label: "Blue Late (FRLG)",     SpriteURL: "/static/sprites/pex/rival_late_frlg.png"},
+	{Slug: "pex-elite_four_lorelei_frlg", Label: "Lorelei (FRLG)", SpriteURL: "/static/sprites/pex/elite_four_lorelei_frlg.png"},
+	{Slug: "pex-elite_four_bruno_frlg", Label: "Bruno (FRLG)", SpriteURL: "/static/sprites/pex/elite_four_bruno_frlg.png"},
+	{Slug: "pex-elite_four_agatha_frlg", Label: "Agatha (FRLG)", SpriteURL: "/static/sprites/pex/elite_four_agatha_frlg.png"},
+	{Slug: "pex-elite_four_lance_frlg", Label: "Lance (FRLG)", SpriteURL: "/static/sprites/pex/elite_four_lance_frlg.png"},
+	{Slug: "pex-champion_steven_frlg", Label: "Steven (FRLG)", SpriteURL: "/static/sprites/pex/champion_steven_frlg.png"},
+	{Slug: "pex-champion_rival_frlg", Label: "Blue (FRLG)", SpriteURL: "/static/sprites/pex/champion_rival_frlg.png"},
+	{Slug: "pex-rival_early_frlg", Label: "Blue Early (FRLG)", SpriteURL: "/static/sprites/pex/rival_early_frlg.png"},
+	{Slug: "pex-rival_late_frlg", Label: "Blue Late (FRLG)", SpriteURL: "/static/sprites/pex/rival_late_frlg.png"},
 
 	// -- Professors & Scientists (FRLG) --
-	{Slug: "pex-professor_oak_frlg", Label: "Prof. Oak (FRLG)",    SpriteURL: "/static/sprites/pex/professor_oak_frlg.png"},
-	{Slug: "pex-scientist_frlg",     Label: "Scientist (FRLG)",    SpriteURL: "/static/sprites/pex/scientist_frlg.png"},
-	{Slug: "pex-engineer_frlg",      Label: "Engineer (FRLG)",     SpriteURL: "/static/sprites/pex/engineer_frlg.png"},
+	{Slug: "pex-professor_oak_frlg", Label: "Prof. Oak (FRLG)", SpriteURL: "/static/sprites/pex/professor_oak_frlg.png"},
+	{Slug: "pex-scientist_frlg", Label: "Scientist (FRLG)", SpriteURL: "/static/sprites/pex/scientist_frlg.png"},
+	{Slug: "pex-engineer_frlg", Label: "Engineer (FRLG)", SpriteURL: "/static/sprites/pex/engineer_frlg.png"},
 
 	// -- Team Rocket (FRLG) --
 	{Slug: "pex-rocket_grunt_f_frlg", Label: "Rocket Grunt F (FRLG)", SpriteURL: "/static/sprites/pex/rocket_grunt_f_frlg.png"},
 	{Slug: "pex-rocket_grunt_m_frlg", Label: "Rocket Grunt M (FRLG)", SpriteURL: "/static/sprites/pex/rocket_grunt_m_frlg.png"},
 
 	// -- Trainer Classes: New to FRLG --
-	{Slug: "pex-burglar_frlg",    Label: "Burglar (FRLG)",     SpriteURL: "/static/sprites/pex/burglar_frlg.png"},
-	{Slug: "pex-biker_frlg",      Label: "Biker (FRLG)",       SpriteURL: "/static/sprites/pex/biker_frlg.png"},
-	{Slug: "pex-juggler_frlg",    Label: "Juggler (FRLG)",     SpriteURL: "/static/sprites/pex/juggler_frlg.png"},
-	{Slug: "pex-channeler_frlg",  Label: "Channeler (FRLG)",   SpriteURL: "/static/sprites/pex/channeler_frlg.png"},
-	{Slug: "pex-cue_ball_frlg",   Label: "Cue Ball (FRLG)",    SpriteURL: "/static/sprites/pex/cue_ball_frlg.png"},
-	{Slug: "pex-gamer_frlg",      Label: "Gamer (FRLG)",       SpriteURL: "/static/sprites/pex/gamer_frlg.png"},
-	{Slug: "pex-painter_frlg",    Label: "Painter (FRLG)",     SpriteURL: "/static/sprites/pex/painter_frlg.png"},
-	{Slug: "pex-rocker_frlg",     Label: "Rocker (FRLG)",      SpriteURL: "/static/sprites/pex/rocker_frlg.png"},
-	{Slug: "pex-tamer_frlg",      Label: "Tamer (FRLG)",       SpriteURL: "/static/sprites/pex/tamer_frlg.png"},
-	{Slug: "pex-crush_girl_frlg", Label: "Crush Girl (FRLG)",  SpriteURL: "/static/sprites/pex/crush_girl_frlg.png"},
-	{Slug: "pex-crush_kin_frlg",  Label: "Crush Kin (FRLG)",   SpriteURL: "/static/sprites/pex/crush_kin_frlg.png"},
-	{Slug: "pex-super_nerd_frlg", Label: "Super Nerd (FRLG)",  SpriteURL: "/static/sprites/pex/super_nerd_frlg.png"},
+	{Slug: "pex-burglar_frlg", Label: "Burglar (FRLG)", SpriteURL: "/static/sprites/pex/burglar_frlg.png"},
+	{Slug: "pex-biker_frlg", Label: "Biker (FRLG)", SpriteURL: "/static/sprites/pex/biker_frlg.png"},
+	{Slug: "pex-juggler_frlg", Label: "Juggler (FRLG)", SpriteURL: "/static/sprites/pex/juggler_frlg.png"},
+	{Slug: "pex-channeler_frlg", Label: "Channeler (FRLG)", SpriteURL: "/static/sprites/pex/channeler_frlg.png"},
+	{Slug: "pex-cue_ball_frlg", Label: "Cue Ball (FRLG)", SpriteURL: "/static/sprites/pex/cue_ball_frlg.png"},
+	{Slug: "pex-gamer_frlg", Label: "Gamer (FRLG)", SpriteURL: "/static/sprites/pex/gamer_frlg.png"},
+	{Slug: "pex-painter_frlg", Label: "Painter (FRLG)", SpriteURL: "/static/sprites/pex/painter_frlg.png"},
+	{Slug: "pex-rocker_frlg", Label: "Rocker (FRLG)", SpriteURL: "/static/sprites/pex/rocker_frlg.png"},
+	{Slug: "pex-tamer_frlg", Label: "Tamer (FRLG)", SpriteURL: "/static/sprites/pex/tamer_frlg.png"},
+	{Slug: "pex-crush_girl_frlg", Label: "Crush Girl (FRLG)", SpriteURL: "/static/sprites/pex/crush_girl_frlg.png"},
+	{Slug: "pex-crush_kin_frlg", Label: "Crush Kin (FRLG)", SpriteURL: "/static/sprites/pex/crush_kin_frlg.png"},
+	{Slug: "pex-super_nerd_frlg", Label: "Super Nerd (FRLG)", SpriteURL: "/static/sprites/pex/super_nerd_frlg.png"},
 
 	// -- Trainer Classes: FRLG variants of existing classes --
-	{Slug: "pex-aroma_lady_frlg",           Label: "Aroma Lady (FRLG)",            SpriteURL: "/static/sprites/pex/aroma_lady_frlg.png"},
-	{Slug: "pex-beauty_frlg",               Label: "Beauty (FRLG)",                SpriteURL: "/static/sprites/pex/beauty_frlg.png"},
-	{Slug: "pex-bird_keeper_frlg",          Label: "Bird Keeper (FRLG)",           SpriteURL: "/static/sprites/pex/bird_keeper_frlg.png"},
-	{Slug: "pex-black_belt_frlg",           Label: "Black Belt (FRLG)",            SpriteURL: "/static/sprites/pex/black_belt_frlg.png"},
-	{Slug: "pex-bug_catcher_frlg",          Label: "Bug Catcher (FRLG)",           SpriteURL: "/static/sprites/pex/bug_catcher_frlg.png"},
-	{Slug: "pex-camper_frlg",               Label: "Camper (FRLG)",                SpriteURL: "/static/sprites/pex/camper_frlg.png"},
-	{Slug: "pex-collector_frlg",            Label: "Collector (FRLG)",             SpriteURL: "/static/sprites/pex/collector_frlg.png"},
-	{Slug: "pex-cool_couple_frlg",          Label: "Cool Couple (FRLG)",           SpriteURL: "/static/sprites/pex/cool_couple_frlg.png"},
-	{Slug: "pex-cool_trainer_f_frlg",       Label: "Cool Trainer F (FRLG)",        SpriteURL: "/static/sprites/pex/cool_trainer_f_frlg.png"},
-	{Slug: "pex-cool_trainer_m_frlg",       Label: "Cool Trainer M (FRLG)",        SpriteURL: "/static/sprites/pex/cool_trainer_m_frlg.png"},
-	{Slug: "pex-cycling_triathlete_f_frlg", Label: "Cycling Triathlete F (FRLG)",  SpriteURL: "/static/sprites/pex/cycling_triathlete_f_frlg.png"},
-	{Slug: "pex-cycling_triathlete_m_frlg", Label: "Cycling Triathlete M (FRLG)",  SpriteURL: "/static/sprites/pex/cycling_triathlete_m_frlg.png"},
-	{Slug: "pex-dragon_tamer_frlg",         Label: "Dragon Tamer (FRLG)",          SpriteURL: "/static/sprites/pex/dragon_tamer_frlg.png"},
-	{Slug: "pex-expert_f_frlg",             Label: "Expert F (FRLG)",              SpriteURL: "/static/sprites/pex/expert_f_frlg.png"},
-	{Slug: "pex-expert_m_frlg",             Label: "Expert M (FRLG)",              SpriteURL: "/static/sprites/pex/expert_m_frlg.png"},
-	{Slug: "pex-fisherman_frlg",            Label: "Fisherman (FRLG)",             SpriteURL: "/static/sprites/pex/fisherman_frlg.png"},
-	{Slug: "pex-gentleman_frlg",            Label: "Gentleman (FRLG)",             SpriteURL: "/static/sprites/pex/gentleman_frlg.png"},
-	{Slug: "pex-guitarist_frlg",            Label: "Guitarist (FRLG)",             SpriteURL: "/static/sprites/pex/guitarist_frlg.png"},
-	{Slug: "pex-hex_maniac_frlg",           Label: "Hex Maniac (FRLG)",            SpriteURL: "/static/sprites/pex/hex_maniac_frlg.png"},
-	{Slug: "pex-hiker_frlg",               Label: "Hiker (FRLG)",                 SpriteURL: "/static/sprites/pex/hiker_frlg.png"},
-	{Slug: "pex-interviewer_frlg",          Label: "Interviewer (FRLG)",           SpriteURL: "/static/sprites/pex/interviewer_frlg.png"},
-	{Slug: "pex-kindler_frlg",              Label: "Kindler (FRLG)",               SpriteURL: "/static/sprites/pex/kindler_frlg.png"},
-	{Slug: "pex-lady_frlg",                Label: "Lady (FRLG)",                  SpriteURL: "/static/sprites/pex/lady_frlg.png"},
-	{Slug: "pex-lass_frlg",                Label: "Lass (FRLG)",                  SpriteURL: "/static/sprites/pex/lass_frlg.png"},
-	{Slug: "pex-parasol_lady_frlg",         Label: "Parasol Lady (FRLG)",          SpriteURL: "/static/sprites/pex/parasol_lady_frlg.png"},
-	{Slug: "pex-picnicker_frlg",            Label: "Picnicker (FRLG)",             SpriteURL: "/static/sprites/pex/picnicker_frlg.png"},
-	{Slug: "pex-pokefan_f_frlg",            Label: "Pokefan F (FRLG)",             SpriteURL: "/static/sprites/pex/pokefan_f_frlg.png"},
-	{Slug: "pex-pokefan_m_frlg",            Label: "Pokefan M (FRLG)",             SpriteURL: "/static/sprites/pex/pokefan_m_frlg.png"},
-	{Slug: "pex-pokemaniac_frlg",           Label: "Pokemaniac (FRLG)",            SpriteURL: "/static/sprites/pex/pokemaniac_frlg.png"},
-	{Slug: "pex-pokemon_breeder_frlg",      Label: "Pokemon Breeder (FRLG)",       SpriteURL: "/static/sprites/pex/pokemon_breeder_frlg.png"},
-	{Slug: "pex-pokemon_ranger_f_frlg",     Label: "Pokemon Ranger F (FRLG)",      SpriteURL: "/static/sprites/pex/pokemon_ranger_f_frlg.png"},
-	{Slug: "pex-pokemon_ranger_m_frlg",     Label: "Pokemon Ranger M (FRLG)",      SpriteURL: "/static/sprites/pex/pokemon_ranger_m_frlg.png"},
-	{Slug: "pex-psychic_f_frlg",            Label: "Psychic F (FRLG)",             SpriteURL: "/static/sprites/pex/psychic_f_frlg.png"},
-	{Slug: "pex-psychic_m_frlg",            Label: "Psychic M (FRLG)",             SpriteURL: "/static/sprites/pex/psychic_m_frlg.png"},
-	{Slug: "pex-rich_boy_frlg",             Label: "Rich Boy (FRLG)",              SpriteURL: "/static/sprites/pex/rich_boy_frlg.png"},
-	{Slug: "pex-ruin_maniac_frlg",          Label: "Ruin Maniac (FRLG)",           SpriteURL: "/static/sprites/pex/ruin_maniac_frlg.png"},
-	{Slug: "pex-running_triathlete_f_frlg", Label: "Running Triathlete F (FRLG)",  SpriteURL: "/static/sprites/pex/running_triathlete_f_frlg.png"},
-	{Slug: "pex-running_triathlete_m_frlg", Label: "Running Triathlete M (FRLG)",  SpriteURL: "/static/sprites/pex/running_triathlete_m_frlg.png"},
-	{Slug: "pex-sailor_frlg",               Label: "Sailor (FRLG)",                SpriteURL: "/static/sprites/pex/sailor_frlg.png"},
-	{Slug: "pex-school_kid_f_frlg",         Label: "School Kid F (FRLG)",          SpriteURL: "/static/sprites/pex/school_kid_f_frlg.png"},
-	{Slug: "pex-school_kid_m_frlg",         Label: "School Kid M (FRLG)",          SpriteURL: "/static/sprites/pex/school_kid_m_frlg.png"},
-	{Slug: "pex-sis_and_bro_frlg",          Label: "Sis & Bro (FRLG)",             SpriteURL: "/static/sprites/pex/sis_and_bro_frlg.png"},
-	{Slug: "pex-sr_and_jr_frlg",            Label: "Sr. & Jr. (FRLG)",             SpriteURL: "/static/sprites/pex/sr_and_jr_frlg.png"},
-	{Slug: "pex-swimmer_f_frlg",            Label: "Swimmer F (FRLG)",             SpriteURL: "/static/sprites/pex/swimmer_f_frlg.png"},
-	{Slug: "pex-swimmer_m_frlg",            Label: "Swimmer M (FRLG)",             SpriteURL: "/static/sprites/pex/swimmer_m_frlg.png"},
-	{Slug: "pex-swimming_triathlete_f_frlg",Label: "Swimming Triathlete F (FRLG)", SpriteURL: "/static/sprites/pex/swimming_triathlete_f_frlg.png"},
-	{Slug: "pex-swimming_triathlete_m_frlg",Label: "Swimming Triathlete M (FRLG)", SpriteURL: "/static/sprites/pex/swimming_triathlete_m_frlg.png"},
-	{Slug: "pex-tuber_f_frlg",              Label: "Tuber F (FRLG)",               SpriteURL: "/static/sprites/pex/tuber_f_frlg.png"},
-	{Slug: "pex-tuber_m_frlg",              Label: "Tuber M (FRLG)",               SpriteURL: "/static/sprites/pex/tuber_m_frlg.png"},
-	{Slug: "pex-twins_frlg",                Label: "Twins (FRLG)",                 SpriteURL: "/static/sprites/pex/twins_frlg.png"},
-	{Slug: "pex-wally_frlg",                Label: "Wally (FRLG)",                 SpriteURL: "/static/sprites/pex/wally_frlg.png"},
-	{Slug: "pex-young_couple_frlg",         Label: "Young Couple (FRLG)",          SpriteURL: "/static/sprites/pex/young_couple_frlg.png"},
-	{Slug: "pex-youngster_frlg",            Label: "Youngster (FRLG)",             SpriteURL: "/static/sprites/pex/youngster_frlg.png"},
+	{Slug: "pex-aroma_lady_frlg", Label: "Aroma Lady (FRLG)", SpriteURL: "/static/sprites/pex/aroma_lady_frlg.png"},
+	{Slug: "pex-beauty_frlg", Label: "Beauty (FRLG)", SpriteURL: "/static/sprites/pex/beauty_frlg.png"},
+	{Slug: "pex-bird_keeper_frlg", Label: "Bird Keeper (FRLG)", SpriteURL: "/static/sprites/pex/bird_keeper_frlg.png"},
+	{Slug: "pex-black_belt_frlg", Label: "Black Belt (FRLG)", SpriteURL: "/static/sprites/pex/black_belt_frlg.png"},
+	{Slug: "pex-bug_catcher_frlg", Label: "Bug Catcher (FRLG)", SpriteURL: "/static/sprites/pex/bug_catcher_frlg.png"},
+	{Slug: "pex-camper_frlg", Label: "Camper (FRLG)", SpriteURL: "/static/sprites/pex/camper_frlg.png"},
+	{Slug: "pex-collector_frlg", Label: "Collector (FRLG)", SpriteURL: "/static/sprites/pex/collector_frlg.png"},
+	{Slug: "pex-cool_couple_frlg", Label: "Cool Couple (FRLG)", SpriteURL: "/static/sprites/pex/cool_couple_frlg.png"},
+	{Slug: "pex-cool_trainer_f_frlg", Label: "Cool Trainer F (FRLG)", SpriteURL: "/static/sprites/pex/cool_trainer_f_frlg.png"},
+	{Slug: "pex-cool_trainer_m_frlg", Label: "Cool Trainer M (FRLG)", SpriteURL: "/static/sprites/pex/cool_trainer_m_frlg.png"},
+	{Slug: "pex-cycling_triathlete_f_frlg", Label: "Cycling Triathlete F (FRLG)", SpriteURL: "/static/sprites/pex/cycling_triathlete_f_frlg.png"},
+	{Slug: "pex-cycling_triathlete_m_frlg", Label: "Cycling Triathlete M (FRLG)", SpriteURL: "/static/sprites/pex/cycling_triathlete_m_frlg.png"},
+	{Slug: "pex-dragon_tamer_frlg", Label: "Dragon Tamer (FRLG)", SpriteURL: "/static/sprites/pex/dragon_tamer_frlg.png"},
+	{Slug: "pex-expert_f_frlg", Label: "Expert F (FRLG)", SpriteURL: "/static/sprites/pex/expert_f_frlg.png"},
+	{Slug: "pex-expert_m_frlg", Label: "Expert M (FRLG)", SpriteURL: "/static/sprites/pex/expert_m_frlg.png"},
+	{Slug: "pex-fisherman_frlg", Label: "Fisherman (FRLG)", SpriteURL: "/static/sprites/pex/fisherman_frlg.png"},
+	{Slug: "pex-gentleman_frlg", Label: "Gentleman (FRLG)", SpriteURL: "/static/sprites/pex/gentleman_frlg.png"},
+	{Slug: "pex-guitarist_frlg", Label: "Guitarist (FRLG)", SpriteURL: "/static/sprites/pex/guitarist_frlg.png"},
+	{Slug: "pex-hex_maniac_frlg", Label: "Hex Maniac (FRLG)", SpriteURL: "/static/sprites/pex/hex_maniac_frlg.png"},
+	{Slug: "pex-hiker_frlg", Label: "Hiker (FRLG)", SpriteURL: "/static/sprites/pex/hiker_frlg.png"},
+	{Slug: "pex-interviewer_frlg", Label: "Interviewer (FRLG)", SpriteURL: "/static/sprites/pex/interviewer_frlg.png"},
+	{Slug: "pex-kindler_frlg", Label: "Kindler (FRLG)", SpriteURL: "/static/sprites/pex/kindler_frlg.png"},
+	{Slug: "pex-lady_frlg", Label: "Lady (FRLG)", SpriteURL: "/static/sprites/pex/lady_frlg.png"},
+	{Slug: "pex-lass_frlg", Label: "Lass (FRLG)", SpriteURL: "/static/sprites/pex/lass_frlg.png"},
+	{Slug: "pex-parasol_lady_frlg", Label: "Parasol Lady (FRLG)", SpriteURL: "/static/sprites/pex/parasol_lady_frlg.png"},
+	{Slug: "pex-picnicker_frlg", Label: "Picnicker (FRLG)", SpriteURL: "/static/sprites/pex/picnicker_frlg.png"},
+	{Slug: "pex-pokefan_f_frlg", Label: "Pokefan F (FRLG)", SpriteURL: "/static/sprites/pex/pokefan_f_frlg.png"},
+	{Slug: "pex-pokefan_m_frlg", Label: "Pokefan M (FRLG)", SpriteURL: "/static/sprites/pex/pokefan_m_frlg.png"},
+	{Slug: "pex-pokemaniac_frlg", Label: "Pokemaniac (FRLG)", SpriteURL: "/static/sprites/pex/pokemaniac_frlg.png"},
+	{Slug: "pex-pokemon_breeder_frlg", Label: "Pokemon Breeder (FRLG)", SpriteURL: "/static/sprites/pex/pokemon_breeder_frlg.png"},
+	{Slug: "pex-pokemon_ranger_f_frlg", Label: "Pokemon Ranger F (FRLG)", SpriteURL: "/static/sprites/pex/pokemon_ranger_f_frlg.png"},
+	{Slug: "pex-pokemon_ranger_m_frlg", Label: "Pokemon Ranger M (FRLG)", SpriteURL: "/static/sprites/pex/pokemon_ranger_m_frlg.png"},
+	{Slug: "pex-psychic_f_frlg", Label: "Psychic F (FRLG)", SpriteURL: "/static/sprites/pex/psychic_f_frlg.png"},
+	{Slug: "pex-psychic_m_frlg", Label: "Psychic M (FRLG)", SpriteURL: "/static/sprites/pex/psychic_m_frlg.png"},
+	{Slug: "pex-rich_boy_frlg", Label: "Rich Boy (FRLG)", SpriteURL: "/static/sprites/pex/rich_boy_frlg.png"},
+	{Slug: "pex-ruin_maniac_frlg", Label: "Ruin Maniac (FRLG)", SpriteURL: "/static/sprites/pex/ruin_maniac_frlg.png"},
+	{Slug: "pex-running_triathlete_f_frlg", Label: "Running Triathlete F (FRLG)", SpriteURL: "/static/sprites/pex/running_triathlete_f_frlg.png"},
+	{Slug: "pex-running_triathlete_m_frlg", Label: "Running Triathlete M (FRLG)", SpriteURL: "/static/sprites/pex/running_triathlete_m_frlg.png"},
+	{Slug: "pex-sailor_frlg", Label: "Sailor (FRLG)", SpriteURL: "/static/sprites/pex/sailor_frlg.png"},
+	{Slug: "pex-school_kid_f_frlg", Label: "School Kid F (FRLG)", SpriteURL: "/static/sprites/pex/school_kid_f_frlg.png"},
+	{Slug: "pex-school_kid_m_frlg", Label: "School Kid M (FRLG)", SpriteURL: "/static/sprites/pex/school_kid_m_frlg.png"},
+	{Slug: "pex-sis_and_bro_frlg", Label: "Sis & Bro (FRLG)", SpriteURL: "/static/sprites/pex/sis_and_bro_frlg.png"},
+	{Slug: "pex-sr_and_jr_frlg", Label: "Sr. & Jr. (FRLG)", SpriteURL: "/static/sprites/pex/sr_and_jr_frlg.png"},
+	{Slug: "pex-swimmer_f_frlg", Label: "Swimmer F (FRLG)", SpriteURL: "/static/sprites/pex/swimmer_f_frlg.png"},
+	{Slug: "pex-swimmer_m_frlg", Label: "Swimmer M (FRLG)", SpriteURL: "/static/sprites/pex/swimmer_m_frlg.png"},
+	{Slug: "pex-swimming_triathlete_f_frlg", Label: "Swimming Triathlete F (FRLG)", SpriteURL: "/static/sprites/pex/swimming_triathlete_f_frlg.png"},
+	{Slug: "pex-swimming_triathlete_m_frlg", Label: "Swimming Triathlete M (FRLG)", SpriteURL: "/static/sprites/pex/swimming_triathlete_m_frlg.png"},
+	{Slug: "pex-tuber_f_frlg", Label: "Tuber F (FRLG)", SpriteURL: "/static/sprites/pex/tuber_f_frlg.png"},
+	{Slug: "pex-tuber_m_frlg", Label: "Tuber M (FRLG)", SpriteURL: "/static/sprites/pex/tuber_m_frlg.png"},
+	{Slug: "pex-twins_frlg", Label: "Twins (FRLG)", SpriteURL: "/static/sprites/pex/twins_frlg.png"},
+	{Slug: "pex-wally_frlg", Label: "Wally (FRLG)", SpriteURL: "/static/sprites/pex/wally_frlg.png"},
+	{Slug: "pex-young_couple_frlg", Label: "Young Couple (FRLG)", SpriteURL: "/static/sprites/pex/young_couple_frlg.png"},
+	{Slug: "pex-youngster_frlg", Label: "Youngster (FRLG)", SpriteURL: "/static/sprites/pex/youngster_frlg.png"},
 }
 
 // pokemon-go-api (github.com/pokemon-go-api/pokemon-go-api) aggregates LeekDuck raid
@@ -465,18 +465,18 @@ func bossFromPGAPI(b pgapiBoss, shadow bool) raidBoss {
 }
 
 type raidBoss struct {
-	PokemonName   string   `json:"pokemon_name"`
-	CP            int      `json:"cp"`
-	CPMax         int      `json:"cp_max,omitempty"`
-	CPBoostedMin  int      `json:"cp_boosted_min,omitempty"`
-	CPBoostedMax  int      `json:"cp_boosted_max,omitempty"`
-	ImageURL      string   `json:"image_url,omitempty"`
-	Types         []string `json:"types,omitempty"`
-	CanBeShiny    bool     `json:"can_be_shiny,omitempty"`
+	PokemonName  string   `json:"pokemon_name"`
+	CP           int      `json:"cp"`
+	CPMax        int      `json:"cp_max,omitempty"`
+	CPBoostedMin int      `json:"cp_boosted_min,omitempty"`
+	CPBoostedMax int      `json:"cp_boosted_max,omitempty"`
+	ImageURL     string   `json:"image_url,omitempty"`
+	Types        []string `json:"types,omitempty"`
+	CanBeShiny   bool     `json:"can_be_shiny,omitempty"`
 	// The fields below are stamped on by the event schedule (raidschedule.go) and are
 	// absent on any boss no rotation describes, which is every tier 1 and tier 3 entry.
 	// They are all omitempty so every existing consumer of this shape is untouched.
-	EventID  string `json:"event_id,omitempty"`
+	EventID string `json:"event_id,omitempty"`
 	// StartsAt and EndsAt are the feed's own floating wall clock strings, passed
 	// through verbatim rather than resolved to an instant. Membership in the served
 	// list is decided here on the union window; the countdown a trainer reads is
@@ -519,67 +519,100 @@ var supportedLangCodes = func() map[string]bool {
 }()
 
 type Store struct {
-	mu                sync.RWMutex
+	mu sync.RWMutex
 	// raids is DERIVED, not assigned: rebuildRaidsLocked reconciles the pristine
 	// upstream copy against the event schedule, dropping bosses whose rotation has
 	// shut and adding ones it has not caught up to. raidsUpstream holds what
 	// pokemon-go-api actually said, which is also what stays in cache/raids.json so
 	// the byte comparison in CheckScrapers keeps working. See raidschedule.go.
-	raids             json.RawMessage
-	raidsUpstream     json.RawMessage
-	raidsUpcoming     json.RawMessage
-	raidSchedule      []RaidWindow
-	raidStats         raidReconcileStats
+	raids         json.RawMessage
+	raidsUpstream json.RawMessage
+	raidsUpcoming json.RawMessage
+	// raidsPending is the set of live rotations that could not be turned into a
+	// card, kept rather than counted so the retry loop has something to act on.
+	// Persisted to cache/raids_pending.json; see setRaidsPendingLocked.
+	raidsPending []RaidPending
+	// raidsApplied fires after every rebuild of the served raid list, so the
+	// handlers layer can warehouse it. Nil until SetRaidsAppliedHook is called.
+	// The store knows nothing about the database and must not learn.
+	raidsApplied func()
+	raidSchedule []RaidWindow
+	raidStats    raidReconcileStats
 	// raidsBuiltFor is the next instant the reconciliation could answer differently,
 	// so the periodic rebuild is a clock comparison until a window opens or shuts.
-	raidsBuiltFor     time.Time
+	raidsBuiltFor time.Time
 	// megaForms is PARSED at apply time rather than kept as a blob, the same way
 	// pokemonIDMap is: the upstream payload is a megabyte of full pokedex records and
 	// all the raid card synthesizer wants from it is a stat line, a typing and an
 	// image per Mega. The disk cache keeps the raw payload, memory keeps the trim.
-	megaForms         map[string]megaForm
-	maxBattles        json.RawMessage
-	events            json.RawMessage
-	eventsFetchedAt   time.Time // zero until the first success; seeded from the cache file mtime at boot
+	megaForms       map[string]megaForm
+	maxBattles      json.RawMessage
+	events          json.RawMessage
+	eventsFetchedAt time.Time // zero until the first success; seeded from the cache file mtime at boot
 	// eventsApplied is called after a new feed has replaced the cached one, so
 	// consumers that pinned something to an event's start (currently the reminder
 	// subscriptions) can recompute it. A plain func keeps the dependency pointing
 	// one way: this package must not know about handlers or the database.
-	eventsApplied     func()
-	eventDetails      map[string]eventDetail
-	detailsRunning    atomic.Bool
-	pokemon           json.RawMessage
-	pokemonMoves      json.RawMessage
-	fastMoves         json.RawMessage
-	chargedMoves      json.RawMessage
+	eventsApplied  func()
+	eventDetails   map[string]eventDetail
+	detailsRunning atomic.Bool
+	// eventRaidCache memoizes the rotations read out of each scraped event page,
+	// keyed by event id. The rebuild runs on a five minute ticker and the page
+	// corpus is over a megabyte of HTML, so re-parsing it when nothing has moved
+	// would be the most expensive thing in the store. See eventraids.go.
+	eventRaidCache map[string]eventRaidCacheEntry
+	pokemon        json.RawMessage
+	pokemonMoves   json.RawMessage
+	fastMoves      json.RawMessage
+	chargedMoves   json.RawMessage
 	// shinies is DERIVED, not assigned: rebuildShinyLocked filters the full dex down to species
 	// whose shiny is actually released. shinyUpstream holds the pristine merged upstream blob it
 	// is computed from. See shinydex.go for the precedence rules.
-	shinies           json.RawMessage
-	shinyUpstream     json.RawMessage
-	shinyDex          json.RawMessage
+	shinies       json.RawMessage
+	shinyUpstream json.RawMessage
+	shinyDex      json.RawMessage
 	// regionalShiny and regionalShinyDates are DERIVED from regionalOverrides on every rebuild, the
 	// same way shinies is derived from the baseline. Resolving them here rather than in the handler
 	// is what lets an announced form date arrive on the hourly tick instead of on the next write.
-	regionalShiny     json.RawMessage
+	regionalShiny      json.RawMessage
 	regionalShinyDates json.RawMessage
-	regionalOverrides []RegionalShinyOverride
-	shinyOverrides    map[shinyOverrideKey]ShinyOverride
-	upstreamShinyDex  map[int]bool // dex numbers PoGoAPI vouches for, derived on every rebuild
+	// The same two overlays as Go values, and the resolved dex table behind
+	// shinyDex. Kept beside the marshalled forms rather than unmarshalled on
+	// demand because the shiny dex manifest reads all three on every rebuild, and
+	// re-parsing a blob the store just produced to recover what it already had is
+	// work for nothing. Never handed out directly; the accessors copy.
+	regionalShinyFlags map[string]map[string]bool
+	regionalShinyDays  map[string]map[string]string
+	shinyDexTable      map[string]BaselineSpecies
+	regionalOverrides  []RegionalShinyOverride
+	shinyOverrides     map[shinyOverrideKey]ShinyOverride
+	upstreamShinyDex   map[int]bool // dex numbers PoGoAPI vouches for, derived on every rebuild
 	// shinyBuiltFor is the UTC day the blobs above were resolved for, so RefreshShinyDates can
 	// notice a release date crossing midnight without redoing the work every hour.
-	shinyBuiltFor     string
-	shadowPokemon     json.RawMessage
-	typeChart         json.RawMessage
-	cpMults           json.RawMessage
-	pokemonTypes      json.RawMessage
-	evolutions        json.RawMessage
-	pokemonIDMap      map[string]int
-	pokemonNamesById  map[int]map[string]string // dex ID → {lang_code → translated name}
-	trainerClasses    []TrainerClass
-	spriteCache       sync.Map
-	client            *http.Client
-	cacheDir          string
+	shinyBuiltFor    string
+	shadowPokemon    json.RawMessage
+	typeChart        json.RawMessage
+	cpMults          json.RawMessage
+	pokemonTypes     json.RawMessage
+	evolutions       json.RawMessage
+	pokemonIDMap     map[string]int
+	pokemonNamesById map[int]map[string]string // dex ID → {lang_code → translated name}
+	// Pokedex species text, reduced to one entry per species per language. See
+	// pokedex.go for what is reduced and why it has to be. pokedexDex is the full
+	// species list, so a species with no text still has a defined blank entry;
+	// pokedexFlags is SPARSE and holds only the legendaries and mythicals.
+	//
+	// pokedexVersion is a content hash of the applied payload rather than a
+	// timestamp, which is what lets the handler cache a marshalled body per
+	// language and rebuild on a change instead of on a TTL.
+	pokedexDex     []int
+	pokedexFlags   map[int]PokedexFlags
+	pokedexText    map[string]map[int]PokedexText // lang_code → dex ID → strings
+	pokedexVersion string
+	trainerClasses []TrainerClass
+	spriteCache    sync.Map
+	client         *http.Client
+	cacheDir       string
 }
 
 func New() *Store {
@@ -633,7 +666,7 @@ func (s *Store) cachedFetch(key, url string) (json.RawMessage, error) {
 // loadFromCache reads any previously saved JSON blobs from disk into the store.
 // Fast and synchronous, called before the HTTP server starts listening.
 func (s *Store) loadFromCache() {
-	keys := []string{"raids", "max_battles", "events", "megas", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_evolutions", "pokemon_names"}
+	keys := []string{"raids", "max_battles", "events", "megas", "pokemon", "pokemon_moves", "fast_moves", "charged_moves", "shinies", "shadow_pokemon", "type_chart", "cp_multipliers", "pokemon_types", "pokemon_evolutions", "pokemon_names", "pokedex_species"}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, key := range keys {
@@ -666,11 +699,16 @@ func (s *Store) loadFromCache() {
 			}
 		}
 	}
+	// Scraped pages before the rebuild, for the same reason the rebuild waits for
+	// the keys above: the event pages are now a source of rotations too, and a
+	// rebuild run before they are in memory reconciles against half a schedule and
+	// leaves an event's bosses off the grid until the next boundary or refresh
+	// happens to come round. This used to be the other way about.
+	s.loadEventDetailsFromDisk()
 	// Only now. The keys above load in a fixed order with raids first, so a
 	// rebuild triggered from inside applyResult would reconcile against an events
 	// blob that had not been read yet and drop nothing.
 	s.rebuildRaidsLocked()
-	s.loadEventDetailsFromDisk()
 }
 
 // applyResult writes a single data blob into the in-memory store. Caller must hold s.mu.
@@ -813,7 +851,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 			// Format A: array of structs
 			var arr []pokemonNameEntry
 			if json.Unmarshal(inner, &arr) == nil {
-				if !loggedFormat { log.Printf("pogodata: pokemon_names: format=A (array of structs)"); loggedFormat = true }
+				if !loggedFormat {
+					log.Printf("pogodata: pokemon_names: format=A (array of structs)")
+					loggedFormat = true
+				}
 				for _, e := range arr {
 					if code, ok := langIDToCode[e.LanguageID]; ok {
 						langs[code] = e.Name
@@ -823,7 +864,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 				// Format B: map of lang_id_str → struct
 				var mEntry map[string]pokemonNameEntry
 				if json.Unmarshal(inner, &mEntry) == nil {
-					if !loggedFormat { log.Printf("pogodata: pokemon_names: format=B (map of structs)"); loggedFormat = true }
+					if !loggedFormat {
+						log.Printf("pogodata: pokemon_names: format=B (map of structs)")
+						loggedFormat = true
+					}
 					for _, e := range mEntry {
 						if code, ok := langIDToCode[e.LanguageID]; ok {
 							langs[code] = e.Name
@@ -833,7 +877,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 					// Primary shape (lang code keys) or format C (numeric lang id keys).
 					var mStr map[string]string
 					if json.Unmarshal(inner, &mStr) == nil {
-						if !loggedFormat { log.Printf("pogodata: pokemon_names: format=map of strings (lang codes or ids)"); loggedFormat = true }
+						if !loggedFormat {
+							log.Printf("pogodata: pokemon_names: format=map of strings (lang codes or ids)")
+							loggedFormat = true
+						}
 						for k, name := range mStr {
 							if langID, err := strconv.Atoi(k); err == nil {
 								if code, ok := langIDToCode[langID]; ok {
@@ -847,7 +894,10 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 						// Format D: single struct
 						var single pokemonNameEntry
 						if json.Unmarshal(inner, &single) == nil {
-							if !loggedFormat { log.Printf("pogodata: pokemon_names: format=D (single struct)"); loggedFormat = true }
+							if !loggedFormat {
+								log.Printf("pogodata: pokemon_names: format=D (single struct)")
+								loggedFormat = true
+							}
 							if code, ok := langIDToCode[single.LanguageID]; ok {
 								langs[code] = single.Name
 							}
@@ -868,6 +918,27 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 			break
 		}
 		s.pokemonNamesById = nameMap
+	case "pokedex_species":
+		// The reduced genus, flavour text and legendary/mythical flags. See
+		// pokedex.go; this is the only shape accepted, since the payload is built
+		// here rather than mirrored from upstream.
+		var p pokedexPayload
+		if err := json.Unmarshal(data, &p); err != nil {
+			log.Printf("pogodata: pokedex_species: parse error: %v", err)
+			break
+		}
+		flags, text := p.decode()
+		if len(p.Dex) == 0 || len(text["en"]) == 0 {
+			// English is what every other locale falls back to, so a payload without
+			// it is a partial one. Keeping the last good reduction is the rule from
+			// the top of cpmultipliers.go: a successful apply must never leave the
+			// store worse off than a failed fetch.
+			log.Printf("pogodata: pokedex_species: %d species and %d English entries, keeping existing %d",
+				len(p.Dex), len(text["en"]), len(s.pokedexDex))
+			break
+		}
+		s.pokedexDex, s.pokedexFlags, s.pokedexText = p.Dex, flags, text
+		s.pokedexVersion = pokedexContentHash(data)
 	}
 }
 
@@ -875,15 +946,15 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 // This guarantees the store always has baseline data even with no network and no cache.
 func (s *Store) loadFallback() {
 	keyToFile := map[string]string{
-		"pokemon":        "fallback/pokemon.json",
-		"pokemon_moves":  "fallback/pokemon_moves.json",
-		"fast_moves":     "fallback/fast_moves.json",
-		"charged_moves":  "fallback/charged_moves.json",
-		"shinies":        "fallback/shinies.json",
-		"shadow_pokemon": "fallback/shadow_pokemon.json",
-		"type_chart":     "fallback/type_chart.json",
-		"cp_multipliers": "fallback/cp_multipliers.json",
-		"pokemon_types":  "fallback/pokemon_types.json",
+		"pokemon":            "fallback/pokemon.json",
+		"pokemon_moves":      "fallback/pokemon_moves.json",
+		"fast_moves":         "fallback/fast_moves.json",
+		"charged_moves":      "fallback/charged_moves.json",
+		"shinies":            "fallback/shinies.json",
+		"shadow_pokemon":     "fallback/shadow_pokemon.json",
+		"type_chart":         "fallback/type_chart.json",
+		"cp_multipliers":     "fallback/cp_multipliers.json",
+		"pokemon_types":      "fallback/pokemon_types.json",
 		"pokemon_evolutions": "fallback/pokemon_evolutions.json",
 	}
 	s.mu.Lock()
@@ -971,14 +1042,19 @@ func (s *Store) refreshEventsAtStartup() {
 }
 
 func (s *Store) Start() {
-	s.loadFallback()    // always works: data is compiled into the binary
-	s.loadFromCache()   // overlay with anything fresher saved to disk
-	go s.refresh()          // try PoGoAPI in background
-	go s.refreshRaids()     // try pokemon-go-api raids in background
-	go s.refreshMaxBattles() // try pokemon-go-api max battles in background
-	go s.refreshMegas()      // Mega stats and typings, so a Mega rotation can be built locally
+	s.loadFallback()              // always works: data is compiled into the binary
+	s.loadFromCache()             // overlay with anything fresher saved to disk
+	s.loadRaidsPending()          // what the last run was still waiting on
+	go s.refresh()                // try PoGoAPI in background
+	go s.refreshRaids()           // try pokemon-go-api raids in background
+	go s.refreshMaxBattles()      // try pokemon-go-api max battles in background
+	go s.refreshMegas()           // Mega stats and typings, so a Mega rotation can be built locally
 	go s.refreshEventsAtStartup() // try ScrapedDuck events in background, with retries
-	go s.refreshPokemonNames() // try PokeAPI localized names in background
+	go s.refreshPokemonNames()    // try PokeAPI localized names in background
+	// A rotation the schedule says is live but that could not be turned into a card
+	// used to wait for the next scheduled refresh, up to two and a half hours, with
+	// the tier showing a boss short the whole time. This asks again on a backoff.
+	go s.retryPendingRaids()
 	go func() {
 		for range time.NewTicker(6 * time.Hour).C {
 			s.refresh()
@@ -1017,15 +1093,15 @@ func (s *Store) refresh() {
 		urls []string
 	}
 	endpoints := []ep{
-		{"pokemon",       []string{"https://pogoapi.net/api/v1/pokemon_stats.json"}},
+		{"pokemon", []string{"https://pogoapi.net/api/v1/pokemon_stats.json"}},
 		{"pokemon_moves", []string{"https://pogoapi.net/api/v1/current_pokemon_moves.json"}},
-		{"fast_moves",    []string{"https://pogoapi.net/api/v1/fast_moves.json"}},
+		{"fast_moves", []string{"https://pogoapi.net/api/v1/fast_moves.json"}},
 		{"charged_moves", []string{"https://pogoapi.net/api/v1/charged_moves.json"}},
-		{"shinies",       []string{"https://pogoapi.net/api/v1/shiny_pokemon.json"}},
+		{"shinies", []string{"https://pogoapi.net/api/v1/shiny_pokemon.json"}},
 		{"shadow_pokemon", []string{"https://pogoapi.net/api/v1/shadow_pokemon.json"}},
-		{"type_chart",    []string{"https://pogoapi.net/api/v1/type_effectiveness.json"}},
+		{"type_chart", []string{"https://pogoapi.net/api/v1/type_effectiveness.json"}},
 		{"cp_multipliers", []string{"https://pogoapi.net/api/v1/cp_multiplier.json"}},
-		{"pokemon_types",  []string{"https://pogoapi.net/api/v1/pokemon_types.json"}},
+		{"pokemon_types", []string{"https://pogoapi.net/api/v1/pokemon_types.json"}},
 		{"pokemon_evolutions", []string{"https://pogoapi.net/api/v1/pokemon_evolutions.json"}},
 	}
 
@@ -1075,6 +1151,7 @@ func (s *Store) refreshRaids() {
 	s.applyResult("raids", data)
 	s.rebuildRaidsLocked()
 	s.mu.Unlock()
+	s.notifyRaidsApplied()
 }
 
 // refreshMaxBattles fetches current Max Battle bosses from pokemon-go-api and writes to
@@ -1112,6 +1189,10 @@ func (s *Store) refreshMegas() {
 	n := len(s.megaForms)
 	s.rebuildRaidsLocked()
 	s.mu.Unlock()
+	// A Mega rotation that was waiting on this data is a real card now, so the
+	// archive has bosses it has never seen. This is the whole reason refreshMegas
+	// rebuilds at all.
+	s.notifyRaidsApplied()
 	log.Printf("pogodata: megas: %d forms available", n)
 }
 
@@ -1328,9 +1409,12 @@ func (s *Store) refreshEvents() error {
 	s.eventsFetchedAt = time.Now()
 	// The events feed is the raid schedule, so a fresh one can change who is
 	// live. This is the path that actually fixes the staleness: events refresh
-	// every 30 minutes, where the raid feed is only fetched six times a day.
+	// every 30 minutes, where the raid feed is only fetched ten times a day.
 	s.rebuildRaidsLocked()
 	s.mu.Unlock()
+	// And because it changes who is live, it is the path that most often gives
+	// the archive a boss it has not recorded.
+	s.notifyRaidsApplied()
 	log.Printf("pogodata: events refresh complete (%d events)", n)
 	// Before the detail scrape, not after: that pass is deliberately slow (a
 	// polite delay per page), and a reminder pinned to a start time the feed has
@@ -1354,7 +1438,7 @@ func (s *Store) refreshEvents() error {
 // so this is the sole source of translated Pokémon names. On failure the last
 // good payload is kept.
 func (s *Store) refreshPokemonNames() {
-	data, n, err := s.fetchPokemonNames()
+	data, genera, n, err := s.fetchPokemonNames()
 	if err != nil {
 		log.Printf("pogodata: pokemon names refresh: %v", err)
 		return
@@ -1364,27 +1448,33 @@ func (s *Store) refreshPokemonNames() {
 	s.applyResult("pokemon_names", data)
 	s.mu.Unlock()
 	log.Printf("pogodata: pokemon names: fetched %d species from PokeAPI", n)
+	// The genus column arrives in the same CSV as the names, so the pokedex
+	// reduction gets a third of its content for free and only fetches the files
+	// this one does not carry. Chained here rather than scheduled separately for
+	// exactly that reason: downloading the same CSV twice to read two of its
+	// columns is the thing this arrangement avoids. See pokedex.go.
+	s.refreshPokedexSpecies(genera)
 }
 
 // fetchPokemonNames fetches localized species names from PokeAPI's CSV dataset and
-// returns them as the JSON shape {"1":{"fr":"Bulbizarre",...},...} plus the species
-// count. It does not touch the store; callers persist/apply the result.
-func (s *Store) fetchPokemonNames() (json.RawMessage, int, error) {
-	const url = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species_names.csv"
-	resp, err := s.client.Get(url)
+// returns them as the JSON shape {"1":{"fr":"Bulbizarre",...},...}, the genus map
+// riding along in the same file, and the species count. It does not touch the
+// store; callers persist/apply the result.
+func (s *Store) fetchPokemonNames() (json.RawMessage, map[int]map[int]string, int, error) {
+	resp, err := s.client.Get(pokeAPICSVBase + "pokemon_species_names.csv")
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, nil, 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	names, err := parsePokemonNamesCSV(resp.Body)
+	names, genera, err := parseSpeciesNamesCSV(resp.Body)
 	if err != nil {
-		return nil, 0, fmt.Errorf("parse: %w", err)
+		return nil, nil, 0, fmt.Errorf("parse: %w", err)
 	}
 	if len(names) == 0 {
-		return nil, 0, fmt.Errorf("no names parsed")
+		return nil, nil, 0, fmt.Errorf("no names parsed")
 	}
 	keyed := make(map[string]map[string]string, len(names))
 	for id, langs := range names {
@@ -1392,50 +1482,88 @@ func (s *Store) fetchPokemonNames() (json.RawMessage, int, error) {
 	}
 	data, err := json.Marshal(keyed)
 	if err != nil {
-		return nil, 0, fmt.Errorf("marshal: %w", err)
+		return nil, nil, 0, fmt.Errorf("marshal: %w", err)
 	}
-	return data, len(names), nil
+	return data, genera, len(names), nil
 }
 
-// parsePokemonNamesCSV parses PokeAPI's pokemon_species_names.csv
-// (pokemon_species_id,local_language_id,name,genus) into a map of dex ID to
-// {lang_code: name} for the languages in langIDToCode. The header row and any
-// row with a malformed id are skipped.
-func parsePokemonNamesCSV(r io.Reader) (map[int]map[string]string, error) {
+// parseSpeciesNamesCSV parses PokeAPI's pokemon_species_names.csv
+// (pokemon_species_id,local_language_id,name,genus) once, for both of the things
+// this store wants out of it.
+//
+// names is dex ID to {lang_code: name}, filtered to the locales in langIDToCode.
+// That is what the website and the app render species names from.
+//
+// genera is local_language_id to dex ID to genus, and is deliberately NOT filtered
+// or translated to locale codes here. The pokedex reduction resolves language ids
+// out of languages.csv rather than trusting a compiled in number, and it needs
+// English, which langIDToCode leaves out on purpose because the store treats the
+// English name as a species' canonical form rather than as a translation. Rows
+// with an empty genus are skipped, which is most of the file.
+//
+// The header row and any row with a malformed id are skipped.
+func parseSpeciesNamesCSV(r io.Reader) (map[int]map[string]string, map[int]map[int]string, error) {
 	reader := csv.NewReader(r)
 	reader.FieldsPerRecord = -1
-	out := make(map[int]map[string]string)
+	names := make(map[int]map[string]string)
+	genera := make(map[int]map[int]string)
 	for {
 		rec, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if len(rec) < 3 {
 			continue
 		}
 		id, errID := strconv.Atoi(rec[0])
 		langID, errLang := strconv.Atoi(rec[1])
-		if errID != nil || errLang != nil || id <= 0 || rec[2] == "" {
+		if errID != nil || errLang != nil || id <= 0 {
+			continue
+		}
+		if len(rec) > 3 && rec[3] != "" {
+			if genera[langID] == nil {
+				genera[langID] = make(map[int]string)
+			}
+			genera[langID][id] = rec[3]
+		}
+		if rec[2] == "" {
 			continue
 		}
 		code, ok := langIDToCode[langID]
 		if !ok {
 			continue
 		}
-		if out[id] == nil {
-			out[id] = make(map[string]string, len(langIDToCode))
+		if names[id] == nil {
+			names[id] = make(map[string]string, len(langIDToCode))
 		}
-		out[id][code] = rec[2]
+		names[id][code] = rec[2]
 	}
-	return out, nil
+	return names, genera, nil
+}
+
+// parsePokemonNamesCSV is parseSpeciesNamesCSV's names half, for callers with no
+// use for the genus.
+func parsePokemonNamesCSV(r io.Reader) (map[int]map[string]string, error) {
+	names, _, err := parseSpeciesNamesCSV(r)
+	return names, err
 }
 
 // scheduleRaidRefresh loops forever, sleeping until the next scheduled refresh
 // time in Mountain Time (DST-aware via America/Denver), then fetching raids.
-// Schedule: 12:01 AM, 4:00 AM, 8:00 AM, 12:01 PM, 4:00 PM, 8:00 PM.
+//
+// Ten refreshes a day at even intervals, so 2 hours 24 minutes apart: 12:01 AM,
+// 2:24, 4:48, 7:12, 9:36, 12:01 PM, 2:24, 4:48, 7:12, 9:36 PM. Raised from six on
+// 2026-08-31; the worst case wait for a rotation upstream has just published drops
+// from four hours to under two and a half.
+//
+// The two slots that would land exactly on a rotation boundary are offset by a
+// minute, which is why they read 12:01 rather than 12:00. Rotations flip at
+// midnight and noon Mountain, and fetching on the stroke races the publisher: the
+// feed can still be serving the outgoing set. That minute has been there since the
+// original schedule and is not rounding.
 func (s *Store) scheduleRaidRefresh() {
 	loc, err := time.LoadLocation("America/Denver")
 	if err != nil {
@@ -1443,7 +1571,10 @@ func (s *Store) scheduleRaidRefresh() {
 		return
 	}
 	type target struct{ h, m int }
-	targets := []target{{0, 1}, {4, 0}, {8, 0}, {12, 1}, {16, 0}, {20, 0}}
+	targets := []target{
+		{0, 1}, {2, 24}, {4, 48}, {7, 12}, {9, 36},
+		{12, 1}, {14, 24}, {16, 48}, {19, 12}, {21, 36},
+	}
 	for {
 		now := time.Now().In(loc)
 		y, mo, d := now.Date()
@@ -1666,9 +1797,25 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 		s.rebuildRaidsLocked()
 		st := s.raidStats
 		s.mu.Unlock()
+		s.notifyRaidsApplied()
 		if st.Windows > 0 {
 			raidNote = fmt.Sprintf("schedule: %d rotations, %d live, %d expired dropped, %d built locally, %d awaiting upstream",
 				st.Windows, st.Active, st.Dropped, st.Synthesized, st.Pending)
+			// The event page reader is the one part of this that depends on
+			// upstream markup rather than on a JSON contract, so it gets its own
+			// pair of numbers. If LeekDuck reshapes a Raids section these fall to
+			// zero, which is a thing a person can notice on this screen.
+			if st.EventWindows > 0 || st.FromEventPages > 0 {
+				raidNote += fmt.Sprintf(", %d live from event pages supplying %d bosses",
+					st.EventWindows, st.FromEventPages)
+			}
+			// Name what is being waited on, not just how many. "3 awaiting
+			// upstream" tells an admin nothing they can act on; "Mega Latios
+			// (mega stats not loaded)" tells them whether it is a data gap on our
+			// side or upstream simply being behind.
+			if names := pendingSummary(st.PendingList); names != "" {
+				raidNote += " (" + names + ")"
+			}
 		}
 	})
 	if raidNote != "" {
@@ -1708,7 +1855,19 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 		prevEvents > 0 && out[i].Count*2 < prevEvents {
 		out[i].Note = fmt.Sprintf("event count fell from %d to %d, worth checking upstream", prevEvents, out[i].Count)
 	}
-	run("pokemon_names", func() (json.RawMessage, int, error) { return s.fetchPokemonNames() }, nil)
+	// The genus rides along on the names CSV, so the pokedex check reuses what this
+	// one has already downloaded rather than fetching the same file again. If names
+	// failed, genera stays nil and the pokedex fetch reports that as its own error
+	// instead of building a reduction with a third of its content missing.
+	var pokedexGenera map[int]map[int]string
+	run("pokemon_names", func() (json.RawMessage, int, error) {
+		d, g, n, err := s.fetchPokemonNames()
+		pokedexGenera = g
+		return d, n, err
+	}, nil)
+	run("pokedex_species", func() (json.RawMessage, int, error) {
+		return s.fetchPokedexSpecies(pokedexGenera)
+	}, nil)
 
 	// PoGoAPI endpoints: sequential with a 400 ms delay to avoid rate limiting, matching refresh().
 	pogoAPI := []struct{ key, url string }{
@@ -1789,13 +1948,19 @@ func groupedCount(data json.RawMessage) int {
 }
 
 func (s *Store) Raids() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.raids
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.raids
 }
 func (s *Store) MaxBattles() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.maxBattles
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.maxBattles
 }
 func (s *Store) Events() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.events
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.events
 }
 
 // SetEventsAppliedHook registers fn to run on the refresh goroutine each time a
@@ -1805,16 +1970,23 @@ func (s *Store) Events() json.RawMessage {
 // fn runs with no lock held and may call back into the store, but it runs inline
 // on the refresh path, so anything long lived belongs in a goroutine of its own.
 func (s *Store) SetEventsAppliedHook(fn func()) {
-	s.mu.Lock(); defer s.mu.Unlock(); s.eventsApplied = fn
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.eventsApplied = fn
 }
 func (s *Store) Pokemon() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.pokemon
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pokemon
 }
 func (s *Store) PokemonMoves() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.pokemonMoves
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pokemonMoves
 }
 func (s *Store) Moves() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	type combined struct {
 		Fast    json.RawMessage `json:"fast"`
 		Charged json.RawMessage `json:"charged"`
@@ -1823,9 +1995,12 @@ func (s *Store) Moves() json.RawMessage {
 	return data
 }
 func (s *Store) TrainerClasses() []TrainerClass {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.trainerClasses
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.trainerClasses
 }
 func (s *Store) TrainerSpriteSourceURL(slug string) string { return showdownSources[slug] }
+
 // PokemonDexID returns the national Pokédex ID for the given Pokémon name (0 if unknown).
 func (s *Store) PokemonDexID(name string) int {
 	s.mu.RLock()
@@ -1846,13 +2021,19 @@ func (s *Store) PokemonList() []PokemonEntry {
 }
 
 func (s *Store) PokemonTypes() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.pokemonTypes
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pokemonTypes
 }
 func (s *Store) CPMultipliers() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.cpMults
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cpMults
 }
 func (s *Store) Evolutions() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock(); return s.evolutions
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.evolutions
 }
 func (s *Store) SpriteCacheGet(slug string) ([]byte, bool) {
 	v, ok := s.spriteCache.Load(slug)
@@ -1863,34 +2044,35 @@ func (s *Store) SpriteCacheGet(slug string) ([]byte, bool) {
 }
 func (s *Store) SpriteCacheSet(slug string, data []byte) { s.spriteCache.Store(slug, data) }
 func (s *Store) AllData() json.RawMessage {
-	s.mu.RLock(); defer s.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	type all struct {
-		Pokemon       json.RawMessage            `json:"pokemon"`
-		PokemonMoves  json.RawMessage            `json:"pokemonMoves"`
-		FastMoves     json.RawMessage            `json:"fastMoves"`
-		ChargedMoves  json.RawMessage            `json:"chargedMoves"`
-		Raids         json.RawMessage            `json:"raids"`
+		Pokemon      json.RawMessage `json:"pokemon"`
+		PokemonMoves json.RawMessage `json:"pokemonMoves"`
+		FastMoves    json.RawMessage `json:"fastMoves"`
+		ChargedMoves json.RawMessage `json:"chargedMoves"`
+		Raids        json.RawMessage `json:"raids"`
 		// UpcomingRaids is the rotation schedule ahead of the grid: the soonest
 		// rotation per tier, plus any that is live but has no card yet.
-		UpcomingRaids json.RawMessage            `json:"upcomingRaids,omitempty"`
-		MaxBattles    json.RawMessage            `json:"maxBattles"`
-		Shinies       json.RawMessage            `json:"shinies"`
+		UpcomingRaids json.RawMessage `json:"upcomingRaids,omitempty"`
+		MaxBattles    json.RawMessage `json:"maxBattles"`
+		Shinies       json.RawMessage `json:"shinies"`
 		// ShinyDex is the full National Dex with in_go/shiny_released flags. Shinies stays the
 		// released-only view every existing client already reads, so this is purely additive.
-		ShinyDex      json.RawMessage            `json:"shinyDex,omitempty"`
-		RegionalShiny json.RawMessage            `json:"regionalShinyOverrides,omitempty"`
+		ShinyDex      json.RawMessage `json:"shinyDex,omitempty"`
+		RegionalShiny json.RawMessage `json:"regionalShinyOverrides,omitempty"`
 		// RegionalDates is species name -> region tag -> announced release day. Separate from
 		// RegionalShiny so that blob's shape stays the bool map every client already reads.
-		RegionalDates json.RawMessage            `json:"regionalShinyDates,omitempty"`
-		ShadowPokemon json.RawMessage            `json:"shadowPokemon"`
-		TypeChart     json.RawMessage            `json:"typeChart"`
-		CPMultipliers json.RawMessage            `json:"cpMultipliers"`
-		PokemonTypes  json.RawMessage            `json:"pokemonTypes"`
+		RegionalDates json.RawMessage `json:"regionalShinyDates,omitempty"`
+		ShadowPokemon json.RawMessage `json:"shadowPokemon"`
+		TypeChart     json.RawMessage `json:"typeChart"`
+		CPMultipliers json.RawMessage `json:"cpMultipliers"`
+		PokemonTypes  json.RawMessage `json:"pokemonTypes"`
 		// Megas keyed by lowercased display name ("mega gyarados"). Nothing in the
 		// Pokemon list describes a Mega, and a Mega cannot be derived from its base
 		// species, so the counter table needs this to divide by the right defense.
-		Megas         map[string]megaForm        `json:"megas,omitempty"`
-		PokemonNames  map[string]map[string]string `json:"pokemonNames,omitempty"`
+		Megas        map[string]megaForm          `json:"megas,omitempty"`
+		PokemonNames map[string]map[string]string `json:"pokemonNames,omitempty"`
 	}
 	// Build englishName → {lang_code → translated} from pokemonNamesById + pokemonIDMap.
 	var pokemonNames map[string]map[string]string

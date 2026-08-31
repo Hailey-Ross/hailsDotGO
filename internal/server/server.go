@@ -258,6 +258,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	h.StartEventReminderSweeper()
 	h.StartTranslationAutoSync()
 	h.StartCostumeAutoSync()
+	// Warehouses the served raid list on every rebuild. Registered before
+	// store.Start so the boot rebuild is recorded too.
+	h.StartRaidHistory()
 
 	// Event reminders are pinned to a start time the feed can move under them, so
 	// they are re-resolved every time a new feed lands rather than only at
@@ -329,6 +332,20 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// app from greying out a section the site has switched off.
 		r.With(httprate.LimitByIP(20, time.Minute)).Get("/maintenance", h.MobileMaintenance)
 
+		// The site's own string bundles, so a native screen renders in the language
+		// the trainer picked and an approved translation reaches devices without an
+		// app release.
+		//
+		// Public, and for the same reason the maintenance flags are: the website
+		// serves these strings to anonymous visitors on every page, and a logged out
+		// app needs its login screen translated too.
+		//
+		// Bundles run 50 to 80 KB, so they carry the bandwidth limiter and the same
+		// 10 per 2 minutes the other public reads use. Each answers an ETag and a
+		// 304, so a launch that has not missed a translation costs a few hundred bytes.
+		r.With(httprate.LimitByIP(20, time.Minute)).Get("/i18n", h.MobileLangs)
+		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/i18n/{lang}", h.MobileI18nBundle)
+
 		// Newest published app build, as bare digits, so an install can tell it is
 		// stale. Public for the same reason /maintenance is: a logged out app needs
 		// it too, and the number is not a secret.
@@ -366,6 +383,36 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/trainers", h.MobileTrainers)
 			r.Get("/trainer/{username}", h.MobileTrainerProfile)
 			r.Get("/social/{username}/lists", h.MobileSocialLists)
+
+			// The rest of the profile screen. All four already answered JSON over
+			// Bearer on their web paths, so these are aliases and not new handlers;
+			// they are here so the screen has one base path instead of straddling
+			// /api/... and /api/mobile/v1/..., which is the same reason the bug
+			// report GETs were repeated below. A client that hardcodes a web path
+			// is a client that breaks the day that path moves inside a stricter gate.
+			//
+			// APIUsersSearch is the one to look at twice. On the web it is wrapped
+			// in RequireAuth, which answers a 303 to /login; it is registered bare
+			// here and makes its own 401, exactly as APIAwardGrant does further down.
+			//
+			// /feedback/options sits under the same prefix as the {username}
+			// route and wins, because chi matches a static segment before a
+			// wildcard. That is the behaviour wanted, and the same arrangement
+			// /events/subscriptions has above. The cost is that a trainer named
+			// "options" cannot have their feedback read at this path; usernames
+			// are not reserved, so if that ever matters, move the options list
+			// rather than renaming the account.
+			r.Get("/feedback/{username}", h.APIGetFeedback)
+			r.Get("/feedback/options", h.MobileFeedbackOptions)
+			r.Get("/awards", h.APIAwardsList)
+			r.Get("/awards/of/{username}", h.APIAwardsOf)
+			r.Get("/shinies/of/{username}", h.APIShiniesOfUser)
+			r.Get("/users/search", h.APIUsersSearch)
+
+			// Two reads the app takes off their web paths today. Same alias
+			// argument as above; nothing about either handler changes.
+			r.Get("/notifications", h.APIGetNotifications)
+			r.Get("/weather", h.APIWeather)
 			r.Post("/push/token", h.RegisterPushToken)
 			r.Delete("/push/token", h.UnregisterPushToken)
 
@@ -410,6 +457,27 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/shinies", h.MobileShiniesGet)
 			r.Post("/shinies", h.MobileShiniesAdd)
 			r.Get("/shinies/reference", h.MobileShiniesReference)
+			// The checklist itself, expanded server side: one card per species plus
+			// one per regional or alternate forme, sprites resolved, release state
+			// and announced dates already worked out. The website derives this in
+			// the browser across three TypeScript modules; serving it means the app
+			// renders and filters rather than growing a second copy of that logic.
+			//
+			// Carries an ETag and answers 304, so the group's 120/min baseline is
+			// limit enough even though the payload is a few hundred KB.
+			r.Get("/shiny-dex", h.MobileShinyDex)
+			// Pokedex species text: the genus, the flavour text and the legendary
+			// and mythical flags, for every species at once and in the caller's
+			// language. It takes the one PokeAPI call the app makes straight from
+			// the device off users' phones, and it is authenticated rather than
+			// public for the same reason /shiny-dex is: it sits behind a screen
+			// that already requires login, and the upstream data being public is
+			// no reason to make our copy of it so.
+			//
+			// Same ETag and 304 arrangement as /shiny-dex, so the group's 120/min
+			// baseline is limit enough for a payload of a few hundred KB.
+			r.Get("/pokedex", h.MobilePokedex)
+			r.Get("/pokedex/{dex}", h.MobilePokedexSpecies)
 			// The costume catalog, precomputed per species. Not user-specific, but it sits in
 			// the authenticated group beside the rest of the shiny collection because that is
 			// the only screen that asks for it, and the group baseline is limit enough.
@@ -419,6 +487,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Post("/shinies/{id}/evolve", h.APIShiniesEvolve)
 
 			r.Get("/raid/state", h.MobileRaidState)
+			// Past rotations. Aliases of the web reads; same handlers, same shapes.
+			r.With(httprate.LimitByIP(20, time.Minute)).Get("/raid/history", h.APIRaidHistory)
+			r.With(httprate.LimitByIP(20, time.Minute)).Get("/raid/history/{boss}", h.APIRaidHistoryOfBoss)
 			r.Post("/raid/queue", h.APIRaidQueueJoin)
 			r.Delete("/raid/queue", h.APIRaidQueueLeave)
 			r.Post("/raid/lobbies", h.APIRaidLobbyCreate)
@@ -476,6 +547,159 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Post("/store/tag-request", h.StoreTagRequestSubmit)
 			r.Post("/store/tag-color", h.StoreTagColorUpdate)
 			r.Post("/store/purchases/cancel", h.StorePurchaseCancel)
+
+			// ── Admin panel ──────────────────────────────────────────────────
+			//
+			// All sixteen tabs. 90 of these are ALIASES: the same handler as the web
+			// route, registered a second time here because /api/mobile/v1 is the only
+			// tree outside csrf.Protect and every write on a web path is rejected as a
+			// text/plain 403 before auth is consulted.
+			//
+			// EVERY ONE GOES THROUGH A JSON ROLE GATE, and that is not cosmetic.
+			// Almost no admin handler checks its own role: AdminChangeRole validates
+			// the role string, refuses the superadmin as a TARGET, and writes, without
+			// ever asking who the caller is. The route wrapper is its entire authority
+			// check, and the group middleware above proves only that the session is
+			// valid. A bare registration here would be a self-service promotion to
+			// admin. TestAdminMobileRoutesAreRoleGated fails the build if one appears.
+			//
+			// The gate is the JSON sibling of the web wrapper, one for one:
+			// RequireMod becomes RequireModAPI, and so on. The HTML wrappers answer a
+			// 303 to /login with no session and a text/plain body on the wrong role,
+			// neither of which a client can read.
+			//
+			// Rate limiters are carried across wherever the web route has one. An
+			// alias that silently relaxes a limit is worse than no alias.
+			r.Route("/admin", func(r chi.Router) {
+				// The panel's own state. adminData reaches the template and no
+				// endpoint, so without this the app cannot draw the Settings tab or
+				// decide which of the sixteen tabs the caller may see.
+				r.Get("/context", h.RequireModAPI(h.MobileAdminContext))
+
+				// The five form-encoded handlers' JSON siblings. Their web twins take
+				// a form and answer with a rendered page, so they are re-implemented
+				// rather than aliased; see mobile_admin.go for what is shared.
+				//
+				// Both PUTs take a PARTIAL body: an omitted key is left alone. That is
+				// the bug the form path needed hidden _settings inputs to work around.
+				r.Put("/settings", h.RequireAdminAPI(h.MobileAdminSettings))
+				r.Put("/pages", h.RequireAdminAPI(h.MobileAdminPages))
+				r.Put("/mobile-build", h.RequireAdminAPI(h.MobileAdminMobileBuild))
+				r.Post("/invites", h.RequireAdminAPI(h.MobileAdminCreateInvite))
+				r.Delete("/invites/{token}", h.RequireAdminAPI(h.MobileAdminCancelInvite))
+
+				// H1: users. The whole moderation surface.
+				r.Get("/users", h.RequireModAPI(h.AdminUsersAPI))
+				r.Post("/users/{id}/password", h.RequireModAPI(h.AdminResetPassword))
+				r.Post("/users/{id}/username", h.RequireModAPI(h.AdminChangeUsername))
+				r.Post("/users/{id}/disable", h.RequireModAPI(h.AdminToggleDisable))
+				r.Post("/users/{id}/role", h.RequireAdminAPI(h.AdminChangeRole))
+				// Keeps the web route's limiter. Permanent deletion is irreversible,
+				// and 10 per 5 minutes is a brake on a scripted rampage with a stolen
+				// session; a phone is not a reason to relax it.
+				r.With(httprate.LimitByIP(10, 5*time.Minute)).
+					Post("/users/{id}/delete", h.RequireSuperAdminAPI(h.AdminDeleteUser))
+				r.Post("/users/{id}/api-access", h.RequireSuperAdminAPI(h.AdminToggleAPIAccess))
+				r.Post("/users/{id}/translator", h.RequireSuperAdminAPI(h.AdminToggleTranslator))
+				r.Post("/users/{id}/confirm-role", h.RequireAdminAPI(h.AdminConfirmRole))
+				r.Post("/users/{id}/reject-role", h.RequireAdminAPI(h.AdminRejectRole))
+				r.Post("/users/{id}/directory-hide", h.RequireModAPI(h.AdminToggleDirectoryHide))
+				r.Post("/users/{id}/raid-ban", h.RequireModAPI(h.AdminToggleRaidBan))
+				r.Post("/users/{id}/raid-xp", h.RequireAdminAPI(h.AdminSetRaidXP))
+				r.Post("/users/{id}/rater-weight", h.RequireAdminAPI(h.AdminSetRaterWeight))
+				r.Post("/users/{id}/clear-ratings", h.RequireAdminAPI(h.AdminClearRatings))
+				r.Post("/users/{id}/refresh-activity", h.RequireAdminAPI(h.AdminRefreshActivity))
+				r.Post("/users/{id}/special-rank", h.RequireAdminAPI(h.AdminSetSpecialRank))
+				r.Get("/users/{id}/strikes", h.RequireModAPI(h.AdminStrikesGet))
+				r.Post("/users/{id}/strikes", h.RequireModAPI(h.AdminStrikesAdd))
+				r.Delete("/users/{id}/strikes/{strikeId}", h.RequireModAPI(h.AdminStrikesDelete))
+				r.Post("/users/{id}/tags", h.RequireModAPI(h.AdminUserTagAdd))
+				r.Delete("/users/{id}/tags/{tagId}", h.RequireModAPI(h.AdminUserTagRemove))
+				r.Post("/users/{id}/trust-adjust", h.RequireAdminAPI(h.AdminTrustAdjust))
+				r.Post("/users/{id}/trust-recompute", h.RequireAdminAPI(h.AdminTrustRecompute))
+
+				// H3: bug reports and player reports.
+				r.Get("/bug-reports", h.RequireModAPI(h.AdminBugReportsList))
+				r.Get("/staff", h.RequireModAPI(h.AdminStaffList))
+				r.Post("/bug-reports/{id}/status", h.RequireModAPI(h.AdminBugReportStatus))
+				r.Post("/bug-reports/{id}/priority", h.RequireModAPI(h.AdminBugReportPriority))
+				r.Post("/bug-reports/{id}/assign", h.RequireModAPI(h.AdminBugReportAssign))
+				r.Post("/bug-reports/{id}/actioned", h.RequireModAPI(h.AdminPlayerReportActioned))
+				r.Post("/bug-reports/{id}/labels", h.RequireModAPI(h.AdminBugReportLabelAdd))
+				r.Delete("/bug-reports/{id}/labels/{labelId}", h.RequireModAPI(h.AdminBugReportLabelRemove))
+				r.Get("/bug-report-labels", h.RequireModAPI(h.AdminBugLabels))
+				r.Post("/bug-report-labels", h.RequireAdminAPI(h.AdminBugLabels))
+				r.Put("/bug-report-labels/{id}", h.RequireAdminAPI(h.AdminBugLabel))
+				r.Delete("/bug-report-labels/{id}", h.RequireAdminAPI(h.AdminBugLabel))
+				r.Get("/bug-report-macros", h.RequireModAPI(h.AdminBugMacros))
+				r.Post("/bug-report-macros", h.RequireAdminAPI(h.AdminBugMacros))
+				r.Put("/bug-report-macros/{id}", h.RequireAdminAPI(h.AdminBugMacro))
+				r.Delete("/bug-report-macros/{id}", h.RequireAdminAPI(h.AdminBugMacro))
+
+				// H4: awards, tags, tag requests, feedback options, store items.
+				r.Get("/awards", h.RequireModAPI(h.AdminAwardsList))
+				r.Post("/awards", h.RequireAdminAPI(h.AdminAwardCreate))
+				r.Patch("/awards/{id}", h.RequireAdminAPI(h.AdminAwardUpdate))
+				r.Delete("/awards/{id}", h.RequireAdminAPI(h.AdminAwardDelete))
+				r.Delete("/award-grants/{id}", h.RequireModAPI(h.AdminAwardGrantDelete))
+				r.Get("/tags", h.RequireModAPI(h.AdminTagsList))
+				r.Post("/tags", h.RequireSuperAdminAPI(h.AdminTagCreate))
+				r.Patch("/tags/{id}", h.RequireSuperAdminAPI(h.AdminTagUpdate))
+				r.Delete("/tags/{id}", h.RequireSuperAdminAPI(h.AdminTagDelete))
+				r.Get("/tag-requests", h.RequireModAPI(h.AdminTagRequestsList))
+				r.Post("/tag-requests/{id}/approve", h.RequireModAPI(h.AdminTagRequestApprove))
+				r.Post("/tag-requests/{id}/reject", h.RequireModAPI(h.AdminTagRequestReject))
+				r.Post("/tag-requests/{id}/revision", h.RequireModAPI(h.AdminTagRequestRevision))
+				r.Get("/feedback-options", h.RequireAdminAPI(h.APIAdminFeedbackOptions))
+				r.Post("/feedback-options", h.RequireAdminAPI(h.APIAdminFeedbackOptions))
+				r.Put("/feedback-options/{id}", h.RequireAdminAPI(h.APIAdminFeedbackOption))
+				r.Delete("/feedback-options/{id}", h.RequireAdminAPI(h.APIAdminFeedbackOption))
+				r.Get("/store-items", h.RequireAdminAPI(h.AdminStoreItemsList))
+				r.Post("/store-items/{id}/toggle", h.RequireAdminAPI(h.AdminToggleStoreItem))
+
+				// H5: costumes, sprite locks, shiny dex flags.
+				r.Get("/costumes", h.RequireAdminAPI(h.AdminCostumes))
+				r.Post("/costumes/name", h.RequireAdminAPI(h.AdminNameCostume))
+				r.Post("/costumes/hide", h.RequireAdminAPI(h.AdminHideCostume))
+				r.Delete("/costumes/name", h.RequireAdminAPI(h.AdminUnnameCostume))
+				r.With(httprate.LimitByIP(5, time.Minute)).
+					Post("/check-costumes", h.RequireAdminAPI(h.AdminCheckCostumes))
+				r.Get("/sprite-locks", h.RequireAdminAPI(h.AdminGetSpriteLocks))
+				r.Post("/sprite-lock/{slug}", h.RequireAdminAPI(h.AdminSetSpriteLock))
+				r.Delete("/sprite-lock/{slug}", h.RequireAdminAPI(h.AdminDeleteSpriteLock))
+				r.Get("/shiny-dex", h.RequireAdminAPI(h.AdminGetShinyDex))
+				r.Put("/shiny-dex/{dex}", h.RequireAdminAPI(h.AdminSetShinyDexFlags))
+				r.Delete("/shiny-dex/{dex}", h.RequireAdminAPI(h.AdminResetShinyDexFlags))
+				r.Post("/shiny-dex/bulk", h.RequireAdminAPI(h.AdminBulkSetShinyDexFlags))
+
+				// H6: raids, trust, and the two global refresh tools.
+				r.Get("/raid-lobbies", h.RequireModAPI(h.AdminRaidLobbiesList))
+				// Not an h.Admin* name, so the role-gate test cannot spot it by the
+				// handler. It is caught by the path rule instead: everything under
+				// /admin in this tree must be gated.
+				r.Delete("/raid-lobbies/{id}", h.RequireModAPI(h.APIRaidLobbyCancel))
+				r.Get("/trust/{id}", h.RequireModAPI(h.AdminTrustEvents))
+				r.Post("/refresh-data", h.RequireSuperAdminAPI(h.AdminRefreshData))
+				r.Post("/check-scrapers", h.RequireSuperAdminAPI(h.AdminRunScrapers))
+
+				// H7: translation review. The AUTHOR facing workspace at /translate is
+				// exempt from the native conversion; this is the review half, which
+				// lives in the admin panel and comes with it. If the exemption is
+				// meant to cover both halves, this group is what to delete.
+				r.Get("/translator-applications", h.RequireAdminAPI(h.AdminTranslatorAppsList))
+				r.Post("/translator-applications/{id}/status", h.RequireAdminAPI(h.AdminTranslatorAppSetStatus))
+				r.Get("/translations", h.RequireAdminAPI(h.AdminTranslationsList))
+				r.Post("/translations/{id}/approve", h.RequireAdminAPI(h.AdminTranslationApprove))
+				r.Post("/translations/{id}/reject", h.RequireAdminAPI(h.AdminTranslationReject))
+				r.Get("/translations/export/{lang}", h.RequireAdminAPI(h.AdminTranslationsExport))
+				r.Post("/translations/sync", h.RequireAdminAPI(h.AdminTranslationsSync))
+				r.Get("/locales", h.RequireAdminAPI(h.APITranslateLocales))
+				r.Post("/locales/{code}/enable", h.RequireAdminAPI(h.AdminLocaleEnable))
+				r.Delete("/locales/{code}", h.RequireAdminAPI(h.AdminLocaleDelete))
+
+				// H8: stats.
+				r.Get("/stats", h.RequireAdminAPI(h.AdminStatsAPI))
+			})
 		})
 	})
 
@@ -669,6 +893,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Delete("/api/admin/bug-report-macros/{id}", h.RequireAdmin(h.AdminBugMacro))
 
 		r.Get("/api/raid/overview", h.APIRaidOverview)
+		// Past rotations, joined from the appearance fact table to the boss
+		// dimension. Public and read only, like the overview above.
+		r.With(httprate.LimitByIP(20, time.Minute)).Get("/api/raid/history", h.APIRaidHistory)
+		r.With(httprate.LimitByIP(20, time.Minute)).Get("/api/raid/history/{boss}", h.APIRaidHistoryOfBoss)
 		r.Get("/api/raid/state", h.RequireAuth(h.APIRaidState))
 		r.Post("/api/raid/queue", h.RequireAuth(h.APIRaidQueueJoin))
 		r.Delete("/api/raid/queue", h.RequireAuth(h.APIRaidQueueLeave))

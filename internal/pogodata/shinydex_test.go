@@ -30,9 +30,9 @@ func applyShinies(s *Store, body string) {
 // tinyBaseline: one released, one in GO awaiting a shiny, one not in GO at all.
 func tinyBaseline() map[int]BaselineSpecies {
 	return map[int]BaselineSpecies{
-		1:  {ID: 1, Name: "Bulbasaur", InGo: true, ShinyReleased: true},
-		2:  {ID: 2, Name: "Ivysaur", InGo: true, ShinyReleased: false},
-		3:  {ID: 3, Name: "Venusaur", InGo: false, ShinyReleased: false},
+		1: {ID: 1, Name: "Bulbasaur", InGo: true, ShinyReleased: true},
+		2: {ID: 2, Name: "Ivysaur", InGo: true, ShinyReleased: false},
+		3: {ID: 3, Name: "Venusaur", InGo: false, ShinyReleased: false},
 	}
 }
 
@@ -618,5 +618,75 @@ func TestShinyBaselineIntegrity(t *testing.T) {
 	// The bug that started all of this.
 	if e := table["791"]; !e.ShinyReleased {
 		t.Errorf("dex 791 Solgaleo must be shiny_released: that is the reported bug (got %+v)", e)
+	}
+}
+
+// ShinyDexCards is what the mobile shiny dex manifest expands into cards, and it
+// must be the RESOLVED dex table rather than the embedded baseline.
+//
+// The difference is the fallback row rebuildShinyLocked adds for a species upstream
+// lists that the baseline has never heard of, which is what happens when a new
+// generation lands upstream before the baseline is regenerated. Building the
+// manifest from the baseline alone would drop it, and a species that is served and
+// invisible is precisely the silent omission the flags work exists to remove.
+func TestShinyDexCardsIncludeUpstreamOnlySpecies(t *testing.T) {
+	withBaseline(t, tinyBaseline())
+	s := New()
+	applyShinies(s, `{"1":{"id":1,"name":"Bulbasaur"},"999":{"id":999,"name":"Newmon"}}`)
+
+	cards := s.ShinyDexCards()
+	byName := map[string]BaselineSpecies{}
+	for _, c := range cards {
+		byName[c.Name] = c
+	}
+
+	if _, ok := byName["Newmon"]; !ok {
+		t.Fatalf("a species upstream lists but the baseline does not know is missing from ShinyDexCards: got %d cards", len(cards))
+	}
+	if got := byName["Newmon"]; !got.InGo || !got.ShinyReleased {
+		t.Errorf("upstream-only species = %+v, want it in GO with a released shiny", got)
+	}
+	// The baseline species are still there alongside it.
+	for _, want := range []string{"Bulbasaur", "Ivysaur", "Venusaur"} {
+		if _, ok := byName[want]; !ok {
+			t.Errorf("baseline species %s is missing from ShinyDexCards", want)
+		}
+	}
+
+	// Sorted by dex, which is the order the manifest relies on and does not redo.
+	for i := 1; i < len(cards); i++ {
+		if cards[i-1].ID > cards[i].ID {
+			t.Fatalf("ShinyDexCards is not sorted by dex: %d before %d", cards[i-1].ID, cards[i].ID)
+		}
+	}
+}
+
+// The regional overlays are SPARSE: only the pairs an admin has an opinion about.
+// A consumer reading an absent pair as false would mark every ordinary form
+// unreleased, so the accessor must hand back the exceptions and nothing else.
+func TestRegionalShinyStateIsSparseAndCopied(t *testing.T) {
+	s := New()
+	s.SetRegionalShinyOverrides([]RegionalShinyOverride{
+		{Species: "Zorua", Region: "hisuian", ShinyReleased: boolPtr(true)},
+		{Species: "Rotom", Region: "heat", ReleaseDate: "2099-01-01"},
+	})
+
+	flags, dates := s.RegionalShinyState()
+	if got, ok := flags["Zorua"]["hisuian"]; !ok || !got {
+		t.Errorf("explicit override missing from the flags overlay: %+v", flags)
+	}
+	if _, ok := flags["Rattata"]["alolan"]; ok {
+		t.Error("the flags overlay carries a pair no admin touched; it must be sparse")
+	}
+	if got := dates["Rotom"]["heat"]; got != "2099-01-01" {
+		t.Errorf("announced date = %q, want it in the dates overlay", got)
+	}
+
+	// Handed out by copy: the maps are rebuilt in place on every override write, so
+	// a caller holding the live ones would race a refresh against a request.
+	flags["Zorua"]["hisuian"] = false
+	again, _ := s.RegionalShinyState()
+	if !again["Zorua"]["hisuian"] {
+		t.Error("mutating the returned map changed the store's own copy")
 	}
 }

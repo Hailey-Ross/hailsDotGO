@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -33,25 +34,25 @@ type trainerEntry struct {
 	TrainerName          string
 	TrainerCode          string
 	TrainerCodeFormatted string
-	Avatar          string
-	AvatarURL       string
-	Pronouns        string
-	Region          string
-	Country         string
-	LocationDisplay string
-	StaffBadge      string
-	FavPokemon      string
-	FavPokemonForm  string
-	FavSpriteURL    string
-	RaidXP          int
-	RaidRank        string
-	RaidRankClass   string
-	SpecialRank     string
-	JoinedAt        time.Time
-	ShiniesHidden   bool
-	Online          bool
-	SuperDonator    bool
-	Tags            []tagEntry
+	Avatar               string
+	AvatarURL            string
+	Pronouns             string
+	Region               string
+	Country              string
+	LocationDisplay      string
+	StaffBadge           string
+	FavPokemon           string
+	FavPokemonForm       string
+	FavSpriteURL         string
+	RaidXP               int
+	RaidRank             string
+	RaidRankClass        string
+	SpecialRank          string
+	JoinedAt             time.Time
+	ShiniesHidden        bool
+	Online               bool
+	SuperDonator         bool
+	Tags                 []tagEntry
 }
 
 type trainersPageData struct {
@@ -390,26 +391,7 @@ func (h *Handlers) TrainerProfilePage(w http.ResponseWriter, r *http.Request) {
 	}
 	pd.Feedback = feedback
 
-	var options []feedbackOptionRow
-	optRows, err := h.db.Query(`
-		SELECT id, label, sentiment, sort_order, enabled
-		FROM feedback_options WHERE enabled = 1
-		ORDER BY sort_order, id`)
-	if err == nil {
-		defer optRows.Close()
-		for optRows.Next() {
-			var o feedbackOptionRow
-			var enabledInt int
-			if optRows.Scan(&o.ID, &o.Label, &o.Sentiment, &o.SortOrder, &enabledInt) == nil {
-				o.Enabled = enabledInt > 0
-				options = append(options, o)
-			}
-		}
-	}
-	if options == nil {
-		options = []feedbackOptionRow{}
-	}
-	pd.FeedbackOptions = options
+	pd.FeedbackOptions = h.enabledFeedbackOptions()
 
 	h.render(w, r, "trainer", pd)
 }
@@ -431,21 +413,26 @@ type mobileTag struct {
 // friend codes handed to any logged in visitor. Building a DTO makes the gate
 // something you have to pass through rather than something you have to remember.
 type mobileTrainer struct {
-	Username      string      `json:"username"`
-	DisplayName   string      `json:"display_name"`
-	TrainerName   string      `json:"trainer_name,omitempty"`
-	TrainerCode   string      `json:"trainer_code,omitempty"`
-	Avatar        string      `json:"avatar,omitempty"`
-	AvatarURL     string      `json:"avatar_url,omitempty"`
-	Pronouns      string      `json:"pronouns,omitempty"`
-	Region        string      `json:"region,omitempty"`
-	Country       string      `json:"country,omitempty"`
-	StaffBadge    string      `json:"staff_badge,omitempty"`
-	SpecialRank   string      `json:"special_rank,omitempty"`
-	FavPokemon    string      `json:"fav_pokemon,omitempty"`
-	FavSpriteURL  string      `json:"fav_sprite_url,omitempty"`
-	RaidXP        int         `json:"raid_xp"`
-	RaidRank      string      `json:"raid_rank,omitempty"`
+	Username     string `json:"username"`
+	DisplayName  string `json:"display_name"`
+	TrainerName  string `json:"trainer_name,omitempty"`
+	TrainerCode  string `json:"trainer_code,omitempty"`
+	Avatar       string `json:"avatar,omitempty"`
+	AvatarURL    string `json:"avatar_url,omitempty"`
+	Pronouns     string `json:"pronouns,omitempty"`
+	Region       string `json:"region,omitempty"`
+	Country      string `json:"country,omitempty"`
+	StaffBadge   string `json:"staff_badge,omitempty"`
+	SpecialRank  string `json:"special_rank,omitempty"`
+	FavPokemon   string `json:"fav_pokemon,omitempty"`
+	FavSpriteURL string `json:"fav_sprite_url,omitempty"`
+	RaidXP       int    `json:"raid_xp"`
+	RaidRank     string `json:"raid_rank,omitempty"`
+	// RaidRankClass is the rank's colour class ("pkmn-prof", "youngster" and so
+	// on). It travels beside the label because the label is translated: without
+	// this a client would have to reverse a colour out of localised text, and
+	// would get it wrong in every language but English.
+	RaidRankClass string      `json:"raid_rank_class,omitempty"`
 	JoinedAt      string      `json:"joined_at"`
 	Online        bool        `json:"online"`
 	SuperDonator  bool        `json:"super_donator"`
@@ -473,6 +460,7 @@ func toMobileTrainer(t trainerEntry, isSelf bool) mobileTrainer {
 		FavSpriteURL:  absoluteURL(t.FavSpriteURL),
 		RaidXP:        t.RaidXP,
 		RaidRank:      t.RaidRank,
+		RaidRankClass: t.RaidRankClass,
 		JoinedAt:      t.JoinedAt.UTC().Format(time.RFC3339),
 		Online:        t.Online,
 		SuperDonator:  t.SuperDonator,
@@ -510,19 +498,132 @@ func toMobileTrainer(t trainerEntry, isSelf bool) mobileTrainer {
 	return out
 }
 
+// mobileTrainersResponse is the directory as a client sees it.
+//
+// An envelope rather than the bare array this used to return, because two of the
+// three fields describe the VIEWER rather than a trainer: whether they may grant
+// an award, and how much of the directory they are holding. A bare array had
+// nowhere to put either, so the app could not draw the grant control at all.
+//
+// Reshaping it cost nothing. Nothing consumed this endpoint yet: a grep across
+// the mobile repo's api/ and data/ on 2026-08-31 found only the maintenance flag
+// being read, and no service or repository calling this path. Do not read the
+// change as a precedent; the next one will have clients.
+type mobileTrainersResponse struct {
+	Trainers      []mobileTrainer `json:"trainers"`
+	UserGrantRank int             `json:"user_grant_rank"`
+	// Total is the number of trainers MATCHING the query, before limit and
+	// offset are applied. That is what a client paging through results needs: it
+	// answers "is there another page", which the unfiltered count does not.
+	Total int `json:"total"`
+}
+
+// mobileTrainersMaxLimit caps a page. The directory is a few hundred rows today
+// and the whole list is a legitimate request, so the default is everything; this
+// is a ceiling on what one call can ask for, not a page size.
+const mobileTrainersMaxLimit = 500
+
 // MobileTrainers serves the trainers directory.
+//
+// Ordering is whatever listTrainers produced (online first, then staff by rank,
+// then supporters, then raid XP, then name) and is never re-sorted here. The
+// filter below preserves it.
 func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.requireUserAPI(w, r)
 	if !ok {
 		return
 	}
+
+	// Both flags, not just the page one. TrainersEnabled switches off the whole
+	// /trainers page; section_trainer_directory_enabled switches off the directory
+	// inside it while leaving the raid finder standing (templates/trainers.html:20).
+	// This endpoint IS the directory, so either being off means it has nothing to
+	// serve. Serving a list anyway would make the toggle look like it had worked
+	// when it had not, which is the failure the box entry in pageEnabled warns about.
+	m := h.maintenanceSettings()
+	if !m.TrainersEnabled || !m.TrainerDirectoryEnabled {
+		writeJSONError(w, h.t(r, "error.maintenance"), http.StatusServiceUnavailable)
+		return
+	}
+
 	list := h.listTrainers()
 	out := make([]mobileTrainer, 0, len(list))
 	for _, t := range list {
 		out = append(out, toMobileTrainer(t, t.Username == u.Username))
 	}
+
+	// Same condition as TrainersPage, read from the same two places. -1 means the
+	// viewer cannot grant at all and the control should not be drawn.
+	grantRank := -1
+	if u.IsMod() || h.settingBool("awards_community_grants_enabled") {
+		grantRank = userAwardGrantRank(u)
+	}
+
+	out = filterMobileTrainers(out, r.URL.Query().Get("q"))
+	total := len(out)
+
+	// Defaults are "everything from the start", so a client that sends neither
+	// parameter gets the whole directory, which is what the website renders.
+	offset := clampQueryInt(r, "offset", 0, 0, total)
+	out = out[offset:]
+	if limit := clampQueryInt(r, "limit", len(out), 0, mobileTrainersMaxLimit); limit < len(out) {
+		out = out[:limit]
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(out)
+	json.NewEncoder(w).Encode(mobileTrainersResponse{
+		Trainers:      out,
+		UserGrantRank: grantRank,
+		Total:         total,
+	})
+}
+
+// filterMobileTrainers narrows the directory to trainers matching q, preserving
+// the order it was given. An empty query returns the input untouched.
+//
+// It runs over the DTO, AFTER toMobileTrainer, and that is the whole privacy
+// story here: a private profile's mobileTrainer carries no TrainerName, so its
+// trainer name cannot be matched. Filtering trainerEntry instead would turn this
+// parameter into an oracle for exactly the field the privacy gate exists to hide,
+// because a hit confirms a guess: type "Secretive", get a result, and you have
+// just read a name the profile refuses to show you. You can only search what you
+// can already see, which is why this takes the gated type and not the raw row.
+func filterMobileTrainers(in []mobileTrainer, q string) []mobileTrainer {
+	q = strings.ToLower(strings.TrimSpace(q))
+	if q == "" {
+		return in
+	}
+	out := make([]mobileTrainer, 0, len(in))
+	for _, t := range in {
+		if strings.Contains(strings.ToLower(t.Username), q) ||
+			(t.TrainerName != "" && strings.Contains(strings.ToLower(t.TrainerName), q)) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// clampQueryInt reads a non-negative integer query parameter, falling back to def
+// when it is absent or unparseable and clamping it into [0, max].
+//
+// Unparseable falls back rather than erroring on purpose: ?limit=abc from a
+// client bug should serve the default page, not fail the screen. A negative or
+// oversized value is clamped for the same reason, and because out[offset:] panics
+// on either.
+func clampQueryInt(r *http.Request, name string, def, min, max int) int {
+	v := def
+	if raw := r.URL.Query().Get(name); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil {
+			v = n
+		}
+	}
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }
 
 type mobileFriend struct {
@@ -543,6 +644,14 @@ type mobileTrainerProfile struct {
 	RecentFriends  []mobileFriend `json:"recent_friends"`
 	FollowerCount  int            `json:"follower_count"`
 	FollowingCount int            `json:"following_count"`
+	// MyFeedbackID and MyFeedbackOptionID are the viewer's own feedback on this
+	// trainer, so the screen can show "you said X" with a way to take it back
+	// instead of offering the form again. Both 0 when they have left none, and
+	// both always 0 on your own profile, because feedback on yourself is not a
+	// thing the page offers. Mirrors MyFeedbackID / MyFeedbackOpt on
+	// trainerProfileData.
+	MyFeedbackID       uint `json:"my_feedback_id"`
+	MyFeedbackOptionID uint `json:"my_feedback_option_id"`
 }
 
 // MobileTrainerProfile serves one trainer's profile.
@@ -589,6 +698,11 @@ func (h *Handlers) MobileTrainerProfile(w http.ResponseWriter, r *http.Request) 
 		h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, viewer.ID, userID).Scan(&out.IsBlocked)
 		h.db.QueryRow(`SELECT COUNT(*) FROM user_blocks WHERE user_id = ? AND blocked_id = ?`, userID, viewer.ID).Scan(&out.TheyBlockedYou)
 		out.IsFriend = out.IsFollowing && out.FollowsMe
+
+		// No rows is the common case, and Scan leaves both at zero for it, which
+		// is exactly what the page does with the same query.
+		h.db.QueryRow(`SELECT id, option_id FROM user_feedback WHERE author_id = ? AND target_id = ?`,
+			viewer.ID, userID).Scan(&out.MyFeedbackID, &out.MyFeedbackOptionID)
 	}
 
 	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE friend_id = ?`, userID).Scan(&out.FollowerCount)

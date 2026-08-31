@@ -23,12 +23,24 @@ type tagRequestRecord struct {
 	CreatedAt    string `json:"created_at"`
 }
 
+// AdminTagRequestsList is the staff queue, newest work first.
+//
+// The FIELD() list must name EVERY value of custom_tag_requests.status, which
+// schema.sql declares as ENUM('pending','approved','rejected','revision'). Nothing
+// enforces that the two agree, and the failure is silent in the worst direction:
+// MySQL's FIELD() answers 0 for a value it was not given, and 0 sorts FIRST. So a
+// value left out of this list does not sort last, it jumps the queue. 'revision'
+// was missing here and sorted above the pending requests the queue exists to work
+// through, which the browser only half hid by hoisting pending to the top.
+//
+// The order itself: pending is waiting on staff, revision has been sent back and
+// is waiting on the requester, approved and rejected are closed.
 func (h *Handlers) AdminTagRequestsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT ctr.id, u.username, ctr.name, ctr.color, ctr.status,
 		       COALESCE(ctr.reject_reason,''), ctr.created_at
 		FROM custom_tag_requests ctr JOIN users u ON u.id = ctr.user_id
-		ORDER BY FIELD(ctr.status,'pending','approved','rejected'), ctr.created_at ASC`)
+		ORDER BY FIELD(ctr.status,'pending','revision','approved','rejected'), ctr.created_at ASC`)
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return

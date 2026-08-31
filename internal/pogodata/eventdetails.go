@@ -268,15 +268,33 @@ func (s *Store) refreshEventDetails(feed json.RawMessage) {
 
 	// Evict details for events that left the feed, then persist.
 	s.mu.Lock()
+	evicted := 0
 	for id := range s.eventDetails {
 		if !active[id] {
 			delete(s.eventDetails, id)
+			evicted++
 		}
 	}
 	data, err := json.Marshal(eventDetailsFile{SchemaVersion: detailSchemaVersion, Details: s.eventDetails})
+	// These pages are a source of raid rotations, not just modal content, so a
+	// page arriving or leaving can change who is on the raids grid. Nothing else
+	// would notice: the periodic rebuild is a clock comparison that only fires at
+	// a window boundary, and the events feed refresh has already been and gone by
+	// the time this slow, deliberately polite scrape finishes. Without this a
+	// newly published roster waits for whichever came first, which on a fresh
+	// event could be hours. See eventraids.go.
+	changed := fetched > 0 || evicted > 0
+	if changed {
+		s.rebuildRaidsLocked()
+	}
 	s.mu.Unlock()
 	if err == nil {
 		os.WriteFile(filepath.Join(s.cacheDir, "event_details.json"), data, 0644)
+	}
+	if changed {
+		// Outside the lock: the hook reaches the database, and holding the store's
+		// lock across a query would block every read on the site behind it.
+		s.notifyRaidsApplied()
 	}
 	if len(jobs) > 0 || fetched > 0 {
 		log.Printf("pogodata: event details: fetched %d of %d pages (%d cached fresh)", fetched, len(jobs), len(active)-len(jobs))

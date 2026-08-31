@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -85,4 +88,24 @@ func TestUpperFirstKeepsValidUTF8(t *testing.T) {
 	if in := "\u3042\u3044"; utf8.ValidString(strings.ToUpper(in[:1]) + in[1:]) {
 		t.Error("the old byte-slicing shape is valid UTF-8, so this test no longer proves anything")
 	}
+}
+
+// readHandlerSource returns one file from this package as text, for the assertions
+// that are about the shape of the code rather than its behaviour.
+//
+// This package has no database harness, so a handler whose whole job is a query
+// cannot be driven end to end here. Where the thing worth guarding is a clause or
+// a call that must not be dropped, reading the source is the honest way to guard
+// it, and it is the same approach internal/server takes for the route table.
+func readHandlerSource(t *testing.T, name string) string {
+	t.Helper()
+	_, self, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("could not locate this test file")
+	}
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(self), name))
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return strings.ReplaceAll(string(raw), "\r\n", "\n")
 }
