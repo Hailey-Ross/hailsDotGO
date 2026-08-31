@@ -505,6 +505,13 @@ CREATE TABLE IF NOT EXISTS user_pokemon_box (
   iv_candidates  JSON,
   caught_at      DATETIME,
   note           VARCHAR(160),
+  -- How the row arrived. Set by the server from the route the write came in on
+  -- plus what the client claimed, never taken from the client verbatim: a row
+  -- that says it was attested has to have been attested. 'unknown' is the
+  -- default because rows written before this column existed cannot be traced,
+  -- and no migration can recover it, so they must never read as trusted.
+  provenance     ENUM('manual','scan_web','scan_app','scan_app_attested','unknown')
+                 NOT NULL DEFAULT 'unknown',
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_upb_user (user_id),

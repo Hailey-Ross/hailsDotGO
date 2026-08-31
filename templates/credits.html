@@ -163,248 +163,158 @@
 
   <div class="changelog">
 
-        <div class="cl-entry fade-up">
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-30</div>
       <div class="cl-body">
 
         <div class="cl-item">
           <h2 class="cl-title">Screenshot scanning no longer guesses your appraisal</h2>
           <ul class="cl-list">
-            <li>A scanned screenshot could come back with the wrong star rating, which pushed the IV result into the wrong range. The stars are now read only when they can be read for certain, and otherwise your own appraisal is left as you set it</li>
+            <li>Screenshot scans no longer invent a star rating. If the stars cannot be read for certain, your own appraisal is left as you set it</li>
           </ul>
         </div>
 
       </div>
     </div>
-
-
-        <div class="cl-entry fade-up">
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-27</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Event reminders in the app now arrive</h2>
+          <h2 class="cl-title">Event reminders in the app</h2>
           <ul class="cl-list">
-            <li>The bell on an event finally does something: choose how far ahead you want telling and a notification turns up then, with another when the event begins</li>
-            <li>You can set more than one reminder for the same event, up to five: a day ahead to plan around and half an hour ahead to actually stop what you are doing</li>
-            <li>Times are worked out where you are, so a 6pm Spotlight Hour means 6pm on your own clock, and your reminders move with you if you travel</li>
-            <li>If an event is rescheduled your reminder moves with it, and if it is cancelled the reminder goes too</li>
+            <li>Set up to five reminders on any event in the app, in your own timezone. They follow the event if it is rescheduled, and go away if it is cancelled</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Max CP in the app is right past level 45</h2>
           <ul class="cl-list">
-            <li>The app read a level table that stopped at 45, so anything above it came out around 6% low. The full table now reaches level 51, and Best Buddy included</li>
+            <li>The app read a level table that stopped at 45, so anything above it came out around 6% low. It now reaches level 51, Best Buddy included</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Counter numbers for Mega raids add up now</h2>
+          <h2 class="cl-title">Mega raid counter numbers add up</h2>
           <ul class="cl-list">
-            <li>Damage and survival estimates against a Mega boss were worked out from its ordinary form, which made every figure read about a third too high. They now use the Mega's own defence</li>
+            <li>Estimates against a Mega boss used its ordinary form's defence, which read about a third too high. They now use the Mega's own</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Current Raids now ends bosses when they really end</h2>
+          <h2 class="cl-title">Current Raids follows the real rotation</h2>
           <ul class="cl-list">
-            <li>Raid bosses are now tied to the event schedule, so one drops off the page when its rotation actually finishes instead of lingering for days</li>
-            <li>A new boss shows up as soon as its rotation begins, and Shadow Raids are covered too</li>
-            <li>Mega raids too: a new Mega appears the moment its rotation starts, carrying its own typing and CP rather than its base form's</li>
-            <li>Every boss now tells you how long it has left on your own clock, and during a changeover it says whether it is only just starting or still running in later time zones</li>
-            <li>A new "Up next" strip shows the rotation coming after this one</li>
+            <li>Bosses appear and disappear with their actual rotation, each showing how long it has left on your own clock, with an “Up next” strip for what follows</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Writing in your own script no longer breaks a report</h2>
+          <h2 class="cl-title">Text in any script no longer breaks a form</h2>
           <ul class="cl-list">
-            <li>A long player report written in Japanese, Thai, Hindi or with emoji could fail to send, with an error you could not get past by trying again. It goes through now</li>
-            <li>The same fault reached the translator application, custom pronouns, your favourite Pokémon and the comment left when you rate a bug report. Every field of that kind now counts its length in characters, so nothing is ever cut in the middle of a letter</li>
+            <li>Reports, translator applications, custom pronouns and rating comments now accept Japanese, Thai, Hindi and emoji instead of being turned away for length</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Applying to translate works whatever you speak</h2>
+          <h2 class="cl-title">More of the app works without the website</h2>
           <ul class="cl-list">
-            <li>Writing your reasons in Japanese, Thai or Hindi could be turned away as the wrong length when it was comfortably inside the limit. The count matches what the form asks for now</li>
-            <li>Ticking a long list of languages, or adding one of your own, could fail the application outright with nothing on screen to explain it. There is room for every language on offer</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">More of the companion app stops needing the website</h2>
-          <ul class="cl-list">
-            <li>Bug and support threads now work in the app: opening one, reading the replies, answering, inviting someone in and rating the outcome. Until now the app could file a report but never see what came back</li>
-            <li>Following, blocking and leaving feedback on a trainer work from the app too, as does granting a community award</li>
-            <li>Supporter tag controls are available as well: requesting a tag, changing its colour and cancelling. Buying one still happens on the website</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Settings, trainers and signing up, all native in the app</h2>
-          <ul class="cl-list">
-            <li>Your trainer name, friend code, avatar, pronouns, location and favourite Pokémon can now be set in the app itself. The raid finder needs a name and a code before it will let you in, and until now that meant being sent out to a web page</li>
-            <li>The trainer directory, a trainer's profile and their friends list are all available in the app too</li>
-            <li>Signing up and asking for a password reset work in the app, so a new trainer no longer starts on a web page inside the app</li>
-            <li>A profile marked private now stays private everywhere: the app is told nothing but the username, in the same way the website shows nothing but the username</li>
+            <li>Bug reports, following, blocking, trainer feedback, awards and supporter tags all work in the app now</li>
+            <li>Trainer settings, the directory, profiles, signing up and password reset are native too, so you are no longer sent out to a web page</li>
           </ul>
         </div>
 
       </div>
     </div>
-
-        <div class="cl-entry fade-up">
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-26</div>
       <div class="cl-body">
 
         <div class="cl-item">
           <h2 class="cl-title">Costumes in the app, picked instead of typed</h2>
           <ul class="cl-list">
-            <li>The companion app can now show you every costume a Pokémon can wear, each with its shiny picture, so you no longer have to know the exact name and type it</li>
-            <li>The names the game uses are matched too, so searching for "Professor Willow's Assistant" finds "Willow's Lab Coat"</li>
-            <li>Delibird's winter costume was listed twice under two names. It is now listed once, as "Holiday Outfit", the same name its family already uses, and anything recorded under the old name still shows its art</li>
+            <li>Browse every costume a Pokémon can wear, each with its shiny picture, instead of having to know the exact name</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Report a player from the app</h2>
           <ul class="cl-list">
-            <li>Reporting a player used to work only on the website. The companion app can now file one too, and it lands in the same queue for staff</li>
+            <li>Player reports can be filed from the app, into the same queue staff already use</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Raid counters were naming the wrong Pokémon</h2>
           <ul class="cl-list">
-            <li>The counter list under every raid boss was in the wrong order, and several of the strongest attackers were missing from it completely. Against Shadow Slowpoke it opened Regieleki, Gengar, Arcanine when the truth is Regieleki, Zacian, Deoxys, and Zacian, Deoxys, Xurkitree, Darkrai and Kartana never appeared at all</li>
-            <li>The cause was Ditto. Its only fast move never charges an attack, so its score came out as not a number, and that one value was enough to unsettle the ordering of the whole table for every boss</li>
-            <li>The Compare tab on the DPS page and the scoring of your own box against a boss went wrong the same way whenever a Ditto was in the mix. All of them are correct now</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">The app can see which sections are switched off</h2>
-          <ul class="cl-list">
-            <li>New <code>GET /api/mobile/v1/maintenance</code> tells the companion app which pages and sections are enabled, the store included, so it can grey out anything the site has turned off instead of opening a screen that will not load</li>
-            <li>It needs no login, which matches the website, where a switched off section is already missing from the menu</li>
+            <li>The counter list under every boss was in the wrong order and missing several of the strongest attackers. Fixed here, on the DPS compare tab, and when scoring your own Pokémon</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Site links can open in the Android app</h2>
           <ul class="cl-list">
-            <li>The site now publishes the file Android needs before it will let the companion app open pogo.hails.app links. Tapping a raid finder, events or shiny dex link from a chat, an email or a search result can go straight to the app instead of the browser</li>
-            <li>Only applies to app builds signed with a listed key, and Android checks it when the app is installed, so an existing install needs a reinstall before it takes effect</li>
+            <li>Tapping a pogo.hails.app link can go straight to the app instead of the browser. An existing install needs a reinstall before it takes effect</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Event listings cleaned up</h2>
           <ul class="cl-list">
-            <li>Event names with an ampersand in them read properly again, on the card, in the details panel and in the calendar feed.</li>
-            <li>Reward, item and Pokemon pictures are back to a sensible size. They were drawing at full size and sprawling over the text beside them.</li>
-            <li>The small species badge on a GO Pass reward no longer covers the icon it sits on, and item counts sit on the corner instead of across the middle.</li>
-            <li>An event no longer repeats its own name and type at the top of its details.</li>
-            <li>GO Pass events listed their rewards twice. Only the rank table remains, with Basic and Deluxe lined up properly.</li>
-            <li>Footnotes read as small print again instead of as bold headings.</li>
-            <li>Research steps, claim steps and the GO Pass table are laid out properly, and event details now fit a phone screen.</li>
-            <li>The LEGO event's store finder was arriving as unreadable text, so it is gone. The link to the official map stays.</li>
-            <li>A GO Pass with no rewards announced yet is left out instead of drawing an empty panel.</li>
-            <li>Events no longer open with a stack of blank lines.</li>
+            <li>Names with an ampersand, oversized pictures, duplicated GO Pass rewards, footnote styling and the layout on a phone are all fixed</li>
           </ul>
         </div>
 
       </div>
     </div>
-
-<div class="cl-entry fade-up">
+    <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-25</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Seven costumes added, five of which the site could not see at all</h2>
+          <h2 class="cl-title">Seven costumes added</h2>
           <ul class="cl-list">
-            <li>Two costumes from this month can now be recorded: World Championships 2026 and PokémonXP, both on Pikachu. The admin panel had already spotted these and asked for an update, which is exactly what it is there for</li>
-            <li>The other five were a different problem. Part of how the site decides what counts as a costume comes from a list kept by the game's data community, and that list had simply not marked them. A costume nobody marks is invisible twice over: it never gets added, and the check that looks for missing costumes cannot see it either, so nothing anywhere says it is missing. If you caught one you got a plain shiny with no costume art and no way to record it</li>
-            <li>Those five are in now: the anniversary Pikachu wigs from the Malaysia, Singapore, Philippines and Taiwan events, and the Psyduck sitting in a swim ring</li>
-            <li>To stop it happening again, the site now finds that gap by itself. Costumes from an event carry the year in their internal name, and permanent forms like Mega and Alolan never do, which turns out to be enough to tell the two apart. Anything that looks like an event costume but that the game will not confirm is now listed for a person to look at, rather than dropped in silence</li>
-            <li>It still will not add any of them on its own. A costume becomes recordable only once someone has looked at the artwork and given it a name, which is unchanged and deliberate: the game's internal names mislead often enough that guessing from them has put the wrong artwork on a costume before</li>
-            <li>Nothing you have already recorded is affected, and the two Ditto caps are still waiting on a name</li>
+            <li>Two new Pikachu costumes, plus five the site could not previously see at all: the Malaysia, Singapore, Philippines and Taiwan anniversary wigs, and Psyduck in a swim ring</li>
+            <li>Event costumes the game will not confirm are now listed for a person to look at, rather than dropped in silence</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-08-05</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">The costume check now notices costumes it used to miss</h2>
-          <ul class="cl-list">
-            <li>Costumes are read straight out of the game's own files, so the site knows which ones exist, which Pokémon can wear each one, and whether the shiny version was ever made. A check in the admin panel asks whether the game has added any we do not have yet. It was answering the wrong question</li>
-            <li>It only ever looked for brand new costumes. When an existing costume was later given to more Pokémon, which is how most events extend one, it saw nothing to report, and anyone who caught the costume on one of the new species got a plain shiny with no costume art. It now spots that too, and names the species that were added</li>
-            <li>It could also have nagged forever about a costume that only exists in the female version of a sprite, asking for an update that would never have changed anything</li>
-            <li>The check counted every file in the game's art folder and then described the total as costumes. It now says how many costume sprites it actually looked at</li>
-            <li>Two presses of the button in quick succession no longer means two trips to the game files. The answer is held for a few minutes and pressing again asks for a fresh look, which stops the site running out of its allowance and reporting a limit as though the source had gone missing</li>
-            <li>The tool that rebuilds costume data used to report itself as out of date whenever the game's art repository received any commit at all, even one that touched nothing about costumes. It now separates a real costume change from that bookkeeping, so a warning means something again</li>
-            <li>Some costumes are in the game and still have no name on this site, so they cannot be recorded yet. Nothing you have already recorded is affected. They are named by hand on purpose, because the game's internal names are misleading (one called "May 2019" is a straw hat), and the admin panel now says plainly when there is no outside name to check a new one against</li>
-            <li>A costume name given by mistake can now be taken back. Until now a name vanished from the list the instant it was given, so a wrong one could not be reached to correct it. It can only be undone while nobody has recorded that costume, because removing a name people have used would blank the artwork on their entries</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Accounts can now be deleted, not only suspended</h2>
-          <ul class="cl-list">
-            <li>Until now the strongest thing staff could do to an account was suspend it, which locks the trainer out but keeps everything on file. There is now a way to remove an account outright, for spam signups, throwaway test accounts, and anyone who asks for their data to be erased</li>
-            <li>Only the site owner can do it, and it asks for the username to be typed out in full before it will go ahead. There is no undo and no copy kept, so the extra step is the point</li>
-            <li>Deleting an account takes everything belonging to it: the shiny collection, raid history, ratings, reports, messages, purchases and saved devices. The trainer is signed out everywhere the moment it happens</li>
-            <li>Other people's records are left standing. If the deleted account had rated or raided with someone, that trainer's own history and trust score are untouched rather than quietly shifting</li>
-            <li>Strikes now outlive the staff member who issued them. Previously, deleting a moderator would have deleted every strike they had ever given out, wiping the record of the trainers they disciplined. The strike stays, still showing who issued it</li>
-            <li>That last part is a database change. The upgrade tool applies it, and a brand new install needs nothing extra</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
           <h2 class="cl-title">Your Pokémon now have a home, and the Raids page uses them</h2>
           <ul class="cl-list">
-            <li>There is a new My Pokémon page in the menu. It holds the Pokémon you have saved, and you can now add one by hand as well as remove it. Until now the only way to put anything in there was to run an IV check first, or to use the companion app, which has not been released</li>
-            <li>Adding by hand is for a Pokémon whose appraisal you already know: pick it, set its CP, level and IVs, and mark it as shadow or purified. If you do not know the IVs, the IV Calculator still works them out from CP, HP and stardust, and saving from there fills the box as before</li>
-            <li>Open a raid boss on the Raids page and your own Pokémon are now ranked against it, shown first, above the general list of top counters. The best five appear straight away and the rest are one tap behind them, so the question of what to actually bring is answered before the question of what the theoretical best would be</li>
-            <li>Because your box records which Pokémon you own but not which moves they know, each one shows two numbers: what it does on its best moveset and what it does on its worst. A Pokémon whose IVs were never pinned down still appears, marked, using the average of the possibilities rather than pretending it is perfect</li>
-            <li>Shadow Pokémon are counted properly. Shadow hits noticeably harder in a raid, and the box can now record that, which often changes which of your Pokémon is actually the best pick</li>
-            <li>The old "Check your Pokémon" box at the top of the page is unchanged if you liked comparing one Pokémon across every current raid</li>
-            <li>This adds two columns to the database. The upgrade tool handles it, and a brand new install needs nothing extra</li>
+            <li>New My Pokémon page: add one by hand, or save it from the IV Calculator as before</li>
+            <li>Open a raid boss and your own Pokémon are ranked against it above the general counter list, with shadow counted properly</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Counter damage figures were wrong for most raid bosses</h2>
           <ul class="cl-list">
-            <li>Every Shadow, Alolan, Hisuian, Galarian and Mega boss was being scored against a placeholder defence stat instead of its own, because those bosses are named differently from the Pokédex entry the site looked them up in. On a recent rotation that was 14 of the 19 bosses on the board</li>
-            <li>The order of the counters list was never affected, so the advice you were reading was sound. The DPS and TDO numbers next to it were not, and were often out by more than half</li>
-            <li>There were two halves to it. Bosses named with a prefix, like Shadow Slowpoke or Alolan Sandshrew, matched nothing at all and got a placeholder. Bosses named plainly, like Mewtwo or Deoxys, matched the wrong forme instead: Mewtwo was being scored as Armored Mewtwo and Deoxys as its Attack forme, which are not the ones you fight. Both are right now, and a check runs against the live boss list so it cannot drift back quietly</li>
-            <li>One gap remains and is worth being straight about: Mega bosses fall back to the ordinary form's defence, because the data we get does not carry Mega stats at all. That is closer than the old placeholder but it is not exact, and it cannot be until the source provides them</li>
+            <li>Shadow, Alolan, Hisuian, Galarian and Mega bosses were scored against a placeholder defence stat, so their damage and survival numbers were often out by more than half. The order of the list was never affected</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Accounts can be deleted, not only suspended</h2>
+          <ul class="cl-list">
+            <li>An account can now be removed outright, for erasure requests and spam signups. Other trainers' history and strikes are left standing</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Event details that were quietly missing are back</h2>
           <ul class="cl-list">
-            <li>Opening a GO Battle League event showed a blank panel where the details should be. The page was being fetched and stored correctly the whole time, then refused on the way back out because those events are named with underscores and the check that guards them did not allow one. Every League rotation reads properly now</li>
-            <li>Event details were also disappearing partway through an event. The site worked out whether an event had finished using the clock where the server sits, but most events run at the same hour in every timezone, so anything still running in the Americas looked over hours before it was. Those events kept their card and lost their details. It now waits until an event has genuinely finished everywhere on Earth</li>
-            <li>An event with nothing extra to show used to open an empty panel. It now says so plainly instead of looking broken</li>
-            <li>The subscribe list only offered a fixed set of event types, so choosing specific types quietly left out GO Fest, seasons, GO Pass and a few others. Anything the schedule carries now appears in the list on its own, and no type can go missing again</li>
-            <li>If the source we take events from ever publishes something empty or malformed, the site now keeps what it already has instead of throwing it away. Previously one bad update could have wiped every stored event page with nothing to restore from</li>
+            <li>GO Battle League events opened to a blank panel, and any event still running elsewhere in the world lost its details hours early. Both fixed</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-27</div>
       <div class="cl-body">
@@ -412,91 +322,47 @@
         <div class="cl-item">
           <h2 class="cl-title">See which shinies are coming, and when</h2>
           <ul class="cl-list">
-            <li>Niantic usually announces a shiny weeks before it arrives. Those dates can now be recorded, so My Collection tells you what is coming instead of only what is out</li>
-            <li>A Pokemon with an announced shiny shows on the checklist straight away, greyed out with the date in the corner and the full date when you hover it. You still cannot add it, because it does not exist yet. Everything else that is unreleased stays tucked behind the "Show unreleased" tickbox as before</li>
-            <li>The Missing tab is unchanged: it lists shinies you could go out and catch today, so an announced one is not on it</li>
-            <li>On the day, the shiny turns itself on. Nobody has to be awake to tick a box. If Niantic delays a release we can hold it back by hand, and doing so overrules the date</li>
-            <li>Staff can set a date for regional and alternate forms too, not just for a species</li>
-            <li>This adds one column to the database. The upgrade tool handles it, and a brand new install needs nothing extra</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Release v0.1.7e</h2>
-          <ul class="cl-list">
-            <li>Everything in the 25 July entry below is bundled into a tagged release, v0.1.7e, for anyone running their own copy</li>
-            <li>This one does change the database, so upgrading is not just a rebuild and a restart. There is one new table that stores our corrections to the shiny list, and the upgrade tool creates it for you. A brand new install runs the schema and needs nothing extra</li>
-            <li>Build and upgrade instructions live on the project wiki, on the Releases and Upgrading page</li>
+            <li>An announced shiny appears on the checklist greyed out with its release date, and switches itself on that day</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-25</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Solgaleo is here, and the shiny list will not fall behind again</h2>
+          <h2 class="cl-title">The shiny list no longer falls behind</h2>
           <ul class="cl-list">
-            <li>Shiny Solgaleo was released in Pokemon GO on 22 July and was missing from My Collection. It is there now. Thank you to the trainer who reported it</li>
-            <li>The real problem was not one missing Pokemon, it was how the list worked. The site took its shiny list from an outside source that stopped being updated earlier this year, and a Pokemon simply being absent from that list was how the site decided its shiny "did not exist yet". So every new shiny release needed a code change and a rebuild, and 141 Pokemon had quietly gone missing</li>
-            <li>My Collection now ships with the entire National Pokedex, all 1025 species, each marked with whether it is in Pokemon GO and whether its shiny has been released. When Niantic releases a shiny, we tick a box and it appears straight away. No more waiting for an update</li>
-            <li>Nothing looks different unless you want it to. The checklist still shows only the shinies you can actually catch, and the Missing tab is still a real to do list. There is a new "Show unreleased" tickbox under the search if you would like to see what is coming: those Pokemon appear greyed out, marked either "soon" or as not being in the game at all, and cannot be added</li>
-            <li>Anything already in your collection always stays visible and editable, even if we have its release status wrong. Your catches are yours</li>
-            <li>Shiny Lunala is announced for 19 August. It will appear on the day, without an update</li>
+            <li>My Collection now carries all 1025 species with their release status, so a new shiny turns up the day it is released instead of waiting for a site update. Shiny Solgaleo added</li>
+            <li>A “Show unreleased” tickbox reveals what is coming. The checklist and Missing tab still show only what you can catch today</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Paldean Tauros, all three of them</h2>
+          <h2 class="cl-title">Paldean Tauros, all three breeds</h2>
           <ul class="cl-list">
-            <li>Paldean Tauros comes in three breeds, Combat, Blaze and Aqua, and each has its own shiny. We were listing it as a single Pokemon whose shiny was not out yet, because our sources disagreed about it. They agree now, so all three breeds are on the checklist as separate cards with their own artwork</li>
-            <li>Two Vivillon patterns have gone the other way. Fancy and Poke Ball are event exclusive and their shinies have never actually been catchable, so they no longer sit on the checklist pretending otherwise. Tick "Show unreleased" if you would like to see them waiting</li>
-            <li>As always, anything already in your collection is untouched and still yours to edit</li>
+            <li>Combat, Blaze and Aqua each have their own card. Fancy and Poke Ball Vivillon moved to unreleased, since their shinies have never been catchable</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">A faster checklist, and evolutions that do not wait for us</h2>
+          <h2 class="cl-title">A faster checklist</h2>
           <ul class="cl-list">
-            <li>Typing in the collection search used to redraw the whole page on every single key press, and worked out whether each of a thousand cards was caught by reading through your entire collection again each time. Searching is now near instant even with a very full collection</li>
-            <li>The Evolve button now offers any Pokemon that exists in Pokemon GO, rather than only ones whose shiny we have already listed. If you evolve a shiny into something the day its evolution becomes possible, you no longer have to wait for us to catch up</li>
-            <li>The plain version of a Pokemon in the add pop up no longer shows a broken image icon when no artwork exists for it</li>
+            <li>Searching your collection is near instant even when it is very full, and Evolve now offers any Pokémon in the game rather than only ones already listed</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Costume suggestions now work on a phone</h2>
+          <h2 class="cl-title">Costume suggestions work on a phone</h2>
           <ul class="cl-list">
-            <li>The Costume box in the add and edit pop ups used to lean on a browser feature that quietly does nothing on most phones. On a computer it suggested costumes as you typed; on a phone it suggested nothing at all, so unless you already knew exactly what a costume was called, there was no way to find out it existed</li>
-            <li>Tap the Costume box now, before typing anything, and you get a scrollable list of every costume that Pokemon can wear, each with its own shiny picture. Pick one by looking at it rather than by guessing its name</li>
-            <li>You can still type anything you like in there. A costume the site has not named yet is saved exactly as you write it, same as before</li>
-            <li>Thank you to the trainer who reported Professor Willow's assistant Pikachu as missing. It was not missing, it was invisible, which is arguably worse</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Searching a costume by the name the game uses</h2>
-          <ul class="cl-list">
-            <li>We call the Willow birthday costume "Willow's Lab Coat". Every event page calls it "Professor Willow's assistant". Typing either one now finds it, and the search also looks inside the middle of a name, so "lab coat" works too</li>
-            <li>Existing entries are untouched. Nothing was renamed, because renaming a costume would blank the picture on catches people have already saved</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">The admin costume check tells the truth again</h2>
-          <ul class="cl-list">
-            <li>The button that asks the game's mined files whether there are costumes we have not picked up yet had a blind spot: it only recognised one of the two ways a costume can be filed, and every costume released since roughly 2024 uses the other one. It answered "nothing new" no matter what had come out</li>
-            <li>It now applies the same test the sync tool does, so it can see modern costumes while still ignoring the regional, Mega and Gigantamax forms that are not costumes at all</li>
-            <li>Its answer also used to be wiped off the screen a moment after appearing, which made a working check look like a dead button. The result now stays put, and it says "no new codes upstream" out loud instead of going quiet</li>
+            <li>Tap the Costume box to browse every costume that Pokémon can wear, with pictures. Searching matches the names events use too, so “Professor Willow's assistant” finds “Willow's Lab Coat”</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-18</div>
       <div class="cl-body">
@@ -504,52 +370,26 @@
         <div class="cl-item">
           <h2 class="cl-title">My Collection has a new look</h2>
           <ul class="cl-list">
-            <li>All four tabs now use the same grid of cards, so the page reads as one thing instead of two</li>
-            <li>Caught and Evolved cards have been redesigned. Each shiny sits on a lit pedestal, with its catch method, date, and any costume or event shown as tags</li>
-            <li>Tap a card to edit that entry in a small pop up</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">The drifting starfield, now matching hails.cc</h2>
-          <ul class="cl-list">
-            <li>The little specks floating behind every page have been retuned to match the ones on the hails.cc front page. There are more of them, they are brighter, they drift a touch faster and they are small five sided shapes rather than plain dots</li>
-            <li>They still sit behind everything, just above the background picture, and they still scatter away from your cursor as you move it around</li>
-            <li>Clicking does not spawn new ones here, unlike on the front page. This site has rather more buttons to press</li>
+            <li>All four tabs use the same card grid, and tapping a card edits that entry in a small pop up</li>
           </ul>
         </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Catch dates stay put</h2>
           <ul class="cl-list">
-            <li>The day you caught a shiny was being read back in the wrong timezone, so if you live west of the UK it was shown as the day before. Worse, the collection editor saved whatever it was showing, which meant every time you touched an unrelated field, like renaming a costume, the catch date quietly moved another day into the past</li>
-            <li>A catch date now shows and saves as the exact day you picked, no matter where you are, and editing a costume, a form, a method or an event tag no longer touches the date at all</li>
-            <li>Shinies caught on the same day used to come back in whatever order the database felt like, which could hide some of them from the six recent catches on your profile. They now sit in the order you added them, newest first, so a batch of catches from one event stays together</li>
-            <li>Entries you edited before today are still holding the date they drifted to, so it is worth checking anything you have renamed recently and setting the day back to the right one. It will stick this time</li>
+            <li>Dates were read back in the wrong timezone and drifted a day earlier every time you edited anything else. Both fixed, though an entry you edited before this may need its date setting back once</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny collections now really do sort by Pokedex number</h2>
+          <h2 class="cl-title">Shiny collections sort by Pokédex number</h2>
           <ul class="cl-list">
-            <li>Opening the full shiny collection on a trainer's profile is meant to lay it out in Pokedex order. It was working out each Pokemon's number by reading its picture's filename, which guessed wrong twice over</li>
-            <li>Costumed shinies had no number to read at all, so every one of them was treated as number zero and piled up at the very front of the grid. A Party Hat Venusaur now sits at 3, with the rest of its kind</li>
-            <li>Regional forms were read as their own separate numbers, so an Alolan Raticate landed somewhere past 1000 instead of next to the ordinary one. Alolan, Galarian, Unown letters and crowned forms all sit with their species now</li>
-            <li>Where several of the same Pokemon share a number they are grouped together rather than left in the order you caught them, and the collapsed view still shows your six most recent catches</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Release v0.1.7c</h2>
-          <ul class="cl-list">
-            <li>Everything above is bundled into a tagged release, v0.1.7c, for anyone running their own copy</li>
-            <li>There is no database change in this one, so upgrading from v0.1.7b is a rebuild and a restart</li>
+            <li>Costumed shinies were piling up at the front of the grid and regional forms landed somewhere past 1000. They now sit with their species</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-17</div>
       <div class="cl-body">
@@ -557,1728 +397,343 @@
         <div class="cl-item">
           <h2 class="cl-title">A new home: pogo.hails.app</h2>
           <ul class="cl-list">
-            <li>The site has a new address, pogo.hails.app. It is the same tools, the same account and the same data, just a tidier name to type</li>
-            <li>Your old bookmarks still work: every pogo.hails.live link now forwards to the matching page on pogo.hails.app, so nothing you saved is lost</li>
-            <li>If you subscribe to the events calendar it keeps working unchanged, and any emails from us (like a password reset) now come from the new address</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Release v0.1.7b, a fresh baseline for self-hosters</h2>
-          <ul class="cl-list">
-            <li>Everything above is now bundled into a tagged release, v0.1.7b, so anyone running their own copy has a known good version to build from</li>
-            <li>This release becomes the new starting point for database migrations: the upgrade tool recognises v0.1.7b and moves forward from here, so a brand new install just runs the schema and is ready to go</li>
-            <li>Nothing changes for you as a visitor, and the live site is already on it. There is no database change in this release</li>
+            <li>Same tools, same account, same data, tidier name. Old pogo.hails.live links forward automatically and the calendar feed keeps working</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-16</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Costume names added by staff now make it back into the site</h2>
-          <ul class="cl-list">
-            <li>When a new costume is given a name in the admin panel it goes live straight away, and the site quietly files that name back into its own costume list so it survives the next rebuild. That filing step was rewriting the entire list every time instead of adding the one new line, which left it too tangled to go through at all</li>
-            <li>It now adds just the new name and leaves every other entry byte for byte as it was written, so the list keeps the order and the notes it was curated with</li>
-            <li>A name that has already been filed is no longer filed a second time, and the request tidies itself away once there is nothing left to file</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
           <h2 class="cl-title">A Wiki link in the sidebar</h2>
           <ul class="cl-list">
-            <li>The sidebar now has a Wiki link that goes straight to the project's documentation, covering everything from setting up your own instance to how roles, translations and the API work</li>
-            <li>It opens in a new tab, so whatever you were in the middle of stays where you left it</li>
-            <li>The link is there whether or not you are signed in, since the guides are just as useful before you make an account</li>
+            <li>Goes straight to the project documentation, and opens in a new tab</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: the event box now suggests the events actually running</h2>
+          <h2 class="cl-title">Event suggestions from the live schedule</h2>
           <ul class="cl-list">
-            <li>The event box on a shiny now suggests real events as they happen, straight from the same live feed the Events page uses, so something like "Special Anniversary Pikachu Celebration" is there to pick the moment it starts instead of waiting for the list to be updated by hand</li>
-            <li>Current and upcoming events are listed first, since a shiny is usually logged during the event that produced it, with the familiar categories like Community Day and GO Fest kept underneath</li>
-            <li>Only events worth tagging a catch with are suggested: Raid Hours, GO Battle League cups and GO Pass are left out to keep the list short, and the general "Raid Hour" and "Spotlight Hour" entries still cover those</li>
-            <li>Added the recurring formats the list never had: Ultra Unlock, Hatch Day, Max Battle Day, Choose Your Path, Wild Area and City Safari</li>
-            <li>The box is still free text, so you can type any event you like, and anything you have already saved keeps exactly the name you gave it</li>
+            <li>The event box on a shiny suggests events as they actually happen, with current and upcoming ones first</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-14</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: the companion app can now manage your shinies</h2>
+          <h2 class="cl-title">The app can manage your shinies</h2>
           <ul class="cl-list">
-            <li>The mobile companion app can now read and update your shiny collection directly: list what you have, add a new catch, edit an entry, evolve it, or remove it, all against the same collection you see here on the site</li>
-            <li>Every shiny the app shows carries the right artwork: costume, regional form and Vivillon or Unown pattern sprites are resolved by the site, so what you see in the app always matches your collection and its checklist</li>
-            <li>The app's region and catch method pickers are fed from the site too, so a new region or method added here shows up in the app without an update</li>
+            <li>List, add, edit, evolve and remove, against the same collection you see here, with the right costume and form artwork throughout</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Events: add events to your calendar</h2>
+          <h2 class="cl-title">Add events to your calendar</h2>
           <ul class="cl-list">
-            <li>The Events page can now feed straight into Google Calendar, Apple Calendar or any other calendar app. Open the "Subscribe to calendar" panel, tick the kinds of events you care about (Community Day, Spotlight Hour, Raids, GO Battle League, Research, or simply Everything), then copy the link or add it to Google in one tap</li>
-            <li>You can also add a single event on its own, without subscribing to the whole feed. Open any event and use "Add to Google Calendar" or download it to the calendar app on your phone, so an upcoming Kyogre raid takes a tap or two to save and set an alarm for</li>
-            <li>Times come through correctly for wherever you are: local events like Spotlight Hour show at 6pm your time, while worldwide events stay pinned to the real global moment, so the alarms you set actually go off when they should. The calendar refreshes itself as new events are announced, so once you have subscribed you never have to touch it again</li>
+            <li>Subscribe the Events page to Google, Apple or any calendar app, filtered by the event types you care about, or add a single event on its own. Times come through correctly wherever you are</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: Scatterbug remembers its pattern through evolution</h2>
+          <h2 class="cl-title">Unown, letter by letter</h2>
           <ul class="cl-list">
-            <li>A Scatterbug or Spewpa can now be tagged with its Vivillon pattern in your collection, the same way you set a regional form. It still looks like a plain shiny Scatterbug or Spewpa (they are identical whichever region they came from), but the pattern is remembered</li>
-            <li>When you press Evolve on a tagged Spewpa, it turns into the matching Vivillon pattern automatically, so an Elegant Scatterbug you caught from Japan becomes an Elegant Vivillon without you having to pick the pattern again. The pattern carries the whole way up the line</li>
-            <li>Tagging a Scatterbug with a pattern does not split it into its own card: the single Scatterbug card still ticks and counts as before, so nothing you have recorded changes</li>
+            <li>Every form from A to Z plus the exclamation and question marks, each ticked, counted and searched on its own, with its own artwork</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: every Vivillon pattern is its own card</h2>
+          <h2 class="cl-title">Every Vivillon pattern is its own card</h2>
           <ul class="cl-list">
-            <li>Vivillon now has a card for all 20 of its wing patterns (Meadow, Polar, Elegant, Icy Snow, Continental, and the rest, right through to the event only Fancy and Poke Ball). Each pattern is ticked, counted and searched on its own, so the Missing tab tells a shiny Vivillon hunter exactly which patterns are still out there</li>
-            <li>Every pattern shows its own artwork on the checklist, in your collection and on your public profile, and hovering a card names the real world region that pattern is collected from (Elegant is Japan, Garden is the UK and Ireland, and so on)</li>
-            <li>A plain Vivillon card is still there for a catch whose pattern you never noted, and anything you already recorded is untouched. Scatterbug and Spewpa stay a single card each, because they look the same whichever region they came from: only Vivillon shows the pattern</li>
+            <li>All 20 patterns, each with its own artwork, and hovering one names the real world region it comes from</li>
+            <li>Scatterbug and Spewpa can be tagged with a pattern, which carries through to the matching Vivillon when you evolve</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: Unown is tracked letter by letter</h2>
+          <h2 class="cl-title">Tap a shiny to see the story behind it</h2>
           <ul class="cl-list">
-            <li>Unown now has a card for every form it comes in: A to Z, plus the exclamation mark and the question mark. Each one is ticked, counted and searched on its own, so the Missing tab finally answers the only question a shiny Unown hunter actually has, which is which letters are still out there</li>
-            <li>Every letter shows its own artwork, on the checklist, in your collection and on your public profile, so a shiny Unown F no longer looks exactly like a shiny Unown G</li>
-            <li>A plain Unown card is still there for a catch whose letter you never wrote down, and anything you have already recorded is untouched. If you do remember the letter, you can set it on the entry in your collection at any time and it will move to the right card</li>
+            <li>Opens it larger with everything the trainer recorded about it, and you can now set the catch date yourself instead of having the day you added it recorded</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Trainer pages: tap a shiny to see the story behind it</h2>
+          <h2 class="cl-title">Costume art now comes from us</h2>
           <ul class="cl-list">
-            <li>Clicking any shiny in a Shiny Collection, yours or another trainer's, now opens it larger along with everything that trainer recorded about it: how it was caught, the costume it is wearing, the event it came from, whether it is Shadow or Purified, its regional form, when it was caught, and whether it was evolved. Only the details they actually filled in are shown</li>
-            <li>The catch date is now yours to set, both when you add a shiny and afterwards from your collection. Until now the site quietly recorded the day you added the entry, which is not the same thing at all if you log a catch a few days later. Existing entries keep the date they have unless you change it</li>
-            <li>On your own profile, the detail view has a link that takes you straight to that exact entry in your collection and highlights it, so you do not have to hunt through a long list to fix a typo</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: the Visor costume is live, and costume art now comes from us</h2>
-          <ul class="cl-list">
-            <li>The Visor costume (the Kanto starters and their evolutions, so a visored Charmander evolves into a visored Charizard) is now in the picker. It turns out the art had existed since 2020 all along: we had recorded the wrong internal code for it and were checking an image source that had quietly stopped updating back in April, so the costume was switched off for no reason. If you caught one, it will render properly now</li>
-            <li>Costume art is no longer loaded from someone else's server. Sprites are fetched once, cached here, and served from pogo.hails.app, so browsing the shiny dex no longer sends a request per costumed Pokemon to a third party</li>
-            <li>Costume data is now derived from the game's own mined assets rather than typed in by hand. Which Pokemon can wear a costume, and whether its shiny exists at all, are read straight from the art that Niantic ships, so a costume can no longer be listed for a Pokemon that never had it, and a missing sprite can no longer hide behind a plain shiny</li>
-            <li>Six costumes that had been sitting unlabelled are now available: the Marathon Visor, Fossil and Willow's Lab Coat Pikachu, the three team caps from GO Fest 2026, and Caterpie's Poke Ball Hat</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: four costumes were showing the wrong art, and 43 more are now available</h2>
-          <ul class="cl-list">
-            <li>Costume names are now cross-checked against a second source, and it immediately caught four costumes that had been pointing at the wrong artwork for months. If you recorded a Detective Hat Pikachu you were being shown a straw hat, and a Flower Crown Pikachu was showing the detective hat. Both now render the costume you actually picked. Dawn's Hat was pointing at Rei's cap, so Dawn's Hat has been corrected and Rei's Cap has been added as its own costume</li>
-            <li>Two Pikachu costumes that were sharing a name have been separated: the plain straw hat and the summer hat with sunglasses are now distinct entries</li>
-            <li>43 costumes that the game had but we had never named are now in the picker, including the World Championships caps, the Flying Pikachu balloon set, the GO Fest 2025 goggles and monocles, Armored Mewtwo, Lucas's and Dawn's hats on the Sinnoh starters, and the Day of the Dead crowns</li>
-            <li>Nothing you have already recorded was renamed. Every existing costume label still works exactly as before</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: a Costumes tab, so new costumes stop going unnoticed</h2>
-          <ul class="cl-list">
-            <li>Admins get a new Costumes tab listing every costume the game has that has not been named yet, each shown with its real shiny artwork. A costume with no name cannot appear in the picker, so this list is the backlog of costumes nobody can record yet. Seeing the art matters: the game's internal names are misleading, which is exactly how four costumes ended up pointing at the wrong picture</li>
-            <li>Costumes can now be named right there in the panel, and the new name is available in the shiny checklist immediately, with no update to the site needed. A costume that is not really a costume (the Gimmighoul coins) can be dismissed from the list in the same way</li>
-            <li>Clicking a costume's picture opens it at full size, on every Pokemon that can wear it, without leaving the page. Most costumes are shared across a whole family, and the small preview only ever showed the first one, which is not much to go on when the name you pick is the one everyone will use</li>
-            <li>A "Fetch new costumes" button checks the game's asset data for costumes that have not been picked up at all yet, so a new event no longer has to be spotted by hand</li>
-            <li>The data health panel used to report costumes as in sync while costumes were sitting unnamed and unusable. It now says how many are waiting</li>
+            <li>Sprites are cached and served from here rather than a third party, and costume data is read from the game's own files</li>
+            <li>Four costumes had been showing the wrong artwork for months and are corrected. 49 more costumes added, including the Visor set, the World Championships caps and the GO Fest 2025 goggles</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-13</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: more alternate forms, and a fixed add screen</h2>
+          <h2 class="cl-title">More alternate forms</h2>
           <ul class="cl-list">
-            <li>A dex wide audit filled in the alternate battle forms that were still missing their own checklist card: Dusk Mane and Dawn Wings Necrozma, Crowned Sword Zacian, Crowned Shield Zamazenta, Black and White Kyurem, and Resolute Keldeo</li>
-            <li>Several non legendary form families gained cards too, each tracked and counted separately from the default form: Midnight and Dusk Lycanroc, Sandy Cloak and Trash Cloak Wormadam, Low Key Toxtricity, Pom-Pom, Pa'u and Sensu Oricorio, Blue-Striped and White-Striped Basculin, and Wash Rotom</li>
-            <li>The add screen no longer overflows the page. When a Pokemon has extra forms to preview (like Primal Groudon), those sprites now sit in a tidy "Other forms" dropdown you can show or hide, and any tall add screen scrolls instead of running off the top and bottom of the window</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: GO Fest 2026 Pikachu Visor queued up</h2>
-          <ul class="cl-list">
-            <li>The Pikachu Visor costume from GO Fest 2026 (the Kanto starters and their evolutions, so a visored Charmander evolves into a visored Charizard) is now recorded in the costume tables, but it is switched off for the moment. The game asset source we pull costumed shiny art from has not published the visor sprites yet, so offering it would only ever show a plain shiny. It will light up in the picker as soon as that art lands</li>
+            <li>Dusk Mane and Dawn Wings Necrozma, Crowned Zacian and Zamazenta, Black and White Kyurem, Resolute Keldeo, Lycanroc, Wormadam, Toxtricity, Oricorio, Basculin and Wash Rotom all have their own cards</li>
+            <li>The add screen no longer runs off the page when a Pokémon has extra forms to preview</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-06</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: shared costumes render for every eligible Pokemon</h2>
+          <h2 class="cl-title">Shared costumes render everywhere</h2>
           <ul class="cl-list">
-            <li>Event costumes that were handed out to many species (Party Hat, Flower Crown, Cherry Blossom, Sunglasses, Flower Hat, Holiday Wreath, Witch Hat, Fashion Outfit, and more) now show their costumed shiny sprite on every Pokemon that actually received them, so a Party Hat Venusaur finally wears its hat</li>
-            <li>The costume picker now suggests a costume only for the species that truly have it, checked against the live game asset list, instead of offering the same three generic options to everything</li>
-            <li>Costumed sprites now also appear on public trainer profiles, not just your own collection page</li>
+            <li>Party Hat, Flower Crown, Cherry Blossom and the rest now show on every Pokémon that actually received them, and the picker only suggests costumes a species really has</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: costume sprites overhauled</h2>
+          <h2 class="cl-title">Alternate battle forms added</h2>
           <ul class="cl-list">
-            <li>Party Hat Wurmple now renders its costumed shiny sprite, and Eevee and Pikachu gained their GO Fest Sun Crown and Moon Crown sprites</li>
-            <li>Every offered costume was cross checked against the live game asset source and, where needed, against the actual sprite art. Three costumes that were showing the wrong picture are fixed: Sunglasses Squirtle now shows the real sunglasses, New Year Slowpoke now shows the "2020" glasses, and Gardevoir's costume is now correctly labelled Meloetta Hat</li>
-            <li>Pikachu picked up a large batch of real costumes that now render, including World Cap, Original Cap, Rayquaza, Charizard, Lucario and Umbreon Hats, Meloetta Hat, Cherry Blossom, Ph.D., Clone, Mimikyu Costume, Flying Pikachu, Cap's Hat, the regional shirts (Green, Purple, Batik, Kurta, Saree) and the five gemstone Crowns. Snorlax gained its Studded Jacket, Slowbro and Slowking their New Year outfits, and Raichu its Original Cap</li>
-            <li>Options with no real costumed shiny art were removed so the picker only suggests costumes that actually render: Sealeo and Walrein Festive Outfit, Luxio and Luxray Fashion Outfit, Caterpie Cowboy Hat, costumed Ditto, and a handful of Pikachu suggestions with no released shiny art (Ash Hat, Red's and Leaf's Hat, Dracula, Team Instinct and Team Mystic caps)</li>
+            <li>Therian Tornadus, Thundurus and Landorus, the three Deoxys formes, Origin Giratina, Dialga and Palkia, and Sky Shaymin</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: alternate battle forms added</h2>
+          <h2 class="cl-title">Event tags brought up to date</h2>
           <ul class="cl-list">
-            <li>Tornadus, Thundurus, and Landorus now show a second checklist card for their Therian form with the correct shiny sprite, tracked and counted separately from the default Incarnate form</li>
-            <li>A follow-up audit added the remaining shiny-released battle forms as their own cards: Deoxys (Attack, Defense, Speed), Origin Giratina, Origin Dialga, Origin Palkia, and Sky Shaymin</li>
-            <li>Each form works everywhere regional forms do: the selector on every entry, evolving, and the form badge and sprite on public trainer profiles</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: event tags brought up to date</h2>
-          <ul class="cl-list">
-            <li>The event tag suggestions when logging a shiny now include every Pokémon GO season from launch through the current Forever Forward, listed in order, plus GO Tour: Kalos and the Road of Legends event</li>
-            <li>Your existing tags are untouched; the seasons are just easier to pick from a complete, ordered list</li>
+            <li>Every season from launch onwards is in the suggestions, in order</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-05</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">IV Calculator: smarter screenshot scanning</h2>
+          <h2 class="cl-title">Smarter screenshot scanning</h2>
           <ul class="cl-list">
-            <li>Scans no longer need the appraisal screen: the level arc is now read with the same math the game uses (recalibrated against real reference screenshots), so a scan of the plain stats screen resolves the level directly</li>
-            <li>Dust costs are matched fuzzily: lucky, shadow, and purified discounts are recognized automatically, so a purified Pokémon showing 5,400 dust now finds its true level bracket instead of failing</li>
-            <li>Nicknamed Pokémon are identified from their candy line: a Machamp named "John Cena" is recognized via its Machop candy and its stats</li>
-            <li>If the CP digits are misread or hidden behind the Pokémon, the arc level rescues the search instead of returning no matches</li>
-            <li>Fixed the stardust table for levels 41 to 50 (some costs were wrong, so legitimately powered-up Pokémon could return zero results), removed an incorrect level cap for powered-up Pokémon, and corrected shadow dust handling</li>
-            <li>Best Buddy boosts are detected: if a scan only makes sense one level higher, results say so instead of failing</li>
-            <li>Manual calculator: enter the dust cost exactly as shown in game; the status buttons (lucky, shadow, purified) now handle the discount for you</li>
+            <li>A scan no longer needs the appraisal screen, because the level arc is read directly</li>
+            <li>Lucky, shadow and purified dust discounts are recognised automatically, a nicknamed Pokémon is identified from its candy, and a misread CP is rescued by the arc instead of returning nothing</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: regional forms are now first-class</h2>
+          <h2 class="cl-title">Regional forms are now first class</h2>
           <ul class="cl-list">
-            <li>Alolan, Galarian, Hisuian, and Paldean forms now appear as their own checklist cards with the correct shiny sprites, so Hisuian Growlithe and Kanto Growlithe are tracked (and counted) separately</li>
-            <li>Every entry has a new region selector, so shinies you logged before this update can be edited to record which form they are; shadow and purified still combine freely with a region</li>
-            <li>Evolving now understands regional lines: a Galarian Meowth offers Perrserker (not Persian), an Alolan Rattata evolves into an Alolan Raticate, and forms that could not evolve (base Qwilfish, base Linoone) no longer offer wrong targets</li>
-            <li>Public trainer profiles show region badges and the proper regional shiny sprites</li>
+            <li>Alolan, Galarian, Hisuian and Paldean forms have their own cards and sprites, with a region selector on every entry, and evolving follows the right line</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-04</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: 21 missing Pokémon added</h2>
+          <h2 class="cl-title">21 missing shinies added</h2>
           <ul class="cl-list">
-            <li>A full audit of the shiny checklist against every Pokémon shiny-available in Pokémon GO found 21 missing entries, including the complete Scorbunny and Sobble evolution lines; all 21 are now in the list</li>
-            <li>Also added: Honedge, Doublade, Aegislash, Hawlucha, Klefki, Diancie, Sizzlipede, Centiskorch, Mr. Rime, Ursaluna, Toedscool, Toedscruel, Varoom, Revavroom, and Orthworm</li>
-            <li>The gaps came from the upstream data source, which had stopped tracking new shiny releases; the site now carries its own curated corrections that survive every data refresh, so future upstream gaps can be patched immediately</li>
+            <li>Including the complete Scorbunny and Sobble lines, Aegislash, Diancie, Mr. Rime and Ursaluna</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-07-03</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Trainers: cards link straight to profiles</h2>
+          <h2 class="cl-title">Password reset by email</h2>
           <ul class="cl-list">
-            <li>Clicking a trainer card in the directory now opens that trainer's full profile page instead of a popup; profile pages show everything the popup did and more</li>
+            <li>The login page links to a reset form. Completing a reset signs you out everywhere, so an old or stolen session cannot survive it</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Account: email confirmation at signup</h2>
+          <h2 class="cl-title">Email confirmation at signup</h2>
           <ul class="cl-list">
-            <li>New accounts receive a confirmation email with a 24 hour link; a small banner reminds you until the address is confirmed, with a one-click resend</li>
-            <li>Nothing is locked while unconfirmed: every feature keeps working, the banner is just a nudge</li>
-            <li>Accounts created before this feature are treated as already confirmed</li>
+            <li>New accounts get a confirmation link. Nothing is locked while it is unconfirmed, the banner is only a nudge</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Account: self-service password reset by email</h2>
+          <h2 class="cl-title">Trainer cards open full profiles</h2>
           <ul class="cl-list">
-            <li>Forgot your password? The login page now links to a reset form: enter your account email and a one-time reset link (valid for one hour) is sent to you</li>
-            <li>Completing a reset signs you out on all devices, so an old or stolen session cannot survive a recovery</li>
-            <li>Reset links are single-use and stored only as secure hashes; requesting a new link invalidates older ones</li>
-            <li>Signup now validates the email address format on the server, so mistyped addresses are caught before the account exists</li>
+            <li>Clicking a card in the directory opens that trainer's profile page instead of a popup</li>
           </ul>
         </div>
 
       </div>
     </div>
-
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-07-01</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: Check/Run Scrapers button</h2>
-          <ul class="cl-list">
-            <li>The Site Stats tab has a new <strong>Check/Run Scrapers</strong> button beside Force Data Refresh that fetches every scraped source right now (raids, max battles, events, and all PoGoAPI/PokeAPI data) and reports per source whether it is reachable, parses without errors, and matches the live upstream data</li>
-            <li>Unlike Force Data Refresh (which only covers the PoGoAPI game data and Pokémon names), this also runs the raids, max battles, and events scrapers, and applies any changed data immediately</li>
-            <li>Results show inline as a table: an OK/ERROR badge per source plus item count, payload size, and whether the data was already in sync or freshly updated</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: cleaner, grouped dashboard navigation</h2>
-          <ul class="cl-list">
-            <li>The admin dashboard's long row of tabs is now a grouped sidebar, with related tools organized under named sections: Site Config, Users &amp; Moderation, Community, Localization, Raids, and System</li>
-            <li>On phones the sidebar collapses into a single dropdown that shows the current section and expands to the grouped list when tapped</li>
-            <li>All existing tools and permissions are unchanged; only the layout and navigation were reorganized</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-29</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: edit canned responses and labels for bug reports</h2>
-          <ul class="cl-list">
-            <li>Admins can now <strong>edit</strong> existing canned responses and custom labels in the Bug Reports tools, not just create or delete them; click Edit to reuse the add form, then Save changes</li>
-            <li>Built-in labels stay protected: they cannot be edited or deleted, but a new <strong>Duplicate</strong> button copies a built-in's name and colour into the add form so you can spin off your own variant</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Mobile API: rate limiting on all endpoints</h2>
-          <ul class="cl-list">
-            <li>The <code>/api/mobile/v1</code> public game-data endpoints (<code>/pokemon</code>, <code>/raids</code>, <code>/events</code>, <code>/data</code>) now carry the same per-IP rate limit as the legacy web API; <code>/raid/overview</code> gets a looser polling-friendly limit</li>
-            <li>Authenticated mobile endpoints gained a baseline per-IP abuse ceiling on top of the existing token auth, closing the gap where only the OCR endpoint was throttled</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-28</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: search now finds the whole evolution line</h2>
+          <h2 class="cl-title">Report a bug from the sidebar</h2>
           <ul class="cl-list">
-            <li>Searching any member of an evolution family now shows the entire line, not just the one you typed: searching "Deino", "Zweilous", or "Hydreigon" returns all three</li>
-            <li>Branching families work too: searching "Eevee" surfaces Eevee and every Eeveelution</li>
-            <li>Applies to both the full grid and your caught list</li>
+            <li>The red bug button opens a report that becomes a private conversation with staff. You get a reference number, and can mark it resolved, reopen it, or rate how it was handled</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">API docs: Mobile API now listed on the Credits page</h2>
+          <h2 class="cl-title">Report a player</h2>
           <ul class="cl-list">
-            <li>The Credits page API tab now documents the versioned <code>/api/mobile/v1</code> companion-app endpoints alongside the public, community, and private tiers</li>
-            <li>Corrected the project wiki's API Reference to name the CSRF cookie <code>_pogo_csrf</code></li>
+            <li>A report flag sits beside trainer names and on every profile. Reports go privately to moderators, and the reported player is never told who filed it</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Translations: your edits are kept across updates</h2>
+          <h2 class="cl-title">Searching finds the whole evolution line</h2>
           <ul class="cl-list">
-            <li>Your in-progress and approved translations are preserved across site updates; a deploy never discards pending submissions or approved strings</li>
-            <li>Approved translations are now backed up to our code repository automatically, so they are safe even if the server is rebuilt</li>
-            <li>If an English source string is later reworded, your translated text is now archived and recoverable instead of being dropped</li>
+            <li>Searching “Deino”, “Zweilous” or “Hydreigon” returns all three, and branching families like Eevee work too</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Trainer Sprites: new Pok&eacute;mon Platinum avatar set</h2>
+          <h2 class="cl-title">Translations survive updates</h2>
           <ul class="cl-list">
-            <li>Added a <strong>Pok&eacute;mon Platinum (DS)</strong> set: 105 native Gen 4 Diamond/Pearl/Platinum trainer sprites including Cynthia, every Sinnoh gym leader and Elite Four member, Team Galactic (Cyrus and commanders Mars/Jupiter/Saturn), the Battle Frontier Brains, and the DP player characters</li>
-            <li>All 105 new sprites are fully searchable by name, role, type, region, and gender in the avatar picker</li>
+            <li>Pending and approved translations are kept across site updates, and a reworded English string now archives the old translation instead of dropping it</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Sidebar navigation redesign</h2>
+          <h2 class="cl-title">Sidebar redesign</h2>
           <ul class="cl-list">
-            <li>Every sidebar link now has its own icon, and the menu is grouped into clear "Tools" and "Account" sections with subtle labels</li>
-            <li>The page you are on is highlighted with a rounded accent pill instead of a thin edge line, so it is much easier to see at a glance</li>
-            <li>Polished the brand header, spacing, and scrollbar for a cleaner overall look</li>
+            <li>Every link has an icon, grouped into Tools and Account, with the page you are on clearly marked</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Self-hosting: database migration tool</h2>
+          <h2 class="cl-title">1,419 new trainer avatars</h2>
           <ul class="cl-list">
-            <li>New <code>cmd/migrate</code> tool upgrades an existing install to the latest schema automatically; it tracks applied migrations in a <code>schema_migrations</code> table and runs only what is pending, replacing the manual "apply sections by hand" process</li>
-            <li>First run baselines your database at its current version (<code>go run ./cmd/migrate -from v0.1.3a</code>); after that a plain <code>go run ./cmd/migrate</code> applies any new migrations</li>
+            <li>Every game generation, Let's Go, Masters EX, GO player avatars, the Team GO Rocket leaders and a full Pokémon Platinum set</li>
+            <li>The picker searches by type, role, gender, region and generation</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Player Reports: flag bad actors</h2>
+          <h2 class="cl-title">Better screenshot reading</h2>
           <ul class="cl-list">
-            <li>A small report flag now sits next to trainer names across the site, and every Trainer Profile has a "Report Player" button, so you can flag spoofers, scammers, harassers, and other bad actors</li>
-            <li>Pick a reason and add details; the report goes privately to our moderation team and the reported player is never told who reported them</li>
-            <li>You can follow up with staff on your own report from the Reports page, and if your report leads to action you will be notified that you helped keep the community safe</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Bug Reports: report issues right from the sidebar</h2>
-          <ul class="cl-list">
-            <li>A new red bug button at the bottom of the sidebar opens a quick report form: tell us what broke and our staff picks it up</li>
-            <li>Each report becomes a private conversation: a red "Reports" link appears above Social while you have an open report, opening a two-pane messenger where you and staff can talk it through</li>
-            <li>You can invite up to four other users into a report; staff can apply labels, leave internal notes, change status, and loop in other team members</li>
-            <li>Replies notify you on mobile, and reopening a resolved report is as simple as sending another message</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Bug Reports: staff triage upgrade</h2>
-          <ul class="cl-list">
-            <li>Your "Reports" link now stays in the sidebar after you have ever filed a report, and your list separates Active tickets from Closed &amp; Resolved ones</li>
-            <li>Every ticket now carries a clear reference number, and you can mark your own report resolved, reopen it, and rate how it was handled once it is closed</li>
-            <li>Staff get real triage tools: sort by status, opener, priority, or who the ticket is waiting on, filter by assignee, and search across ticket text</li>
-            <li>Staff can assign tickets to a team member, set priority, and insert reusable canned responses for faster replies</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Sprites: keyword search expansion</h2>
-          <ul class="cl-list">
-            <li>Avatar picker now supports rich keyword searches: type specialty ("fire", "dragon", "ghost"), role ("gym leader", "elite four", "champion", "rival", "villain", "professor", "kahuna", "trial captain"), gender ("female", "girl", "male", "boy"), and Pok&eacute;mon GO ("go rocket", "go team", "mystic", "valor", "instinct")</li>
-            <li>Generation and region search works across all 739 generation-styled sprites automatically: "kanto", "johto", "hoenn", "gen 1", "gold silver", "diamond pearl", "xy", "scarlet violet", "hisui", "lgpe" all filter the correct sprite group</li>
-            <li>Named trainers across all 9 generations are tagged with their game of origin, so searches like "sinnoh gym leader" or "alola water" return the right results in the modern sprite group too</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">IV OCR: neural screenshot reading</h2>
-          <ul class="cl-list">
-            <li>Screenshot scanning now reads CP, name, HP, and stardust through a neural OCR engine (the same class of text recognition the mobile app uses), fixing the white "CP" font and dust cost that the previous engine could not read over bokeh backgrounds</li>
-            <li>The on-screen clock in the status bar is no longer mistaken for the CP value, and the CP arc scanner is now used only as a fallback when text reading is unavailable</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Sprites: massively expanded avatar library</h2>
-          <ul class="cl-list">
-            <li>Scraped all 1,454 sprites from the Pokémon Showdown trainer directory and added 1,314 new trainer avatars across 16 generation groups</li>
-            <li>New sprites include every game generation (Gen 1 RB through Gen 9), Let's Go variants, Masters EX artwork, Pokémon GO player avatars, Team GO Rocket leaders (Arlo, Cliff, Sierra), GO team leaders (Blanche, Candela, Spark), and hundreds of gym leaders, Elite Four members, and named NPCs previously missing</li>
-            <li>Avatar picker reorganized by Source, then Generation, then alphabetically: 18 groups total including the new Showdown generation groups plus existing Dreamstone and PEX sprite packs</li>
-            <li>Existing avatar selections are fully backward-compatible; all original slugs unchanged</li>
+            <li>CP, name, HP and stardust are read by a neural engine, so the white CP font and the dust cost work over busy backgrounds, and the status bar clock is no longer mistaken for CP</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-27</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">IV Calculator: fix My Box failing to load</h2>
+          <h2 class="cl-title">Fixed My Box failing to load</h2>
           <ul class="cl-list">
-            <li>The My Box tab showed "Failed to load data. Please try again later." because the box API endpoints were only registered under the mobile API route group; the web UI routes were missing entirely</li>
-            <li>Added <code>GET/POST/DELETE /api/iv/pokemon</code> routes to the web route group; no handler or database changes were needed</li>
+            <li>The box tab reported “Failed to load data” because its web routes were missing</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-26</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">IV OCR: CP arc and dust cost detection fixes</h2>
+          <h2 class="cl-title">Evolve a shiny in place</h2>
           <ul class="cl-list">
-            <li>Narrowed the camera-icon exclusion zone in the CP arc scanner; the previous zone was too wide and caused it to skip the correct arc endpoint for high-CP Pok&eacute;mon, producing wrong CP values (e.g. reading 1828 instead of 2895 for a Snorlax)</li>
-            <li>Changed arc brightness check from sum &gt; 580 to requiring all three colour channels above 200; this filters out coloured bokeh and background elements that previously triggered false arc endpoints</li>
-            <li>Added a narrow dust-cost-only crop region to read the power-up stardust cost in isolation; the wider region was allowing Tesseract to merge the cost with the adjacent candy count (e.g. "7,0008") which then failed to match any valid dust value</li>
+            <li>Charmander becomes Charmeleon and on through the line, with a picker for branching families like Eevee and Slowpoke</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Sidebar: user section overhaul</h2>
+          <h2 class="cl-title">Sidebar user section</h2>
           <ul class="cl-list">
-            <li>Username in the nav user row now links to your trainer profile instead of logging you out; a small &times; icon button beside it handles logout</li>
-            <li>New quick-links section below the user row: Social (your social page), Friends, My Profile, and Logout, visually separated from the main nav links with a divider</li>
+            <li>Your username opens your profile instead of logging you out, with Social, Friends and Logout below it</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">IV Calculator: design alignment</h2>
+          <h2 class="cl-title">Shiny grids on profiles</h2>
           <ul class="cl-list">
-            <li>Restructured the Manual and OCR tab containers to match the site-wide calc page pattern: form inputs now live in their own glass card (column 1 on desktop) separate from the results panel (column 2), matching how the DPS and Raid counters are laid out</li>
-            <li>OCR tab now wraps the upload button, scan status, and extracted data card in a unified controls card instead of loose floating elements</li>
-            <li>Fixed "Log in" hint messages (OCR and My Box tabs when not logged in, and the My Box empty state): now shown in a proper glass card instead of floating plain text</li>
-            <li>Fixed broken Pok&eacute;mon Status labels (Normal / Shadow / Purified / Lucky): the i18n strings were defined but not passed to the page script, causing "undefined" to render for each button</li>
+            <li>Six per row with more room to breathe, shrinking to two on a narrow screen, and sorted by Pokédex number when expanded</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Trainer profile: shiny grid responsive columns</h2>
+          <h2 class="cl-title">IV Calculator layout</h2>
           <ul class="cl-list">
-            <li>Shiny collection grid now uses <code>auto-fill</code> with a 95px minimum column width, so it naturally shows 6 columns on desktop and shrinks to 5, 4, 3, or 2 as the viewport narrows; no fixed breakpoint overrides needed and no overflow at any screen size</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer profile: shiny grid layout</h2>
-          <ul class="cl-list">
-            <li>Shiny collection now shows 6 sprites per row instead of 9, giving each entry more room and reducing visual cramping</li>
-            <li>Gap between items bumped from 0.5rem to 0.75rem for additional breathing room</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer profile: shiny collection sort on expand</h2>
-          <ul class="cl-list">
-            <li>Expanding the shiny collection on a trainer profile now re-orders the full list by Pokédex number (ascending) instead of keeping entry order</li>
-            <li>The initial preview still shows the most recently caught first</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: evolve transform</h2>
-          <ul class="cl-list">
-            <li>Evolving a shiny now transforms it in place: Charmander becomes Charmeleon, Charmeleon becomes Charizard, and so on through the full evolutionary line</li>
-            <li>Click "Evolve" on any caught entry to see the next available form; for branching evolutions (Eevee, Gloom, Slowpoke, etc.) a sprite picker lets you choose which branch</li>
-            <li>Evolution is permanent and one-way; the entry stays in your collection with a ⬆ chip marking when it evolved</li>
-            <li>Counter counts all entries including evolved ones; the Evolved tab filters to shinies that have been evolved at least once</li>
-            <li>Evolution data is bundled statically for all GO-relevant species across generations 1-9; unknown/final forms show "No evolutions"</li>
-            <li>Available in all five supported locales</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection: Go Pass catch method</h2>
-          <ul class="cl-list">
-            <li>Added "Go Pass" as a catch method for the shiny collection (passes that grant encounters, e.g. Paid Event Passes, GO Battle League reward encounters)</li>
-            <li>Displayed with 🎫 icon on shiny cards and trainer profiles; available in all five supported locales</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Avatars: 101 new Classic sprites</h2>
-          <ul class="cl-list">
-            <li>Added 101 named characters to the Classic (Showdown) avatar set, now spanning Generations 1-9</li>
-            <li>Villains &amp; team bosses: Giovanni, Cyrus, Ghetsis, Lysandre, Lusamine, Guzma, Chairman Rose, Volo</li>
-            <li>Rivals: Blue, Silver, Wally, Barry, Cheren, Bianca, Hugh, Calem, Serena, Hop, Bede, Marnie, Kieran</li>
-            <li>Fan favorites: N, Colress, Gladion, Lillie, Hau, Plumeria, Sonia, Penny</li>
-            <li>Champions: Cynthia, Diantha, Iris, Alder, Leon, Geeta, Steven</li>
-            <li>Gym leaders. Kanto: Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine; Johto: Falkner, Bugsy, Whitney, Morty, Jasmine, Pryce, Clair; Galar: Nessa, Kabu, Bea, Allister, Opal, Gordie, Melony, Piers, Raihan; Paldea: Brassius, Iono, Larry, Ryme, Tulip, Grusha, Hassel, Poppy</li>
-            <li>Elite Four: Aaron, Bertha, Flint, Lucian, Volkner (Sinnoh); Malva, Wikstrom, Siebold, Drasna (Kalos)</li>
-            <li>Scientists: Scientist, Prof. Sycamore, Prof. Kukui, Faba</li>
-            <li>Playable characters: Kris, Ethan, Lyra, Hilbert, Hilda, Dawn, Lucas, Nate, Rosa, Elio, Selene, Victor, Gloria, Florian, Juliana, Arven (multiple outfit variants for Paldea characters)</li>
-            <li>Sprites proxied through the existing Showdown CDN handler; no new assets stored locally</li>
-            <li>Added 86 FRLG-style trainer sprites from pokeemerald-expansion (Rom Hacking Hideout) as a new "pokeemerald-expansion (FRLG)" avatar set: Kanto gym leaders (Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine, Giovanni in GBA art style), Kanto Elite Four (Lorelei, Bruno, Agatha, Lance), Blue as rival and champion (both outfits), Steven (FRLG), Prof. Oak, Team Rocket grunts (F/M), and 60+ trainer class variants in FRLG art style including new-to-GBA classes (Burglar, Biker, Juggler, Channeler, Cue Ball, Gamer, Painter, Rocker, Tamer, Crush Girl, Crush Kin, Super Nerd, Engineer, Scientist)</li>
-            <li>Credits page updated with pokeemerald-expansion attribution</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: Trainer Avatar lock management</h2>
-          <ul class="cl-list">
-            <li>New "Trainer Avatars" section in the admin panel for managing which users can access each sprite</li>
-            <li>Professor sprites are automatically locked to Trusted rank or higher; plain users cannot select them</li>
-            <li>All other sprites can be individually locked to a rank tier (Trusted, Content Creator, Tester, Moderator, Admin) via the admin UI</li>
-            <li>Locked sprites are hidden from the avatar picker for ineligible users</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Avatar picker: expanded researcher &amp; professor sprites</h2>
-          <ul class="cl-list">
-            <li>Added 13 new researcher/scientist-type trainer avatars to the Classic (Showdown) set</li>
-            <li>Professors (each generation now represented): Prof. Elm, Prof. Birch, Prof. Rowan, Prof. Juniper, Prof. Burnet, Prof. Magnolia, Prof. Laventon, Prof. Turo, Prof. Sada, Prof. Willow</li>
-            <li>Trainer classes: Doctor, Nurse (added alongside the existing Scientist and Super Nerd classes)</li>
-            <li>Named researchers: Molayne (Alola Trial Captain and scientist)</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Avatar picker: searchable combobox</h2>
-          <ul class="cl-list">
-            <li>The Trainer Avatar dropdown is now a typed, searchable combobox: type a character name to filter across all 310+ sprites instantly</li>
-            <li>Smart ranking: exact name match surfaces first, then starts-with, then contains; typing "N" finds the character N before Nessa, Nate, etc.</li>
-            <li>Each dropdown result shows a sprite thumbnail alongside the character name, grouped by set (Classic / Dreamstone / FRLG)</li>
-            <li>Cross-set search: typing "Giovanni" shows both Classic and FRLG variants; typing "FRLG" shows all 86 pokeemerald-expansion sprites</li>
-            <li>Fixed: pokeemerald-expansion sprites were not displaying on the live site: the deploy script was missing the <code>static/sprites/pex/</code> directory, so the 86 PNG files were never uploaded to the server</li>
+            <li>Laid out to match the DPS and raid pages, and the status buttons no longer read “undefined”</li>
           </ul>
         </div>
 
       </div>
     </div>
-
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-06-25</div>
       <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">IV Calculator OCR: appraisal star detection</h2>
+          <h2 class="cl-title">IV Calculator arrives</h2>
           <ul class="cl-list">
-            <li>OCR scan now attempts to detect the appraisal star rating (0-3 stars, hundo) automatically from the screenshot without requiring manual input</li>
-            <li>Strategy 1: reads ★ characters captured by Tesseract in the full-image OCR pass; works on both standard and appraisal screenshots when the symbol is legible</li>
-            <li>Strategy 2: orange/gold pixel scan in the correct region of the standard detail screen (the small appraisal dots to the right of the Pokémon name); region is calibrated as best-guess and may be refined</li>
-            <li>Strategy 3: if the screenshot is an appraisal-results view (contains "Attack / Defense / HP" labels), the coloured stat bars at the left of the screen are scanned instead</li>
-            <li>If no strategy succeeds the extracted card still shows the Stars field as editable so it can be entered manually before recalculating</li>
-            <li>Fixed the server-side upload timeout: <code>ReadTimeout</code> was cutting off PNG uploads larger than ~200 KB on slow connections; changed to <code>ReadHeaderTimeout</code> which only limits reading HTTP headers, leaving body upload time unrestricted</li>
+            <li>New page at <a href="/iv">/iv</a>: enter CP, HP and stardust cost to find every possible IV spread for any Pokémon</li>
+            <li>Logged in trainers can save results to a personal Pokémon box, or scan a screenshot to fill the form in</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">IV Calculator: bug fixes and form-aware lookup</h2>
+          <h2 class="cl-title">IV Calculator fixes</h2>
           <ul class="cl-list">
-            <li>Fixed "Failed to load data" for valid inputs: the server was returning JSON <code>null</code> for an empty candidate list, which crashed the page; now always returns an empty array</li>
-            <li>Fixed a systematic off-by-half-level bug where every dust bracket missed its final half-level: e.g. CP 985 Dugtrio (level 22) and CP 1790 Altaria (level 32.5) were silently skipped and reported as "no results"</li>
-            <li>Fixed wrong base stats for regional-form Pokémon: Alolan Dugtrio was being used instead of Normal Dugtrio because the picker deduplicated by name; forms now appear as separate picker entries (e.g. "Dugtrio (Alolan)") and the correct form's stats are sent to the server</li>
-            <li>Added Pokémon Status selector (Normal / Shadow / Purified / Lucky); automatically normalises the displayed stardust cost to the standard bracket value so entering 5,400 + Purified correctly maps to the 6,000 tier</li>
-            <li>Added 5,400 dust bracket as a server-side fallback for purified Pokémon at levels 31-32</li>
-            <li>OCR scan: fixed name and HP regions that were reading the wrong part of the screenshot for most modern phone aspect ratios; added full-image OCR fallback so the Pokémon name and HP fraction are recovered even when the crop misses</li>
-            <li>CP input field maximum raised from 9,999 to 50,000 to support Mega Pokémon</li>
+            <li>Valid inputs no longer fail with “Failed to load data”, every dust bracket now includes its final half level, and regional forms use their own base stats rather than the wrong species'</li>
+            <li>Added a Lucky, Shadow and Purified selector that normalises the dust cost for you, and raised the CP limit to 50,000 for Megas</li>
           </ul>
         </div>
 
-      </div>
-    </div>
-
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-25</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: scrollable tab bar</h2>
-          <ul class="cl-list">
-            <li>Admin tab bar now wraps to the next row when the window is too narrow to show all tabs; no more silent overflow bleeding off-screen</li>
-            <li>Other tab bars (IV calculator, credits) are unaffected</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-25</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">IV scanner: mobile OCR algorithm backport</h2>
-          <ul class="cl-list">
-            <li>CP extraction now runs two passes: a top-25% zone scan preferring lines containing "CP", plus a contrast-enhanced top-18% retry; results take the highest of both, matching the Android app's approach for large Pokémon that partially cover the digits</li>
-            <li>CP arc detection ported from the Android scanner: scans the white horseshoe arc pixel-by-pixel to derive CP when text OCR returns nothing, with camera-icon exclusion so Celesteela and similar don't trigger a false endpoint</li>
-            <li>Name detection upgraded to three strategies in priority order: "This X was caught in..." footer text (highest confidence), "X MEGA ENERGY" line, then card-zone OCR as fallback; source tag ("footer" / "mega" / "card") shown in the scan results panel</li>
-            <li>Lucky, Shadow, and Purified detection: scans full OCR text for status keywords; if not found explicitly, infers from the dust cost (halved = Lucky, x0.9 = Purified, x6 = Shadow) and normalises the dust before sending to the IV calculator</li>
-            <li>HP extraction now applies O/0 character substitution before parsing and uses a fraction regex (current/max HP) instead of the first number found</li>
-            <li>Appraisal star count upgraded to the gap-based algorithm: 13-row orange pixel scan with gap detection distinguishes 1-star (ring only, gap visible) from 2-star (partial fill) from 3-star (no gap); rainbow pixel classifier detects hundos</li>
-            <li>Scan results panel now shows an "extracted values" card with editable CP, HP, dust, name, and star fields so you can correct any misread before recalculating; no need to re-upload</li>
-            <li>Status badges shown: 100% IV (golden), Lucky (amber), Shadow (purple), Purified (blue), CP source (arc vs text)</li>
-            <li>Trainer level is now read from your account settings server-side and passed automatically; no longer defaults to 40 for logged-in users</li>
-            <li>CP multiplier table extended to level 51 (was missing levels 45.5-51); IV search now covers level 49-51 Pokémon for high-level trainers</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-25</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Rank, badges and awards always visible on trainer profiles</h2>
-          <ul class="cl-list">
-            <li>Raid rank, donator badge, user tags, and awards now show on trainer profiles and in the directory regardless of the "Show my full profile" setting</li>
-            <li>The "Show my full profile" toggle now only controls truly personal details: trainer name, pronouns, and location</li>
-            <li>Updated the setting description to reflect what it actually hides</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Awards, tags and rank on trainer profiles</h2>
-          <ul class="cl-list">
-            <li>Trainer profile pages now show a dedicated achievements section below the profile card, grouping rank badge, donator badge, and tags in one place</li>
-            <li>Awards earned by the trainer are displayed as colored pills in the achievements section, loaded lazily from the existing awards API</li>
-            <li>Hovering an award pill shows which community members granted it and any note they left</li>
-            <li>The achievements card hides itself entirely when a trainer has no rank, no tags, and no awards</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Per-award grant rank permissions</h2>
-          <ul class="cl-list">
-            <li>Each award now has a configurable minimum rank required to grant it: Anyone, Trusted+, Content Creator+, Translator+, Tester+, or Moderator only</li>
-            <li>Admins and Super Admins can always grant any award regardless of rank setting</li>
-            <li>The grant award modal only shows awards the current user is eligible to give</li>
-            <li>Admins can change the minimum rank on any award directly from the Awards panel using the inline dropdown</li>
-            <li>Replaced the old trust-score-based community grant gate with this explicit rank system</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Logout confirmation prompt</h2>
-          <ul class="cl-list">
-            <li>Clicking the logout button now shows a confirmation dialog before logging out</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Connections page and social overhaul</h2>
-          <ul class="cl-list">
-            <li>Trainer profiles now have a "Connections" link and clickable follower/following counts that open the new Connections page</li>
-            <li>New Connections page at /social/{username} shows three tabs: Friends (mutual follows), Followers, and Following</li>
-            <li>The Connections page is publicly accessible: visit any trainer's page to see their social graph</li>
-            <li>Own-profile Connections page includes an Unfollow button on the Following tab</li>
-            <li>Old /friends URL redirects to your own Connections page</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Layout refinements and Shinydex removal</h2>
-          <ul class="cl-list">
-            <li>IV Calculator, Current Raids, and Raid Finder pages now cap their width so they don't sprawl across the full screen on wide monitors</li>
-            <li>Input boxes across all pages are capped to a sensible maximum width</li>
-            <li>Shinydex page removed; shiny browsing is consolidated into My Collection</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Content fills available screen width on desktop</h2>
-          <ul class="cl-list">
-            <li>Content area now expands to fill the full viewport width to the right of the sidebar instead of being capped at a narrow fixed width</li>
-            <li>Grids (raid bosses, shinies, trainers) show more columns at wider resolutions automatically</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Responsive layout: desktop improvements</h2>
-          <ul class="cl-list">
-            <li>Navigation sidebar is now permanently visible on desktop (1024px+) instead of always hiding behind a burger button</li>
-            <li>Active page is highlighted in the sidebar navigation</li>
-            <li>IV Calculator and DPS Calculator show a two-column layout on desktop (form on left, results on right)</li>
-            <li>Content is no longer artificially constrained to a narrow column on wide screens</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">IV Calculator, box limit, and raid confirm warning</h2>
-          <ul class="cl-list">
-            <li>New IV Calculator page at <a href="/iv">/iv</a>: enter CP, HP, and stardust cost to find all possible IV spreads for any Pokémon</li>
-            <li>Logged-in users can save results to a personal Pokémon box (up to 3000 entries) and scan screenshots via OCR to auto-fill the form</li>
-            <li>Pokémon box enforces a 3000-entry per-user limit to prevent runaway storage</li>
-            <li>Raid lobby members now receive a push notification 30 seconds before their confirm window expires</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-24</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer profile: shiny collection improvements</h2>
-          <ul class="cl-list">
-            <li>Shiny collection now shows the 9 most recent catches in a fixed row; rainbow animated border on the section card</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny caught list: costume and event fields now show placeholder hints</h2>
-          <ul class="cl-list">
-            <li>Costume and event fields in the Caught tab now show example text when empty so their purpose is clear</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">CSRF fix</h2>
-          <ul class="cl-list">
-            <li>Fixed an error causing friend requests, feedback, and other actions to fail; no action required from users</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-23</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Tiny Pokémon sprite boost</h2>
-          <ul class="cl-list">
-            <li>Baby Pokémon, Mew, Celebi, Jirachi, Manaphy, Victini, Plusle, Minun, Joltik, Flabébé, Floette, Cutiefly, and Ribombee now render at an additional 5% scale: their in-game sprite canvases are the same size as other Pokémon but the subject is proportionally smaller, so the boost compensates</li>
-            <li>Applies to the shiny dex grid, the caught list, and the public trainer profile shiny grid</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Sprites enlarged by 15%</h2>
-          <ul class="cl-list">
-            <li>All sprite images across all pages are 15% larger: trainer avatars, favourite Pokémon, shiny dex grid, shiny modal compare panel, shiny caught list rows, trainer profile shiny grid, and all modal/settings previews</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny dex: costume Pokémon sprites</h2>
-          <ul class="cl-list">
-            <li>Costume entries now display the actual costumed sprite instead of the plain base shiny: Party Hat Pikachu shows with its hat, Nightcap Snorlax wears the cap, Sunglasses Squirtle has its glasses, etc.</li>
-            <li>Sprites update live in the add modal when you pick a costume from the dropdown; the shiny compare panel swaps to the costumed variant as you type</li>
-            <li>Sprite falls back to the base shiny if no known costume code exists for that Pokémon/costume combination</li>
-            <li>Source: pokemon-go-api/assets on GitHub (256x256 in-game icon assets, same source used for raid boss images); covers ~40 species and ~65+ named costumes including all GO Tour trainer hats, Fashion Week outfits, seasonal events, and regional exclusives</li>
-            <li>Costume sprites also appear on public trainer profiles for visitors viewing someone else's shiny collection</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Social: friending replaced with followers/following model</h2>
-          <ul class="cl-list">
-            <li>Trainer profiles now show Followers and Following counts, visible to all visitors</li>
-            <li>"Add Friend" is now "Follow": following is one-directional; when two trainers both follow each other a Friends indicator appears</li>
-            <li>The Following preview (own profile) is now nested inside the stat card; the /friends page now lists who you follow with an Unfollow button</li>
-            <li>Raid notifications continue to come from trainers you follow</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Privacy: avatar and favourite Pokémon always visible</h2>
-          <ul class="cl-list">
-            <li>Trainer avatar and favourite Pokémon sprite now appear on profile pages and directory cards even when the full public profile is disabled; neither is personally identifiable</li>
-            <li>All other private fields (trainer name, code, location, pronouns, shiny collection) remain gated behind the public profile toggle</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny collection on trainer profile pages</h2>
-          <ul class="cl-list">
-            <li>Trainer profile pages (<code>/trainer/{username}</code>) now show a Shiny Collection card below the friends section</li>
-            <li>Displays the 10 most recent catches by default; a "Show all N" button expands to the full collection</li>
-            <li>Each entry shows the Pokémon sprite, name, costume/event tag subtitle, and catch method icon</li>
-            <li>Hidden automatically for trainers with the "Hide shiny collection" setting enabled</li>
-            <li>Fixed: <code>trainer.ts</code>, <code>social.ts</code>, and <code>notifications.ts</code> were missing from the esbuild command and were not being rebuilt on deploy; added all three to <code>package.json</code></li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny collection: inline costume and event editing, CSRF fix</h2>
-          <ul class="cl-list">
-            <li>Caught list entries now have inline dropdowns for Costume and Event Tag: change either field directly in the list and it saves automatically, same as form and method</li>
-            <li>Costume dropdown is filtered per Pokémon: Pikachu shows all regional cap variants plus Lucha Libre, Detective Hat, etc.; Snorlax shows Night Cap; Squirtle line shows Sunglasses; generic options (Party Hat, Flower Crown, Witch Hat, etc.) appear for all Pokémon</li>
-            <li>Event Tag dropdown is a static list of all major PoGO events (GO Fest 2018-2026, GO Tour Kanto-Unova, Community Day, seasonal events, etc.); no more guessing the exact wording</li>
-            <li>Fixed a site-wide CSRF 403 error that broke every write action (friend requests, shiny edits, admin actions): CSRF cookie renamed from <code>_pogo_csrf</code> to <code>_pogo_csrf2</code> to invalidate stale cookies signed with an old random key; all users get a fresh cookie on their next page load with no action required</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny collection: costume and event labels in caught list and trainer cards</h2>
-          <ul class="cl-list">
-            <li>Caught list entries now show a subtitle below the Pokémon name with the form variant, costume, and event tag when set (e.g. "Shadow · Party Hat · GO Fest 2025"), making duplicate entries visually distinct at a glance</li>
-            <li>Trainer profile shiny grids now display costume and event tag as an italic subtitle beneath the Pokémon name</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny collection: true duplicate shinies and event autocomplete</h2>
-          <ul class="cl-list">
-            <li>The unique constraint on the shiny collection is now fully removed: you can add the same Pokémon (same form, costume, and event) as many times as you like, making it possible to track every duplicate shiny you own</li>
-            <li>Grid cards now show a blue <strong>×N</strong> badge in the top-left corner when you own more than one of that species</li>
-            <li>The Event field in the add modal now has autocomplete: start typing and common events (GO Fest, GO Tour, Community Day, etc.) appear as suggestions</li>
-            <li>DB migration 33 added to <code>migrate.sql</code>; run section 33 on existing installs</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Level setting and mobile profile API</h2>
-          <ul class="cl-list">
-            <li>New Trainer Level field on the Settings page (Profile tab): accepts 1-80, blank means not set; used by the Android companion app to pre-fill the trainer level input in IV scans</li>
-            <li><code>GET /api/mobile/v1/auth/me</code> now includes <code>trainer_level</code> in the response; the login response also includes it so the app has the value immediately on first login</li>
-            <li>New <code>PUT /api/mobile/v1/profile</code> endpoint lets the app update <code>trainer_level</code> when the user levels up; field is optional in the body, validated 0-80, zero means "unset"</li>
-            <li>DB migration 32 added; run <code>migrate.sql</code> section 32 on existing installs</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny collection: costume and event Pokémon support</h2>
-          <ul class="cl-list">
-            <li>Shiny collection now supports two new dimensions per catch: <strong>Costume</strong> (e.g. Party Hat, Witch Hat, Detective Hat) and <strong>Event</strong> (e.g. GO Fest 2024, Community Day); both are freeform text fields so any future variants work without code changes</li>
-            <li>The unique constraint was widened from <code>(user, pokemon, form)</code> to <code>(user, pokemon, form, costume, event)</code>, meaning you can now log the same Pokémon multiple times if the costume or event differs: e.g. Party Hat Pikachu from GO Fest 2022 and GO Fest 2024 count as separate catches</li>
-            <li>Add modal shows labelled Costume (with autocomplete datalist of 20 common PoGO costumes) and Event inputs above the existing Form and Method selectors</li>
-            <li>Caught list rows display costume and event as a compact italic subtitle under the Pokémon name when set; form and method remain inline-editable as before</li>
-            <li>DB migration 31 added; run <code>migrate.sql</code> section 31 on existing installs</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-22</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Mobile app backend: Phase 3 (OCR endpoint) and Phase 4 (push notifications)</h2>
-          <ul class="cl-list">
-            <li>Screenshot OCR: <code>POST /api/iv/ocr</code> accepts a JPEG or PNG screenshot of the Pokemon info screen (multipart upload, max 8 MB), runs Tesseract to extract CP, HP, dust cost, and Pokemon name, detects appraisal star count from pixel color analysis, and immediately returns IV candidates; rate-limited to 10 requests/min; requires <code>tesseract-ocr</code> on the VPS</li>
-            <li>OCR endpoint mirrored at <code>POST /api/mobile/v1/iv/ocr</code> (Bearer auth, no CSRF) for the future Android and iOS apps; web endpoint is under standard auth+CSRF</li>
-            <li>Push notification dispatch: all four raid events now fire push notifications asynchronously: user matched into lobby, lobby full (host), lobby cancelled (members), and raid reported (attended members prompted to rate host)</li>
-            <li>FCM (Android) via HTTP v1 API with service-account OAuth2 token auto-refresh; APNs (iOS) via HTTP/2 with p8 JWT auth using <code>github.com/sideshow/apns2</code></li>
-            <li>Push is opt-in at deploy time: server starts without push if <code>FCM_PROJECT_ID</code> / <code>APNS_KEY_PATH</code> env vars are absent; no functionality is broken by unconfigured credentials</li>
-            <li>New env vars added to <code>deploy.ps1</code>: <code>FCM_PROJECT_ID</code>, <code>FCM_CREDENTIALS_JSON</code>, <code>APNS_KEY_PATH</code>, <code>APNS_KEY_ID</code>, <code>APNS_TEAM_ID</code>, <code>APNS_BUNDLE_ID</code>, <code>APNS_PRODUCTION</code></li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Mobile app backend: Phase 1 (auth) and Phase 2 (IV calculator)</h2>
-          <ul class="cl-list">
-            <li>Bearer token auth: all existing session tokens now work via <code>Authorization: Bearer &lt;token&gt;</code> header, enabling a future companion app to authenticate without cookies</li>
-            <li>New mobile API namespace at <code>/api/mobile/v1/</code>: login, logout, current user, and game data aliases (Pokemon, raids, events) outside CSRF scope</li>
-            <li>Push notification token registration endpoints (<code>POST/DELETE /api/mobile/v1/push/token</code>) ready for FCM (Android) and APNs (iOS); dispatch to be wired in a future phase</li>
-            <li>IV calculator: <code>POST /api/iv/calculate</code> accepts Pokemon name, CP, HP, dust cost, trainer level, top-stat appraisal, and star rating; returns all valid IV spreads sorted by IV% with a <code>definitive</code> flag when only one spread matches</li>
-            <li>Pokemon box: <code>POST/GET/DELETE /api/mobile/v1/iv/pokemon</code> lets users save, list (paginated), and delete IV appraisal results for their own collection</li>
-            <li>Two new DB tables: <code>user_pokemon_box</code> (saved IV records with optional candidate JSON) and <code>mobile_device_tokens</code> (per-device push tokens with platform and device name)</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Dedicated notifications page, friends preview on trainer profile, volume cap</h2>
-          <ul class="cl-list">
-            <li>The 🔔 bell now links to <code>/notifications</code>, a dedicated page listing active friend-raid notifications with individual dismiss (×) and "Clear all" buttons; empty state shows a "You're all up to date" message</li>
-            <li>Visiting the notifications page marks all current notifications as seen, so the badge resets to 0 on the next poll</li>
-            <li>Your own trainer profile (<code>/trainer/{username}</code>) now shows a "Friends" preview section with your 5 most recent friends and a "View all" link to the Friends page</li>
-            <li>Notification ding volume is now capped at 50% gain regardless of the slider value, preventing accidentally ear-splitting levels while keeping the 0-100% visual scale intact</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Social UI restructure, notification sound, and trainer profile overhaul</h2>
-          <ul class="cl-list">
-            <li>Blocked users management moved from the Friends page to a new "Blocked Users" tab in Settings, with a live search field that finds users by username or trainer name</li>
-            <li>The notification bell is now an emoji (🔔) displayed inline next to your username in the sidebar, replacing the standalone "Notifications" nav link</li>
-            <li>A short ding plays when a new friend-raid toast appears; volume (including mute) is controlled from a new "Notifications" tab in Settings and is saved per browser</li>
-            <li>Trainer profile pages (<code>/trainer/{username}</code>) have been redesigned with a proper hero layout, larger avatar, clearer name and pronouns display, and better badge/tag arrangement</li>
-            <li>Fixed favorite Pokémon sprite appearing at the bottom of the page instead of layered behind the trainer avatar</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Friends, notifications, and trainer feedback</h2>
-          <ul class="cl-list">
-            <li>Users can now add each other as friends (directional follow) and block users from a dedicated <code>/friends</code> page and from trainer profile pages</li>
-            <li>Blocking a user removes the friendship in both directions and prevents further social interaction</li>
-            <li>Logged-in users receive a toast notification in the top-right corner when a friend opens a Raid lobby, and a badge on the new notifications nav button shows the count of active friend raids</li>
-            <li>Each trainer now has a dedicated profile page at <code>/trainer/{username}</code>, linked from the trainer directory cards</li>
-            <li>Logged-in users can leave one Pokemon-themed feedback tag per trainer (positive, neutral, or negative) from the trainer profile page; submissions are updatable</li>
-            <li>Moderators and above can delete any feedback using a delete button visible only to them</li>
-            <li>Admins can manage the feedback option list (add, edit, enable/disable, delete) from a new Feedback Options tab in the admin panel</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Updated site descriptions to reflect current features</h2>
-          <ul class="cl-list">
-            <li>Login and registration page subtitles updated to reflect the full feature set (raids, trainer profiles, community tools) rather than shiny collection tracking only</li>
-            <li>Home page now includes cards for Trainer Directory and Raid Finder, both gated by their respective maintenance flags</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-18</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder gets its own dedicated page</h2>
-          <ul class="cl-list">
-            <li>The Raid Finder has moved from the Trainers page tab to its own page at <code>/raidfinder</code>, with a new nav link</li>
-            <li>Non-logged-in users see the page content blurred behind a frosted-glass overlay with Login and Sign Up prompts</li>
-            <li>Logged-in users who haven't set a Trainer Name or Trainer Code see a red warning banner explaining they won't be able to join raids until their profile is updated</li>
-            <li>The Trainer Directory page is simplified to a single-section layout with no tabs</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Wiki documentation overhaul</h2>
-          <ul class="cl-list">
-            <li>Corrected and expanded 12 wiki pages: fixed the schema migration instructions, admin panel tab list, site stats access level, store toggle placement, translator flag grant authority, super donator pre-queue wording, and a copy-paste error in Data Sources</li>
-            <li>Added a practical "how to build trust" guide, awards granting UI walkthrough, and host kick documentation to the Trust and Raid Finder pages</li>
-            <li>Added the Shiny collection hidden privacy setting and translator application tables to Accounts and Database Guide</li>
-            <li>Updated README to link directly to all major feature wiki pages</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Shiny Collection visible on trainer cards</h2>
-          <ul class="cl-list">
-            <li>Trainer cards in the Trainer Directory now show a "My Collection" link that expands inline to display the trainer's full shiny collection</li>
-            <li>Each entry shows the shiny sprite, Pokémon name, a Shadow or Purified badge where applicable, and the capture method (omitted when set to Any method)</li>
-            <li>A new Privacy setting ("Hide shiny collection") lets users opt out; the link is absent on their card when enabled</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-11</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">DPS calculator: target selection remembered for logged-in users</h2>
-          <ul class="cl-list">
-            <li>The target Pokémon selected in the DPS calculator (both Calculate and Compare tabs) is now saved and restored across page reloads for logged-in users</li>
-            <li>Guests still see the picker reset on every load</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Code quality and database setup improvements</h2>
-          <ul class="cl-list">
-            <li>Removed superfluous comments from Go and TypeScript source files; only comments explaining non-obvious behavior remain</li>
-            <li>Database setup files reorganized to better support fresh installs and version upgrades</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">API access for any user; admin panel modal polish</h2>
-          <ul class="cl-list">
-            <li>The superadmin can now grant private API access to any user account, not just those with the admin role; the Admin Panel Users tab shows the Grant/Revoke API button for all users</li>
-            <li>Users granted API access now see a personalized card on the Credits API tab explaining how to authenticate with their session cookie and example curl commands</li>
-            <li>Role changes no longer automatically revoke API access; the permission is now independent of role</li>
-            <li>User detail modal in the Admin Panel now uses the same frosted dark card background as the rest of the site</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Translator application flow</h2>
-          <ul class="cl-list">
-            <li>Any user (logged in or out) can now reach <code>/translate</code>: logged-out visitors see a program overview with login/register CTAs, logged-in users see an application form</li>
-            <li>Application form collects target languages with proficiency levels, motivation, optional experience, and optional country of residence; applicants must be proficient in English as the source language</li>
-            <li>After submitting, users see a live status badge: Pending, Being Reviewed, Accepted, or Rejected (with rejection reason if provided)</li>
-            <li>Accepted translators continue to see the workspace as normal; admin panel gains a new Translator Apps tab with Pending/Reviewing/All filter and accept/reject actions</li>
-            <li>Admin Pages tab gains a "Translator Applications" toggle; when disabled, logged-in users without an application see a "applications are currently closed" message instead of the form</li>
-            <li>Homepage now shows a purple-bordered Translator card; sidebar Translate link is visible to all users</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder: host reliability tracking</h2>
-          <ul class="cl-list">
-            <li>Hosts whose lobbies repeatedly end without the raid ever starting (expiring unfilled, or cancelled before the raid begins) now take a minor trust penalty; occasional unstarted lobbies in a short period carry no penalty</li>
-            <li>Every unstarted lobby is logged to the trust event audit trail either way, and staff cancellations never count against the host</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Full translation coverage and official localized Pokémon names</h2>
-          <ul class="cl-list">
-            <li>Every user-facing string now has a locale key and can be translated: roughly 250 new keys covering server error messages (all JSON API errors, login/registration, access control, maintenance fallbacks), the admin panel, store, settings, trainers, and register pages, and all client-side text on the Raids, DPS, PvP, Shinies, and Shiny Dex pages</li>
-            <li>All new keys ship with German, Spanish, French, and Japanese translations; Japanese is now at full parity with English</li>
-            <li>Pokémon names are localized again using official in-game names from PokéAPI species data (PoGoAPI stopped providing language data), now including Japanese; raid counter headers also show localized names</li>
-            <li>Translators can refine any of the new strings in the in-app translator workspace as usual</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder: shorter lobby lifetime</h2>
-          <ul class="cl-list">
-            <li>Lobbies now expire after 10 minutes instead of 2 hours, keeping the open lobby list current; as before, non-host members are dropped without any penalty when a lobby times out</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Project wiki and README overhaul</h2>
-          <ul class="cl-list">
-            <li>Launched a full project wiki on GitHub covering everything: getting started, configuration, database, deployment, operations, architecture, the API, data sources, every feature page, roles and the admin panel, and the translation workflow</li>
-            <li>Simplified the README into a quick start that links into the wiki for the deep dives</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Japanese translation</h2>
-          <ul class="cl-list">
-            <li>Added a full Japanese locale covering every string on the site, using official Pokémon GO terminology (色違い, レイド, 対策ポケモン, and friends)</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder: in-place lobby list refresh and gated queueing</h2>
-          <ul class="cl-list">
-            <li>The Current Activity list now reloads in place; the rest of the screen (including anything typed into the host form) stays put during the periodic refresh</li>
-            <li>Queueing now requires an open lobby: join straight from the activity list with the new per-boss Queue buttons</li>
-            <li>Staff and Super Donators get a Pre-Queue card to line up for any boss before a host appears; Super Donators also keep built-in queue priority</li>
-            <li>Store cards for Priority Pass and Super Donator now list every included perk</li>
-            <li>The Custom Raid boss field is now a sprite search picker with autocomplete covering every Pokémon plus Shadow, Mega, and Dynamax forms</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-10</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder rewrite: matchmaking queues, trust system, and awards</h2>
-          <ul class="cl-list">
-            <li>The Raid Finder is now a matchmaking system: pick a boss, join its queue, and get matched automatically with the next open lobby; Priority Pass holders jump ahead in line</li>
-            <li>While waiting you see a live queue position with the spinning pokéball from the maintenance page</li>
-            <li>Matched trainers get the host's Trainer Name and Code with a copy button and 2 minutes to send the friend request; hosts see matched names gray out and light up as each member confirms</li>
-            <li>When a lobby fills, the host gets a 4 minute window to send all in-game invites; if it lapses, everyone returns to the front of the queue with no penalty</li>
-            <li>After each raid, hosts confirm who joined and flag early leavers, and members report whether the raid succeeded and can commend or dislike the host</li>
-            <li>New trust system replaces 5-star ratings: behavior (timeouts, early leaves, commends, dislikes) feeds a score shown publicly as a Trusted / Neutral / Caution badge; staff reports always carry heavy weight, and the system includes protections against coordinated reputation attacks</li>
-            <li>New admin-granted special ranks with badges: ✅ Trusted and 🎬 Content Creator; holders (plus staff and top-trust users) can host custom raids for any boss</li>
-            <li>New community awards: Pokémon-themed recognitions like Helping Hand and Professor's Aide, granted by staff (community granting can be enabled later for top-trust users) and shown on trainer profiles</li>
-            <li>New admin Raids tab: live lobby moderation, awards management, per-user trust logs and adjustments</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">New community locales and GitHub translation sync</h2>
-          <ul class="cl-list">
-            <li>Translators can now create entirely new languages from the Translate page; new locales fall back to English until translated and stay hidden from the public language switcher until an admin publishes them</li>
-            <li>New Locales panel in the admin Translations tab: enable or disable any language for the public switcher and see translation progress per locale</li>
-            <li>The public language switcher is now dynamic, so newly published languages appear for everyone without a redeploy</li>
-            <li>New Sync to GitHub button commits approved translations to the repository on a dedicated branch and opens a pull request, replacing the manual download-and-overwrite step</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Translator workspace and translation review</h2>
-          <ul class="cl-list">
-            <li>New Translator permission, granted per user by the site owner from the admin panel</li>
-            <li>Translators get a Translate page: a live site preview in the chosen language (ES/FR/DE) on top, and a searchable editor for every translation string below; saved suggestions appear in the preview immediately</li>
-            <li>Admins review suggestions in a new Translations tab with old/new comparison; approving applies the change to the live site instantly, rejecting requires a reason the translator can see</li>
-            <li>Approved changes are written to locale override files on the server, with the previous version backed up automatically so changes can be reverted</li>
-            <li>Merged locale files can be downloaded from the admin panel to sync translations back into the codebase</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Home page respects page toggles + Shiny Collection card</h2>
-          <ul class="cl-list">
-            <li>Tool cards on the home page now hide automatically when staff disable the corresponding page in Admin Settings, matching the existing navbar behavior</li>
-            <li>Logged-in trainers now see a gold-bordered Shiny Collection card on the home page linking to their personal collection</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">DPS Calculator redesign</h2>
-          <ul class="cl-list">
-            <li>Pokémon are now chosen with a sprite search picker: suggestions show each Pokémon's sprite, and the selection appears with a larger sprite and its type badges</li>
-            <li>The Compare tab's target is now a single search box that lists current raid bosses first (with tier tags), with a Custom types toggle for manual typings</li>
-            <li>Compare results on phones now display as ranked attacker cards with big DPS and TDO numbers instead of a sideways-scrolling table; the desktop table is unchanged</li>
-            <li>Fixed open picker dropdowns being covered by the card below them (also affected the raids page)</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Data Sources attribution split by usage</h2>
-          <ul class="cl-list">
-            <li>The Credits Data Sources list now credits LeekDuck (via pokemon-go-api) for current raid bosses and snacknap (via pokemon-go-api) for Max Battles as separate entries, so each source is credited for exactly the data it provides</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Documentation refresh</h2>
-          <ul class="cl-list">
-            <li>README brought up to date with the Events feature, Shiny Dex, Max Battles, the full public and private API set, and the CACHE_DIR environment variable</li>
-            <li>Credits private API table now lists all available endpoints, including Max Battles and both event endpoints</li>
-            <li>Data source descriptions updated to mention event images served from the LeekDuck CDN</li>
-            <li>Runtime cache directory excluded from the repository</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Event details now shown in full on site</h2>
-          <ul class="cl-list">
-            <li>Event detail views now include the complete event write-up: descriptions, bonuses, featured spawns, shinies, raid bosses, eggs, field and special research, GBL schedules, and GO Pass ranks</li>
-            <li>Details are fetched server side from each LeekDuck event page, sanitized, restyled to match the site, and cached to disk; pages refresh every 12 hours with polite request spacing</li>
-            <li>New /api/events/{id} endpoint (public and private) serving the sanitized detail for one event</li>
-            <li>If a page has not been scraped yet, the detail view falls back to the summary data from the feed</li>
-            <li>GO Pass reward icons (Candy, XL Candy, Raid Passes and similar items) are now sized to match the Pokémon icons, with aligned rank rows and Basic/Deluxe columns</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Real Events page added; shiny gallery moved to its own Shiny Dex page</h2>
-          <ul class="cl-list">
-            <li>The Events page now shows actual Pokémon GO events: current and upcoming events with images, category badges, start and end times, and live countdowns</li>
-            <li>Clicking an event opens a detail view with bonuses, featured Pokémon, shinies, raid bosses, spotlight details, special research steps, and a link to the LeekDuck event page</li>
-            <li>Event data is sourced from LeekDuck via ScrapedDuck, refreshed every 30 minutes server side and cached to disk</li>
-            <li>New /api/events endpoint (public and private) serving the raw events feed</li>
-            <li>The public shiny gallery that previously lived at /events moved to its own page at /shinydex, with its own nav link, home card, and admin maintenance toggle</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid tier tabs and automatic cache-busting</h2>
-          <ul class="cl-list">
-            <li>The Raids page now uses tier tabs (ordered highest to lowest) instead of one long stacked list; Max Battles got the same treatment, so only one tier is shown at a time</li>
-            <li>Static assets (JS and CSS) now carry an automatic version stamp derived from their contents, so every deploy busts the browser cache and you always get the latest page without a hard refresh</li>
-            <li>HTML pages are served with no-cache and versioned assets get a long cache, removing the need to bump version numbers by hand</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raids moved to pokemon-go-api and Max Battles added</h2>
-          <ul class="cl-list">
-            <li>Current Raids now sources from pokemon-go-api instead of ScrapedDuck, which provides richer data (shadow raids, multi tier CP and boosted CP)</li>
-            <li>Added a Max Battles section to the Raids page showing current Dynamax bosses by tier, with the same boss cards, type filtering, and counter lookups</li>
-            <li>New /api/maxbattles endpoint (public and private), and max battles are included in the combined game data API</li>
-            <li>Both raids and Max Battles refresh on the same schedule and are cached to disk</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-06</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Per-IP bandwidth throttling added to public API</h2>
-          <ul class="cl-list">
-            <li>Public API endpoints now enforce a rolling bandwidth limit per IP in addition to per-request rate limiting</li>
-            <li>IPs that exceed the limit are temporarily blocked regardless of which endpoints they used</li>
-            <li>Logged-in users are unaffected</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Public API rate limit raised to 10 requests per 2 minutes</h2>
-          <ul class="cl-list">
-            <li>All four public API endpoints are now limited to 10 requests per 2 minutes per IP (previously 5 per 30 minutes)</li>
-            <li>Credits page table and all locale strings updated to reflect the new limit</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Site frontend excluded from public API rate limit</h2>
-          <ul class="cl-list">
-            <li>Logged-in users now fetch game data through an authenticated session channel, completely separate from the public API rate limit</li>
-            <li>Logged-in users will never hit the public rate limit regardless of how many pages they visit</li>
-            <li>External and unauthenticated callers still use the public endpoint with its standard rate limit</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Public API rate limit reduced to 5 requests per 30 minutes; raid boss refresh schedule corrected</h2>
-          <ul class="cl-list">
-            <li>All four public API endpoints (/api/data, /api/raids, /api/pokemon, /api/moves) are now limited to 5 requests per 30 minutes per IP, down from 5-10 per minute</li>
-            <li>Credits page API table and all locale strings updated to reflect the new limit</li>
-            <li>Corrected the raid boss refresh schedule display in the API section: refreshes every 4 hours from midnight MT, not daily at noon</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin Users tab redesigned as mini-card grid with modal detail view</h2>
-          <ul class="cl-list">
-            <li>Users are now displayed as a compact mini-card grid showing username, role, status, and tags at a glance</li>
-            <li>Clicking any user card opens a modal overlay with the full detail view and all action controls</li>
-            <li>Modal closes on click-outside or Escape; after any action the mini grid and modal both refresh automatically</li>
-            <li>All existing user management controls work inside the modal</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Account suspension reason and login message</h2>
-          <ul class="cl-list">
-            <li>Disabled users who try to log in now see a clear message: "Your account has been suspended by a staff member"</li>
-            <li>Admins can optionally provide a reason when suspending an account; the reason is shown to the user on the login page</li>
-            <li>The suspension reason is displayed on the user card in the Admin Panel Users tab</li>
-            <li>Re-enabling an account automatically clears the reason</li>
-            <li>Suspend button now opens an inline reason field before confirming, instead of acting immediately</li>
-            <li>Translated into ES, FR, and DE</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Custom Tag Requests moved to own Admin Panel tab; paid tags protected in Users tab</h2>
-          <ul class="cl-list">
-            <li>Tag Requests is now a dedicated tab in the Admin Panel between Tags and Pages</li>
-            <li>Custom tags (purchased via Supporter Pack) no longer show a remove button in the Users tab; they can only be revoked or revised from the Tag Requests tab</li>
-            <li>Backend blocks deletion of custom tags via the user tag remove endpoint and returns a clear error if attempted</li>
-            <li>The tag expand panel in Users shows custom tags as read-only pills with a note directing staff to Tag Requests</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Custom tag: admin revoke, weekly cooldown, and color rate limit</h2>
-          <ul class="cl-list">
-            <li>Admins can now request revisions on already-approved tags (not just pending ones); the tag is removed from the user's profile until resubmitted and approved again</li>
-            <li>Admins can deny/revoke an approved tag outright, removing it from the trainer card and requiring the user to restart the request process</li>
-            <li>New tag requests are on a 7-day cooldown per user; revision resubmissions are exempt from the cooldown</li>
-            <li>Tag color can be changed freely; changing it more than 5 times in 30 minutes triggers a short cooldown</li>
-            <li>Cooldown expiry date shown on the rejected status block in Settings and the Store page</li>
-            <li>Color picker added to the approved status block in Settings for inline color changes</li>
-            <li>All new strings translated into ES, FR, and DE</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Settings: custom tag request status tab</h2>
-          <ul class="cl-list">
-            <li>Users with a tag request now see a "Custom Tag" tab in Settings showing the current status (pending, approved, rejected, or awaiting revision)</li>
-            <li>Staff notes are displayed for rejected and revision states</li>
-            <li>Users with a revision request can update their tag name and color and resubmit directly from the Settings page without visiting the store</li>
-            <li>Translated into ES, FR, and DE</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid data now refreshes six times daily</h2>
-          <ul class="cl-list">
-            <li>Raid boss data previously refreshed once daily; it now refreshes multiple times throughout the day</li>
-            <li>Schedule is DST-aware</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Directory: modal layout restructured</h2>
-          <ul class="cl-list">
-            <li>Profile modal now has a distinct header zone (surface background) containing sprites, name, and a single combined pronouns/location line</li>
-            <li>Details section (rank, tags, trainer code, join date, favourite Pokémon) lives in a separate body zone below</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Moderator rank: PKMN Researcher</h2>
-          <ul class="cl-list">
-            <li>Moderators now display a distinct "PKMN Researcher" rank badge (purple) instead of sharing "PKMN PROF" with admins</li>
-            <li>PKMN PROF is now exclusive to admins and the superadmin</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Directory: sort order by online/role/rank</h2>
-          <ul class="cl-list">
-            <li>Directory now sorts on every load: online staff by rank (SuperAdmin, Admin, Moderator, Tester), then online players by XP rank, then offline staff by rank, then offline players by XP rank</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Tester role: PKMN Scientist rank</h2>
-          <ul class="cl-list">
-            <li>Users with the Tester role now display a "PKMN Scientist" rank badge in the Trainer Directory and Raid Finder</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Directory: all users now visible</h2>
-          <ul class="cl-list">
-            <li>All registered users now appear in the Trainer Directory by default, not just those who opted in with a trainer code</li>
-            <li>Users with no trainer name and no trainer code show their username with an asterisk (*) to indicate their profile is not yet set up</li>
-            <li>The "Show me in the Trainer Directory" setting has been renamed to "Show my full profile" and now controls whether trainer name, avatar, pronouns, trainer code, location, and favourite Pokemon are visible; staff badges, rank, and tags always show</li>
-            <li>A footnote below the search bar explains the asterisk convention</li>
-            <li>Search now matches on username in addition to trainer name</li>
-            <li>Directory results ordered: full profiles first, then minimal entries</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: per-page and per-section maintenance mode</h2>
-          <ul class="cl-list">
-            <li>Admins and superadmins can now put individual pages into maintenance mode from a new "Pages" tab in the Admin panel</li>
-            <li>Disabled pages return HTTP 503 and show a styled maintenance screen with a "Back to Home" button; the nav link for that page is hidden while it is disabled</li>
-            <li>The Trainers page supports section-level control: Trainer Directory and Raid Finder can each be disabled independently while the other section remains live</li>
-            <li>All eight controllable pages covered: Raids, DPS Calculator, PvP IV Ranker, Events, Trainers (with sub-sections), and Shiny Collection</li>
-            <li>All settings default to enabled so pages remain accessible if not yet configured</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin panel: tag editing and assignment fixes</h2>
-          <ul class="cl-list">
-            <li>Tags can now be renamed and recolored inline from the Tags tab (superadmin only)</li>
-            <li>Fixed "Manage Tags" button not appearing: it was incorrectly restricted to admin-role users as targets; it now appears for any user (except the superadmin); superadmins can manage their own tags</li>
-            <li>Tag assignment and removal now available to moderators and above (previously admin+ only)</li>
-            <li>Removed backend restriction that prevented tags from being assigned to non-admin-role users</li>
-            <li>Fixed a bug where opening "Manage Tags" showed "All tags assigned" if the Tags tab had not been visited yet in the same session</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Superadmin: force data refresh button in Admin panel</h2>
-          <ul class="cl-list">
-            <li>New "Data Refresh" card in the Admin Stats tab, visible only to the superadmin</li>
-            <li>Clicking "Force Data Refresh" triggers an immediate background reload of all game data from PoGoAPI (Pokémon, moves, shinies, type chart, Pokémon names) without waiting for the scheduled 6-hour cycle</li>
-            <li>Translated into ES, FR, and DE</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">i18n audit: translation completeness verified, JS double-quoting bug fixed, and pokemon_names parser updated</h2>
-          <ul class="cl-list">
-            <li>All ES, FR, and DE locale files audited and confirmed complete against the English master (no missing keys)</li>
-            <li>Fixed a bug where translated strings embedded in JavaScript were double-encoded; affected strings now render correctly across all templates</li>
-            <li>Fixed <code>&lt;html lang="en"&gt;</code> being hardcoded; the page language attribute now reflects the active locale</li>
-            <li>Fixed pokemon_names parser to handle the updated PoGoAPI response format (object-of-objects instead of array)</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-05</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Full i18n coverage: all pages, JS strings, and Pokémon names</h2>
-          <ul class="cl-list">
-            <li>Every page now has translated titles, headings, and static text (Home, Raids, DPS, PvP, Events, Shinies, Credits)</li>
-            <li>All JavaScript-rendered strings in the Admin panel, Raid Finder, and Shiny Collection are now translated</li>
-            <li>Pokémon species names are translated in all four supported languages on the Raids, Events, Shinies, DPS, and PvP pages</li>
-            <li>Go handler error messages (login, registration, settings, admin actions) are now returned in the user's active language</li>
-            <li>Raid Finder strings now fully covered: tier labels, queue status, lobby messages, rating panel, and weather banner</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Translations: Spanish, French, and German language support</h2>
-          <ul class="cl-list">
-            <li>Language switcher added to the navigation sidebar; persists via cookie for guests, and is saved to your account for logged-in users</li>
-            <li>Spanish (ES), French (FR), and German (DE) translations available for navigation, auth pages, settings, trainer directory, and the store</li>
-            <li>Translation fallback: missing keys in a locale automatically fall back to English so no UI string is ever blank</li>
-            <li>Language preference is stored in the database for logged-in users, meaning your choice follows you across devices and browsers</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Donations: Super Donator tier, subscription management, staff tag review</h2>
-          <ul class="cl-list">
-            <li>New Super Donator tier ($24.99/month): animated rainbow username and trainer name in the Trainer Directory and Raid Finder, DONATOR badge on profile, queue priority included, and future rewards as they are added</li>
-            <li>Subscriptions are now manageable directly on the Donations page, even when the store is temporarily disabled</li>
-            <li>Cancel button on each active subscription ends the perk immediately</li>
-            <li>Staff can now send custom tag requests back to the user for revision before approval; users can update and resubmit</li>
-            <li>Admins can enable or disable individual store items from the Donations tab in the Admin Panel</li>
-            <li>Store renamed to "Donations" across all navigation and customer-facing areas</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Settings: Dreamstone Mysteries trainer avatars</h2>
-          <ul class="cl-list">
-            <li>96 GBA-style trainer sprites from the open-source Pokémon Dreamstone Mysteries ROM hack are now available as trainer avatars in the Settings avatar picker</li>
-            <li>Sprites are stored locally (no external CDN) and are served as static files</li>
-            <li>The avatar picker now groups options under "Classic (Showdown)" and "Dreamstone Mysteries (GBA)" for easier browsing</li>
-            <li>Credit: sprites from <a href="https://github.com/dsmyst/dreamstone-mysteries" target="_blank" rel="noopener">dsmyst/dreamstone-mysteries</a></li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Store: PayPal-backed perks for supporting the site</h2>
-          <ul class="cl-list">
-            <li>New /store page (superadmin-toggled, off by default) offering two perks: Supporter Pack ($4.99 one-time) and Priority Pass ($2.99/30 days)</li>
-            <li>Supporter Pack grants the ability to submit a custom tag for your trainer profile; staff review and approve or reject submissions from the new Tag Requests panel in the Admin Users tab</li>
-            <li>Priority Pass moves the holder to the front of the raid join queue for 30 days; queue position is determined at join time</li>
-            <li>Payments are processed via PayPal REST API; store toggle in Admin Settings (superadmin-only) shows or hides the page and nav link without affecting active perks</li>
-            <li>Custom tag submission form appears on /store for active Supporter Pack holders; shows current request status (pending, approved, rejected) and allows resubmission after a rejection</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Admin: Raid Stats panel for adjusting rank and ratings</h2>
-          <ul class="cl-list">
-            <li>Each user card in the Admin Panel now has a "Raid Stats" section (admin-only) showing the user's current raid XP and rating metrics</li>
-            <li>Admins can set a user's XP directly to any value; rank updates immediately based on the new total</li>
-            <li>Admins can adjust how much influence a user's ratings carry in consensus calculations</li>
-            <li>Tools to reset a user's received ratings or reactivate their host score are available to admins</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">DPS Compare: all Pokémon in target dropdown; queue position in Raid Finder</h2>
-          <ul class="cl-list">
-            <li>DPS Compare target dropdown now shows current raids first, then all remaining Pokémon in an "All Pokémon" group; Pokémon already listed as a raid boss are not duplicated</li>
-            <li>Raid Finder pending queue status now shows your position in the queue (e.g. "#2 in the queue") so you know where you stand</li>
-            <li>Missing trainer name or code now shows a "Go to Settings" link inline with the error, instead of just the error text</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Tags display inline next to rank badges</h2>
-          <ul class="cl-list">
-            <li>On trainer directory cards and profile modals, user tags now appear on the same row as the rank badge instead of on a separate line below it</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">DPS Calculator: target Pokémon picker</h2>
-          <ul class="cl-list">
-            <li>The Calculator tab now has an optional "vs. Target" section: type any Pokémon name to set a defender and see type-effectiveness-adjusted DPS values</li>
-            <li>Type badges appear automatically once a valid Pokémon is entered; a Clear button removes the target</li>
-            <li>Move rows show a coloured multiplier label (e.g. <strong>1.60×</strong> or <strong>0.63×</strong>) when the move type is super effective or not very effective against the target</li>
-            <li>The Compare tab's target section gains a Pokémon name input as an additional way to set the defender (alongside the existing raid boss dropdown and manual type selectors)</li>
-            <li>Pokémon type data is now fetched from PoGoAPI and included in the game data bundle, with a compiled-in fallback so the feature works offline</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Two-tier API and API documentation</h2>
-          <ul class="cl-list">
-            <li>Public game data API endpoints remain accessible to everyone but are now rate-limited per IP to protect server bandwidth</li>
-            <li>Private API added for trusted consumers: same data, no rate limit, requires API access permission</li>
-            <li>The data refresh endpoint requires API access and is globally rate-limited to prevent hammering upstream data sources</li>
-            <li>New API tab added to this page documenting available endpoints and authentication requirements</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">User tag system</h2>
-          <ul class="cl-list">
-            <li>Admins can be assigned coloured tag pills (e.g. <strong>Dev</strong>) visible on their Trainer Directory card and profile modal</li>
-            <li>Tags are created and deleted by the superadmin from a new Tags tab in the Admin Panel; assignment and removal is available to all admins</li>
-            <li>Tags are stored in the database with full cascade-delete support</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">API access permission system</h2>
-          <ul class="cl-list">
-            <li>Private API access is now a separate permission rather than being open to all admin accounts</li>
-            <li>API access can only be held by admin-role accounts and can only be granted or revoked by the site owner</li>
-            <li>Removing admin privileges from an account automatically revokes API access</li>
-            <li>Admin panel shows a blue "API Access" badge on users who hold the permission</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Improved Pokémon GO weather detection</h2>
-          <ul class="cl-list">
-            <li>Switched weather provider from OpenWeatherMap to <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, which uses standardised WMO weather codes for a much more accurate PoGO condition mapping</li>
-            <li>Weather is now determined from your city's coordinates (geocoded automatically) rather than a city-name string lookup, improving location accuracy</li>
-            <li>Wind speed is now factored in correctly: Windy weather activates only when wind exceeds ~36 km/h and there is no rain, snow, or fog</li>
-            <li>No API key required; OPENWEATHER_KEY is no longer used or needed</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid data reliability and caching</h2>
-          <ul class="cl-list">
-            <li>Raid boss data is now cached to disk on every successful fetch, so a service restart never shows "temporarily unavailable"</li>
-            <li>Raids refresh once daily at noon Mountain Time instead of on the same 6-hour cycle as other game data</li>
-            <li>PoGoAPI data (moves, types, shinies, etc.) continues to refresh every 6 hours in the background</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Tester rank</h2>
-          <ul class="cl-list">
-            <li>New Tester role (below Moderator): shows a 🧪 badge in the navbar, Trainer Directory cards, and Raid Finder posts and joiners list</li>
-            <li>Assignable from the Admin panel role selector</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder: ranking system, weighted ratings, lobby, and online status</h2>
-          <ul class="cl-list">
-            <li>Trainer profiles and raid posts now show a Pokémon-themed raid rank earned by participating in raids: Youngster, Trainer, Gym Leader, Elite Four, Champion, and League Master, each with five roman numeral tiers (I-V)</li>
-            <li>XP is awarded for each completed raid (as a joiner or as a host); rank advances automatically as XP accumulates</li>
-            <li>Host ratings use a weighted system that reduces the impact of outlier votes</li>
-            <li>A host's displayed rating is dimmed if they have not participated in a raid recently, signalling potentially stale data</li>
-            <li>Accepted joiners can now see each other in a lobby panel before entering the raid, so you know who you are playing with</li>
-            <li>Trainer Directory cards and modals show whether a trainer is currently online and the date they joined</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder: queue system and prerequisites</h2>
-          <ul class="cl-list">
-            <li>Joining a raid now puts you in a queue; the host reviews requests and accepts or declines each one individually</li>
-            <li>The host's trainer code is only revealed once you have been accepted</li>
-            <li>Queue count on each post excludes declined entries so it reflects active requests only</li>
-            <li>Hosts can set a player limit on their post; the queue closes when that number of pending and accepted entries is reached</li>
-            <li>Users must have a Trainer Name and Trainer Code set in Settings before hosting or joining any raid</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Favorite Pokémon on trainer profiles</h2>
-          <ul class="cl-list">
-            <li>Trainers can now set a favorite Pokémon in Settings, with a choice of Normal, Shadow, Shiny, or Primal form (Primal is available only for Groudon and Kyogre)</li>
-            <li>The Pokémon's sprite appears to the left and slightly behind the trainer's avatar on their directory card</li>
-            <li>Clicking any trainer card opens a profile view with their avatar, favorite Pokémon, pronouns, location, and trainer code in one place</li>
-          </ul>
-        </div>
-
         <div class="cl-item">
-          <h2 class="cl-title">Mobile navbar hamburger menu</h2>
+          <h2 class="cl-title">Scanner brought in line with the mobile app</h2>
           <ul class="cl-list">
-            <li>Replaced overflowing inline nav links on mobile with a hamburger menu that drops down a full-width stacked list</li>
-            <li>Fixes horizontal scrolling on phones caused by too many nav items at narrow widths</li>
+            <li>CP is read twice and the arc scanned when the text cannot be read, names come from the caught footer or the Mega Energy line, and status is inferred from the dust cost when the words are off screen</li>
+            <li>Extracted values appear in an editable card so you can correct a misread without uploading again, and your trainer level is taken from your settings</li>
+            <li>A scan also tries to read the appraisal stars, leaving the field editable when it cannot</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Security hardening and backend improvements</h2>
+          <h2 class="cl-title">Connections page</h2>
           <ul class="cl-list">
-            <li>Various security and backend stability improvements</li>
+            <li>A new page with Friends, Followers and Following tabs, reachable from any trainer's profile</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Live weather boost display in the Raid Finder</h2>
+          <h2 class="cl-title">Rank, badges and awards always visible</h2>
           <ul class="cl-list">
-            <li>The Raid Finder now shows your current local weather condition and which Pokémon types are boosted, based on the city saved in your settings</li>
-            <li>Weather is fetched from OpenWeatherMap and mapped to Pokémon GO weather types (Clear, Partly Cloudy, Overcast, Rainy, Snow, Fog, Windy, Extreme)</li>
-            <li>Results are cached server-side and aligned to Pokémon GO's weather clock, so the data refreshes at :00 and :30 rather than on every page load</li>
+            <li>These show on profiles and in the directory whatever your privacy setting, which now only hides your trainer name, pronouns and location</li>
+            <li>Awards appear as pills, and hovering one shows who granted it and any note they left</li>
           </ul>
         </div>
 
         <div class="cl-item">
-          <h2 class="cl-title">Role indicators, trainer name uniqueness, and Raid Finder improvements</h2>
+          <h2 class="cl-title">Desktop layout</h2>
           <ul class="cl-list">
-            <li>Staff role icons shown next to usernames everywhere they appear: 👑 Superadmin, 💎 Admin, 🏅 Moderator; visible in the navbar, Trainer Directory cards, raid post headers, and the joiner list</li>
-            <li>In-game trainer name and trainer code must be unique across all accounts; duplicate submissions are rejected with an error</li>
-            <li>Raid Finder: non-logged-in visitors can browse active raids but must log in to post or join; a "Log in to join" prompt appears on each card</li>
-            <li>Trainer sprite size increased to 64px on directory cards and 80px in the settings preview</li>
-            <li>Pronouns and location text on trainer cards now render without the global text outline and in a lighter colour for improved readability</li>
+            <li>The sidebar stays visible on desktop, content fills the width beside it, and the calculators use two columns</li>
+            <li>Shinydex removed, with shiny browsing consolidated into My Collection</li>
           </ul>
         </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer avatar and pronouns dropdown polish</h2>
-          <ul class="cl-list">
-            <li>Avatar picker converted from a radio button grid to a dropdown with a live sprite preview that updates as you change selection</li>
-            <li>Pronouns converted from radio buttons to a dropdown; selecting "Other" reveals a custom text input</li>
-            <li>Trainer sprites are now cached server-side on first load and served from the local proxy with a 30-day browser cache header, eliminating repeat fetches from the Pokémon Showdown CDN</li>
-            <li>Expanded trainer class list to 27 confirmed sprites</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Pronouns, trainer sprites, and settings tabs</h2>
-          <ul class="cl-list">
-            <li>Trainers can now set pronouns (He/Him, She/Her, They/Them, Any/All, or custom); shown in muted text beside their name in the Trainer Directory</li>
-            <li>Trainer avatar picker replaced with actual game trainer class sprites via Pokémon Showdown: Youngster, Lass, Bug Catcher, Hiker, Beauty, Psychic, Ace Trainer, Swimmer, Picnicker, Camper, Pokemaniac, Super Nerd, Gentleman, Medium, and Worker</li>
-            <li>Trainer cards in the directory show the selected sprite; trainers with no avatar set show the default silhouette</li>
-            <li>Settings page split into tabs: Trainer Profile (name, pronouns, avatar, trainer code) and Location &amp; Privacy</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Raid Finder, trainer avatars, and directory improvements</h2>
-          <ul class="cl-list">
-            <li>New Raid Finder tab on /trainers: post and join remote raids with other players in real time</li>
-            <li>Raid boss selection uses a live dropdown of current raid bosses grouped by tier</li>
-            <li>Weather Boosted toggle on raid posts; boosted raids are badged in the list</li>
-            <li>Raid posts expire automatically after 2 hours</li>
-            <li>Joiners receive a remote raid pass reminder and a link to the Raids page for counters</li>
-            <li>Host's trainer code is revealed to joiners upon joining so they can add the host in-game</li>
-            <li>Joiners confirm they have sent a friend request; host is notified and can mark the invite as sent</li>
-            <li>After the raid, joiners can rate the host (1-5 stars); host can rate confirmed joiners</li>
-            <li>Anti-churn cooldown: repeatedly leaving raids in quick succession triggers a temporary join block</li>
-            <li>Trainer Directory now shows trainer name only (not site username) for privacy</li>
-            <li>Trainers can pick a colour avatar theme from Settings; shown on their directory card</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Trainer Directory, Settings page, and location privacy controls</h2>
-          <ul class="cl-list">
-            <li>New Settings page: set your in-game trainer name, 12-digit friend code, and opt into the public Trainer Directory</li>
-            <li>New Trainer Directory (/trainers): public list of opted-in players with one-click trainer code copy buttons</li>
-            <li>Trainer codes displayed as XXXX XXXX XXXX; copied without spaces for easy in-game pasting</li>
-            <li>Location privacy controls: choose to show no location, country only, or state and country on your directory card</li>
-          </ul>
-        </div>
-
-        <div class="cl-item">
-          <h2 class="cl-title">Pokédex details, shiny comparison, and collection improvements</h2>
-          <ul class="cl-list">
-            <li>Normal vs shiny sprite comparison: opening any shiny card now shows both sprites side by side so you can compare the colour difference</li>
-            <li>Pokédex flavor text pulled from PokéAPI and shown in shiny, raid, DPS, and PvP detail views</li>
-            <li>Genus tag shown beneath each Pokémon name (e.g., "The Mouse Pokémon")</li>
-            <li>Legendary and Mythical badges on applicable Pokémon across all detail views</li>
-            <li>Pokémon cry audio button (🔊) in shiny modals plays the official in-game cry; includes a volume slider (displayed as 0-100%, capped at 30% actual output)</li>
-            <li>Primal form sprites shown alongside Normal and Shiny in the compare panel for Groudon and Kyogre</li>
-            <li>Shiny collection caught list now shows when each Pokémon was caught (e.g., "3 days ago")</li>
-            <li>Collection stats bar: unique and total counts plus a method breakdown (Wild, Raid, Egg, etc.)</li>
-            <li>Shiny method tabs show a tooltip on hover explaining how each method works</li>
-            <li>Fixed shiny method details not displaying (PoGoAPI field name update)</li>
-            <li>Removed focus glow rings from all input fields; fixed black text outline on mobile inputs</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-04</div>
-      <div class="cl-body">
-
-        <div class="cl-item">
-          <h2 class="cl-title">Pokémon lookup, weather boosted CPs, raid overhaul, and more</h2>
-          <ul class="cl-list">
-            <li>New Pokémon lookup on the Raids page: search any Pokémon to see its best moveset and DPS/TDO against every current raid boss, sorted by best matchup first</li>
-            <li>Pokémon lookup form selector: Normal, Shadow, and Purified are available for all Pokémon; Primal is available only for Groudon and Kyogre</li>
-            <li>Pokémon lookup uses CP input instead of level; default CP shown at L40/15/15/15; CPM derived from CP and IVs automatically</li>
-            <li>DPS calculator and compare tabs now use CP input instead of level</li>
-            <li>Shiny Pokémon cards now show how to obtain each shiny in the detail popup</li>
-            <li>Raid boss cards now show weather boosted CP range alongside the normal catch CP</li>
-            <li>Rebranded to hailsDotGO Beta</li>
-            <li>Combined Current Raids and Raid Counters into a single page</li>
-            <li>Raid bosses now display as visual cards with artwork, type badges, CP, and shiny availability</li>
-            <li>Pokémon sprites added throughout: counter table, DPS result, DPS compare table, PvP IV rankings</li>
-            <li>Events page simplified to Shinies-only (raids moved to the Raids page)</li>
-            <li>hailsDotGO branding is now pink across the site</li>
-            <li>Black text outline added globally for readability</li>
-            <li>Added this changelog</li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-    <div class="cl-entry fade-up">
-      <div class="cl-date">2026-06-03</div>
-      <div class="cl-body">
 
         <div class="cl-item">
-          <h2 class="cl-title">Raid counters, mobile, and deploy fixes</h2>
+          <h2 class="cl-title">Logout confirmation</h2>
           <ul class="cl-list">
-            <li>Fixed raid counters showing wrong Pokémon and NaN DPS/TDO values</li>
-            <li>Counters now only consider moves each Pokémon can actually learn</li>
-            <li>Fixed duplicate Pokémon in counter list (keeps highest-DPS result per species)</li>
-            <li>Lazy loading added for all 863 shiny images on the Shinies page</li>
-            <li>Mobile-friendly layout: improved touch targets, horizontal table scroll, iOS font-size zoom fix</li>
-            <li>Various backend stability improvements</li>
+            <li>Clicking logout now asks before it signs you out</li>
           </ul>
         </div>
 

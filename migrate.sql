@@ -897,3 +897,29 @@ SELECT id, lead_minutes, remind_at, reminded_at FROM event_subscriptions;
 -- fixed by re-running this file. The server keeps them written as a mirror of
 -- the first reminder and reads neither: event_subscription_reminders is the only
 -- source of truth from here. They come out once no install below 16 is in use.
+
+-- 51. Where a boxed Pokemon came from (2026-08-30)
+-- The box is about to become something other people can see: a profile will show
+-- dex completion from it, beside the shiny dex. Until now every row was private,
+-- so a wrong entry only ever misled the person who typed it, and nothing needed
+-- to record how a row arrived. Once a collection has an audience, a fake one is
+-- a reputational gain, and a display has to be able to tell a scanned entry from
+-- a typed one.
+--
+-- This is why the column goes in before the profile feature rather than with it.
+-- Origin is not recoverable after the fact: a row already in the table carries
+-- no trace of how it was created, and no migration can invent one. Every row
+-- added between now and the column landing would be permanently unattributable,
+-- so the cost of waiting grows with the delay.
+--
+-- Existing rows become 'unknown', which is deliberately not 'manual'. "We do not
+-- know" and "a human typed it" are different claims, and only the first one is
+-- true of them.
+--
+-- The value is derived server side from the route the write arrived on and what
+-- the client claimed, never copied from the request: 'scan_app_attested' means
+-- an integrity check actually passed, so a client must not be able to write it
+-- by asking. See writeProvenance in internal/handlers/iv.go.
+ALTER TABLE user_pokemon_box
+  ADD COLUMN provenance ENUM('manual','scan_web','scan_app','scan_app_attested','unknown')
+      NOT NULL DEFAULT 'unknown' AFTER note;

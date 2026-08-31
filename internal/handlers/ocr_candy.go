@@ -81,6 +81,33 @@ func familySpecies(base string, evoRaw json.RawMessage) []string {
 	return out
 }
 
+// findSpeciesForm resolves a species name AND form in the stat list.
+//
+// Form is a separate column upstream, not part of the name: all three Kyurem
+// rows are called "Kyurem" and differ only by Black, Normal and White, and their
+// attack stats differ by 26%. Matching on the name alone therefore does not pick
+// a variant, it picks whichever row findSpecies prefers, which for Kyurem is
+// Normal and for Giratina (which has no Normal row) is whichever the upstream
+// feed happened to list first.
+//
+// An empty form means the caller has nothing to say, and falls back to
+// findSpecies so the behaviour is unchanged for callers that never had one. A
+// form the stat list does not contain also falls back rather than failing: the
+// species is still far more right than nothing, and an unrecognised form is a
+// sign the server's data is behind rather than that the reading is wrong.
+func findSpeciesForm(pokeList []pokemonStatEntry, name, form string) *pokemonStatEntry {
+	if form == "" {
+		return findSpecies(pokeList, name)
+	}
+	for i := range pokeList {
+		if strings.EqualFold(pokeList[i].PokemonName, name) &&
+			strings.EqualFold(pokeList[i].Form, form) {
+			return &pokeList[i]
+		}
+	}
+	return findSpecies(pokeList, name)
+}
+
 // findSpecies resolves a species name in the stat list, preferring the Normal
 // form over regional variants.
 func findSpecies(pokeList []pokemonStatEntry, name string) *pokemonStatEntry {
