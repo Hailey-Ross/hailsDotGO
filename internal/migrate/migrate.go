@@ -46,7 +46,7 @@ var BaselineVersions = map[string]int{
 	"v0.1.7e": 44, // adds shiny_dex_overrides (section 44); v0.1.7d was never tagged
 	"v0.1.7f": 47, // announced shiny release dates (45), nullable strike issuer (46), shadow and purified status on a boxed Pokemon (47)
 	"v0.1.8a": 47, // no schema change: mobile costume and player report endpoints, and the counters ranking fix
-	"v0.1.8b": 50, // widens translator_applications.languages so a 14 language application fits (48); event reminder subscriptions (49) and several reminders per event (50)
+	"v0.1.8b": 51, // widens translator_applications.languages so a 14 language application fits (48); event reminder subscriptions (49) and several reminders per event (50); provenance on a boxed Pokemon (51)
 }
 
 // headerRe matches a section header line like "-- 39. Bug report system (2026-06-28)".

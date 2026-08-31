@@ -1167,25 +1167,9 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	var cpms []cpmEntry
 	_ = json.Unmarshal(h.store.CPMultipliers(), &cpms)
 
-	var poke *pokemonStatEntry
-	if pokemonName != "" {
-		var firstMatch *pokemonStatEntry
-		for i := range pokeList {
-			if !strings.EqualFold(pokeList[i].PokemonName, pokemonName) {
-				continue
-			}
-			if firstMatch == nil {
-				firstMatch = &pokeList[i]
-			}
-			if strings.EqualFold(pokeList[i].Form, "Normal") {
-				poke = &pokeList[i]
-				break
-			}
-		}
-		if poke == nil {
-			poke = firstMatch
-		}
-	}
+	// Same preference rule the solve uses, so the species the plausibility check
+	// below is measured against is the species the solve will actually score.
+	poke := findSpecies(pokeList, pokemonName)
 
 	// Fallback: scan full OCR text for the earliest-appearing known Pokémon name.
 	if poke == nil && len(pokeList) > 0 {
@@ -1264,13 +1248,6 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	if isPurified {
 		purifiedFlag = boolPtr(true)
 	}
-	dustRanges := dustCandidates(rawDust, luckyFlag, shadowFlag, purifiedFlag)
-	normDust, dustLucky, dustShadow, dustPurified := summariseDustInterpretations(rawDust, dustRanges)
-	isLucky = isLucky || dustLucky
-	isShadow = isShadow || dustShadow
-	isPurified = isPurified || dustPurified
-	log.Printf("OCR dust: rawDust=%d interpretations=%d normDust=%d", rawDust, len(dustRanges), normDust)
-
 	// BOTH readers behind the same screen gate, then text glyphs first and the
 	// pixel scan as the fallback -- the same precedence the mobile client uses
 	// (`textAppraisal ?: detectedBars` in OCRProcessor). The pixel reader always
@@ -1279,10 +1256,7 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	// See appraisalOnScreen.
 	//
 	// Only the pixel scan can see the rainbow ring, so is_hundo is set there and
-	// nowhere else; a text read of 3 stars leaves is_hundo false. That is a real
-	// divergence from the mobile client, which runs its bar detector on every
-	// frame and takes isHundo from it -- but it is the WEAKER claim, and the
-	// client ORs the two, so the client never loses a hundo it saw itself.
+	// nowhere else; a text read of 3 stars leaves is_hundo false.
 	stars := -1
 	starSource := "none"
 	isHundo := false
@@ -1297,153 +1271,60 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 			starSource = "pixel"
 		}
 	}
-
-	// stars < 0 leaves the INTERNAL ivRequest.AppraisalBars (*int) absent, which
-	// the solver reads as "unconstrained". The client-facing
-	// ocrExtracted.AppraisalBars is a plain int and carries the -1 sentinel on
-	// the wire, which the client reads as "the server could not tell" and
-	// answers by keeping its own reading. Two different fields; the comment here
-	// used to name the wrong one.
-	var appraisalBars *int
-	if stars >= 0 {
-		appraisalBars = &stars
-	} else {
+	if stars < 0 {
 		starSource = "none"
 	}
 	log.Printf("OCR appraisal: stars=%d source=%s isHundo=%v", stars, starSource, isHundo)
 
-	baseReq := ivRequest{
-		CP:            bestCP,
-		HP:            hp,
-		DustCost:      rawDust,
-		TrainerLevel:  trainerLevel,
-		AppraisalBars: appraisalBars,
-		IsLucky:       luckyFlag,
-		IsShadow:      shadowFlag,
-		IsPurified:    purifiedFlag,
-	}
-	searchable := hp > 0 && len(cpms) > 0 && (bestCP > 0 || arc.OK)
-
-	// Nickname fallback: no species matched by name, but the candy line names
-	// the family base ("3 MACHOP CANDY" on a mon nicknamed "John Cena").
-	// Disambiguate by which family member's stats actually fit the scan.
-	var speciesCandidates []string
-	if poke == nil && searchable && len(pokeList) > 0 {
-		knownSet := make(map[string]bool, len(pokeList))
-		for i := range pokeList {
-			knownSet[strings.ToLower(pokeList[i].PokemonName)] = true
-		}
-		base := detectCandyBase(fullText, func(n string) bool { return knownSet[strings.ToLower(n)] })
-		if base != "" {
-			type fit struct {
-				poke  *pokemonStatEntry
-				count int
-			}
-			var fits []fit
-			for _, name := range familySpecies(base, h.store.Evolutions()) {
-				sp := findSpecies(pokeList, name)
-				if sp == nil {
-					continue
-				}
-				req := baseReq
-				req.PokemonName = sp.PokemonName
-				if cands, _, _ := runOCRSearch(req, dustRanges, arc, *sp, cpms); len(cands) > 0 {
-					fits = append(fits, fit{sp, len(cands)})
-				}
-			}
-			sort.Slice(fits, func(i, j int) bool { return fits[i].count < fits[j].count })
-			if len(fits) > 0 {
-				poke = fits[0].poke
-				pokemonName = titleCase(poke.PokemonName)
-				nameSource = "candy"
-				for _, f := range fits {
-					speciesCandidates = append(speciesCandidates, titleCase(f.poke.PokemonName))
-				}
-			}
-			log.Printf("OCR candy: base=%q familyFits=%d", base, len(fits))
-		}
-	}
-
 	ext := ocrExtracted{
-		CP:             bestCP,
-		CPSource:       cpSource,
-		HP:             hp,
-		RawDust:        rawDust,
-		NormalisedDust: normDust,
-		PokemonName:    pokemonName,
-		NameSource:     nameSource,
-		AppraisalBars:  stars,
-		IsHundo:        isHundo,
-		IsLucky:        isLucky,
-		IsShadow:       isShadow,
-		IsPurified:     isPurified,
-		RawCP:          strconv.Itoa(cpText) + "/" + strconv.Itoa(cpRetry),
+		CP:            bestCP,
+		CPSource:      cpSource,
+		HP:            hp,
+		RawDust:       rawDust,
+		PokemonName:   pokemonName,
+		NameSource:    nameSource,
+		AppraisalBars: stars,
+		IsHundo:       isHundo,
+		IsLucky:       isLucky,
+		IsShadow:      isShadow,
+		IsPurified:    isPurified,
+		RawCP:         strconv.Itoa(cpText) + "/" + strconv.Itoa(cpRetry),
 	}
 	if arc.OK {
 		ext.ArcLevel = arc.Level
 	}
 
-	resp := map[string]any{
-		"extracted":  ext,
-		"candidates": []IVCandidate{},
-		"count":      0,
-		"definitive": false,
-	}
-	if len(speciesCandidates) > 1 {
-		resp["species_candidates"] = speciesCandidates
+	// The expensive contrast-enhanced re-read is offered to the solve only when
+	// the cheap one has not already run, so a scan pays for it at most once.
+	var retry func() int
+	if cpRetry == 0 {
+		retry = func() int { return retryCP(img) }
 	}
 
-	if searchable && poke != nil {
-		resp["pokemon"] = poke
-		req := baseReq
-		req.PokemonName = pokemonName
-		candidates, buddyAssumed, arcRescue := runOCRSearch(req, dustRanges, arc, *poke, cpms)
-		// The primary CP read produced no exact match (empty or arc-rescued):
-		// pay for the contrast-enhanced re-OCR of the CP zone before settling.
-		// A partial read like "CP17" for 1790 passes the primary validity
-		// check, so the cheap retry never fired earlier in the handler.
-		if (len(candidates) == 0 || arcRescue) && bestCP > 0 && cpRetry == 0 {
-			if rv := retryCP(img); rv >= 10 && rv != bestCP {
-				retryReq := req
-				retryReq.CP = rv
-				if c2, b2, r2 := runOCRSearch(retryReq, dustRanges, arc, *poke, cpms); len(c2) > 0 && !r2 {
-					log.Printf("OCR CP retry recovered: primary=%d retry=%d candidates=%d", bestCP, rv, len(c2))
-					candidates, buddyAssumed, arcRescue = c2, b2, false
-					bestCP = rv
-					ext.CP = rv
-					ext.RawCP = ext.RawCP + "/" + strconv.Itoa(rv)
-					resp["extracted"] = ext
-				}
-			}
-		}
-		if arcRescue {
-			// The rescue proved the text CP wrong (no IV spread matched it).
-			// Correct the extracted card: show the rescued CP when the
-			// candidates agree on one, else clear it. raw_cp keeps the
-			// misread for debugging.
-			ext.CP = unanimousCP(candidates)
-			ext.CPSource = "arc-level"
-			resp["extracted"] = ext
-			log.Printf("OCR arc rescue: textCP=%d correctedCP=%d candidates=%d", bestCP, ext.CP, len(candidates))
-		}
-		fullCount := len(candidates)
-		if fullCount > 0 {
-			// Aggregate view for wide (CP-free) result sets.
-			resp["iv_summary"] = map[string]any{
-				"max_pct": candidates[0].IVPct,
-				"min_pct": candidates[fullCount-1].IVPct,
-			}
-		}
-		if fullCount > 100 {
-			resp["truncated_from"] = fullCount
-			candidates = candidates[:100]
-		}
-		resp["candidates"] = candidates
-		resp["count"] = fullCount
-		resp["definitive"] = fullCount == 1
-		resp["best_buddy_assumed"] = buddyAssumed
-		resp["arc_rescue"] = arcRescue
-	}
+	resp := solveScan(ext, solveEnv{
+		pokeList:     pokeList,
+		cpms:         cpms,
+		evolutions:   h.store.Evolutions(),
+		trainerLevel: trainerLevel,
+		arc:          arc,
+		lucky:        luckyFlag,
+		shadow:       shadowFlag,
+		purified:     purifiedFlag,
+		retryCP:      retry,
+		candyText:    fullText,
+		// The server did the reading here, so correcting it is the server
+		// improving its own work rather than overruling a better reader.
+		correctReading: true,
+	})
+
+	// Counterpart to the "IV scan submit" line on the JSON path. The two are
+	// what step 4 of the migration reads to tell whether the app path is
+	// carrying scans before the web one is removed.
+	// Read back off the response rather than off ext, so it reports what the
+	// caller was actually told after any correction the solve made.
+	final, _ := resp["extracted"].(ocrExtracted)
+	log.Printf("IV scan image: authed=%v species=%q cp=%d count=%v bytes=%d",
+		isAuthed, final.PokemonName, final.CP, resp["count"], len(imgBytes))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

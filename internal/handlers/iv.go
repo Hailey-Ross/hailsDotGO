@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"math"
 	"net/http"
 	"regexp"
@@ -438,6 +439,7 @@ type pokemonBoxEntry struct {
 	IVCandidates json.RawMessage `json:"iv_candidates,omitempty"`
 	CaughtAt     *time.Time      `json:"caught_at,omitempty"`
 	Note         string          `json:"note"`
+	Provenance   string          `json:"provenance"`
 	CreatedAt    time.Time       `json:"created_at"`
 }
 
@@ -507,6 +509,12 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		IVCandidates json.RawMessage `json:"iv_candidates"`
 		CaughtAt     *time.Time      `json:"caught_at"`
 		Note         string          `json:"note"`
+		// Source is the client's account of where these values came from:
+		// "scan" or "manual". It is a claim, not the stored value --
+		// resolveProvenance decides what is actually recorded, from the route
+		// and the attestation rather than from this string. Absent on older
+		// clients, which resolve to "unknown".
+		Source string `json:"source"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, "invalid request", http.StatusBadRequest)
@@ -590,21 +598,29 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		candidatesJSON = []byte(body.IVCandidates)
 	}
 
+	// Attestation is not wired yet, so nothing can be recorded as attested. The
+	// argument is threaded through rather than left out so that turning it on is
+	// a change to where the token is verified, not a change to this call.
+	provenance := resolveProvenance(r, body.Source, false)
+
 	res, err := h.db.Exec(`
 		INSERT INTO user_pokemon_box
 		    (user_id, pokemon_name, form, is_shadow, is_purified, cp, level,
-		     atk_iv, def_iv, sta_iv, iv_candidates, caught_at, note)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		     atk_iv, def_iv, sta_iv, iv_candidates, caught_at, note, provenance)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, body.PokemonName, body.Form, body.IsShadow, body.IsPurified,
 		body.CP, body.Level,
 		body.AtkIV, body.DefIV, body.StaIV,
-		candidatesJSON, body.CaughtAt, body.Note,
+		candidatesJSON, body.CaughtAt, body.Note, string(provenance),
 	)
 	if err != nil {
 		writeJSONError(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	id, _ := res.LastInsertId()
+	// The provenance mix is what step 4 of the scan migration watches: the web
+	// upload cannot be retired until app-sourced rows are actually arriving.
+	log.Printf("box save: user=%d id=%d species=%q provenance=%s", u.ID, id, body.PokemonName, provenance)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{"id": id})
@@ -641,7 +657,7 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 		SELECT id, pokemon_name, form, is_shadow, is_purified, cp, level,
 		       atk_iv, def_iv, sta_iv,
 		       CASE WHEN atk_iv IS NULL THEN iv_candidates END,
-		       caught_at, COALESCE(note,''), created_at
+		       caught_at, COALESCE(note,''), provenance, created_at
 		FROM user_pokemon_box WHERE user_id = ?
 		ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		u.ID, limit, offset,
@@ -660,7 +676,7 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 			&e.ID, &e.PokemonName, &e.Form, &e.IsShadow, &e.IsPurified,
 			&e.CP, &e.Level,
 			&e.AtkIV, &e.DefIV, &e.StaIV,
-			&candidatesRaw, &e.CaughtAt, &e.Note, &e.CreatedAt,
+			&candidatesRaw, &e.CaughtAt, &e.Note, &e.Provenance, &e.CreatedAt,
 		); err != nil {
 			continue
 		}

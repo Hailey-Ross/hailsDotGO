@@ -132,13 +132,20 @@ func realIP(next http.Handler) http.Handler {
 // array. 1 MB leaves three orders of magnitude of headroom over anything real.
 const defaultMaxBody = 1 << 20
 
-// bodyLimits raises the cap for the endpoints that genuinely need more. Keyed on
-// the exact request path.
+// bodyLimits overrides the cap for the endpoints that need a different one,
+// in either direction. Keyed on the exact request path.
 var bodyLimits = map[string]int64{
 	// Screenshot upload. The handler applies the same 8 MB itself; this keeps the
 	// outer wrapper from being the tighter of the two.
 	"/api/iv/ocr":           8 << 20,
 	"/api/mobile/v1/iv/ocr": 8 << 20,
+
+	// A submitted reading, which replaces that upload: about 400 bytes of JSON
+	// for the same scan. Held far BELOW the 1 MB default rather than above it,
+	// because there is no legitimate large body here and the endpoint's whole
+	// purpose is that the frame stays on the device. 16 KB is forty times the
+	// real thing.
+	"/api/mobile/v1/iv/scan": 16 << 10,
 
 	// A saved Pokemon carries its iv_candidates list. An ambiguous appraisal (no
 	// dust, wide level range) can enumerate several thousand candidates at roughly
@@ -382,6 +389,18 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 			r.Post("/iv/calculate", h.IVCalculate)
 			r.With(httprate.LimitByIP(10, time.Minute)).Post("/iv/ocr", h.IVFromOCR)
+			// The app submits its own reading and the server solves it.
+			//
+			// Limited per ACCOUNT, not per IP, which is the difference that
+			// matters here. The image path is self limiting: an 8 MB upload
+			// costs the sender real bandwidth to make the server work. A few
+			// hundred bytes that trigger a full IV enumeration cost the sender
+			// nothing and cost the server the same, so the bound has to be on
+			// the thing that cannot be changed with a VPN. Measured worst case
+			// for one solve is 17 ms of CPU (no dust, no appraisal, full level
+			// sweep); a typical scan is under 1 ms. See LimitByAccount and
+			// BenchmarkSolveWorstCase.
+			r.With(h.LimitByAccount(30, time.Minute)).Post("/iv/scan", h.IVFromScan)
 			r.Post("/iv/pokemon", h.SavePokemonIV)
 			r.Get("/iv/pokemon", h.ListPokemonIV)
 			r.Delete("/iv/pokemon/{id}", h.DeletePokemonIV)
