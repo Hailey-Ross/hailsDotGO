@@ -74,6 +74,10 @@
     <p class="admin-desc">{{T "admin.settings.reg_desc"}}</p>
     <form method="POST" action="/admin/settings" class="admin-form">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <!-- Names the key this form owns. An unchecked box sends nothing, so without
+           this the handler cannot tell "off" from "not on this form", and saving here
+           switched off every other toggle that posts to the same route. -->
+      <input type="hidden" name="_settings" value="registration_open">
       <label class="admin-toggle-label">
         <input type="checkbox" name="registration_open" value="1"
                {{if .Data.RegistrationOpen}}checked{{end}}>
@@ -82,6 +86,22 @@
         </span>
       </label>
       <button type="submit" class="btn-primary" style="margin-top:1.25rem">{{T "admin.settings.save"}}</button>
+    </form>
+  </div>
+
+  <div class="admin-card">
+    <h2>{{T "admin.mobile_build.title"}}</h2>
+    <p class="admin-desc">{{T "admin.mobile_build.desc"}}</p>
+    <form method="POST" action="/admin/mobile-build" class="admin-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end">
+        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.82rem;color:var(--text-2)">
+          {{T "admin.mobile_build.label"}}
+          <input type="number" name="mobile_build" value="{{.Data.MobileBuild}}" min="1" max="1000000"
+                 class="auth-input" style="width:110px">
+        </label>
+        <button type="submit" class="btn-primary">{{T "admin.settings.save"}}</button>
+      </div>
     </form>
   </div>
 
@@ -151,6 +171,7 @@
     <p class="admin-desc">{{T "admin.donations.desc"}}</p>
     <form method="POST" action="/admin/settings" class="admin-form">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <input type="hidden" name="_settings" value="store_enabled">
       <label class="admin-toggle-label">
         <input type="checkbox" name="store_enabled" value="1"
                {{if .Data.StoreEnabled}}checked{{end}}>
@@ -1551,15 +1572,23 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
       var detail;
       if (!c.ok) {
         detail = '<span style="color:#f85149">' + escapeHtml(c.error || '') + '</span>';
-      } else if (c.note) {
+      } else if (c.advisory && c.note) {
         // A source that reports drift but does NOT auto-apply it (costumes): saying "applied"
-        // here would be a lie, so show what actually needs doing instead.
+        // here would be a lie, and it fetches no payload of its own to size, so the note is
+        // the whole answer. Amber, because it names something a human still has to do.
         detail = '<span style="color:#d29922">' + escapeHtml(c.note) + '</span>'
           + ' · ' + c.duration_ms + 'ms';
       } else {
         var count = c.count ? (c.count + ' items, ') : '';
         detail = (c.changed ? STRINGS.scrapersApplied : STRINGS.scrapersInSync)
           + ' · ' + count + fmtBytes(c.bytes) + ' · ' + c.duration_ms + 'ms';
+        // An applied source can carry a note too, and it must not cost that row its sync
+        // state or its size: those are exactly what you want when asking whether upstream
+        // is still stale. So it goes underneath, and stays muted rather than amber, because
+        // it describes a normal result rather than a task.
+        if (c.note) {
+          detail += '<br><span style="color:var(--text-3)">' + escapeHtml(c.note) + '</span>';
+        }
       }
       return '<tr>'
         + '<td style="padding:0.2rem 0.6rem 0.2rem 0;font-family:monospace">' + escapeHtml(c.key) + '</td>'

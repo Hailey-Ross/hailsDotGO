@@ -26,10 +26,9 @@ func boolPtr(v bool) *bool { return &v }
 // ocrRegion is a percentage-based crop of a full screenshot (fractions 0-1).
 type ocrRegion struct{ x1, y1, x2, y2 float64 }
 
-var (
-	// Only pixel-scan crops remain; text now comes from the neural OCR service.
-	ocrRegionAppraisalScreen = ocrRegion{0.00, 0.00, 0.25, 1.00} // appraisal-results screen bars (mobile app coordinates)
-)
+// The appraisal badge no longer has a region constant here: detectStars takes
+// the whole screenshot and owns its own window, so the badge geometry lives in
+// exactly one place (see detectStars).
 
 type subImager interface {
 	SubImage(r image.Rectangle) image.Image
@@ -712,55 +711,212 @@ func isRainbowPixel(r, g, b uint8) bool {
 	return isMagenta || isPurple || isTeal
 }
 
-func countStarsFromText(text string) int {
-	n := strings.Count(text, "★")
-	if n >= 1 && n <= 3 {
-		return n
+// isSilverPixel matches a star the Pokemon has NOT earned: neutral grey,
+// mid-bright. Bounded above so the badge's white diagonal band (250+) is
+// excluded and below so the dark frame behind the panel is. Device sample: the
+// silver stars on capture 192155 average (208,208,207).
+//
+// PARITY: AppraisalBarDetector.isSilver in the mobile app.
+func isSilverPixel(r, g, b uint8) bool {
+	mx, mn := r, r
+	if g > mx {
+		mx = g
 	}
-	return -1
+	if b > mx {
+		mx = b
+	}
+	if g < mn {
+		mn = g
+	}
+	if b < mn {
+		mn = b
+	}
+	return int(mx)-int(mn) <= 22 && mx >= 140 && mx <= 238
 }
 
-// detectStars returns (starCount 0-3, isHundo). Returns -1 if detection fails.
+// countStarsFromText reads the star count off the appraisal bubble's own
+// glyphs, returning 0-3, or -1 for "not readable".
+//
+// PARITY: deliberately kept in step with OCRProcessor.extractAppraisal in the
+// mobile app (hailsDotGO-mobile,
+// android/app/src/main/java/live/hails/hailsdotgo/ocr/OCRProcessor.kt).
+// Change one, check the other.
+//
+// The filled+empty==3 guard is the whole point. The badge always has exactly
+// three star positions, so a text read is only trustworthy when it can account
+// for all three -- filled plus empty. The previous version counted "★"
+// anywhere on the page and trusted the total, so any single star-shaped glyph
+// returned 1; since 1 was also the smallest value the branch could emit, the
+// failure mode was a confident "1 star". Ground truth 2026-08-30: a hundo
+// Primal Groudon (three gold stars, red hundo background) came back as 1.
+//
+// -1 sends the caller on to the pixel scan, and if that also declines the
+// client keeps its own reading. A wrong value is far worse than no value.
+func countStarsFromText(text string) int {
+	filled := strings.Count(text, "★")
+	empty := strings.Count(text, "☆")
+	if filled+empty != 3 {
+		return -1
+	}
+	return filled
+}
+
+// appraisalOnScreen reports whether the appraisal panel is the thing being
+// looked at, from the three stat labels it always carries.
+//
+// Both star readers are gated on this, not just the pixel one. countStarsFromText
+// runs over the WHOLE page's text and a page with no appraisal panel on it can
+// still carry three star glyphs -- verified against the shipped function:
+//
+//	"CP 1500 | ★★★ | 3 MACHOP CANDY"  -> 3, with no appraisal on screen at all
+//
+// The three-glyph guard says "a complete badge is on this page", which is a
+// weaker claim than "these three glyphs ARE the badge", and this gate is what
+// supplies the difference.
+//
+// PARITY: OCRProcessor.appraisalVisible in the mobile app, which now uses the
+// same whole-word, case-insensitive test. It was a case-SENSITIVE substring
+// test, so the two opened on different frames.
+//
+// It is still not a region restriction: three star glyphs elsewhere on an
+// appraisal screen would still be counted. Narrowing that needs per-region text
+// from the OCR service, which this handler does not receive.
+func appraisalOnScreen(fullText string) bool {
+	return containsWordCI(fullText, "attack") &&
+		containsWordCI(fullText, "defense") &&
+		containsWordCI(fullText, "hp")
+}
+
+// silverRowMin is the number of neutral-grey hits in ONE sampled row that count
+// towards an unearned star. See classifyStars.
+//
+// PARITY: AppraisalBarDetector.SILVER_ROW_MIN in the mobile app.
+const silverRowMin = 4
+
+// detectStars returns (starCount, isHundo) from the pixels of the appraisal
+// badge: 3, or -1 for "not readable". Returns -1 if detection fails.
+//
+// PARITY: takes the WHOLE screenshot and derives the badge window itself,
+// mirroring AppraisalBarDetector.detect in the mobile app
+// (android/app/src/main/java/live/hails/hailsdotgo/ocr/AppraisalBarDetector.kt):
+// same 58-70% row band, same 0-25% width band, same 13x50 sampling grid, same
+// orange/silver/rainbow predicates and the same decision in classifyStars.
+//
+// The grid arithmetic is deliberately written the way Kotlin writes it --
+// float64 throughout and TRUNCATING, never rounding -- because "the same 13x50
+// grid" was a comment and not a fact. Kotlin truncated a float32 fraction where
+// this rounded a float64 one; over the six committed fixtures FIVE of six landed
+// on different pixels and gave different rainbow counts (Celesteela 7 vs 9,
+// Dugtrio 7 vs 8, Kartana 7 vs 9, Machamp 10 vs 11, Altaria 8 vs 7). One pixel
+// per axis, but a 20% phase shift on a 5.4px stride.
+//
+// It used to be handed a pre-cropped left-25% strip and then sample xEnd=0.25
+// *of that crop*, i.e. the leftmost 6.25% of screen width -- a quarter of the
+// band the thresholds assume, and a quarter of what the mobile detector reads.
+// Owning the fractions in one place is what stops that recurring.
+//
+// One deliberate divergence remains: where the mobile detector reports 0 stars
+// when it finds no gold at all, this reports -1 ("not readable"). No gold in the
+// band means the badge was not found, which is not the same claim as "this
+// Pokemon has a zero-star appraisal", and the server must not put the stronger
+// claim on the wire.
 func detectStars(img image.Image) (int, bool) {
+	orange, silver, rainbow := sampleStarGrid(img)
+	return classifyStars(orange[:], silver[:], rainbow)
+}
+
+// starGridRows is the number of sampled rows across the badge band.
+const starGridRows = 13
+
+// sampleStarGrid counts orange, silver and rainbow hits on the sampling grid.
+//
+// Split out from detectStars so TestDetectStarsGridParity can pin the GRID
+// itself against the mobile detector's numbers, separately from the decision
+// classifyStars makes about them.
+//
+// The arithmetic is deliberately written the way Kotlin writes it -- float64
+// throughout, xEnd truncated to a pixel FIRST and then stepped through, both
+// axes truncated and never rounded. Stepping the fraction, or rounding, is what
+// put the two grids up to a pixel apart on each axis.
+func sampleStarGrid(img image.Image) (orange, silver [starGridRows]int, rainbow int) {
 	b := img.Bounds()
 	w := b.Max.X - b.Min.X
 	h := b.Max.Y - b.Min.Y
 	if w <= 0 || h <= 0 {
-		return -1, false
+		return orange, silver, 0
 	}
 
-	const numRows = 13
+	// Fractions of the FULL screenshot. The badge moves: measured through this
+	// grid, the first sampled row carrying orange runs from row 0 on capture
+	// 192155 (58.0% of frame height) to row 6 on 192116 (64.0%), and 192116's
+	// span ends at row 11 (69.0%) -- one row short of the band's bottom edge.
+	// 58-70% covers the corpus with a single row of headroom, no more. xEnd is
+	// the badge's right edge.
+	//
+	// PARITY: AppraisalBarDetector's Y_START/Y_END/X_END in the mobile app.
 	const samplesPerRow = 50
 	const yStart = 0.58
 	const yEnd = 0.70
 	const xEnd = 0.25
 
-	orangeHits := make([]int, numRows)
-	rainbowTotal := 0
+	xEndPx := int(float64(w) * xEnd)
 
-	for i := 0; i < numRows; i++ {
-		yFrac := yStart + float64(i)*(yEnd-yStart)/float64(numRows-1)
-		py := b.Min.Y + int(math.Round(float64(h)*yFrac))
+	for i := 0; i < starGridRows; i++ {
+		yFrac := yStart + float64(i)*(yEnd-yStart)/float64(starGridRows-1)
+		py := b.Min.Y + int(float64(h)*yFrac)
 		if py < b.Min.Y || py >= b.Max.Y {
 			continue
 		}
 		for j := 0; j < samplesPerRow; j++ {
-			xFrac := float64(j) / float64(samplesPerRow-1) * xEnd
-			px := b.Min.X + int(math.Round(float64(w)*xFrac))
+			// Divisor is samplesPerRow, not samplesPerRow-1: matches the
+			// mobile detector's step, which stops just short of xEnd.
+			px := b.Min.X + int(float64(xEndPx)*(float64(j)/float64(samplesPerRow)))
 			if px < b.Min.X || px >= b.Max.X {
 				continue
 			}
 			rr, gg, bb, _ := img.At(px, py).RGBA()
 			rv, gv, bv := uint8(rr>>8), uint8(gg>>8), uint8(bb>>8)
 			if isOrangePixel(rv, gv, bv) {
-				orangeHits[i]++
+				orange[i]++
+			}
+			if isSilverPixel(rv, gv, bv) {
+				silver[i]++
 			}
 			if isRainbowPixel(rv, gv, bv) {
-				rainbowTotal++
+				rainbow++
 			}
 		}
 	}
+	return orange, silver, rainbow
+}
 
+// classifyStars is the decision, with the pixels already counted.
+//
+// PARITY: AppraisalBarDetector.classify in the mobile app, line for line apart
+// from the no-gold return documented on detectStars.
+//
+// **What the badge actually looks like**, measured on thirteen device captures
+// (1080x2340, 2026-08-28): it is a gold-ORANGE disc with three star shapes
+// across its middle, and the disc is orange whatever the rating -- so an orange
+// hit is not a star, and an EARNED gold star is not separable by colour from the
+// disc it sits on. An UNEARNED star is neutral SILVER, and is the one thing on
+// the badge that is. Silver, not gold, carries the signal. (A hundo's disc turns
+// pink instead, halving its orange totals: 35 hits against 63-76.)
+//
+// **Why this no longer answers 1 or 2.** The old rule split 1 from 2 on the hit
+// count inside a hollow badge. Two of the thirteen captures ever reached that
+// branch and it was wrong on both, in opposite directions:
+//
+//	192155  three SILVER stars, a genuine ZERO   -> said 2
+//	192203  three GOLD stars, a genuine THREE    -> said 2
+//
+// No device capture of a real 1- or 2-star badge exists, so those thresholds
+// were never calibrated against anything. The branch is gone. What is left
+// claims THREE or declines, and over the same thirteen frames it is wrong zero
+// times: eleven correct threes and two abstains. -1 is a clean outcome here --
+// the client reads it as "keep your own reading" -- and a wrong star count pins
+// the IV solve to the 82-100% band and returns confident nonsense.
+func classifyStars(orangeHits, silverHits []int, rainbowTotal int) (int, bool) {
 	total, firstHit, lastHit := 0, -1, -1
 	for i, hits := range orangeHits {
 		total += hits
@@ -776,35 +932,48 @@ func detectStars(img image.Image) (int, bool) {
 		return -1, false
 	}
 
-	hasGap := false
+	// An unearned star: silver, on the badge, and tall enough to be a star
+	// shape rather than a line of text -- so TWO CONSECUTIVE rows over the
+	// threshold. Direct evidence this badge is not a three, and nothing here can
+	// say whether it is a two, a one or a zero, so it does not guess.
+	//
+	// Scanned over the WHOLE band, not over firstHit..lastHit. That window was
+	// the bug. A gold star is part of what makes the star band orange, so with
+	// no stars earned the orange span collapses to the disc's top ribbon and the
+	// silver stars sit BELOW lastHit -- outside the window hunting for them. The
+	// window was anti-correlated with the thing it looked for: the fewer stars
+	// earned, the smaller the search. A genuine ZERO then showed a short gapless
+	// span with total >= 10 and returned 3:
+	//
+	//	orange=[0 0 0 13 11 10 0 0 0 0 0 0 0]
+	//	silver=[0 0 0 0  0  8 15 18 11 2 0 0 2]   -> 3, truth 0
+	//
+	// Reproduced by transplanting the real silver stars of capture 192155 onto
+	// three real three-star hosts; across 41 vertical badge offsets a zero-star
+	// badge returned 3 at 35 of them. The one real zero-star capture (192155)
+	// abstained only by accident -- its lastHit was row 11, and row 11's orange
+	// is the "Attack" panel label nine rows below the badge, not the badge.
+	//
+	// The whole-band scan costs none of the eleven correct three-star captures:
+	// their worst real silver pair is min(1, 2), far below silverRowMin.
+	for i := 0; i+1 < len(silverHits); i++ {
+		if silverHits[i] >= silverRowMin && silverHits[i+1] >= silverRowMin {
+			return -1, false
+		}
+	}
+
+	// Gap = a zero-orange row inside the orange span, i.e. the badge's interior
+	// is not filled.
 	for i := firstHit + 1; i < lastHit; i++ {
 		if orangeHits[i] == 0 {
-			hasGap = true
-			break
+			return -1, false
 		}
 	}
 
-	stars := 0
-	switch {
-	case !hasGap && total >= 10:
-		stars = 3
-	case hasGap:
-		inner := 0
-		for i := firstHit + 1; i < lastHit; i++ {
-			inner += orangeHits[i]
-		}
-		if inner >= 10 {
-			stars = 2
-		} else {
-			stars = 1
-		}
-	case total >= 3:
-		stars = 1
-	default:
-		return -1, false
+	if total >= 10 {
+		return 3, rainbowTotal >= 3
 	}
-
-	return stars, stars == 3 && rainbowTotal >= 3
+	return -1, false
 }
 
 // ---- Status keyword detection ----
@@ -998,25 +1167,9 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	var cpms []cpmEntry
 	_ = json.Unmarshal(h.store.CPMultipliers(), &cpms)
 
-	var poke *pokemonStatEntry
-	if pokemonName != "" {
-		var firstMatch *pokemonStatEntry
-		for i := range pokeList {
-			if !strings.EqualFold(pokeList[i].PokemonName, pokemonName) {
-				continue
-			}
-			if firstMatch == nil {
-				firstMatch = &pokeList[i]
-			}
-			if strings.EqualFold(pokeList[i].Form, "Normal") {
-				poke = &pokeList[i]
-				break
-			}
-		}
-		if poke == nil {
-			poke = firstMatch
-		}
-	}
+	// Same preference rule the solve uses, so the species the plausibility check
+	// below is measured against is the species the solve will actually score.
+	poke := findSpecies(pokeList, pokemonName)
 
 	// Fallback: scan full OCR text for the earliest-appearing known Pokémon name.
 	if poke == nil && len(pokeList) > 0 {
@@ -1095,156 +1248,83 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	if isPurified {
 		purifiedFlag = boolPtr(true)
 	}
-	dustRanges := dustCandidates(rawDust, luckyFlag, shadowFlag, purifiedFlag)
-	normDust, dustLucky, dustShadow, dustPurified := summariseDustInterpretations(rawDust, dustRanges)
-	isLucky = isLucky || dustLucky
-	isShadow = isShadow || dustShadow
-	isPurified = isPurified || dustPurified
-	log.Printf("OCR dust: rawDust=%d interpretations=%d normDust=%d", rawDust, len(dustRanges), normDust)
-
-	stars := countStarsFromText(fullText)
+	// BOTH readers behind the same screen gate, then text glyphs first and the
+	// pixel scan as the fallback -- the same precedence the mobile client uses
+	// (`textAppraisal ?: detectedBars` in OCRProcessor). The pixel reader always
+	// was gated; the text one was not, and it runs FIRST, so a page with three
+	// star glyphs and no appraisal panel on it answered this field outright.
+	// See appraisalOnScreen.
+	//
+	// Only the pixel scan can see the rainbow ring, so is_hundo is set there and
+	// nowhere else; a text read of 3 stars leaves is_hundo false.
+	stars := -1
+	starSource := "none"
 	isHundo := false
-	if stars < 0 && containsWordCI(fullText, "attack") &&
-		containsWordCI(fullText, "defense") && containsWordCI(fullText, "hp") {
-		stars, isHundo = detectStars(cropPct(img, ocrRegionAppraisalScreen))
-	}
-
-	var appraisalBars *int
-	if stars >= 0 {
-		appraisalBars = &stars
-	}
-	baseReq := ivRequest{
-		CP:            bestCP,
-		HP:            hp,
-		DustCost:      rawDust,
-		TrainerLevel:  trainerLevel,
-		AppraisalBars: appraisalBars,
-		IsLucky:       luckyFlag,
-		IsShadow:      shadowFlag,
-		IsPurified:    purifiedFlag,
-	}
-	searchable := hp > 0 && len(cpms) > 0 && (bestCP > 0 || arc.OK)
-
-	// Nickname fallback: no species matched by name, but the candy line names
-	// the family base ("3 MACHOP CANDY" on a mon nicknamed "John Cena").
-	// Disambiguate by which family member's stats actually fit the scan.
-	var speciesCandidates []string
-	if poke == nil && searchable && len(pokeList) > 0 {
-		knownSet := make(map[string]bool, len(pokeList))
-		for i := range pokeList {
-			knownSet[strings.ToLower(pokeList[i].PokemonName)] = true
-		}
-		base := detectCandyBase(fullText, func(n string) bool { return knownSet[strings.ToLower(n)] })
-		if base != "" {
-			type fit struct {
-				poke  *pokemonStatEntry
-				count int
-			}
-			var fits []fit
-			for _, name := range familySpecies(base, h.store.Evolutions()) {
-				sp := findSpecies(pokeList, name)
-				if sp == nil {
-					continue
-				}
-				req := baseReq
-				req.PokemonName = sp.PokemonName
-				if cands, _, _ := runOCRSearch(req, dustRanges, arc, *sp, cpms); len(cands) > 0 {
-					fits = append(fits, fit{sp, len(cands)})
-				}
-			}
-			sort.Slice(fits, func(i, j int) bool { return fits[i].count < fits[j].count })
-			if len(fits) > 0 {
-				poke = fits[0].poke
-				pokemonName = titleCase(poke.PokemonName)
-				nameSource = "candy"
-				for _, f := range fits {
-					speciesCandidates = append(speciesCandidates, titleCase(f.poke.PokemonName))
-				}
-			}
-			log.Printf("OCR candy: base=%q familyFits=%d", base, len(fits))
+	if appraisalOnScreen(fullText) {
+		stars = countStarsFromText(fullText)
+		starSource = "text"
+		if stars < 0 {
+			// Whole screenshot: detectStars owns the badge window (see its
+			// comment). Handing it a pre-cropped strip is what made it sample
+			// a quarter of the intended width.
+			stars, isHundo = detectStars(img)
+			starSource = "pixel"
 		}
 	}
+	if stars < 0 {
+		starSource = "none"
+	}
+	log.Printf("OCR appraisal: stars=%d source=%s isHundo=%v", stars, starSource, isHundo)
 
 	ext := ocrExtracted{
-		CP:             bestCP,
-		CPSource:       cpSource,
-		HP:             hp,
-		RawDust:        rawDust,
-		NormalisedDust: normDust,
-		PokemonName:    pokemonName,
-		NameSource:     nameSource,
-		AppraisalBars:  stars,
-		IsHundo:        isHundo,
-		IsLucky:        isLucky,
-		IsShadow:       isShadow,
-		IsPurified:     isPurified,
-		RawCP:          strconv.Itoa(cpText) + "/" + strconv.Itoa(cpRetry),
+		CP:            bestCP,
+		CPSource:      cpSource,
+		HP:            hp,
+		RawDust:       rawDust,
+		PokemonName:   pokemonName,
+		NameSource:    nameSource,
+		AppraisalBars: stars,
+		IsHundo:       isHundo,
+		IsLucky:       isLucky,
+		IsShadow:      isShadow,
+		IsPurified:    isPurified,
+		RawCP:         strconv.Itoa(cpText) + "/" + strconv.Itoa(cpRetry),
 	}
 	if arc.OK {
 		ext.ArcLevel = arc.Level
 	}
 
-	resp := map[string]any{
-		"extracted":  ext,
-		"candidates": []IVCandidate{},
-		"count":      0,
-		"definitive": false,
-	}
-	if len(speciesCandidates) > 1 {
-		resp["species_candidates"] = speciesCandidates
+	// The expensive contrast-enhanced re-read is offered to the solve only when
+	// the cheap one has not already run, so a scan pays for it at most once.
+	var retry func() int
+	if cpRetry == 0 {
+		retry = func() int { return retryCP(img) }
 	}
 
-	if searchable && poke != nil {
-		resp["pokemon"] = poke
-		req := baseReq
-		req.PokemonName = pokemonName
-		candidates, buddyAssumed, arcRescue := runOCRSearch(req, dustRanges, arc, *poke, cpms)
-		// The primary CP read produced no exact match (empty or arc-rescued):
-		// pay for the contrast-enhanced re-OCR of the CP zone before settling.
-		// A partial read like "CP17" for 1790 passes the primary validity
-		// check, so the cheap retry never fired earlier in the handler.
-		if (len(candidates) == 0 || arcRescue) && bestCP > 0 && cpRetry == 0 {
-			if rv := retryCP(img); rv >= 10 && rv != bestCP {
-				retryReq := req
-				retryReq.CP = rv
-				if c2, b2, r2 := runOCRSearch(retryReq, dustRanges, arc, *poke, cpms); len(c2) > 0 && !r2 {
-					log.Printf("OCR CP retry recovered: primary=%d retry=%d candidates=%d", bestCP, rv, len(c2))
-					candidates, buddyAssumed, arcRescue = c2, b2, false
-					bestCP = rv
-					ext.CP = rv
-					ext.RawCP = ext.RawCP + "/" + strconv.Itoa(rv)
-					resp["extracted"] = ext
-				}
-			}
-		}
-		if arcRescue {
-			// The rescue proved the text CP wrong (no IV spread matched it).
-			// Correct the extracted card: show the rescued CP when the
-			// candidates agree on one, else clear it. raw_cp keeps the
-			// misread for debugging.
-			ext.CP = unanimousCP(candidates)
-			ext.CPSource = "arc-level"
-			resp["extracted"] = ext
-			log.Printf("OCR arc rescue: textCP=%d correctedCP=%d candidates=%d", bestCP, ext.CP, len(candidates))
-		}
-		fullCount := len(candidates)
-		if fullCount > 0 {
-			// Aggregate view for wide (CP-free) result sets.
-			resp["iv_summary"] = map[string]any{
-				"max_pct": candidates[0].IVPct,
-				"min_pct": candidates[fullCount-1].IVPct,
-			}
-		}
-		if fullCount > 100 {
-			resp["truncated_from"] = fullCount
-			candidates = candidates[:100]
-		}
-		resp["candidates"] = candidates
-		resp["count"] = fullCount
-		resp["definitive"] = fullCount == 1
-		resp["best_buddy_assumed"] = buddyAssumed
-		resp["arc_rescue"] = arcRescue
-	}
+	resp := solveScan(ext, solveEnv{
+		pokeList:     pokeList,
+		cpms:         cpms,
+		evolutions:   h.store.Evolutions(),
+		trainerLevel: trainerLevel,
+		arc:          arc,
+		lucky:        luckyFlag,
+		shadow:       shadowFlag,
+		purified:     purifiedFlag,
+		retryCP:      retry,
+		candyText:    fullText,
+		// The server did the reading here, so correcting it is the server
+		// improving its own work rather than overruling a better reader.
+		correctReading: true,
+	})
+
+	// Counterpart to the "IV scan submit" line on the JSON path. The two are
+	// what step 4 of the migration reads to tell whether the app path is
+	// carrying scans before the web one is removed.
+	// Read back off the response rather than off ext, so it reports what the
+	// caller was actually told after any correction the solve made.
+	final, _ := resp["extracted"].(ocrExtracted)
+	log.Printf("IV scan image: authed=%v species=%q cp=%d count=%v bytes=%d",
+		isAuthed, final.PokemonName, final.CP, resp["count"], len(imgBytes))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

@@ -74,18 +74,36 @@ func newPushNotifier() *pushNotifier {
 	return n
 }
 
-func (n *pushNotifier) sendFCM(deviceToken, title, body string, data map[string]string) {
+// sendFCM delivers one Android push.
+//
+// androidChannel names the notification channel the app should render it on, and
+// "" means "say nothing". Saying nothing is the right default, not an oversight:
+// the app's manifest pins FCM's default_notification_channel_id to the raids
+// channel, which is what makes a backgrounded raid alert land at high importance
+// today. Setting a channel here for every push would quietly move raid alerts
+// onto whichever channel was named. Only callers that want a different channel
+// pass one.
+//
+// The block matters solely for the backgrounded and force-stopped cases, where
+// the system builds the notification without the app running. A foreground push
+// is routed by app code and looks correct even when this is wrong, so testing
+// only in the foreground proves nothing about it.
+func (n *pushNotifier) sendFCM(deviceToken, title, body string, data map[string]string, androidChannel string) {
 	if n.fcmHTTP == nil {
 		return
 	}
 	url := fmt.Sprintf("https://fcm.googleapis.com/v1/projects/%s/messages:send", n.fcmProjectID)
-	payload, _ := json.Marshal(map[string]any{
-		"message": map[string]any{
-			"token":        deviceToken,
-			"notification": map[string]string{"title": title, "body": body},
-			"data":         data,
-		},
-	})
+	msg := map[string]any{
+		"token":        deviceToken,
+		"notification": map[string]string{"title": title, "body": body},
+		"data":         data,
+	}
+	if androidChannel != "" {
+		msg["android"] = map[string]any{
+			"notification": map[string]string{"channel_id": androidChannel},
+		}
+	}
+	payload, _ := json.Marshal(map[string]any{"message": msg})
 	resp, err := n.fcmHTTP.Post(url, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		log.Printf("push FCM send: %v", err)
@@ -130,6 +148,17 @@ func (n *pushNotifier) sendAPNs(deviceToken, title, body string, data map[string
 // push notifications asynchronously. Failures are logged and never propagate.
 // Call as `go h.sendPushToUsers(...)` from within locked code to avoid holding locks.
 func (h *Handlers) sendPushToUsers(userIDs []uint, title, body string, data map[string]string) {
+	h.sendPushToUsersOnChannel(userIDs, title, body, data, "")
+}
+
+// sendPushToUsersOnChannel is sendPushToUsers with an explicit Android
+// notification channel. See sendFCM for why "" is the default everywhere else.
+// iOS has no equivalent and ignores it.
+//
+// Delivery is one blocking HTTP round trip per device token, in order. That is
+// fine for a raid lobby of four and is the wrong shape for an event with a few
+// hundred subscribers; a worker pool belongs here before this gets popular.
+func (h *Handlers) sendPushToUsersOnChannel(userIDs []uint, title, body string, data map[string]string, androidChannel string) {
 	if h.notifier == nil || len(userIDs) == 0 {
 		return
 	}
@@ -158,7 +187,7 @@ func (h *Handlers) sendPushToUsers(userIDs []uint, title, body string, data map[
 		}
 		switch platform {
 		case "android":
-			h.notifier.sendFCM(tok, title, body, data)
+			h.notifier.sendFCM(tok, title, body, data, androidChannel)
 		case "ios":
 			h.notifier.sendAPNs(tok, title, body, data)
 		}

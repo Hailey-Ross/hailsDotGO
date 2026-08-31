@@ -96,7 +96,19 @@ type userSearchResult struct {
 	TrainerName string `json:"trainer_name"`
 }
 
+// APIUsersSearch autocompletes usernames for the award grant and report invite
+// fields.
+//
+// The auth check is the handler's own, not the route's. On the web this sits
+// behind RequireAuth, which answers a 303 to /login and would hand a Bearer
+// client a login page to parse as JSON, so the mobile alias is registered
+// bare and this check is what gates it. Do not remove it on the grounds that
+// the web route already wraps it: this endpoint is a user enumeration oracle,
+// and one of its two registrations has no wrapper at all.
 func (h *Handlers) APIUsersSearch(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireUserAPI(w, r); !ok {
+		return
+	}
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len(q) < 2 {
 		w.Header().Set("Content-Type", "application/json")

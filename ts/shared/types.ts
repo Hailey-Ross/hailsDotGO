@@ -50,8 +50,8 @@ export interface RaidBoss {
 export type RaidTiers = Record<string, RaidBoss[]>;
 
 // One entry of the "up next" strip: the soonest rotation for a tier, or one that is
-// already live but has no card on the grid yet (a Mega the raid feed has not caught
-// up to, which cannot be built locally because no Mega typing data ships with the app).
+// already live but has no card on the grid yet, which now only happens for a species
+// no dataset the server holds can describe.
 export interface UpcomingRaid {
   event_id: string;
   name: string;
@@ -88,6 +88,22 @@ export interface ShinyDexEntry {
   shiny_release_date?: string;
 }
 
+// One Mega's stat line and typing, keyed in GameData.megas by lowercased display
+// name ("mega gyarados").
+//
+// Megas are absent from `pokemon` entirely, and cannot be derived from the base
+// species: a Mega keeps the base stamina but its attack, defense and typing all
+// change. Mega Gyarados is 292/247/216 and Water plus Dark where Gyarados is
+// 237/186/216 and Water plus Flying.
+export interface MegaForm {
+  name: string;
+  types: string[];
+  atk: number;
+  def: number;
+  sta: number;
+  image?: string;
+}
+
 export type TypeChart = Record<string, Record<string, number>>;
 
 export interface CPMultiplier {
@@ -111,6 +127,7 @@ export interface GameData {
   chargedMoves: ChargedMove[] | null;
   raids: RaidTiers | null;
   upcomingRaids?: UpcomingRaid[] | null;
+  megas?: Record<string, MegaForm> | null;
   maxBattles: RaidTiers | null;
   shinies: Record<string, ShinyPokemon> | null;
   // Both are omitted by the server when no baseline is embedded, and every

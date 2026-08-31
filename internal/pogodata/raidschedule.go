@@ -2,8 +2,11 @@ package pogodata
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -21,6 +24,13 @@ import (
 // Shadow raids. This file joins the two: the schedule decides who is live, the raid
 // feed supplies the card, and where the schedule names a boss the raid feed has not
 // caught up to, the card is built from the app's own species data.
+//
+// There is a third source, in eventraids.go. Some rotations are announced only in
+// the body of an ordinary event's page, with no feed entry modelling them at all:
+// Mega Ascension named a different Mega line up for each of five days that way, and
+// nothing here could see any of it. Those windows are ADDITIVE, meaning they add
+// bosses and can never remove one, and everything below treats them like any other
+// rotation apart from that.
 
 // governedTiers are the tier keys the events feed describes. Tier 1 and tier 3
 // rotate rarely and no feed anywhere carries timing for them, so they are passed
@@ -98,6 +108,16 @@ type RaidWindow struct {
 	RawEnd    string
 	StartsUTC time.Time
 	EndsUTC   time.Time
+	// Additive marks a rotation read off an event's scraped page rather than out of
+	// the feed's own raid data. See eventraids.go.
+	//
+	// It contributes live bosses exactly like any other window but never makes its
+	// tier authoritative, so an event page can add a boss to the grid and can never
+	// remove one. Mega Ascension is why: its page names a week of Mega line ups the
+	// feed does not model at all, while saying in as many words that seasonal
+	// bosses keep appearing alongside them, so reading it as the authority on the
+	// Mega tier would have deleted the Mega Gyarados rotation that was still live.
+	Additive bool
 }
 
 // Active reports whether the rotation is live for at least one trainer somewhere.
@@ -115,9 +135,14 @@ type UpcomingRaid struct {
 	StartsAt string       `json:"starts_at"`
 	EndsAt   string       `json:"ends_at"`
 	// Live marks a rotation whose window is already open but for which no full
-	// boss card exists yet. That is the Mega case: the species data this app
-	// carries has no Mega forms, so a Mega cannot be synthesized and has to wait
-	// for the raid feed to list it.
+	// boss card exists yet, so the strip names it rather than leaving the tier
+	// looking empty.
+	//
+	// This used to be the ordinary fate of every Mega, because nothing in the
+	// species data describes one. It is now the exception: refreshMegas supplies
+	// the stat lines and typings, so a Mega is built like anything else. What
+	// still lands here is a species no dataset knows at all, such as Armored
+	// Mewtwo, or a Mega reaching the schedule before the Mega table has loaded.
 	Live bool `json:"live,omitempty"`
 }
 
@@ -130,6 +155,66 @@ type raidReconcileStats struct {
 	Synthesized int
 	Annotated   int
 	Pending     int // active rotations that could not be turned into a card
+	// EventWindows is how many of the live rotations were read off an event's
+	// scraped page rather than out of the feed's raid data, and FromEventPages how
+	// many cards on the grid one of those is responsible for. Both are surfaced in
+	// the admin scraper check, because the event page reader is the one part of
+	// this that depends on upstream markup: if LeekDuck reshapes a Raids section
+	// these go to zero, and a number going to zero is something a person can see.
+	EventWindows   int
+	FromEventPages int
+	// PendingList is the same thing named. Pending was a count, and a count only
+	// ever reached a log line: the set itself was discarded on every rebuild, so
+	// the only thing that would ever fix one of these was the next scheduled
+	// refresh, up to a couple of hours away, with the site showing a raid tier
+	// missing a boss for the whole of it and saying nothing.
+	PendingList []RaidPending
+}
+
+// RaidPending is one rotation the events feed says is live right now that could
+// not be turned into a card.
+//
+// Exported because it outlives the rebuild that produced it: the store keeps the
+// set, persists it beside the other cache blobs, retries it on a backoff, and
+// shows it in the admin scraper check.
+type RaidPending struct {
+	Species string `json:"species"`
+	Tier    string `json:"tier"`
+	Shadow  bool   `json:"shadow,omitempty"`
+	EventID string `json:"event_id"`
+	Name    string `json:"name"`
+	// Reason is why synthesizeBoss gave up, so a reader can tell "we have never
+	// heard of this species" from "this is a Mega and the Mega table has not
+	// landed yet". The two are fixed by different fetches.
+	Reason    string    `json:"reason"`
+	StartsUTC time.Time `json:"starts_utc"`
+	EndsUTC   time.Time `json:"ends_utc"`
+}
+
+// Expired reports whether the rotation has ended. A rotation that finished while
+// still pending is history, not work, and retrying it forever would mean the
+// backoff never resets.
+func (p RaidPending) Expired(now time.Time) bool { return !now.Before(p.EndsUTC) }
+
+// pendingReason classifies why a boss could not be built, from the same inputs
+// synthesizeBoss had.
+//
+// A Mega is worth telling apart because it is the common case and it has its own
+// fix: this app's species blob carries no Mega forms, so a Mega rotation waits on
+// refreshMegas or on upstream listing it, not on anything about the base species.
+func pendingReason(name string, lookup speciesLookup) string {
+	if lookup == nil {
+		return "no species data loaded"
+	}
+	if isMegaName(name) {
+		return "mega stats not loaded"
+	}
+	if st, ok := lookup(name); !ok {
+		return "species unknown"
+	} else if len(st.Types) == 0 {
+		return "species has no typing"
+	}
+	return "could not build a card"
 }
 
 // raidFeedEntry is the slice of an events record this file needs.
@@ -272,6 +357,16 @@ func isShadowName(name string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(name)), "shadow ")
 }
 
+// isMegaName reports whether a raid feed display name is a Mega boss.
+//
+// The same trick isShadowName uses, and for the same reason: the feed encodes the
+// form in the display name and keeps nothing else. Primal Groudon and Kyogre ride
+// the Mega tier and live in the same Mega pokedex slice, so they count here too.
+func isMegaName(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	return strings.HasPrefix(n, "mega ") || strings.HasPrefix(n, "primal ")
+}
+
 // bossKey identifies a boss across both feeds.
 func bossKey(name string, shadow bool) string {
 	if shadow {
@@ -295,6 +390,104 @@ func CPForLevel(baseAtk, baseDef, baseSta, atkIV, defIV, staIV int, cpm float64)
 	return cp
 }
 
+// megaForm is one Mega's stat line and typing, trimmed out of pokemon-go-api's
+// Mega pokedex slice.
+//
+// Megas need their own source because nothing else the app carries describes them.
+// pokemon.json and pokemon_types.json have no Mega rows at all, and a Mega cannot be
+// derived from its base species either: it keeps the base stamina but its attack,
+// defense and typing all change (Mega Gyarados is 292/247/216 and Water plus Dark,
+// where Gyarados is 237/186/216 and Water plus Flying).
+type megaForm struct {
+	Name  string   `json:"name"`
+	Types []string `json:"types"`
+	Atk   int      `json:"atk"`
+	Def   int      `json:"def"`
+	Sta   int      `json:"sta"`
+	Image string   `json:"image,omitempty"`
+}
+
+// megaPokedexEntry is the slice of a pokemon-go-api pokedex record this file needs.
+type megaPokedexEntry struct {
+	MegaEvolutions map[string]struct {
+		Names struct {
+			English string `json:"English"`
+		} `json:"names"`
+		Stats struct {
+			Stamina int `json:"stamina"`
+			Attack  int `json:"attack"`
+			Defense int `json:"defense"`
+		} `json:"stats"`
+		PrimaryType *struct {
+			Type string `json:"type"`
+		} `json:"primaryType"`
+		SecondaryType *struct {
+			Type string `json:"type"`
+		} `json:"secondaryType"`
+		Assets struct {
+			Image string `json:"image"`
+		} `json:"assets"`
+	} `json:"megaEvolutions"`
+}
+
+// parseMegaForms trims the upstream payload down to what a boss card needs, keyed by
+// the same normalized name the raid and events feeds are joined on.
+//
+// The feed lists a species once per form, so the same Mega appears more than once
+// (Charizard X and Y each turn up twice). Identical repeats, so first one wins.
+func parseMegaForms(data json.RawMessage) map[string]megaForm {
+	var entries []megaPokedexEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		log.Printf("pogodata: megas: parse: %v", err)
+		return nil
+	}
+	out := map[string]megaForm{}
+	for _, e := range entries {
+		for _, m := range e.MegaEvolutions {
+			if m.Names.English == "" || m.Stats.Attack == 0 {
+				continue
+			}
+			key := normalizeBossName(m.Names.English)
+			if _, seen := out[key]; seen {
+				continue
+			}
+			var types []string
+			if m.PrimaryType != nil {
+				if t := pgapiTypeName(m.PrimaryType.Type); t != "" {
+					types = append(types, t)
+				}
+			}
+			if m.SecondaryType != nil {
+				if t := pgapiTypeName(m.SecondaryType.Type); t != "" {
+					types = append(types, t)
+				}
+			}
+			if len(types) == 0 {
+				continue // a card with no typing is not worth building; see speciesLookup
+			}
+			out[key] = megaForm{
+				Name:  m.Names.English,
+				Types: types,
+				Atk:   m.Stats.Attack,
+				Def:   m.Stats.Defense,
+				Sta:   m.Stats.Stamina,
+				Image: m.Assets.Image,
+			}
+		}
+	}
+	return out
+}
+
+// pgapiTypeName turns "POKEMON_TYPE_WATER" into "Water", which is how every other
+// type string in this app is spelled.
+func pgapiTypeName(raw string) string {
+	t := strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(raw)), "POKEMON_TYPE_")
+	if t == "" {
+		return ""
+	}
+	return strings.ToUpper(t[:1]) + strings.ToLower(t[1:])
+}
+
 // speciesStats is everything needed to build a boss card from scratch.
 type speciesStats struct {
 	Types         []string
@@ -302,11 +495,12 @@ type speciesStats struct {
 }
 
 // speciesLookup resolves a boss name to its stats and typing. ok is false when the
-// species or its form is absent from the dataset, which is always the case for a
-// Mega: pokemon.json and pokemon_types.json carry no Mega forms at all, and a Mega's
-// typing differs from its base species (Mega Gyarados is Water and Dark, Gyarados is
-// Water and Flying), so falling back to the base species would feed the counter
-// calculator the wrong answer.
+// species is absent from every dataset, in which case no card is built at all rather
+// than one carrying a guess.
+//
+// Megas are answered from their own source (see megaForm). Falling back to the base
+// species for one would be worse than refusing: the typing is different, so the
+// counter table would rank against the wrong weaknesses entirely.
 type speciesLookup func(name string) (speciesStats, bool)
 
 type speciesStatRow struct {
@@ -332,7 +526,7 @@ type speciesTypeRow struct {
 // flattens that to a species keyed map, preferring the Normal form, and that
 // flattened map is what the store actually holds. Reading only one of the two would
 // leave the synthesizer working in tests and typeless in production, or the reverse.
-func newSpeciesLookup(pokemon, types json.RawMessage) speciesLookup {
+func newSpeciesLookup(pokemon, types json.RawMessage, megas map[string]megaForm) speciesLookup {
 	var (
 		statsByKey     map[string]speciesStats
 		formsBySpecies map[string][]string
@@ -384,11 +578,21 @@ func newSpeciesLookup(pokemon, types json.RawMessage) speciesLookup {
 		}
 	}
 	return func(name string) (speciesStats, bool) {
+		key := normalizeBossName(name)
+		// Megas first, and never fall through to the base species on a miss: a Mega
+		// this app has no data for must produce no card.
+		if strings.HasPrefix(key, "mega ") {
+			m, ok := megas[key]
+			if !ok {
+				return speciesStats{}, false
+			}
+			return speciesStats{Types: m.Types, Atk: m.Atk, Def: m.Def, Sta: m.Sta}, true
+		}
 		if !built {
 			build()
 			built = true
 		}
-		species, want := splitSpeciesForm(normalizeBossName(name))
+		species, want := splitSpeciesForm(key)
 		form, ok := resolveSpeciesForm(species, want, formsBySpecies)
 		if !ok {
 			return speciesStats{}, false
@@ -474,10 +678,44 @@ func containsString(hay []string, needle string) bool {
 	return false
 }
 
+// raidGroupKey identifies one schedulable group: a tier, and whether it is the
+// shadow half of that tier.
+func raidGroupKey(tier string, shadow bool) string {
+	if shadow {
+		return tier + ":shadow"
+	}
+	return tier
+}
+
 // activeBoss pairs a boss the schedule says is live with the rotation that says so.
 type activeBoss struct {
 	boss   WindowBoss
 	window RaidWindow
+}
+
+// preferRaidWindow decides which of two live rotations naming the same boss gets
+// to label its card, and reports whether the candidate should displace the one
+// already held.
+//
+// Ending last wins. At a changeover two rotations genuinely overlap and the
+// incoming one is the answer to "how much longer do I have". It settles the event
+// page case the same way and for the same reason: a Mega that the GO Fest page
+// lists for one Sunday, while the month's Mega rotation also has it, is not gone
+// on Monday, so the pill should say the longer of the two.
+//
+// An exact tie goes to the feed. Both describe the same span, so nothing is lost
+// either way, and the feed entry is the more precise source: its event id names the
+// rotation itself rather than the event the rotation happens to sit inside. Armored
+// Mewtwo is the live example, described identically by the GO Fest page and by its
+// own raid-battles entry.
+func preferRaidWindow(candidate, held RaidWindow) bool {
+	if candidate.EndsUTC.After(held.EndsUTC) {
+		return true
+	}
+	if held.EndsUTC.After(candidate.EndsUTC) {
+		return false
+	}
+	return held.Additive && !candidate.Additive
 }
 
 // reconcileRaids is the whole rule, kept pure so it can be tested without a store, a
@@ -500,21 +738,28 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		return upstream, nil, stats
 	}
 
+	// A group is one tier's worth of one kind of raid: tier 5 normal and tier 5
+	// shadow are governed separately, because the feed schedules them separately and
+	// one being described says nothing about the other.
 	active := map[string]activeBoss{}
-	governed := map[string]bool{}
+	authoritative := map[string]bool{}
 	for _, w := range windows {
-		if !governedTiers[w.Tier] {
+		if !governedTiers[w.Tier] || !w.Active(now) {
 			continue
+		}
+		if w.Additive {
+			// Read off an event's page rather than out of the feed's raid data. It
+			// says what IS running, never what is not, so it adds bosses without
+			// taking the group over. See RaidWindow.Additive.
+			stats.EventWindows++
+		} else {
+			// The schedule has something to say about this group right now, so it is
+			// the authority on the whole of it. See the drop rule below.
+			authoritative[raidGroupKey(w.Tier, w.Shadow)] = true
 		}
 		for _, b := range w.Bosses {
 			key := bossKey(b.Name, w.Shadow)
-			governed[key] = true
-			if !w.Active(now) {
-				continue
-			}
-			// A boss can be named by two overlapping rotations at a changeover.
-			// Keep the one that ends last, which is the incoming one.
-			if prev, ok := active[key]; ok && prev.window.EndsUTC.After(w.EndsUTC) {
+			if prev, ok := active[key]; ok && !preferRaidWindow(w, prev.window) {
 				continue
 			}
 			active[key] = activeBoss{boss: b, window: w}
@@ -531,23 +776,35 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		}
 		kept := make([]raidBoss, 0, len(bosses))
 		for _, b := range bosses {
-			key := bossKey(b.PokemonName, isShadowName(b.PokemonName))
+			shadow := isShadowName(b.PokemonName)
+			key := bossKey(b.PokemonName, shadow)
 			if a, ok := active[key]; ok {
 				annotateBoss(&b, a.window)
 				stats.Annotated++
+				if a.window.Additive {
+					stats.FromEventPages++
+				}
 				carded[key] = true
 				kept = append(kept, b)
 				continue
 			}
-			if governed[key] {
-				// The schedule named this boss and its window is shut. This is the
-				// stale entry the whole exercise exists to remove.
+			if authoritative[raidGroupKey(tier, shadow)] {
+				// The schedule knows what is running in this group right now, and
+				// this boss is not it.
+				//
+				// The drop deliberately does NOT depend on finding an expired window
+				// naming this boss. It used to, and that quietly undid the whole fix:
+				// a rotation is pruned from the events feed a day or so after it
+				// ends, at which point the boss stopped being described by anything,
+				// was read as "upstream knows best", and came straight back onto the
+				// page. Lunala and Mega Swampert returned that way on 2026-08-27
+				// while upstream was still serving both.
 				stats.Dropped++
 				continue
 			}
-			// Never described by any rotation, so nothing here knows better than
-			// upstream does. An Elite Raid, or anything new the events feed has no
-			// vocabulary for, stays visible.
+			// Nothing is scheduled for this group at all, so there is nothing here
+			// that knows better than upstream. An Elite Raid, a gap in the feed, or
+			// anything new it has no vocabulary for, stays visible.
 			kept = append(kept, b)
 		}
 		out[tier] = kept
@@ -562,11 +819,24 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		rb, ok := synthesizeBoss(a.boss, a.window, lookup, cpms)
 		if !ok {
 			stats.Pending++
+			stats.PendingList = append(stats.PendingList, RaidPending{
+				Species:   a.boss.Name,
+				Tier:      a.window.Tier,
+				Shadow:    a.window.Shadow,
+				EventID:   a.window.EventID,
+				Name:      a.window.Name,
+				Reason:    pendingReason(a.boss.Name, lookup),
+				StartsUTC: a.window.StartsUTC,
+				EndsUTC:   a.window.EndsUTC,
+			})
 			continue
 		}
 		out[a.window.Tier] = append(out[a.window.Tier], rb)
 		carded[key] = true
 		stats.Synthesized++
+		if a.window.Additive {
+			stats.FromEventPages++
+		}
 	}
 
 	data, err := json.Marshal(out)
@@ -629,10 +899,7 @@ func buildUpcoming(windows []RaidWindow, carded map[string]bool, now time.Time) 
 		if !governedTiers[w.Tier] {
 			continue
 		}
-		group := w.Tier
-		if w.Shadow {
-			group += ":shadow"
-		}
+		group := raidGroupKey(w.Tier, w.Shadow)
 		if w.Active(now) {
 			// Only interesting while none of its bosses made it onto the grid.
 			anyCarded := false
@@ -727,12 +994,17 @@ func nextRaidBoundary(windows []RaidWindow, now time.Time) time.Time {
 // in CheckScrapers keeps working.
 func (s *Store) rebuildRaidsLocked() {
 	now := time.Now()
+	// Two sources of rotation, joined here rather than inside either reader. The
+	// feed's own raid data comes first and governs its tiers; the event pages add
+	// what the feed does not model at all. See eventraids.go.
 	windows := parseRaidWindows(s.events)
-	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, now, newSpeciesLookup(s.pokemon, s.pokemonTypes), raidCPMsFrom(s.cpMults))
+	windows = append(windows, s.eventPageWindowsLocked()...)
+	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, now, newSpeciesLookup(s.pokemon, s.pokemonTypes, s.megaForms), raidCPMsFrom(s.cpMults))
 	s.raids = served
 	s.raidSchedule = windows
 	s.raidStats = stats
 	s.raidsBuiltFor = nextRaidBoundary(windows, now)
+	s.setRaidsPendingLocked(stats.PendingList, now)
 	if len(upcoming) > 0 {
 		if data, err := json.Marshal(upcoming); err == nil {
 			s.raidsUpcoming = data
@@ -740,9 +1012,9 @@ func (s *Store) rebuildRaidsLocked() {
 	} else {
 		s.raidsUpcoming = nil
 	}
-	if stats.Dropped > 0 || stats.Synthesized > 0 || stats.Pending > 0 {
-		log.Printf("pogodata: raids: schedule reconciled (%d windows, %d dropped, %d synthesized, %d awaiting upstream)",
-			stats.Windows, stats.Dropped, stats.Synthesized, stats.Pending)
+	if stats.Dropped > 0 || stats.Synthesized > 0 || stats.Pending > 0 || stats.FromEventPages > 0 {
+		log.Printf("pogodata: raids: schedule reconciled (%d windows, %d dropped, %d synthesized, %d awaiting upstream, %d from event pages)",
+			stats.Windows, stats.Dropped, stats.Synthesized, stats.Pending, stats.FromEventPages)
 	}
 }
 
@@ -751,11 +1023,15 @@ func (s *Store) rebuildRaidsLocked() {
 // without waiting on any upstream fetch.
 func (s *Store) maybeRebuildRaids() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !s.raidsBuiltFor.IsZero() && time.Now().Before(s.raidsBuiltFor) {
+		s.mu.Unlock()
 		return
 	}
 	s.rebuildRaidsLocked()
+	s.mu.Unlock()
+	// Outside the lock: the hook reaches the database, and holding the store's
+	// lock across a query would block every read on the site behind it.
+	s.notifyRaidsApplied()
 }
 
 // RaidsUpcoming is the "up next" list: the soonest rotation per tier, plus any that
@@ -764,4 +1040,293 @@ func (s *Store) RaidsUpcoming() json.RawMessage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.raidsUpcoming
+}
+
+// ── Pending rotations ────────────────────────────────────────────────────────
+
+// raidsPendingFile is where the pending set is kept between restarts, beside the
+// other cache blobs. Without it a restart forgets what the site was waiting for
+// and the backoff starts over from nothing.
+const raidsPendingFile = "raids_pending.json"
+
+// setRaidsPendingLocked replaces the pending set in memory. Caller must hold s.mu.
+//
+// Expired entries are dropped on the way in: a rotation that ended while still
+// pending is history, and keeping it would hold the retry loop open forever on
+// work that can never succeed.
+//
+// It deliberately does NOT touch the disk. rebuildRaidsLocked calls this, and a
+// rebuild is a pure in-memory operation that several tests drive directly; making
+// it write a file would have those tests scatter cache files through the package
+// directory. Persistence is persistRaidsPending, called from the two paths that
+// own it.
+func (s *Store) setRaidsPendingLocked(list []RaidPending, now time.Time) {
+	kept := make([]RaidPending, 0, len(list))
+	for _, p := range list {
+		if !p.Expired(now) {
+			kept = append(kept, p)
+		}
+	}
+	s.raidsPending = kept
+}
+
+// persistRaidsPending writes the pending set beside the other cache blobs, so a
+// restart does not forget what the site was waiting for. Must be called with s.mu
+// NOT held.
+//
+// Written even when empty, or an emptied set would be read back as a stale one on
+// the next boot. A store with no cache directory writes nothing, which is what
+// keeps a test-constructed store from leaving a file behind.
+func (s *Store) persistRaidsPending() {
+	if s.cacheDir == "" {
+		return
+	}
+	data, err := json.Marshal(s.RaidsPending())
+	if err != nil {
+		return
+	}
+	os.WriteFile(filepath.Join(s.cacheDir, raidsPendingFile), data, 0644)
+}
+
+// RaidsPending returns the rotations the schedule says are live that could not be
+// turned into a card, with the expired ones already dropped. Never nil.
+func (s *Store) RaidsPending() []RaidPending {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]RaidPending, 0, len(s.raidsPending))
+	now := time.Now()
+	for _, p := range s.raidsPending {
+		if !p.Expired(now) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// loadRaidsPending restores the set from disk at boot. Best effort: a missing or
+// unreadable file just means the next rebuild will recompute it.
+func (s *Store) loadRaidsPending() {
+	data, err := os.ReadFile(filepath.Join(s.cacheDir, raidsPendingFile))
+	if err != nil {
+		return
+	}
+	var list []RaidPending
+	if err := json.Unmarshal(data, &list); err != nil {
+		log.Printf("pogodata: raids: pending cache unreadable: %v", err)
+		return
+	}
+	s.mu.Lock()
+	s.setRaidsPendingLocked(list, time.Now())
+	n := len(s.raidsPending)
+	s.mu.Unlock()
+	// Not persisted back: this is what was just read, and rewriting it would only
+	// re-serialise the same bytes minus anything that expired, which the next
+	// rebuild does anyway.
+	if n > 0 {
+		log.Printf("pogodata: raids: %d pending rotation(s) restored from disk", n)
+	}
+}
+
+// Retry pacing. Five minutes is short enough that a boss upstream has just
+// published lands while the rotation still matters, and the doubling keeps a
+// rotation nobody is ever going to publish from being asked for every five
+// minutes for its whole run.
+const (
+	raidPendingRetryMin = 5 * time.Minute
+	raidPendingRetryMax = time.Hour
+)
+
+// retryPendingRaids re-fetches what a pending rotation is waiting on, rather than
+// leaving it until the next scheduled refresh up to two and a half hours away.
+//
+// There are exactly two things that can resolve one: upstream starts listing the
+// boss, or the Mega table lands so it can be synthesized locally. So the retry is
+// those two fetches and a rebuild, which is the scheduled refresh minus the Max
+// Battle fetch that has nothing to do with it.
+//
+// The backoff resets the moment the set empties, so a quiet site is not paying an
+// hourly fetch for nothing.
+func (s *Store) retryPendingRaids() {
+	wait := raidPendingRetryMin
+	for {
+		time.Sleep(wait)
+
+		pending := s.RaidsPending()
+		if len(pending) == 0 {
+			wait = raidPendingRetryMin
+			continue
+		}
+
+		log.Printf("pogodata: raids: retrying %d pending rotation(s) after %s (%s)",
+			len(pending), wait.Round(time.Minute), pending[0].Reason)
+
+		s.refreshRaids()
+		// Only when a Mega is actually waiting. Refetching the Mega pokedex for a
+		// pending ordinary species would be a request that cannot help.
+		for _, p := range pending {
+			if isMegaName(p.Species) {
+				s.refreshMegas()
+				break
+			}
+		}
+
+		if len(s.RaidsPending()) < len(pending) {
+			// Progress. Start over at the short interval, because a rotation
+			// changeover tends to bring several at once.
+			wait = raidPendingRetryMin
+			continue
+		}
+		if wait *= 2; wait > raidPendingRetryMax {
+			wait = raidPendingRetryMax
+		}
+	}
+}
+
+// pendingSummary renders the pending set for the admin scraper check.
+//
+// Capped at three names because this ends up on one line in the panel, and a
+// changeover can leave a whole tier pending at once. The count in the sentence
+// before it already carries the total, so the tail is only ever detail.
+func pendingSummary(list []RaidPending) string {
+	if len(list) == 0 {
+		return ""
+	}
+	const max = 3
+	parts := make([]string, 0, max)
+	for i, p := range list {
+		if i == max {
+			parts = append(parts, fmt.Sprintf("and %d more", len(list)-max))
+			break
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", p.Species, p.Reason))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// ── Archive export ───────────────────────────────────────────────────────────
+
+// RaidArchiveRow is one boss exactly as it was served, with its rotation window
+// resolved to instants.
+//
+// The served blob carries the feed's own floating wall clock strings, which are
+// right for a browser rendering a countdown in the viewer's zone and useless as a
+// database key. The window is joined back on here, from the schedule the same
+// rebuild produced.
+type RaidArchiveRow struct {
+	Species      string
+	Tier         string
+	Shadow       bool
+	Types        []string
+	CP           int
+	CPMax        int
+	CPBoostedMin int
+	CPBoostedMax int
+	ImageURL     string
+	CanBeShiny   bool
+	IsMega       bool
+	Source       string
+
+	// EventID and the window are empty and zero for a boss no rotation describes,
+	// which is every tier 1 and tier 3 entry: no feed anywhere carries timing for
+	// them. Those still identify a boss worth remembering, so they belong in the
+	// dimension, but there is no window to key an appearance on and inventing one
+	// would put a row in the fact table that records nothing that happened.
+	EventID     string
+	WindowStart time.Time
+	WindowEnd   time.Time
+}
+
+// HasWindow reports whether this row can be recorded as an appearance.
+func (r RaidArchiveRow) HasWindow() bool { return !r.WindowStart.IsZero() && !r.WindowEnd.IsZero() }
+
+// RaidArchiveRows returns the currently served bosses, ready to be warehoused.
+//
+// Built from s.raids, the SERVED blob, not from upstream: what is worth recording
+// is what trainers actually saw, which is upstream reconciled against the schedule
+// and is not the same list.
+func (s *Store) RaidArchiveRows() []RaidArchiveRow {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var tiers map[string][]raidBoss
+	if err := json.Unmarshal(s.raids, &tiers); err != nil {
+		return nil
+	}
+
+	// Windows by event id, so the join below is a lookup rather than a scan per
+	// boss. A rotation can appear more than once at a changeover; the one ending
+	// last is the incoming one, which is the same tie-break reconcileRaids uses.
+	windows := make(map[string]RaidWindow, len(s.raidSchedule))
+	for _, w := range s.raidSchedule {
+		if prev, ok := windows[w.EventID]; ok && prev.EndsUTC.After(w.EndsUTC) {
+			continue
+		}
+		windows[w.EventID] = w
+	}
+
+	out := make([]RaidArchiveRow, 0, 32)
+	for tier, bosses := range tiers {
+		for _, b := range bosses {
+			row := RaidArchiveRow{
+				Species:      b.PokemonName,
+				Tier:         tier,
+				Shadow:       isShadowName(b.PokemonName),
+				Types:        b.Types,
+				CP:           b.CP,
+				CPMax:        b.CPMax,
+				CPBoostedMin: b.CPBoostedMin,
+				CPBoostedMax: b.CPBoostedMax,
+				ImageURL:     b.ImageURL,
+				CanBeShiny:   b.CanBeShiny,
+				IsMega:       isMegaName(b.PokemonName),
+				Source:       b.Source,
+				EventID:      b.EventID,
+			}
+			if row.Source == "" {
+				// Everything the schedule did not synthesize came from upstream.
+				row.Source = "upstream"
+			}
+			if w, ok := windows[b.EventID]; ok && b.EventID != "" {
+				row.WindowStart, row.WindowEnd = w.StartsUTC, w.EndsUTC
+			}
+			out = append(out, row)
+		}
+	}
+
+	// Stable order, so a diff of two archive runs reads as a diff and not as a
+	// reshuffle. Map iteration over tiers is random.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Tier != out[j].Tier {
+			return out[i].Tier < out[j].Tier
+		}
+		return out[i].Species < out[j].Species
+	})
+	return out
+}
+
+// SetRaidsAppliedHook registers fn to run each time the served raid list has been
+// rebuilt. Call it before Start; passing nil clears it.
+//
+// fn runs with no lock held, on whichever goroutine did the rebuild, so anything
+// slow belongs in a goroutine of its own. Same contract as SetEventsAppliedHook,
+// and it exists for the same reason: the store knows nothing about the database
+// and must not learn.
+func (s *Store) SetRaidsAppliedHook(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.raidsApplied = fn
+}
+
+// notifyRaidsApplied fires the hook. Must be called with s.mu NOT held.
+func (s *Store) notifyRaidsApplied() {
+	// The pending set is rebuilt alongside the served list, so the two are saved
+	// together. Both callers of this reach it with the lock released.
+	s.persistRaidsPending()
+
+	s.mu.RLock()
+	fn := s.raidsApplied
+	s.mu.RUnlock()
+	if fn != nil {
+		fn()
+	}
 }

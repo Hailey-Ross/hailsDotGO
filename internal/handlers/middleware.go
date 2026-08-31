@@ -166,6 +166,74 @@ func (h *Handlers) RequireTranslator(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// ── JSON role gates, for the /api/mobile/v1 tree ──────────────────────────────
+//
+// The four wrappers above cannot be used from a Bearer client. Both of their
+// failure paths answer in a shape a JSON client cannot read: no session is a 303
+// redirect to /login, and the wrong role is an http.Error, which is text/plain.
+// An app parsing either as JSON fails with something that names neither problem.
+//
+// That is only the cosmetic half, and the smaller one. The real reason these
+// exist is that ALMOST NO ADMIN HANDLER CHECKS ITS OWN ROLE. AdminChangeRole
+// (admin.go) parses an id, validates the role string, refuses the superadmin as a
+// TARGET, and writes. Nothing in it asks who the caller is; the route wrapper is
+// the whole of its authority check. mayActOn protects the target, not the
+// caller's rank, and only some handlers call it at all.
+//
+// So an admin handler registered bare inside the mobile group's authenticated
+// subtree is reachable by any signed-in trainer, because that group's middleware
+// proves only that the session is valid. Registering AdminChangeRole bare would
+// be a self-service promotion to admin. Every admin route inside /api/mobile/v1
+// goes through one of the three wrappers below, and
+// TestAdminMobileRoutesAreRoleGated in internal/server holds that line.
+
+// roleGateStatus decides what a role gate should answer: 0 to let the request
+// through, or the HTTP status to refuse it with.
+//
+// Split out from the wrappers so the decision can be tested against fabricated
+// users. h.currentUser needs a database, so a wrapper tested end to end can only
+// ever exercise its no-session path, which is the half that was never in doubt.
+func roleGateStatus(u *auth.User, allow func(*auth.User) bool) int {
+	if u == nil {
+		return http.StatusUnauthorized
+	}
+	if !allow(u) {
+		return http.StatusForbidden
+	}
+	return 0
+}
+
+// roleGateAPI is the shared body of the three wrappers below.
+func (h *Handlers) roleGateAPI(allow func(*auth.User) bool, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch roleGateStatus(h.currentUser(r), allow) {
+		case http.StatusUnauthorized:
+			writeJSONError(w, "authentication required", http.StatusUnauthorized)
+		case http.StatusForbidden:
+			writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
+		default:
+			next(w, r)
+		}
+	}
+}
+
+// RequireModAPI is RequireMod for a JSON client: mods, admins and the superadmin.
+func (h *Handlers) RequireModAPI(next http.HandlerFunc) http.HandlerFunc {
+	return h.roleGateAPI((*auth.User).IsMod, next)
+}
+
+// RequireAdminAPI is RequireAdmin for a JSON client: admins and the superadmin.
+func (h *Handlers) RequireAdminAPI(next http.HandlerFunc) http.HandlerFunc {
+	return h.roleGateAPI((*auth.User).IsAdmin, next)
+}
+
+// RequireSuperAdminAPI is RequireSuperAdmin for a JSON client. The superadmin is
+// matched by username against SUPERADMIN_USER, not by the role column, so this
+// survives anything the panel can do to a role.
+func (h *Handlers) RequireSuperAdminAPI(next http.HandlerFunc) http.HandlerFunc {
+	return h.roleGateAPI((*auth.User).IsSuperAdmin, next)
+}
+
 func (h *Handlers) RequireAPIAccess(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := h.currentUser(r)

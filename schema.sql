@@ -505,6 +505,13 @@ CREATE TABLE IF NOT EXISTS user_pokemon_box (
   iv_candidates  JSON,
   caught_at      DATETIME,
   note           VARCHAR(160),
+  -- How the row arrived. Set by the server from the route the write came in on
+  -- plus what the client claimed, never taken from the client verbatim: a row
+  -- that says it was attested has to have been attested. 'unknown' is the
+  -- default because rows written before this column existed cannot be traced,
+  -- and no migration can recover it, so they must never read as trusted.
+  provenance     ENUM('manual','scan_web','scan_app','scan_app_attested','unknown')
+                 NOT NULL DEFAULT 'unknown',
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_upb_user (user_id),
@@ -524,6 +531,66 @@ CREATE TABLE IF NOT EXISTS mobile_device_tokens (
   UNIQUE KEY idx_mdt_token (push_token),
   KEY idx_mdt_user (user_id),
   CONSTRAINT fk_mdt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Event reminder subscriptions: one row per trainer per event they have belled.
+--
+-- No foreign key on event_id: there is no events table. The feed is an in-memory
+-- blob mirrored to cache/events.json, so event_id is a loose string, and the
+-- reconcile that runs after every feed refresh cancels rows whose id has left the
+-- feed.
+--
+-- starts_at is the absolute instant resolved in the subscriber's timezone (most
+-- of the feed carries a floating wall clock: Spotlight Hour is 6pm wherever the
+-- trainer is standing). event_start is the feed's own reading parsed as UTC, a
+-- zone-independent fingerprint of what upstream said at subscribe time, so a
+-- genuine time change can be told apart from a different occurrence reusing a
+-- slug. GO Battle League ids carry no date and do recur.
+--
+-- lead_minutes, remind_at and reminded_at on THIS table are a legacy mirror of
+-- the first reminder, kept only for build 15 of the app. Nothing on the server
+-- reads them: event_subscription_reminders is the source of truth.
+CREATE TABLE IF NOT EXISTS event_subscriptions (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         INT UNSIGNED NOT NULL,
+  event_id        VARCHAR(128) NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+  timezone        VARCHAR(64) NOT NULL,
+  event_start     DATETIME NOT NULL,
+  remind_at       DATETIME NULL,
+  starts_at       DATETIME NOT NULL,
+  reminded_at     DATETIME NULL,
+  started_at_sent DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_evsub_user_event (user_id, event_id),
+  KEY idx_evsub_due (remind_at, reminded_at),
+  KEY idx_evsub_start (starts_at, started_at_sent),
+  CONSTRAINT fk_evsub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One row per reminder on an event subscription. A trainer can ask for a day's
+-- warning AND a thirty minute one for the same event, so lead_minutes is a set
+-- rather than a scalar.
+--
+-- reminded_at lives HERE and not on the parent. On the parent, the first push of
+-- the evening would mark the whole subscription sent and silently eat the rest.
+--
+-- UNIQUE (subscription_id, lead_minutes) makes the upsert idempotent and stops a
+-- repeated lead time turning into two identical pushes.
+CREATE TABLE IF NOT EXISTS event_subscription_reminders (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  subscription_id BIGINT UNSIGNED NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL,
+  remind_at       DATETIME NULL,
+  reminded_at     DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_esr_sub_lead (subscription_id, lead_minutes),
+  KEY idx_esr_due (remind_at, reminded_at),
+  CONSTRAINT fk_esr_sub FOREIGN KEY (subscription_id)
+    REFERENCES event_subscriptions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Trainer avatar access locks: min_rank required to select an avatar slug.
@@ -639,6 +706,60 @@ CREATE TABLE IF NOT EXISTS bug_report_label_map (
   CONSTRAINT fk_brlm_label  FOREIGN KEY (label_id)  REFERENCES bug_report_labels (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Raid boss history, warehoused as a star schema.
+--
+-- The dimension holds everything expensive to resolve about a boss (stats, typing,
+-- CP range, sprite), written ONCE on first sight. The fact table holds one narrow
+-- row per boss per rotation. A flat table would repeat the whole dimension on
+-- every appearance, rewriting the same few hundred bytes every couple of hours
+-- forever, and leave no single row to compare against when asking whether a boss
+-- has been rebalanced.
+--
+-- Slowly changing dimension, type 1: a rebalance overwrites in place and moves
+-- stats_updated_at. See migrate.sql section 52 for why type 2 was not used.
+CREATE TABLE IF NOT EXISTS raid_boss_dim (
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  species           VARCHAR(96)  NOT NULL,
+  form              VARCHAR(64)  NOT NULL DEFAULT '',
+  tier              VARCHAR(8)   NOT NULL,
+  shadow            TINYINT(1)   NOT NULL DEFAULT 0,
+  is_mega           TINYINT(1)   NOT NULL DEFAULT 0,
+  types             VARCHAR(64)  NOT NULL DEFAULT '',
+  cp_min            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_max            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_min    INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_max    INT UNSIGNED NOT NULL DEFAULT 0,
+  image_url         VARCHAR(512) NOT NULL DEFAULT '',
+  can_be_shiny      TINYINT(1)   NOT NULL DEFAULT 0,
+  first_seen_at     DATETIME     NOT NULL,
+  last_seen_at      DATETIME     NOT NULL,
+  appearance_count  INT UNSIGNED NOT NULL DEFAULT 0,
+  stats_updated_at  DATETIME     NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_boss (species, form, tier, shadow),
+  KEY idx_raid_boss_last_seen (last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per boss per rotation. No stats, no sprite, no typing: anything
+-- derivable by joining the dimension does not belong here.
+--
+-- Retention: kept indefinitely, on purpose. A few thousand rows a year. Do not add
+-- a cleanup job without first deciding that the history is not wanted.
+CREATE TABLE IF NOT EXISTS raid_appearance_fact (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  boss_id       INT UNSIGNED    NOT NULL,
+  window_start  DATETIME        NOT NULL,
+  window_end    DATETIME        NOT NULL,
+  event_id      VARCHAR(128)    NOT NULL DEFAULT '',
+  source        ENUM('upstream','events') NOT NULL DEFAULT 'upstream',
+  recorded_at   DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_appearance (boss_id, window_start),
+  KEY idx_raid_appearance_window (window_start),
+  CONSTRAINT fk_raid_appearance_boss FOREIGN KEY (boss_id)
+    REFERENCES raid_boss_dim (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Migration history baseline (regenerate with: go run ./cmd/migrate -dump-seed)
 -- A fresh install is current, so every migrate.sql section is recorded as
 -- applied. The migrate tool reads this to know what is already in place.
@@ -697,7 +818,11 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (45, 'Announced shiny release dates (2026-07-27)'),
   (46, 'Nullable strike issuer so deleting staff keeps moderation history (2026-08-05)'),
   (47, 'Shadow and purified status on a boxed Pokemon (2026-08-05)'),
-  (48, 'Room for every language a translator applicant can list (2026-08-27)');
+  (48, 'Room for every language a translator applicant can list (2026-08-27)'),
+  (49, 'Event reminder subscriptions (2026-08-27)'),
+  (50, 'Several reminders per event subscription (2026-08-27)'),
+  (51, 'Where a boxed Pokemon came from (2026-08-30)'),
+  (52, 'Raid boss history, as a star schema (2026-08-31)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

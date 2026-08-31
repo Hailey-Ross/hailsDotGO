@@ -3,6 +3,7 @@ package handlers
 import (
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // This file mirrors ts/shared/regionalForms.ts. It maps a base species name
@@ -237,20 +238,63 @@ func regionalSpriteID(species, region string) int {
 // The region tags mirror UNOWN_LETTERS in ts/shared/regionalForms.ts. Keep them under 16
 // characters: user_shinies.region is VARCHAR(16), which is why ! and ? are spelled excl and
 // qmark rather than exclamation and question.
-var unownSpriteSlug = func() map[string]string {
-	m := map[string]string{
-		"unown_excl":  "201-exclamation",
-		"unown_qmark": "201-question",
-	}
+// formVariant is one member of an ordered form family: its region tag, the label a
+// trainer sees on the card, and its PokeAPI sprite slug.
+//
+// Ordered slices rather than bare maps because two things need the order and
+// neither can recover it from a map: the shiny dex manifest sorts its cards by
+// REGION_ORDER, and the label has to travel with the card. The slug maps below are
+// DERIVED from these, so there is still exactly one table per family to keep in
+// step with ts/shared/regionalForms.ts.
+type formVariant struct {
+	Region string
+	Label  string
+	Slug   string
+}
+
+// unownVariants is the 28 Unown letters in the order the game lists them.
+//
+// The label is the glyph and is never translated: it is the same character in
+// every locale, which is why it lives here rather than in a locale file.
+var unownVariants = func() []formVariant {
+	out := make([]formVariant, 0, 28)
 	for _, c := range "abcdefghijklmnopqrstuvwxyz" {
 		slug := "201-" + string(c)
 		if c == 'a' {
-			slug = "201"
+			slug = "201" // letter A IS the default form, so its art is the plain 201
 		}
-		m["unown_"+string(c)] = slug
+		out = append(out, formVariant{
+			Region: "unown_" + string(c),
+			Label:  strings.ToUpper(string(c)),
+			Slug:   slug,
+		})
+	}
+	return append(out,
+		formVariant{Region: "unown_excl", Label: "!", Slug: "201-exclamation"},
+		formVariant{Region: "unown_qmark", Label: "?", Slug: "201-question"},
+	)
+}()
+
+var unownSpriteSlug = slugMap(unownVariants)
+
+// slugMap derives the region -> slug lookup from an ordered family table.
+func slugMap(list []formVariant) map[string]string {
+	m := make(map[string]string, len(list))
+	for _, v := range list {
+		m[v.Region] = v.Slug
 	}
 	return m
-}()
+}
+
+// labelFor returns the card label for a region tag within one family, or "".
+func labelFor(list []formVariant, region string) string {
+	for _, v := range list {
+		if v.Region == region {
+			return v.Label
+		}
+	}
+	return ""
+}
 
 // vivillonSpriteSlug maps each viv_* pattern tag to its PokeAPI sprite slug.
 //
@@ -261,28 +305,75 @@ var unownSpriteSlug = func() map[string]string {
 //
 // The tags mirror VIVILLON_PATTERNS in ts/shared/regionalForms.ts. Keep them under 16 characters:
 // user_shinies.region is VARCHAR(16).
-var vivillonSpriteSlug = map[string]string{
-	"viv_meadow":      "666",
-	"viv_polar":       "666-polar",
-	"viv_tundra":      "666-tundra",
-	"viv_continental": "666-continental",
-	"viv_garden":      "666-garden",
-	"viv_elegant":     "666-elegant",
-	"viv_icy_snow":    "666-icy-snow",
-	"viv_modern":      "666-modern",
-	"viv_marine":      "666-marine",
-	"viv_archipelago": "666-archipelago",
-	"viv_high_plains": "666-high-plains",
-	"viv_sandstorm":   "666-sandstorm",
-	"viv_river":       "666-river",
-	"viv_monsoon":     "666-monsoon",
-	"viv_savanna":     "666-savanna",
-	"viv_sun":         "666-sun",
-	"viv_ocean":       "666-ocean",
-	"viv_jungle":      "666-jungle",
-	"viv_fancy":       "666-fancy",
-	"viv_poke_ball":   "666-poke-ball",
+// vivillonVariants is Vivillon's 20 wing patterns, in the order the client lists
+// them. The label is self-labelling in English (Meadow, Sun, Ocean read the same
+// everywhere), so like the Unown glyphs it is not a locale key.
+var vivillonVariants = []formVariant{
+	{"viv_meadow", "Meadow", "666"}, // Meadow IS the default form, so its art is the plain 666
+	{"viv_polar", "Polar", "666-polar"},
+	{"viv_tundra", "Tundra", "666-tundra"},
+	{"viv_continental", "Continental", "666-continental"},
+	{"viv_garden", "Garden", "666-garden"},
+	{"viv_elegant", "Elegant", "666-elegant"},
+	{"viv_icy_snow", "Icy Snow", "666-icy-snow"},
+	{"viv_modern", "Modern", "666-modern"},
+	{"viv_marine", "Marine", "666-marine"},
+	{"viv_archipelago", "Archipelago", "666-archipelago"},
+	{"viv_high_plains", "High Plains", "666-high-plains"},
+	{"viv_sandstorm", "Sandstorm", "666-sandstorm"},
+	{"viv_river", "River", "666-river"},
+	{"viv_monsoon", "Monsoon", "666-monsoon"},
+	{"viv_savanna", "Savanna", "666-savanna"},
+	{"viv_sun", "Sun", "666-sun"},
+	{"viv_ocean", "Ocean", "666-ocean"},
+	{"viv_jungle", "Jungle", "666-jungle"},
+	{"viv_fancy", "Fancy", "666-fancy"},
+	{"viv_poke_ball", "Poke Ball", "666-poke-ball"},
 }
+
+var vivillonSpriteSlug = slugMap(vivillonVariants)
+
+// regionOrder mirrors REGION_ORDER in ts/shared/regionalForms.ts and is the order
+// a species' form cards render in. Anything not listed sorts to the front, which
+// is where the base species card belongs.
+var regionOrder = func() []string {
+	out := []string{
+		"alolan", "galarian", "hisuian", "paldean",
+		"paldean_combat", "paldean_blaze", "paldean_aqua",
+		"therian", "origin", "attack", "defense", "speed", "sky",
+		"dusk_mane", "dawn_wings", "crowned_sword", "crowned_shield",
+		"black", "white", "resolute", "midnight", "dusk",
+		"sandy_cloak", "trash_cloak", "low_key",
+		"pom_pom", "pau", "sensu", "blue_striped", "white_striped",
+		"wash", "heat", "frost", "fan", "mow",
+	}
+	for _, v := range unownVariants {
+		out = append(out, v.Region)
+	}
+	for _, v := range vivillonVariants {
+		out = append(out, v.Region)
+	}
+	return out
+}()
+
+var regionRankByTag = func() map[string]int {
+	m := make(map[string]int, len(regionOrder))
+	for i, r := range regionOrder {
+		m[r] = i + 1 // +1 so the base card, region "", keeps rank 0 and sorts first
+	}
+	return m
+}()
+
+// regionRank orders a species' cards: the base species card first, then its forms
+// in REGION_ORDER. An unknown tag ranks 0 alongside the base card rather than
+// being dropped, because a card with no order is still a card.
+func regionRank(region string) int {
+	if region == "" {
+		return 0
+	}
+	return regionRankByTag[region]
+}
+
 
 func init() {
 	for region := range unownSpriteSlug {

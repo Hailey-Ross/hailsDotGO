@@ -94,10 +94,11 @@ function bossFormHint(name: string): string | null {
 
 // bossDefense is the defender stat every damage calculation divides by.
 //
-// It falls back to the base species when the exact form is not in the list,
-// which is exact for Shadow (identical base stats) and an approximation for
-// Mega and regional forms. Both are far closer than the 200 that stood here
-// before. The literal remains only for a boss that resolves to nothing at all.
+// It falls back to the base species when the exact form is not in the list, which
+// is exact for Shadow (identical base stats) and an approximation for regional
+// forms. Megas are no longer in that bucket: they carry their own stat line now,
+// so a Mega divides by its real defense instead of its base species'. The literal
+// remains only for a boss that resolves to nothing at all.
 // Exported so the parity script can assert against the shipped implementation
 // rather than a copy of it, which would pass while this was broken.
 export function bossDefense(data: GameData, boss: RaidBoss): number {
@@ -116,6 +117,22 @@ export function bossStats(data: GameData, boss: RaidBoss) {
   // Eternamax. 80 of the 152 multi form species were wrong that way, on the main
   // counters table, and the earlier version of this function only fixed the
   // decorated names.
+  // Megas first, from their own dataset. Nothing in the Pokemon list describes one,
+  // and the base species is the wrong answer rather than a near one: Mega Gyarados
+  // defends at 247 where Gyarados defends at 247's two thirds, which put every
+  // absolute DPS and TDO figure against a Mega boss about 30 percent high.
+  const mega = data.megas?.[boss.pokemon_name.trim().toLowerCase()];
+  if (mega) {
+    return {
+      pokemon_id: 0,
+      pokemon_name: mega.name,
+      form: "Mega",
+      base_attack: mega.atk,
+      base_defense: mega.def,
+      base_stamina: mega.sta,
+    };
+  }
+
   const base = baseSpeciesName(boss.pokemon_name).toLowerCase();
   const hint = bossFormHint(boss.pokemon_name);
   const candidates = (data.pokemon ?? []).filter((p) => p.pokemon_name.toLowerCase() === base);
@@ -125,9 +142,10 @@ export function bossStats(data: GameData, boss: RaidBoss) {
     const match = candidates.find((p) => (p.form ?? "").toLowerCase() === hint);
     if (match) return match;
   }
-  // No hint, or a form this dataset does not carry (every Mega is in that
-  // bucket: there is exactly one Mega entry in the whole list). Prefer the
-  // ordinary form over whatever happens to sort first.
+  // No hint, or a form this dataset does not carry. Prefer the ordinary form over
+  // whatever happens to sort first. Megas used to land here, which is what made
+  // them read as their base species; they are answered above now, and only reach
+  // this line when the Mega dataset has not loaded.
   return candidates.find((p) => (p.form ?? "").toLowerCase() === "normal") ?? candidates[0];
 }
 

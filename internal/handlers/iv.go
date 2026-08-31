@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"math"
 	"net/http"
 	"regexp"
@@ -72,6 +73,13 @@ type ivRequest struct {
 	IsLucky       *bool  `json:"is_lucky"`       // nil = unknown; dust interpretations stay fuzzy
 	IsShadow      *bool  `json:"is_shadow"`
 	IsPurified    *bool  `json:"is_purified"`
+	// ArcLevel is the level the caller read off the power-up arc, in half-level
+	// steps. Optional, and nil means "no arc reading" rather than level zero.
+	//
+	// It exists for the arc rescue: a client that gets no candidates for the CP it
+	// scanned can re-ask with CP 0 and this set, and the solver falls back to the
+	// arc. See IVCalculate for why that cannot be done on the device.
+	ArcLevel *float64 `json:"arc_level"`
 }
 
 // dustBrackets maps the BASE stardust power-up cost to the level range it implies.
@@ -214,6 +222,13 @@ func hpForLevel(baseSta, staIV int, cpm float64) int {
 // status flags, then enumerates matching IV combinations.
 func enumerateIVs(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool) {
 	ranges := dustCandidates(req.DustCost, req.IsLucky, req.IsShadow, req.IsPurified)
+	// An arc reading narrows the sweep, and when the dust is unreadable it is the
+	// only thing bounding it at all. intersectRangesWithLevel already falls back to
+	// the bare arc window when nothing overlaps, so there is no second fallback to
+	// write here; this is the same call runOCRSearch makes for its own rescue.
+	if req.ArcLevel != nil {
+		ranges = intersectRangesWithLevel(ranges, *req.ArcLevel, 0.5)
+	}
 	return enumerateWithBuddyRetry(req, ranges, poke, cpms)
 }
 
@@ -362,9 +377,22 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid request", http.StatusBadRequest)
 		return
 	}
-	if req.PokemonName == "" || req.CP < 10 || req.CP > 50000 ||
+	// CP 0 means "unknown", which is the arc rescue below. Anything from 1 to 9 is
+	// still nonsense rather than a signal, so the floor stays: a client that means
+	// "no CP" says 0, and one that read a single digit off the screen misread it.
+	if req.PokemonName == "" || req.CP < 0 || (req.CP > 0 && req.CP < 10) || req.CP > 50000 ||
 		req.HP < 1 || req.HP > 999 || req.TrainerLevel < 1 || req.TrainerLevel > 51 {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	if req.ArcLevel != nil && (*req.ArcLevel < 1 || *req.ArcLevel > 51) {
+		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	// Nothing to solve against: no CP to match and no arc to sweep would enumerate
+	// every level for every spread and answer with noise.
+	if req.CP == 0 && req.ArcLevel == nil {
+		writeJSONError(w, "cp or arc_level is required", http.StatusBadRequest)
 		return
 	}
 
@@ -410,12 +438,20 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	candidates, buddyAssumed := enumerateIVs(req, *poke, cpms)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"candidates":         candidates,
-		"count":              len(candidates),
-		"definitive":         len(candidates) == 1,
-		"pokemon":            poke,
+		"candidates": candidates,
+		"count":      len(candidates),
+		"definitive": len(candidates) == 1,
+		"pokemon":    poke,
+		// arc_rescue says the answer came from the arc rather than from a CP.
+		//
+		// LOAD BEARING, not telemetry. The client must be able to tell the trainer
+		// that the CP on the card was CORRECTED rather than read: a silent
+		// correction is worse than none, because the card would quietly disagree
+		// with what is on their screen and never say why.
+		"arc_rescue":         req.CP == 0 && req.ArcLevel != nil,
 		"best_buddy_assumed": buddyAssumed,
 	})
 }
@@ -438,6 +474,7 @@ type pokemonBoxEntry struct {
 	IVCandidates json.RawMessage `json:"iv_candidates,omitempty"`
 	CaughtAt     *time.Time      `json:"caught_at,omitempty"`
 	Note         string          `json:"note"`
+	Provenance   string          `json:"provenance"`
 	CreatedAt    time.Time       `json:"created_at"`
 }
 
@@ -507,6 +544,12 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		IVCandidates json.RawMessage `json:"iv_candidates"`
 		CaughtAt     *time.Time      `json:"caught_at"`
 		Note         string          `json:"note"`
+		// Source is the client's account of where these values came from:
+		// "scan" or "manual". It is a claim, not the stored value --
+		// resolveProvenance decides what is actually recorded, from the route
+		// and the attestation rather than from this string. Absent on older
+		// clients, which resolve to "unknown".
+		Source string `json:"source"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, "invalid request", http.StatusBadRequest)
@@ -590,21 +633,29 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		candidatesJSON = []byte(body.IVCandidates)
 	}
 
+	// Attestation is not wired yet, so nothing can be recorded as attested. The
+	// argument is threaded through rather than left out so that turning it on is
+	// a change to where the token is verified, not a change to this call.
+	provenance := resolveProvenance(r, body.Source, false)
+
 	res, err := h.db.Exec(`
 		INSERT INTO user_pokemon_box
 		    (user_id, pokemon_name, form, is_shadow, is_purified, cp, level,
-		     atk_iv, def_iv, sta_iv, iv_candidates, caught_at, note)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		     atk_iv, def_iv, sta_iv, iv_candidates, caught_at, note, provenance)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, body.PokemonName, body.Form, body.IsShadow, body.IsPurified,
 		body.CP, body.Level,
 		body.AtkIV, body.DefIV, body.StaIV,
-		candidatesJSON, body.CaughtAt, body.Note,
+		candidatesJSON, body.CaughtAt, body.Note, string(provenance),
 	)
 	if err != nil {
 		writeJSONError(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	id, _ := res.LastInsertId()
+	// The provenance mix is what step 4 of the scan migration watches: the web
+	// upload cannot be retired until app-sourced rows are actually arriving.
+	log.Printf("box save: user=%d id=%d species=%q provenance=%s", u.ID, id, body.PokemonName, provenance)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{"id": id})
@@ -641,7 +692,7 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 		SELECT id, pokemon_name, form, is_shadow, is_purified, cp, level,
 		       atk_iv, def_iv, sta_iv,
 		       CASE WHEN atk_iv IS NULL THEN iv_candidates END,
-		       caught_at, COALESCE(note,''), created_at
+		       caught_at, COALESCE(note,''), provenance, created_at
 		FROM user_pokemon_box WHERE user_id = ?
 		ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		u.ID, limit, offset,
@@ -660,7 +711,7 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 			&e.ID, &e.PokemonName, &e.Form, &e.IsShadow, &e.IsPurified,
 			&e.CP, &e.Level,
 			&e.AtkIV, &e.DefIV, &e.StaIV,
-			&candidatesRaw, &e.CaughtAt, &e.Note, &e.CreatedAt,
+			&candidatesRaw, &e.CaughtAt, &e.Note, &e.Provenance, &e.CreatedAt,
 		); err != nil {
 			continue
 		}

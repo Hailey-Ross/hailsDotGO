@@ -809,3 +809,195 @@ ALTER TABLE user_pokemon_box
 -- so adding a language to supportedApplyLangs fails the build rather than the
 -- applicant.
 ALTER TABLE translator_applications MODIFY languages VARCHAR(1000) NOT NULL;
+
+
+-- 49. Event reminder subscriptions (2026-08-27)
+-- The app has had a bell on every upcoming event card for a release now, with a
+-- per-event lead time and a default in Settings, and nothing behind it: the calls
+-- 404'd and the app fell back to its disk cache. This is the store behind them.
+--
+-- There is no foreign key on event_id because there is no events table. The feed
+-- is an in-memory blob mirrored to cache/events.json, so event_id is a loose
+-- string; the reconcile that runs after every feed refresh cancels rows whose id
+-- has left the feed, and that is what keeps it honest.
+--
+-- event_start is stored alongside the id, and is not the same as starts_at.
+-- starts_at is the absolute instant resolved in the subscriber's timezone;
+-- event_start is the feed's own start reading, always parsed as UTC, so it is a
+-- zone-independent fingerprint of what upstream said when the trainer subscribed.
+-- Comparing it against the feed on refresh is what tells a genuine time change
+-- apart from a different occurrence reusing a slug. Recurring Spotlight Hours
+-- embed their date in the id (pokemonspotlighthour2026-08-27), but GO Battle
+-- League slugs do not: gbl-forever-forward_great-league_ultra-league names the
+-- league split and can legitimately come round again on a later rotation.
+--
+-- reminded_at and started_at_sent are flag columns in the shape processRaidTimers
+-- already uses: set before the push is dispatched, so a re-send needs a crash at
+-- exactly the wrong moment rather than a slow HTTP call.
+CREATE TABLE IF NOT EXISTS event_subscriptions (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         INT UNSIGNED NOT NULL,
+  event_id        VARCHAR(128) NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+  timezone        VARCHAR(64) NOT NULL,
+  event_start     DATETIME NOT NULL,
+  remind_at       DATETIME NULL,
+  starts_at       DATETIME NOT NULL,
+  reminded_at     DATETIME NULL,
+  started_at_sent DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_evsub_user_event (user_id, event_id),
+  KEY idx_evsub_due (remind_at, reminded_at),
+  KEY idx_evsub_start (starts_at, started_at_sent),
+  CONSTRAINT fk_evsub_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 50. Several reminders per event subscription (2026-08-27)
+-- A trainer can now ask for a day's warning AND a thirty minute one for the same
+-- event: one to plan around, one to stop what you are doing. lead_minutes was a
+-- scalar, so it becomes a set, and the three columns that describe ONE
+-- notification move off the parent onto a row each.
+--
+-- The split is not cosmetic. timezone, event_start, starts_at and
+-- started_at_sent are genuinely properties of the subscription: the zone it was
+-- pinned in, the start it was pinned to, and whether the at-start push has gone
+-- out. lead_minutes, remind_at and reminded_at are properties of one reminder.
+--
+-- reminded_at moving to the child row is the load bearing part. Left on the
+-- parent, the first push of the evening marks the subscription sent and silently
+-- eats the rest, and the symptom ("I only ever get the earliest one") is very
+-- hard to notice and harder still to attribute.
+--
+-- UNIQUE (subscription_id, lead_minutes) is what makes the upsert idempotent and
+-- stops a repeated lead time turning into two identical pushes.
+CREATE TABLE IF NOT EXISTS event_subscription_reminders (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  subscription_id BIGINT UNSIGNED NOT NULL,
+  lead_minutes    SMALLINT UNSIGNED NOT NULL,
+  remind_at       DATETIME NULL,
+  reminded_at     DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_esr_sub_lead (subscription_id, lead_minutes),
+  KEY idx_esr_due (remind_at, reminded_at),
+  CONSTRAINT fk_esr_sub FOREIGN KEY (subscription_id)
+    REFERENCES event_subscriptions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Carry the existing subscriptions across rather than starting empty. There are
+-- live rows and they are somebody's reminders.
+INSERT IGNORE INTO event_subscription_reminders
+    (subscription_id, lead_minutes, remind_at, reminded_at)
+SELECT id, lead_minutes, remind_at, reminded_at FROM event_subscriptions;
+
+-- event_subscriptions.lead_minutes, remind_at and reminded_at are deliberately
+-- NOT dropped. Build 15 of the app is on testers' phones and reads the first two
+-- off the response, and dropping a column is the one migration that cannot be
+-- fixed by re-running this file. The server keeps them written as a mirror of
+-- the first reminder and reads neither: event_subscription_reminders is the only
+-- source of truth from here. They come out once no install below 16 is in use.
+
+-- 51. Where a boxed Pokemon came from (2026-08-30)
+-- The box is about to become something other people can see: a profile will show
+-- dex completion from it, beside the shiny dex. Until now every row was private,
+-- so a wrong entry only ever misled the person who typed it, and nothing needed
+-- to record how a row arrived. Once a collection has an audience, a fake one is
+-- a reputational gain, and a display has to be able to tell a scanned entry from
+-- a typed one.
+--
+-- This is why the column goes in before the profile feature rather than with it.
+-- Origin is not recoverable after the fact: a row already in the table carries
+-- no trace of how it was created, and no migration can invent one. Every row
+-- added between now and the column landing would be permanently unattributable,
+-- so the cost of waiting grows with the delay.
+--
+-- Existing rows become 'unknown', which is deliberately not 'manual'. "We do not
+-- know" and "a human typed it" are different claims, and only the first one is
+-- true of them.
+--
+-- The value is derived server side from the route the write arrived on and what
+-- the client claimed, never copied from the request: 'scan_app_attested' means
+-- an integrity check actually passed, so a client must not be able to write it
+-- by asking. See writeProvenance in internal/handlers/iv.go.
+ALTER TABLE user_pokemon_box
+  ADD COLUMN provenance ENUM('manual','scan_web','scan_app','scan_app_attested','unknown')
+      NOT NULL DEFAULT 'unknown' AFTER note;
+
+-- 52. Raid boss history, as a star schema (2026-08-31)
+-- cache/raids.json is overwritten on every refresh, so the day a rotation ends it
+-- is gone. Nothing could answer "what was in tier 5 last week" or "when did this
+-- boss last run", and the events feed prunes a rotation a day or so after it ends,
+-- which is already recorded as a source of trouble in raidschedule.go.
+--
+-- Two tables rather than one, because a flat table would repeat a boss's stats,
+-- typing, CP range and sprite on every appearance: the same few hundred bytes
+-- rewritten every couple of hours forever, and no single row to compare against
+-- when asking whether a boss has changed. So the expensive part is resolved ONCE,
+-- on first sight, and every later sighting is a narrow row pointing at it.
+--
+-- raid_boss_dim is the dimension. The natural key is (species, form, tier, shadow):
+-- the same species at tier 5 and as a Mega are different bosses with different
+-- stats, and a shadow is a different boss again.
+--
+-- appearance_count and last_seen_at are denormalised on purpose. They are the two
+-- questions asked most often about a boss, and answering either from the fact
+-- table alone is a scan.
+--
+-- Slowly changing dimension, TYPE 1: a rebalance overwrites in place and moves
+-- stats_updated_at. Type 2 versioning would let the site answer "what were this
+-- boss's stats last March", which nothing asks and which doubles the join on every
+-- read. If that is ever wanted it is additive: add valid_from/valid_to and stop
+-- overwriting.
+CREATE TABLE IF NOT EXISTS raid_boss_dim (
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  species           VARCHAR(96)  NOT NULL,
+  form              VARCHAR(64)  NOT NULL DEFAULT '',
+  tier              VARCHAR(8)   NOT NULL,
+  shadow            TINYINT(1)   NOT NULL DEFAULT 0,
+  is_mega           TINYINT(1)   NOT NULL DEFAULT 0,
+  types             VARCHAR(64)  NOT NULL DEFAULT '',
+  cp_min            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_max            INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_min    INT UNSIGNED NOT NULL DEFAULT 0,
+  cp_boosted_max    INT UNSIGNED NOT NULL DEFAULT 0,
+  image_url         VARCHAR(512) NOT NULL DEFAULT '',
+  can_be_shiny      TINYINT(1)   NOT NULL DEFAULT 0,
+  first_seen_at     DATETIME     NOT NULL,
+  last_seen_at      DATETIME     NOT NULL,
+  appearance_count  INT UNSIGNED NOT NULL DEFAULT 0,
+  stats_updated_at  DATETIME     NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_boss (species, form, tier, shadow),
+  KEY idx_raid_boss_last_seen (last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- raid_appearance_fact is the fact table: one narrow row per boss per rotation.
+--
+-- No stats, no sprite, no typing. Anything derivable by joining the dimension does
+-- not belong here.
+--
+-- The unique key is doing real work rather than being defensive decoration: the
+-- served list is rebuilt on a short ticker and on every refresh, so the same
+-- rotation is offered for recording many times over its run.
+--
+-- Retention: KEPT INDEFINITELY, on purpose. The dimension is small and permanent;
+-- this grows at roughly one row per boss per rotation, which is a few thousand rows
+-- a year. Do not add a cleanup job without deciding that history is not wanted.
+CREATE TABLE IF NOT EXISTS raid_appearance_fact (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  boss_id       INT UNSIGNED    NOT NULL,
+  window_start  DATETIME        NOT NULL,
+  window_end    DATETIME        NOT NULL,
+  event_id      VARCHAR(128)    NOT NULL DEFAULT '',
+  -- 'upstream' came from the raid feed; 'events' is a card this app built from the
+  -- rotation schedule because the feed had not listed the boss yet. Worth keeping:
+  -- a later reader should be able to tell a published boss from an inferred one.
+  source        ENUM('upstream','events') NOT NULL DEFAULT 'upstream',
+  recorded_at   DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_raid_appearance (boss_id, window_start),
+  KEY idx_raid_appearance_window (window_start),
+  CONSTRAINT fk_raid_appearance_boss FOREIGN KEY (boss_id)
+    REFERENCES raid_boss_dim (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
