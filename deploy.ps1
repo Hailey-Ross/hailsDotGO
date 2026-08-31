@@ -46,6 +46,7 @@ Get-Content $envPath | ForEach-Object {
     if ($_ -match "^RESEND_API_KEY=(.+)$")       { $script:resendKey    = $matches[1].Trim() }
     if ($_ -match "^MAIL_FROM=(.+)$")            { $script:mailFrom     = $matches[1].Trim() }
     if ($_ -match "^BASE_URL=(.+)$")             { $script:baseURL      = $matches[1].Trim() }
+    if ($_ -match "^MOBILE_BUILD_TOKEN=(.+)$")   { $script:mobileBuildToken = $matches[1].Trim() }
 }
 if (-not $script:vpsHost)        { throw ".env missing VPS_HOST" }
 if (-not $script:vpsUser)        { throw ".env missing VPS_USER" }
@@ -174,7 +175,7 @@ Write-Host "    Go binary      $binSize  $([int]((Get-Date) - $goStart).TotalSec
 
 # -- Write app.env ---------------------------------------------------
 $appEnvPath    = Join-Path $root "app.env"
-$appEnvContent = "DB_HOST=$($script:dbHost)`nDB_USER=$($script:dbUser)`nDB_PASS=$($script:dbPass)`nDB_NAME=$($script:dbName)`nSUPERADMIN_USER=$($script:superadminUser)`nCSRF_KEY=$($script:csrfKey)`nPAYPAL_CLIENT_ID=$($script:ppClientID)`nPAYPAL_CLIENT_SECRET=$($script:ppSecret)`nPAYPAL_MODE=$($script:ppMode)`nPAYPAL_WEBHOOK_ID=$($script:ppWebhookID)`nGITHUB_TOKEN=$($script:ghToken)`nGITHUB_REPO=$($script:ghRepo)`nFCM_PROJECT_ID=$($script:fcmProjectID)`nFCM_CREDENTIALS_JSON=$($script:fcmCredJSON)`nAPNS_KEY_PATH=$($script:apnsKeyPath)`nAPNS_KEY_ID=$($script:apnsKeyID)`nAPNS_TEAM_ID=$($script:apnsTeamID)`nAPNS_BUNDLE_ID=$($script:apnsBundleID)`nAPNS_PRODUCTION=$($script:apnsProd)`nRESEND_API_KEY=$($script:resendKey)`nMAIL_FROM=$($script:mailFrom)`nBASE_URL=$($script:baseURL)`n"
+$appEnvContent = "DB_HOST=$($script:dbHost)`nDB_USER=$($script:dbUser)`nDB_PASS=$($script:dbPass)`nDB_NAME=$($script:dbName)`nSUPERADMIN_USER=$($script:superadminUser)`nCSRF_KEY=$($script:csrfKey)`nPAYPAL_CLIENT_ID=$($script:ppClientID)`nPAYPAL_CLIENT_SECRET=$($script:ppSecret)`nPAYPAL_MODE=$($script:ppMode)`nPAYPAL_WEBHOOK_ID=$($script:ppWebhookID)`nGITHUB_TOKEN=$($script:ghToken)`nGITHUB_REPO=$($script:ghRepo)`nFCM_PROJECT_ID=$($script:fcmProjectID)`nFCM_CREDENTIALS_JSON=$($script:fcmCredJSON)`nAPNS_KEY_PATH=$($script:apnsKeyPath)`nAPNS_KEY_ID=$($script:apnsKeyID)`nAPNS_TEAM_ID=$($script:apnsTeamID)`nAPNS_BUNDLE_ID=$($script:apnsBundleID)`nAPNS_PRODUCTION=$($script:apnsProd)`nRESEND_API_KEY=$($script:resendKey)`nMAIL_FROM=$($script:mailFrom)`nBASE_URL=$($script:baseURL)`nMOBILE_BUILD_TOKEN=$($script:mobileBuildToken)`n"
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($appEnvPath, $appEnvContent, $utf8NoBom)
 

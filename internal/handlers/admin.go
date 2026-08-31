@@ -32,6 +32,7 @@ type adminData struct {
 	RegistrationOpen bool
 	StoreEnabled     bool
 	Maintenance      PageMaintenance
+	MobileBuild      int
 	Message          string
 	MessageOK        bool
 	InviteLink       string
@@ -44,6 +45,7 @@ func (h *Handlers) AdminPage(w http.ResponseWriter, r *http.Request) {
 		RegistrationOpen: h.registrationOpen(),
 		StoreEnabled:     h.storeEnabled(),
 		Maintenance:      h.maintenanceSettings(),
+		MobileBuild:      h.mobileBuildNumber(),
 		ActiveInvites:    h.loadActiveInvites(r),
 		SuperadminUser:   auth.SuperadminUser,
 	})
@@ -109,6 +111,7 @@ func (h *Handlers) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		RegistrationOpen: regOpen == "1",
 		StoreEnabled:     storeOn == "1",
 		Maintenance:      h.maintenanceSettings(),
+		MobileBuild:      h.mobileBuildNumber(),
 		Message:          msg,
 		MessageOK:        msgOK,
 		ActiveInvites:    h.loadActiveInvites(r),
@@ -288,6 +291,7 @@ func (h *Handlers) AdminUpdatePageSettings(w http.ResponseWriter, r *http.Reques
 		RegistrationOpen: h.registrationOpen(),
 		StoreEnabled:     h.storeEnabled(),
 		Maintenance:      h.maintenanceSettings(),
+		MobileBuild:      h.mobileBuildNumber(),
 		Message:          msg,
 		MessageOK:        msgOK,
 		ActiveInvites:    h.loadActiveInvites(r),

@@ -322,6 +322,21 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// app from greying out a section the site has switched off.
 		r.With(httprate.LimitByIP(20, time.Minute)).Get("/maintenance", h.MobileMaintenance)
 
+		// Newest published app build, as bare digits, so an install can tell it is
+		// stale. Public for the same reason /maintenance is: a logged out app needs
+		// it too, and the number is not a secret.
+		//
+		// HEAD alongside GET for the reason given above assetlinks: chi answers 405
+		// to an unregistered method, which would make a `curl -I` check on this path
+		// look like a failure.
+		//
+		// The POST publishes a new number and is guarded by MOBILE_BUILD_TOKEN
+		// inside the handler rather than by MobileAuthMiddleware: it is called by the
+		// mobile repo's release step, which has no user account.
+		r.With(httprate.LimitByIP(20, time.Minute)).Get("/build", h.MobileBuildGet)
+		r.With(httprate.LimitByIP(20, time.Minute)).Method(http.MethodHead, "/build", http.HandlerFunc(h.MobileBuildGet))
+		r.With(httprate.LimitByIP(10, time.Minute)).Post("/build", h.MobileBuildSet)
+
 		// All remaining endpoints require authentication.
 		r.Group(func(r chi.Router) {
 			r.Use(h.MobileAuthMiddleware())
@@ -514,6 +529,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/admin", h.RequireMod(h.AdminPage))
 		r.Post("/admin/settings", h.RequireAdmin(h.AdminUpdateSettings))
 		r.Post("/admin/pages", h.RequireAdmin(h.AdminUpdatePageSettings))
+		r.Post("/admin/mobile-build", h.RequireAdmin(h.AdminUpdateMobileBuild))
 		r.Post("/admin/invite", h.RequireAdmin(h.AdminGenerateInvite))
 		r.Post("/admin/invite/{token}/cancel", h.RequireAdmin(h.AdminCancelInvite))
 
