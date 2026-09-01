@@ -52,16 +52,20 @@ type eventPageBoss struct {
 	boss   WindowBoss
 	tier   string
 	shadow bool
-	// day is the calendar day the headings scoped this boss to, or the zero time
-	// when it belongs to the whole event.
-	day time.Time
+	// day is the first calendar day the headings scoped this boss to, or the zero
+	// time when it belongs to the whole event. dayEnd is the last, and is zero for
+	// the ordinary single day scope.
+	day    time.Time
+	dayEnd time.Time
 }
 
 // headingScope is what the headings above a boss list have established so far.
 type headingScope struct {
-	// day is zero when nothing above has narrowed the boss to one calendar day,
-	// which means it belongs to the whole event.
+	// day is zero when nothing above has narrowed the boss to a calendar day,
+	// which means it belongs to the whole event. dayEnd closes a heading that names
+	// a range rather than a day.
 	day     time.Time
+	dayEnd  time.Time
 	tier    string
 	shadow  bool
 	hasTier bool
@@ -129,6 +133,9 @@ func parseEventPageRaids(pageHTML string, evStart, evEnd time.Time) []eventPageB
 	if section == nil {
 		return nil
 	}
+	if eventPageLocationLimited(section) {
+		return nil
+	}
 
 	// One scope per heading level, so a heading inherits from the level above it
 	// and replaces anything deeper. h2 resets to the section root, which knows
@@ -163,6 +170,119 @@ func parseEventPageRaids(pageHTML string, evStart, evEnd time.Time) []eventPageB
 			}
 		})
 	})
+	if len(out) == 0 {
+		out = eventPageProseBosses(section)
+	}
+	return out
+}
+
+// eventLocationLimitedRes are the ways a Raids section says its raids are not
+// available where the reader is standing.
+//
+// The LEGO event is why this exists. Its Raids section reads "The following Pokemon
+// will appear more frequently in raids at participating LEGO Store locations" and
+// "These raids are local only, Remote Raid Passes cannot be used", and its one boss
+// is a Pikachu. Tier 1 became governed on 2026-09-01, and from that moment the
+// reader was contributing that Pikachu as an ordinary worldwide tier 1 rotation
+// with a two month window, on a grid whose whole promise is "these are the raids you
+// can do". The comment on the tier guard below still claimed the Pikachu was being
+// excluded; it had not been for a day.
+//
+// Three phrases, each specific enough to be Niantic boilerplate rather than English:
+// swept across all sixty cached pages on 2026-09-01, only the LEGO page matches any
+// of them, and only inside its Raids section.
+//
+// This does NOT give an event page the power to remove a boss, which is the one
+// thing eventraids.go must never do. The reader declines to ADD one. Nothing here
+// makes a tier authoritative and upstream's own tier 1 list is untouched.
+var eventLocationLimitedRes = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)remote raid pass(?:es)? cannot be used`),
+	regexp.MustCompile(`(?i)\braids are local only`),
+	regexp.MustCompile(`(?i)\bat participating\b[^.]{0,60}\blocations?\b`),
+}
+
+// eventPageLocationLimited reports whether the Raids section says its raids are
+// confined to particular venues.
+//
+// Scoped to the section on purpose. The same LEGO page says "limited and subject to
+// stock remaining at participating locations" about a physical giveaway further
+// down, which has nothing to do with raids, and reading the whole document would
+// have caught it.
+func eventPageLocationLimited(section *goquery.Selection) bool {
+	limited := false
+	section.Each(func(_ int, node *goquery.Selection) {
+		if limited {
+			return
+		}
+		blocks := node.Find("p, li")
+		if goquery.NodeName(node) == "p" || goquery.NodeName(node) == "li" {
+			blocks = blocks.AddSelection(node)
+		}
+		blocks.EachWithBreak(func(_ int, b *goquery.Selection) bool {
+			for _, sentence := range splitSentences(strings.Join(strings.Fields(b.Text()), " ")) {
+				// A sentence that qualifies the boilerplate rather than stating it is
+				// left alone. "Remote Raid Passes cannot be used more than five times
+				// a day, but they can be used for these raids" is the shape, and it
+				// says the opposite of what the matchers below read it as. The guard
+				// can only ever make this rule fire LESS, which for a rule that
+				// removes a roster is the safe direction to be wrong in.
+				if strings.Contains(sentence, " but ") || strings.Contains(sentence, " unless ") {
+					continue
+				}
+				for _, re := range eventLocationLimitedRes {
+					if re.MatchString(sentence) {
+						limited = true
+						return false
+					}
+				}
+			}
+			return true
+		})
+	})
+	return limited
+}
+
+// eventProseDebutRe reads a boss named only in a sentence.
+//
+// Restricted to Mega and Primal on purpose. Those two carry their tier in the name,
+// so isMegaName settles it with no heading to lean on, and a sentence is not a
+// structure that can be trusted to say which tier anything else belongs to.
+var eventProseDebutRe = regexp.MustCompile(`(?i)\b((?:mega|primal)\s+\p{L}[\p{L}'.-]*(?:\s+[XY]\b)?)\s+` +
+	`(?:will\s+(?:make|be\s+making)\s+its\b|makes\s+its\b|will\s+debut\b|will\s+appear\s+in\b)`)
+
+// eventPageProseBosses is the last resort, used only when a Raids section produced no
+// list items at all.
+//
+// Super Mega Raid Day is why it exists. Its Raids section is a heading, one sentence
+// and an EMPTY list element:
+//
+//	<h2 class="event-section-header raids">Raids</h2>
+//	<h2>Featured Pokémon</h2>
+//	<p>Mega Staraptor will make its Pokémon GO debut in Super Mega Raids.</p>
+//	<ul class="pkmn-list-flex"></ul>
+//
+// A brand new Mega, debuting on a headline event day, named nowhere else in any feed
+// this app reads. Requiring the structured roster to be empty first keeps this off
+// every page that has real markup, so the only thing it can add is a boss that would
+// otherwise have been lost entirely.
+func eventPageProseBosses(section *goquery.Selection) []eventPageBoss {
+	seen := map[string]bool{}
+	var out []eventPageBoss
+	section.Each(func(_ int, node *goquery.Selection) {
+		if goquery.NodeName(node) != "p" {
+			return
+		}
+		text := strings.Join(strings.Fields(node.Text()), " ")
+		for _, m := range eventProseDebutRe.FindAllStringSubmatch(text, -1) {
+			name := strings.Join(strings.Fields(m[1]), " ")
+			key := normalizeBossName(name)
+			if seen[key] || !isMegaName(name) {
+				continue
+			}
+			seen[key] = true
+			out = append(out, eventPageBoss{boss: WindowBoss{Name: name}, tier: "6"})
+		}
+	})
 	return out
 }
 
@@ -187,8 +307,8 @@ func headingLevel(nodeName string) (int, bool) {
 // says nothing about a day or a tier leaves both as they were, which is what makes
 // a habitat name inherit the Saturday above it.
 func applyHeading(base headingScope, text string, evStart, evEnd time.Time) headingScope {
-	if day, ok := resolveHeadingDay(text, evStart, evEnd); ok {
-		base.day = day
+	if start, end, ok := resolveHeadingDays(text, evStart, evEnd); ok {
+		base.day, base.dayEnd = start, end
 	}
 	if tier, shadow, ok := headingTier(text); ok {
 		base.tier, base.shadow, base.hasTier = tier, shadow, true
@@ -205,9 +325,14 @@ func eventPageBossFrom(li *goquery.Selection, scope headingScope) (eventPageBoss
 	tier, shadow, ok := eventPageTier(name, scope)
 	if !ok || !governedTiers[tier] {
 		// Either nothing established a tier, or it is one the schedule does not
-		// govern. Tier 1 and tier 3 rotate rarely and no feed carries timing for
-		// them, so they stay upstream's business: this is what keeps the Pikachu
-		// under lego-pokemon-go-2026's "Appearing in 1-Star Raids" off the grid.
+		// govern. governedTiers has held 1 and 3 since 2026-09-01, so what is
+		// refused here now is only a tier nothing established and the four star
+		// raids of a Community Day page.
+		//
+		// The Pikachu under lego-pokemon-go-2026's "Appearing in 1-Star Raids" used
+		// to be named here as the thing this line kept out. It is not: that is
+		// eventPageLocationLimited's job, and it is kept out because those raids
+		// happen in LEGO stores, not because of its tier.
 		return eventPageBoss{}, false
 	}
 	img, _ := li.Find(".pkmn-list-img img[src]").First().Attr("src")
@@ -223,6 +348,7 @@ func eventPageBossFrom(li *goquery.Selection, scope headingScope) (eventPageBoss
 		tier:   tier,
 		shadow: shadow,
 		day:    scope.day,
+		dayEnd: scope.dayEnd,
 	}, true
 }
 
@@ -367,6 +493,107 @@ func resolveHeadingDay(text string, evStart, evEnd time.Time) (time.Time, bool) 
 	return time.Time{}, false
 }
 
+// headingDayRangeRe matches a heading that names a span of days rather than one day,
+// in the shapes upstream writes: "September 8-15", "September 8 - September 15" and
+// "Saturday, September 5 - Sunday, September 6". The separator is a hyphen, an en
+// dash, an em dash or the word "to", because LeekDuck uses all four.
+//
+// The weekday on either side is optional and is CAPTURED rather than skipped. It used
+// to be neither: a weekday before the SECOND date failed the whole pattern, so
+// "Saturday, September 5 - Sunday, September 6" fell through to the single day reader,
+// resolved as Saturday alone, and scoped the Sunday roster to Saturday. Upstream
+// writes weekday qualified dates as a matter of course, mega-ascension heads all five
+// of its day rosters that way, so a two day heading in the same house style was only
+// ever one page away.
+var headingDayRangeRe = regexp.MustCompile(`(?i)(?:(monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s+)?\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})\s*(?:[-\x{2013}\x{2014}]|to)\s*(?:(monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s+)?(?:(january|february|march|april|may|june|july|august|september|october|november|december)\s+)?(\d{1,2})\b`)
+
+// resolveHeadingDays turns a heading into the span of days it names.
+//
+// A heading naming a single day answers with end equal to start, so every caller can
+// treat the pair uniformly. A range used to collapse to its first day, because
+// headingMonthDayRe matches once and stops: "September 8-15" became a one day window
+// on the 8th. That was invisible while the feed happened to carry the same rotation
+// with correct dates and preferRaidWindow picked the longer of the two, and it stops
+// being invisible the moment a range headed roster is page-only, which is the exact
+// situation this file exists for.
+func resolveHeadingDays(text string, evStart, evEnd time.Time) (start, end time.Time, ok bool) {
+	hay := strings.ToLower(strings.Join(strings.Fields(text), " "))
+	if m := headingDayRangeRe.FindStringSubmatch(hay); m != nil {
+		firstWeekday, firstMonth, firstDay := m[1], m[2], m[3]
+		lastWeekday, lastMonth, lastDay := m[4], m[5], m[6]
+		if lastMonth == "" {
+			lastMonth = firstMonth
+		}
+		// The weekdays are passed back through, so a range gets the same check a
+		// single day heading gets: resolveHeadingDay refuses a date whose weekday the
+		// prose contradicts, and that is the only defence against a wrong year on an
+		// event whose span crosses a New Year. The range path used to drop them.
+		s, sOK := resolveHeadingDay(strings.TrimSpace(firstWeekday+" "+firstMonth+" "+firstDay), evStart, evEnd)
+		e, eOK := resolveHeadingDay(strings.TrimSpace(lastWeekday+" "+lastMonth+" "+lastDay), evStart, evEnd)
+		if sOK && eOK && !e.Before(s) {
+			return s, e, true
+		}
+		// The end of a range is routinely OUTSIDE the event's own span, and
+		// resolveHeadingDay refuses anything outside it. Mega Squads is the live
+		// case: its page heads two rosters "September 8-15" while its feed entry ends
+		// on the 14th, so the 15th resolved to nothing and seven days of Mega
+		// Beedrill were thrown away. The start has already fixed the year, so the end
+		// does not need the span at all.
+		if sOK {
+			if e, ok := resolveRangeEnd(s, lastWeekday, lastMonth, atoiSafe(lastDay)); ok {
+				return s, e, true
+			}
+			// A range that will not resolve as a range still resolves as its first
+			// day, which is what this did before and is never worse than nothing.
+			return s, s, true
+		}
+		return time.Time{}, time.Time{}, false
+	}
+	d, dOK := resolveHeadingDay(text, evStart, evEnd)
+	if !dOK {
+		return time.Time{}, time.Time{}, false
+	}
+	return d, d, true
+}
+
+// headingRangeMaxDays caps how far a range heading's end may sit from its start.
+//
+// A Raids section heading is describing one event's raids, so a span of weeks is
+// ordinary and a span of months is a misread. The cap is what keeps this from
+// turning a mangled heading into a rotation that never expires.
+const headingRangeMaxDays = 60
+
+// resolveRangeEnd closes a range whose end day the event's own span does not cover,
+// using the year the START already settled.
+//
+// It rolls the year forward once, so "December 28 to January 3" closes on the
+// January rather than refusing, and it refuses anything that is not a real date,
+// runs backwards, or reaches further than headingRangeMaxDays.
+func resolveRangeEnd(start time.Time, weekday, month string, dom int) (time.Time, bool) {
+	mon, named := headingMonths[strings.ToLower(month)]
+	if !named || dom < 1 || dom > 31 {
+		return time.Time{}, false
+	}
+	wantDay, haveWeekday := headingWeekdays[strings.ToLower(weekday)]
+	limit := start.AddDate(0, 0, headingRangeMaxDays)
+	for _, year := range []int{start.Year(), start.Year() + 1} {
+		d := time.Date(year, mon, dom, 0, 0, 0, 0, time.UTC)
+		if d.Day() != dom || d.Month() != mon {
+			continue // a date that does not exist, such as February 30
+		}
+		if d.Before(start) || d.After(limit) {
+			continue
+		}
+		if haveWeekday && d.Weekday() != wantDay {
+			// The prose says which day of the week this is and the calendar
+			// disagrees, so one of them is wrong and neither is worth guessing on.
+			continue
+		}
+		return d, true
+	}
+	return time.Time{}, false
+}
+
 func dayOf(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
@@ -412,6 +639,7 @@ func eventPageRaidWindows(e raidFeedEntry, pageHTML string) []RaidWindow {
 		tier   string
 		shadow bool
 		day    string
+		dayEnd string
 	}
 	order := make([]groupKey, 0, len(roster))
 	groups := map[groupKey][]WindowBoss{}
@@ -420,6 +648,9 @@ func eventPageRaidWindows(e raidFeedEntry, pageHTML string) []RaidWindow {
 		k := groupKey{tier: r.tier, shadow: r.shadow}
 		if !r.day.IsZero() {
 			k.day = r.day.Format("2006-01-02")
+			if !r.dayEnd.IsZero() && r.dayEnd.After(r.day) {
+				k.dayEnd = r.dayEnd.Format("2006-01-02")
+			}
 		}
 		if seen[k] == nil {
 			seen[k] = map[string]bool{}
@@ -448,6 +679,9 @@ func eventPageRaidWindows(e raidFeedEntry, pageHTML string) []RaidWindow {
 		if k.day != "" {
 			rawStart = k.day + eventPageDayStart
 			rawEnd = k.day + eventPageDayEnd
+			if k.dayEnd != "" {
+				rawEnd = k.dayEnd + eventPageDayEnd
+			}
 		}
 		start, end, ok := raidWindowSpan(rawStart, rawEnd)
 		if !ok {
@@ -485,10 +719,15 @@ type eventRaidCacheEntry struct {
 	start     string
 	end       string
 	windows   []RaidWindow
+	// suppressions rides along because it is derived from the same page under the
+	// same key. The key already covers everything BOTH derivations read, so a second
+	// memo would be a second copy of one invalidation rule and a second chance to
+	// get it wrong. See raidsuppress.go.
+	suppressions []RaidSuppression
 }
 
-// eventPageWindowsLocked derives the additive rotations from every scraped event
-// page. Caller must hold s.mu.
+// eventPageRaidsLocked derives the additive rotations and the suppressions from
+// every scraped event page, in one pass. Caller must hold s.mu.
 //
 // eventType "raid-battles" is skipped and only that: those events carry their
 // roster in the feed itself, where parseRaidWindows already reads it with real
@@ -501,19 +740,20 @@ type eventRaidCacheEntry struct {
 // window cannot do that, and a Raid Day boss genuinely is available for those
 // hours, so there is nothing left to protect against: bossKey already folds it
 // together with whatever rotation is naming the same boss.
-func (s *Store) eventPageWindowsLocked() []RaidWindow {
+func (s *Store) eventPageRaidsLocked() ([]RaidWindow, []RaidSuppression) {
 	if len(s.events) == 0 || len(s.eventDetails) == 0 {
-		return nil
+		return nil, nil
 	}
 	var entries []raidFeedEntry
 	if err := json.Unmarshal(s.events, &entries); err != nil {
-		return nil // parseRaidWindows has already logged this
+		return nil, nil // parseRaidWindows has already logged this
 	}
 	if s.eventRaidCache == nil {
 		s.eventRaidCache = map[string]eventRaidCacheEntry{}
 	}
 	seen := make(map[string]bool, len(entries))
 	var out []RaidWindow
+	var sups []RaidSuppression
 	for _, e := range entries {
 		if e.EventID == "" || e.EventType == "raid-battles" {
 			continue
@@ -528,16 +768,21 @@ func (s *Store) eventPageWindowsLocked() []RaidWindow {
 		seen[e.EventID] = true
 		if c, hit := s.eventRaidCache[e.EventID]; hit && c.fetchedAt.Equal(d.FetchedAt) && c.start == e.Start && c.end == e.End {
 			out = append(out, c.windows...)
+			sups = append(sups, c.suppressions...)
 			continue
 		}
 		w := eventPageRaidWindows(e, d.HTML)
-		s.eventRaidCache[e.EventID] = eventRaidCacheEntry{fetchedAt: d.FetchedAt, start: e.Start, end: e.End, windows: w}
+		sp := eventPageSuppressions(e, d.HTML)
+		s.eventRaidCache[e.EventID] = eventRaidCacheEntry{
+			fetchedAt: d.FetchedAt, start: e.Start, end: e.End, windows: w, suppressions: sp,
+		}
 		out = append(out, w...)
+		sups = append(sups, sp...)
 	}
 	for id := range s.eventRaidCache {
 		if !seen[id] {
 			delete(s.eventRaidCache, id)
 		}
 	}
-	return out
+	return out, sups
 }

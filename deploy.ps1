@@ -164,11 +164,13 @@ Write-Host "==> Building" -ForegroundColor Cyan
 $tsStart = Get-Date
 Set-Location $root
 npm run build
+if ($LASTEXITCODE -ne 0) { throw "npm run build failed. Aborting: a failed bundle still hash-matches deploy-manifest.json, so it would be reported unchanged, never uploaded, and the new binary would go up against stale JS." }
 Write-Host "    TypeScript    $([int]((Get-Date) - $tsStart).TotalSeconds)s" -ForegroundColor DarkGray
 
 $goStart = Get-Date
 $env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
 go build -ldflags="-s -w" -o hailsDotGO-linux .
+if ($LASTEXITCODE -ne 0) { throw "go build failed. Aborting." }
 $env:GOOS = ""; $env:GOARCH = ""; $env:CGO_ENABLED = ""
 $binSize = FmtBytes (Get-Item (Join-Path $root "hailsDotGO-linux")).Length
 Write-Host "    Go binary      $binSize  $([int]((Get-Date) - $goStart).TotalSeconds)s" -ForegroundColor DarkGray

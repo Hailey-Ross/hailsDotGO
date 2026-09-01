@@ -353,19 +353,19 @@ func (h *Handlers) Privacy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) APIData(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.store.AllData())
+	writeJSON(w, r, h.store.AllData())
 }
 
 func (h *Handlers) APIRaids(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.store.Raids())
+	writeJSON(w, r, h.store.Raids())
 }
 
 func (h *Handlers) APIMaxBattles(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.store.MaxBattles())
+	writeJSON(w, r, h.store.MaxBattles())
 }
 
 func (h *Handlers) APIEvents(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.store.Events())
+	writeJSON(w, r, h.store.Events())
 }
 
 // eventIDPattern is defined once, in events_ics.go, next to the other event id
@@ -385,15 +385,15 @@ func (h *Handlers) APIEventDetail(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"error":"not found"}`))
 		return
 	}
-	writeJSON(w, detail)
+	writeJSON(w, r, detail)
 }
 
 func (h *Handlers) APIPokemon(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.store.Pokemon())
+	writeJSON(w, r, h.store.Pokemon())
 }
 
 func (h *Handlers) APIMoves(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.store.Moves())
+	writeJSON(w, r, h.store.Moves())
 }
 
 func (h *Handlers) APIRefresh(w http.ResponseWriter, r *http.Request) {
@@ -583,13 +583,39 @@ func (h *Handlers) superDonatorSet() map[uint]bool {
 	return set
 }
 
-func writeJSON(w http.ResponseWriter, data json.RawMessage) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+// writeJSON serves one of the read only game data blobs, tagged with a hash of its
+// own bytes so a caller that already has it gets a 304 instead of the whole thing.
+//
+// This used to be "public, max-age=300", which put a five minute floor under how
+// fresh a raid list could possibly be: the store now rebuilds at the exact instant a
+// rotation opens or shuts, and a browser holding a cached copy would still have
+// shown the old grid for another five minutes. no-cache does not mean do not store,
+// it means revalidate, so the steady state here is a few hundred bytes of 304 rather
+// than a refetch.
+//
+// A content hash rather than a timestamp for the same reason writeJSONWithETag uses
+// one: several of these blobs change without anything counting the change.
+//
+// One RFC 7232 wrinkle, benign here and worth knowing before anyone puts a caching
+// proxy in front of this. The 200 picks up Vary: Accept-Encoding from the compression
+// middleware and the 304 does not, because that middleware does not fire on a
+// response with no body; the tag is also computed over the uncompressed bytes while
+// the body may be gzipped. Caddy runs no cache module, so nothing in the current
+// path stores a response and merges those headers.
+func writeJSON(w http.ResponseWriter, r *http.Request, data json.RawMessage) {
 	if data == nil {
-		w.Write([]byte("null"))
+		data = json.RawMessage("null")
+	}
+	sum := sha256.Sum256(data)
+	etag := `"` + hex.EncodeToString(sum[:])[:16] + `"`
+
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "no-cache")
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
 

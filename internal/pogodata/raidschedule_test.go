@@ -226,7 +226,7 @@ func TestReconcileDropsExpiredAndAddsStarted(t *testing.T) {
 		t.Fatalf("got %d rotations, want 5 (the raid hour and spotlight hour must not count)", len(windows))
 	}
 	now := utc(t, "2026-08-27T12:00:00Z")
-	served, upcoming, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, now, testLookup(t), testCPMs(t))
+	served, upcoming, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, nil, now, testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 
 	// The bug: both of these ended on the 25th and upstream still lists them.
@@ -284,7 +284,7 @@ func TestReconcileDropsExpiredAndAddsStarted(t *testing.T) {
 func TestReconcileAnnotatesWithTheFeedsOwnStrings(t *testing.T) {
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
 	now := utc(t, "2026-08-27T12:00:00Z")
-	served, _, _ := reconcileRaids(json.RawMessage(staleUpstream), windows, now, testLookup(t), testCPMs(t))
+	served, _, _ := reconcileRaids(json.RawMessage(staleUpstream), windows, nil, now, testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 
 	for _, b := range tiers["5"] {
@@ -316,7 +316,7 @@ func TestReconcileKeepsBothSidesOfTheChangeover(t *testing.T) {
 	// live for somebody and both have to be listed.
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
 	now := utc(t, "2026-08-26T00:00:00Z") // Regi open since 08-25T16:00Z, Lunala shuts at 08-26T10:00Z
-	served, _, _ := reconcileRaids(json.RawMessage(staleUpstream), windows, now, testLookup(t), testCPMs(t))
+	served, _, _ := reconcileRaids(json.RawMessage(staleUpstream), windows, nil, now, testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 
 	if !hasName(tiers["5"], "Lunala") {
@@ -342,7 +342,7 @@ func TestReconcileFailsOpen(t *testing.T) {
 		{"rotations with unreadable windows", `[{"eventID":"x-in-5-star-raid-battles","eventType":"raid-battles","start":"whenever","end":"later","extraData":{"raidbattles":{"bosses":[{"name":"Lunala"}]}}}]`},
 	} {
 		windows := parseRaidWindows(json.RawMessage(c.events))
-		served, upcoming, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, utc(t, "2026-08-27T12:00:00Z"), testLookup(t), testCPMs(t))
+		served, upcoming, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, nil, utc(t, "2026-08-27T12:00:00Z"), testLookup(t), testCPMs(t))
 		if !bytes.Equal(served, []byte(staleUpstream)) {
 			t.Errorf("%s: served blob was rewritten, want the upstream bytes verbatim", c.name)
 		}
@@ -354,7 +354,7 @@ func TestReconcileFailsOpen(t *testing.T) {
 	// An unreadable upstream blob is the other direction of the same rule.
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
 	broken := json.RawMessage(`{"5": "not a list"}`)
-	served, _, _ := reconcileRaids(broken, windows, utc(t, "2026-08-27T12:00:00Z"), testLookup(t), testCPMs(t))
+	served, _, _ := reconcileRaids(broken, windows, nil, utc(t, "2026-08-27T12:00:00Z"), testLookup(t), testCPMs(t))
 	if !bytes.Equal(served, broken) {
 		t.Error("a broken upstream blob was not passed through untouched")
 	}
@@ -367,7 +367,7 @@ func TestReconcileLeavesAGroupWithNothingScheduledAlone(t *testing.T) {
 	upstream := json.RawMessage(`{"5":[{"pokemon_name":"Regigigas","cp":2000,"types":["Normal"]}]}`)
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
 	// Long after every rotation in the fixture has finished.
-	served, _, stats := reconcileRaids(upstream, windows, utc(t, "2027-01-01T00:00:00Z"), testLookup(t), testCPMs(t))
+	served, _, stats := reconcileRaids(upstream, windows, nil, utc(t, "2027-01-01T00:00:00Z"), testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 	if !hasName(tiers["5"], "Regigigas") {
 		t.Errorf("a boss was dropped with nothing scheduled to drop it: %v", names(tiers["5"]))
@@ -396,7 +396,7 @@ func TestReconcileDropsAStaleBossWhoseRotationLeftTheFeed(t *testing.T) {
 	]`)
 	windows := parseRaidWindows(events)
 	served, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows,
-		utc(t, "2026-08-31T12:00:00Z"), testLookup(t), testCPMs(t))
+		nil, utc(t, "2026-08-31T12:00:00Z"), testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 
 	if hasName(tiers["5"], "Lunala") {
@@ -430,7 +430,7 @@ func TestReconcileGovernsShadowAndNormalSeparately(t *testing.T) {
 	]`)
 	windows := parseRaidWindows(events)
 	served, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows,
-		utc(t, "2026-08-31T12:00:00Z"), testLookup(t), testCPMs(t))
+		nil, utc(t, "2026-08-31T12:00:00Z"), testLookup(t), testCPMs(t))
 	tiers := decodeTiers(t, served)
 
 	if !hasName(tiers["5"], "Lunala") {
@@ -545,11 +545,11 @@ func TestNextRaidBoundary(t *testing.T) {
 	// Mega Swampert shutting at 22:00 in UTC-12 on the 25th, which is 10:00Z on
 	// the 26th.
 	now := utc(t, "2026-08-26T00:00:00Z")
-	if got, want := nextRaidBoundary(windows, now), utc(t, "2026-08-26T10:00:00Z"); !got.Equal(want) {
+	if got, want := nextRaidBoundary(windows, nil, now), utc(t, "2026-08-26T10:00:00Z"); !got.Equal(want) {
 		t.Errorf("nextRaidBoundary = %s, want %s", got.Format(time.RFC3339), want.Format(time.RFC3339))
 	}
 	// Past every window, there is nothing left to wait for.
-	if got := nextRaidBoundary(windows, utc(t, "2027-01-01T00:00:00Z")); !got.IsZero() {
+	if got := nextRaidBoundary(windows, nil, utc(t, "2027-01-01T00:00:00Z")); !got.IsZero() {
 		t.Errorf("nextRaidBoundary = %s, want the zero time", got.Format(time.RFC3339))
 	}
 }
@@ -666,7 +666,7 @@ func TestReconcileFallsBackToUpNextWithoutMegaData(t *testing.T) {
 
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
 	served, upcoming, stats := reconcileRaids(json.RawMessage(staleUpstream), windows,
-		utc(t, "2026-08-27T12:00:00Z"), lookup, testCPMs(t))
+		nil, utc(t, "2026-08-27T12:00:00Z"), lookup, testCPMs(t))
 	tiers := decodeTiers(t, served)
 
 	if hasName(tiers["6"], "Mega Swampert") {
@@ -785,7 +785,7 @@ func TestPendingListNamesWhatItIsWaitingOn(t *testing.T) {
 
 	windows := parseRaidWindows(json.RawMessage(changeoverEvents))
 	now := utc(t, "2026-08-27T12:00:00Z")
-	_, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, now, lookup, testCPMs(t))
+	_, _, stats := reconcileRaids(json.RawMessage(staleUpstream), windows, nil, now, lookup, testCPMs(t))
 
 	if len(stats.PendingList) != stats.Pending {
 		t.Fatalf("PendingList has %d entries but Pending counts %d", len(stats.PendingList), stats.Pending)

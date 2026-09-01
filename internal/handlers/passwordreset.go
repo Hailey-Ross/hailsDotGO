@@ -123,7 +123,7 @@ func (h *Handlers) issuePasswordReset(email string) {
 	var userID uint
 	var username string
 	var disabled bool
-	err := h.db.QueryRow(`SELECT id, username, disabled FROM users WHERE email = ?`, email).
+	err := h.db.QueryRow(`SELECT id, username, disabled FROM users WHERE email = ? AND deleted_at IS NULL`, email).
 		Scan(&userID, &username, &disabled)
 	if err != nil {
 		if err != sql.ErrNoRows {

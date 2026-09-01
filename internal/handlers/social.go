@@ -29,7 +29,7 @@ func (h *Handlers) SocialPage(w http.ResponseWriter, r *http.Request) {
 	var targetID uint
 	var trainerName string
 	if err := h.db.QueryRow(
-		`SELECT id, COALESCE(trainer_name,'') FROM users WHERE username = ? AND disabled = 0`,
+		`SELECT id, COALESCE(trainer_name,'') FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`,
 		targetUsername,
 	).Scan(&targetID, &trainerName); err != nil {
 		http.NotFound(w, r)
@@ -67,7 +67,7 @@ func (h *Handlers) APIGetSocialState(w http.ResponseWriter, r *http.Request) {
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, targetUsername).Scan(&targetID); err != nil {
+	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, targetUsername).Scan(&targetID); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -115,7 +115,7 @@ func (h *Handlers) APIFriend(w http.ResponseWriter, r *http.Request) {
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, targetUsername).Scan(&targetID); err != nil {
+	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, targetUsername).Scan(&targetID); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -269,7 +269,7 @@ func (h *Handlers) MobileSocialLists(w http.ResponseWriter, r *http.Request) {
 	var targetID uint
 	var trainerName string
 	if err := h.db.QueryRow(
-		`SELECT id, COALESCE(trainer_name,'') FROM users WHERE username = ? AND disabled = 0`,
+		`SELECT id, COALESCE(trainer_name,'') FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`,
 		targetUsername,
 	).Scan(&targetID, &trainerName); err != nil {
 		writeJSONError(w, "trainer not found", http.StatusNotFound)

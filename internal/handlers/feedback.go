@@ -88,7 +88,7 @@ func (h *Handlers) APIGetFeedback(w http.ResponseWriter, r *http.Request) {
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, targetUsername).Scan(&targetID); err != nil {
+	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, targetUsername).Scan(&targetID); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -138,7 +138,7 @@ func (h *Handlers) APIPostFeedback(w http.ResponseWriter, r *http.Request) {
 	targetUsername := chi.URLParam(r, "username")
 
 	var targetID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, targetUsername).Scan(&targetID); err != nil {
+	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, targetUsername).Scan(&targetID); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -279,33 +279,58 @@ func (h *Handlers) APIAdminFeedbackOption(w http.ResponseWriter, r *http.Request
 
 	switch r.Method {
 	case http.MethodPut:
+		// POINTERS, for the same reason AdminAwardUpdate uses them: a body carrying
+		// only {"enabled": false} used to blank the label as well, because Go decodes
+		// an absent key as the zero value and this wrote every column unconditionally.
 		var body struct {
-			Label     string `json:"label"`
-			Sentiment string `json:"sentiment"`
-			SortOrder int    `json:"sort_order"`
-			Enabled   bool   `json:"enabled"`
+			Label     *string `json:"label"`
+			Sentiment *string `json:"sentiment"`
+			SortOrder *int    `json:"sort_order"`
+			Enabled   *bool   `json:"enabled"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSONError(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		label := strings.TrimSpace(body.Label)
-		if label == "" || len(label) > 120 {
-			writeJSONError(w, "label required (max 120 chars)", http.StatusBadRequest)
+
+		sets := make([]string, 0, 4)
+		args := make([]any, 0, 5)
+		set := func(col string, v any) {
+			sets = append(sets, col+" = ?")
+			args = append(args, v)
+		}
+		if body.Label != nil {
+			label := strings.TrimSpace(*body.Label)
+			if label == "" || len(label) > 120 {
+				writeJSONError(w, "label required (max 120 chars)", http.StatusBadRequest)
+				return
+			}
+			set("label", label)
+		}
+		if body.Sentiment != nil {
+			if *body.Sentiment != "positive" && *body.Sentiment != "neutral" && *body.Sentiment != "negative" {
+				writeJSONError(w, "sentiment must be positive, neutral, or negative", http.StatusBadRequest)
+				return
+			}
+			set("sentiment", *body.Sentiment)
+		}
+		if body.SortOrder != nil {
+			set("sort_order", *body.SortOrder)
+		}
+		if body.Enabled != nil {
+			enabledInt := 0
+			if *body.Enabled {
+				enabledInt = 1
+			}
+			set("enabled", enabledInt)
+		}
+		if len(sets) == 0 {
+			writeJSONError(w, "no fields to update", http.StatusBadRequest)
 			return
 		}
-		sentiment := body.Sentiment
-		if sentiment != "positive" && sentiment != "neutral" && sentiment != "negative" {
-			writeJSONError(w, "sentiment must be positive, neutral, or negative", http.StatusBadRequest)
-			return
-		}
-		enabledInt := 0
-		if body.Enabled {
-			enabledInt = 1
-		}
-		_, err := h.db.Exec(`UPDATE feedback_options SET label = ?, sentiment = ?, sort_order = ?, enabled = ? WHERE id = ?`,
-			label, sentiment, body.SortOrder, enabledInt, id)
-		if err != nil {
+
+		args = append(args, id)
+		if _, err := h.db.Exec(`UPDATE feedback_options SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
 			writeJSONError(w, "could not update option", http.StatusInternalServerError)
 			return
 		}

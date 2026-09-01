@@ -33,7 +33,7 @@ var playerReportReasons = map[string]string{
 
 // usersByRole returns the IDs of active users holding exactly the given role.
 func (h *Handlers) usersByRole(role string) []uint {
-	rows, err := h.db.Query(`SELECT id FROM users WHERE role = ? AND disabled = 0`, role)
+	rows, err := h.db.Query(`SELECT id FROM users WHERE role = ? AND disabled = 0 AND deleted_at IS NULL`, role)
 	if err != nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (h *Handlers) bucketStaffIDs() []uint {
 		return ids
 	}
 	var id uint
-	if h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, auth.SuperadminUser).Scan(&id) == nil && id > 0 {
+	if h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, auth.SuperadminUser).Scan(&id) == nil && id > 0 {
 		return []uint{id}
 	}
 	return nil
@@ -94,7 +94,7 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 	details = truncRunes(details, 4000)
 
 	var reportedID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, username).Scan(&reportedID); err != nil {
+	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, username).Scan(&reportedID); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}

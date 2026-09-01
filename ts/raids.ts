@@ -1,16 +1,20 @@
-import { loadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
+import { loadGameData, reloadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
 import { calcCounters, renderCounterTable, calcSinglePokemon, DEFAULT_CONFIG } from "./shared/counters";
 import { renderBoxVsBoss, renderBoxPlaceholder } from "./shared/boxcounters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, RaidBoss, PokemonStat, UpcomingRaid } from "./shared/types";
-import { parseLocal, dateFmt, relTime } from "./shared/time";
+import { parseLocal, dateFmt, monthDayFmt, weekdayFmt, startOfWeek, dayKey, relTime } from "./shared/time";
 
 declare const JSC: Record<string, string>;
 declare const RD: Record<string, string>;
 
 const app = document.getElementById("raids-app")!;
+
+// renderScope is aborted before each repaint, so anything buildRaidsView attached
+// outside app is removed with the tree it belongs to.
+let renderScope = new AbortController();
 
 // Past this much time left, a countdown stops being useful and a date reads better.
 const WINDOW_DATE_THRESHOLD_MS = 48 * 60 * 60 * 1000;
@@ -149,7 +153,12 @@ function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
 function buildRaidsView(data: GameData): HTMLElement {
   const wrap = document.createElement("div");
 
-  const tiers = Object.entries(data.raids!).sort(([a], [b]) => Number(b) - Number(a));
+  // Empty tiers are filtered out, the way the Max Battles section already does it.
+  // A tier can now genuinely have nothing in it: an event that suspends the seasonal
+  // rotations empties five star and Shadow outright for the week it runs, and without
+  // this that is a clickable tab showing nothing, or a blank page if it were ever the
+  // highest tier that went quiet.
+  const tiers = Object.entries(data.raids!).filter(([, b]) => b.length).sort(([a], [b]) => Number(b) - Number(a));
 
   const uniqueTypes = [...new Set(
     tiers.flatMap(([, bosses]) => bosses.flatMap((b) => b.types ?? []))
@@ -580,9 +589,13 @@ function buildRaidsView(data: GameData): HTMLElement {
     searchInput.focus();
   });
 
+  // Torn down on the next repaint. This used to run once per page load and now
+  // runs again every time a rotation flip repaints the grid, and a document level
+  // listener closing over the old picker keeps that whole detached boss grid alive
+  // on a page designed to be left open for days.
   document.addEventListener("click", (e) => {
     if (!picker.contains(e.target as Node)) dropdown.hidden = true;
-  });
+  }, { signal: renderScope.signal });
 
   wrap.appendChild(picker);
 
@@ -824,15 +837,27 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
   return wrap;
 }
 
+// UPNEXT_CAL_NAMED is how many bosses a calendar cell names outright. Past it the
+// cell shows the sprites and a count, because nobody reads seventeen names out of a
+// box that size and seventeen names would make one week row taller than the grid.
+const UPNEXT_CAL_NAMED = 3;
+
 // buildUpNextSection renders what is coming, and what is already here but not yet
 // on the grid.
 //
-// The second case is now rare. It used to be every Mega, because a Mega's typing
-// differs from its base species and nothing the app carried described one; the
-// server has shipped Mega stats and typings for a while, so a Mega is built like
-// anything else. A boss still lands here when no dataset knows the species at all,
-// and naming it is the honest version: the card appears by itself once the data
-// arrives.
+// A CALENDAR. The server publishes every dated rotation it knows about, sixteen
+// entries reaching a month out, so the question this section answers is "what is on,
+// and when", and a month grid answers that at a glance in a way a list cannot. It
+// also absorbs the thing that broke the two layouts before it: these rotations are
+// wildly uneven, one GO Fest habitat day names seventeen Megas and the rotation after
+// it names one, and in a calendar an uneven day is simply a fuller cell.
+//
+// Anything already live but with no card on the grid sits ABOVE the calendar rather
+// than in it, because its start day is behind us and filing it there would bury it.
+// That case is rare: it used to be every Mega, because a Mega's typing differs from
+// its base species and nothing the app carried described one, and the server has
+// shipped Mega stats for a while. A boss still lands there when no dataset knows the
+// species at all, and naming it is the honest version.
 function buildUpNextSection(data: GameData): HTMLElement | null {
   const list: UpcomingRaid[] = data.upcomingRaids ?? [];
   if (!list.length) return null;
@@ -845,81 +870,281 @@ function buildUpNextSection(data: GameData): HTMLElement | null {
   heading.textContent = RD.upNext;
   section.appendChild(heading);
 
-  const row = document.createElement("div");
-  row.className = "raid-upnext-row";
-
+  const live = list.filter((e) => e.live);
+  const dated: { entry: UpcomingRaid; start: Date }[] = [];
   for (const entry of list) {
-    const card = document.createElement("div");
-    card.className = entry.live ? "upnext-card upnext-card-live" : "upnext-card";
-
-    const tier = document.createElement("span");
-    tier.className = `upnext-tier tier-${entry.tier}`;
-    tier.textContent = tierLabel(entry.tier, entry.shadow);
-    card.appendChild(tier);
-
-    const mons = document.createElement("div");
-    mons.className = "upnext-mons";
-    for (const boss of entry.bosses) {
-      const chip = document.createElement("span");
-      chip.className = "upnext-mon";
-      if (boss.image) {
-        const img = document.createElement("img");
-        img.src = boss.image;
-        img.alt = boss.name;
-        img.loading = "lazy";
-        img.decoding = "async";
-        chip.appendChild(img);
-      }
-      chip.append(pokeName(data, boss.name));
-      if (boss.canBeShiny) {
-        const shiny = document.createElement("span");
-        shiny.className = "upnext-shiny";
-        shiny.textContent = "✨";
-        shiny.title = RD.shinyBadge;
-        chip.appendChild(shiny);
-      }
-      mons.appendChild(chip);
-    }
-    card.appendChild(mons);
-
-    const pill = windowPill(entry.starts_at, entry.ends_at, entry.live);
-    if (pill) card.appendChild(pill);
-
-    if (entry.live) {
-      const note = document.createElement("span");
-      note.className = "upnext-note";
-      note.textContent = RD.upNextDetailsPending;
-      card.appendChild(note);
-    }
-
-    row.appendChild(card);
+    if (entry.live) continue;
+    const start = parseLocal(entry.starts_at);
+    // A rotation whose start will not parse still belongs on the page, it just has
+    // no cell to sit in, so it joins the strip above the grid.
+    if (start) dated.push({ entry, start });
+    else live.push(entry);
   }
 
-  section.appendChild(row);
+  if (live.length) {
+    const strip = document.createElement("div");
+    strip.className = "upnext-live";
+    for (const entry of live) strip.appendChild(buildUpNextLiveRow(entry, data));
+    section.appendChild(strip);
+  }
+
+  if (dated.length) section.appendChild(buildUpNextCalendar(dated, data));
   return section;
+}
+
+// buildUpNextCalendar lays the dated rotations out as whole weeks, from the week
+// containing today through the week containing the last one, so the grid always opens
+// at "now" and never has a ragged first or last row.
+function buildUpNextCalendar(dated: { entry: UpcomingRaid; start: Date }[], data: GameData): HTMLElement {
+  const cells = new Map<string, UpcomingRaid[]>();
+  let last = dated[0].start;
+  for (const { entry, start } of dated) {
+    const key = dayKey(start);
+    const bucket = cells.get(key);
+    if (bucket) bucket.push(entry);
+    else cells.set(key, [entry]);
+    if (start > last) last = start;
+  }
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const first = startOfWeek(today);
+  const cal = document.createElement("div");
+  cal.className = "upnext-cal";
+
+  const head = document.createElement("div");
+  head.className = "upnext-cal-head";
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(first);
+    d.setDate(d.getDate() + i);
+    const label = document.createElement("span");
+    label.textContent = weekdayFmt.format(d);
+    head.appendChild(label);
+  }
+  cal.appendChild(head);
+
+  const grid = document.createElement("div");
+  grid.className = "upnext-cal-grid";
+  // Whole weeks only, and at least one, so a schedule entirely inside this week still
+  // draws a calendar rather than a single stranded cell.
+  const cursor = new Date(first);
+  const stop = startOfWeek(last);
+  do {
+    for (let i = 0; i < 7; i++) {
+      grid.appendChild(buildUpNextCell(cursor, today, cells.get(dayKey(cursor)) ?? [], data));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  } while (cursor <= stop);
+  cal.appendChild(grid);
+  return cal;
+}
+
+// buildUpNextCell is one day.
+function buildUpNextCell(day: Date, today: Date, entries: UpcomingRaid[], data: GameData): HTMLElement {
+  const cell = document.createElement("div");
+  cell.className = "upnext-cal-day";
+  if (!entries.length) cell.classList.add("is-empty");
+  if (day < today) cell.classList.add("is-past");
+  if (day.getTime() === today.getTime()) cell.classList.add("is-today");
+
+  const date = document.createElement("div");
+  date.className = "upnext-cal-date";
+  const weekday = document.createElement("span");
+  // Repeats the column head, and is shown only on a phone, where the grid collapses
+  // to one column and the heads are gone.
+  weekday.className = "upnext-cal-weekday";
+  weekday.textContent = weekdayFmt.format(day);
+  date.appendChild(weekday);
+  const num = document.createElement("span");
+  // The month rides along on its first day, so a grid running out of September into
+  // October says so without needing a second header.
+  num.textContent = day.getDate() === 1 ? monthDayFmt.format(day) : String(day.getDate());
+  date.appendChild(num);
+  cell.appendChild(date);
+
+  for (const entry of entries) cell.appendChild(buildUpNextCalItem(entry, data));
+  return cell;
+}
+
+// buildUpNextCalItem is one rotation inside a day cell: what tier, which bosses, and
+// how much longer it runs when that is past the day it opens on.
+function buildUpNextCalItem(entry: UpcomingRaid, data: GameData): HTMLElement {
+  const item = document.createElement("div");
+  item.className = "upnext-cal-item";
+
+  const names = entry.bosses.map((b) => pokeName(data, b.name));
+  item.title = tierLabel(entry.tier, entry.shadow) + ": " + names.join(", ");
+
+  const tier = document.createElement("div");
+  tier.className = "upnext-cal-tier tier-" + entry.tier;
+  tier.textContent = tierLabel(entry.tier, entry.shadow);
+  item.appendChild(tier);
+
+  const mons = document.createElement("div");
+  mons.className = "upnext-cal-mons";
+  for (const boss of entry.bosses) {
+    if (!boss.image) continue;
+    const img = document.createElement("img");
+    img.src = boss.image;
+    img.alt = pokeName(data, boss.name);
+    img.loading = "lazy";
+    img.decoding = "async";
+    mons.appendChild(img);
+  }
+  if (mons.childElementCount) item.appendChild(mons);
+
+  const label = document.createElement("div");
+  label.className = "upnext-cal-names";
+  label.textContent = entry.bosses.length > UPNEXT_CAL_NAMED
+    ? RD.upNextCount.replace("{n}", String(entry.bosses.length))
+    : names.join(", ");
+  item.appendChild(label);
+
+  // A rotation running past its opening day says so, because the cell it sits in only
+  // marks the day it starts.
+  const end = parseLocal(entry.ends_at);
+  const start = parseLocal(entry.starts_at);
+  if (end && start && end.toDateString() !== start.toDateString()) {
+    const until = document.createElement("div");
+    until.className = "upnext-cal-until";
+    until.textContent = RD.windowUntil.replace("{date}", dateFmt.format(end));
+    item.appendChild(until);
+  }
+  return item;
+}
+
+// buildUpNextLiveRow is a rotation that is already open but has no card on the grid.
+// It sits above the calendar, as a line rather than a cell, because it has no start
+// day worth filing it under any more.
+function buildUpNextLiveRow(entry: UpcomingRaid, data: GameData): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "upnext-row upnext-row-live";
+
+  const tier = document.createElement("span");
+  tier.className = "upnext-tier tier-" + entry.tier;
+  tier.textContent = tierLabel(entry.tier, entry.shadow);
+  row.appendChild(tier);
+
+  const mons = document.createElement("div");
+  mons.className = "upnext-mons";
+  for (const boss of entry.bosses) {
+    const chip = document.createElement("span");
+    chip.className = "upnext-mon";
+    if (boss.image) {
+      const img = document.createElement("img");
+      img.src = boss.image;
+      img.alt = boss.name;
+      img.loading = "lazy";
+      img.decoding = "async";
+      chip.appendChild(img);
+    }
+    chip.append(pokeName(data, boss.name));
+    if (boss.canBeShiny) {
+      const shiny = document.createElement("span");
+      shiny.className = "upnext-shiny";
+      shiny.textContent = "✨";
+      shiny.title = RD.shinyBadge;
+      chip.appendChild(shiny);
+    }
+    mons.appendChild(chip);
+  }
+  row.appendChild(mons);
+
+  const when = document.createElement("div");
+  when.className = "upnext-when";
+  const pill = windowPill(entry.starts_at, entry.ends_at, entry.live);
+  if (pill) when.appendChild(pill);
+  const note = document.createElement("span");
+  note.className = "upnext-note";
+  note.textContent = RD.upNextDetailsPending;
+  when.appendChild(note);
+  row.appendChild(when);
+
+  return row;
+}
+
+// renderRaids paints the whole page from one game data blob.
+function renderRaids(data: GameData): void {
+  renderScope.abort();
+  renderScope = new AbortController();
+  app.innerHTML = "";
+
+  // Every tier being present but empty counts as nothing to show, not as a grid of
+  // empty tabs.
+  if (!data.raids || !Object.values(data.raids).some((b) => b.length)) {
+    app.innerHTML = `<div class="error-state">${RD.unavailable}</div>`;
+    return;
+  }
+
+  app.appendChild(buildRaidsView(data));
+
+  const upNext = buildUpNextSection(data);
+  if (upNext) app.appendChild(upNext);
+
+  if (data.maxBattles && Object.keys(data.maxBattles).length > 0) {
+    app.appendChild(buildMaxBattlesSection(data));
+  }
+}
+
+// paintedFrom fingerprints what is currently on screen, so a revalidation that
+// brings back the same grid does not throw away the tab and filters the trainer had
+// selected. Rotations change a few times a week; this is almost always a no-op.
+let paintedFrom = "";
+
+function raidsFingerprint(data: GameData): string {
+  return JSON.stringify([data.raids ?? null, data.upcomingRaids ?? null, data.maxBattles ?? null]);
+}
+
+// refreshRaids re-reads the game data and repaints only if the grid actually
+// changed.
+//
+// The server rebuilds the served list at the exact instant a rotation opens or
+// shuts, and the blob revalidates rather than caching for five minutes, so this is
+// the last link: without it a tab left open on this page shows the rotation that was
+// running when it loaded, forever.
+//
+// Skipped while the tab is hidden, and run immediately when it comes back, because a
+// backgrounded tab is the case where the grid has most likely gone stale and the one
+// where polling helps nobody.
+// MIN_REFRESH_MS is the floor between two revalidations, however they were
+// triggered.
+//
+// /api/data allows 10 requests per 2 minutes per IP and it is shared with every
+// other page: alt-tabbing back and forth ten times, or a household behind one
+// address with a few tabs open, would spend that budget on nothing and then break
+// the IV calculator and the pokedex, which read the same blob. The minute timer on
+// its own is well inside the limit; this exists so the visibility trigger cannot
+// stack on top of it.
+const MIN_REFRESH_MS = 45_000;
+let lastRefresh = Date.now();
+
+async function refreshRaids(): Promise<void> {
+  if (document.visibilityState !== "visible") return;
+  if (Date.now() - lastRefresh < MIN_REFRESH_MS) return;
+  lastRefresh = Date.now();
+  try {
+    const data = await reloadGameData();
+    const print = raidsFingerprint(data);
+    if (print === paintedFrom) return;
+    paintedFrom = print;
+    renderRaids(data);
+  } catch (err) {
+    // Keep whatever is on screen: a stale grid beats an error state.
+    console.error(err);
+  }
 }
 
 async function init() {
   try {
     const data = await loadGameData();
-    app.innerHTML = "";
+    paintedFrom = raidsFingerprint(data);
+    renderRaids(data);
 
-    if (!data.raids || Object.keys(data.raids).length === 0) {
-      app.innerHTML = `<div class="error-state">${RD.unavailable}</div>`;
-      return;
-    }
-
-    app.appendChild(buildRaidsView(data));
-
-    const upNext = buildUpNextSection(data);
-    if (upNext) app.appendChild(upNext);
-
-    if (data.maxBattles && Object.keys(data.maxBattles).length > 0) {
-      app.appendChild(buildMaxBattlesSection(data));
-    }
-
-    // Countdowns go stale on their own; nothing else on this page re-renders.
+    // Countdowns go stale on their own, and the rotations behind them change on a
+    // schedule nobody reloads a tab for.
     setInterval(tickRaidWindows, 60000);
+    setInterval(refreshRaids, 60000);
+    document.addEventListener("visibilitychange", refreshRaids);
   } catch (err) {
     app.innerHTML = `<div class="error-state">${JSC.failedLoad}</div>`;
     console.error(err);

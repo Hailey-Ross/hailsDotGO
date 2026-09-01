@@ -108,7 +108,7 @@ type mobileAdminContext struct {
 
 // MobileAdminContext is everything the panel needs before it can draw anything.
 //
-// Viewer is the field that earns this endpoint its keep. Eight of the sixteen tabs are
+// Viewer is the field that earns this endpoint its keep. Twelve of the seventeen tabs are
 // {{if .User.IsAdmin}} gated in admin.html, and the app has to make the same decision. It must not
 // infer that from `role`, because the superadmin is matched by username against SUPERADMIN_USER
 // and is not in the role column at all: reading `role` would show a superadmin whose row says

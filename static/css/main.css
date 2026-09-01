@@ -1020,28 +1020,98 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   font-size: 0.95rem; font-weight: 700;
   margin: 0 0 0.9rem; color: var(--text);
 }
-.raid-upnext-row {
-  display: grid; gap: 0.75rem;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+/* Up next is a CALENDAR. Sixteen dated rotations reaching a month out answer a
+   "what is on, and when" question, and a month grid answers it at a glance. It also
+   absorbs how uneven the rotations are: one GO Fest habitat day names seventeen
+   Megas and the one after it names one, which in a grid of equal cards stretched
+   four neighbours into empty boxes and in a stacked list left a lone narrow card in
+   a full width row. In a calendar an uneven day is just a fuller cell. */
+.upnext-cal { display: flex; flex-direction: column; gap: 0.4rem; }
+.upnext-cal-head,
+.upnext-cal-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.4rem;
 }
-.upnext-card {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r); padding: 0.7rem 0.8rem;
+.upnext-cal-head span {
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.8px;
+  text-transform: uppercase; color: var(--text-3); padding-left: 0.1rem;
 }
-.upnext-card-live { border-color: rgba(0, 214, 143, 0.4); }
+.upnext-cal-day {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  min-height: 5.5rem; padding: 0.45rem 0.5rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+}
+/* An empty day is still a day: it keeps its place in the week and steps back rather
+   than disappearing, or the grid stops reading as a calendar. */
+.upnext-cal-day.is-empty { background: rgba(255, 255, 255, 0.015); border-color: rgba(255, 255, 255, 0.05); }
+.upnext-cal-day.is-past { opacity: 0.4; }
+.upnext-cal-day.is-today { border-color: rgba(0, 214, 143, 0.45); }
+.upnext-cal-day.is-today .upnext-cal-date { color: var(--green); }
+.upnext-cal-date {
+  display: flex; align-items: baseline; gap: 0.35rem;
+  font-size: 0.7rem; font-weight: 700; color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+/* The column heads already name the weekday, so the cell only says it on a phone,
+   where the grid is one column and the heads are gone. */
+.upnext-cal-weekday { display: none; }
+.upnext-cal-item { display: flex; flex-direction: column; gap: 0.15rem; }
+.upnext-cal-item + .upnext-cal-item {
+  padding-top: 0.35rem; border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.upnext-cal-tier {
+  font-size: 0.55rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.6px;
+}
+.upnext-cal-mons { display: flex; flex-wrap: wrap; gap: 2px; }
+.upnext-cal-mons img { width: 24px; height: 24px; object-fit: contain; }
+.upnext-cal-names { font-size: 0.68rem; font-weight: 600; color: var(--text); line-height: 1.35; }
+.upnext-cal-until { font-size: 0.6rem; color: var(--text-3); }
+
+/* The live strip above the grid: rotations that are open but have no card yet, so
+   they have no start day left to file under. */
+.upnext-live { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.1rem; }
+.upnext-row {
+  display: flex; align-items: baseline; gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+}
+.upnext-row-live { border-color: rgba(0, 214, 143, 0.4); }
 .upnext-tier {
+  flex: 0 0 auto; min-width: 4.5rem;
   font-size: 0.6rem; font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.7px;
 }
-.upnext-mons { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.upnext-mons {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: wrap; gap: 0.35rem 0.7rem;
+}
 .upnext-mon {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 0.75rem; font-weight: 600; color: var(--text);
 }
 .upnext-mon img { width: 26px; height: 26px; object-fit: contain; }
 .upnext-shiny { font-size: 0.65rem; }
+.upnext-when {
+  flex: 0 0 auto; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 0.2rem;
+}
 .upnext-note { font-size: 0.62rem; color: var(--text-3); }
+
+/* A seven column month does not fit a phone, so the weeks unroll into a list of the
+   days that actually have something on. The empty cells go: on a phone they are
+   scrolling past nothing, and the date on each row carries the calendar instead. */
+@media (max-width: 780px) {
+  .upnext-cal-head { display: none; }
+  .upnext-cal-grid { grid-template-columns: 1fr; gap: 0.4rem; }
+  .upnext-cal-day.is-empty, .upnext-cal-day.is-past { display: none; }
+  .upnext-cal-day { min-height: 0; }
+  .upnext-cal-weekday { display: inline; }
+  .upnext-cal-date { font-size: 0.75rem; }
+  .upnext-row { flex-wrap: wrap; gap: 0.4rem; }
+  .upnext-tier { min-width: 0; }
+  .upnext-when { flex-direction: row; align-items: center; margin-left: auto; }
+  .upnext-mons { flex: 1 0 100%; }
+}
 
 /* ── Events / shinies ───────────────────────────────────────── */
 .events-section {
