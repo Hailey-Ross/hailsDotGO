@@ -74,7 +74,7 @@ func GetSession(db *sql.DB, token string) (*User, error) {
 	err := db.QueryRow(`
 		SELECT u.id, u.username, u.email, u.email_verified_at IS NOT NULL, u.role, u.disabled, u.api_access, u.translator, COALESCE(u.special_rank,''), COALESCE(u.lang,'en')
 		FROM sessions s JOIN users u ON s.user_id = u.id
-		WHERE s.token = ? AND s.expires_at > NOW()`,
+		WHERE s.token = ? AND s.expires_at > NOW() AND u.deleted_at IS NULL`,
 		token,
 	).Scan(&u.ID, &u.Username, &u.Email, &u.EmailVerified, &u.Role, &u.Disabled, &u.APIAccess, &u.Translator, &u.SpecialRank, &u.Lang)
 	if err == sql.ErrNoRows {

@@ -261,6 +261,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// Warehouses the served raid list on every rebuild. Registered before
 	// store.Start so the boot rebuild is recorded too.
 	h.StartRaidHistory()
+	// Destroys accounts whose deletion mark is past its retention window. Deleting an
+	// account marks the row rather than removing it; this is the only thing in the app
+	// that actually removes one. See user_deletion.go.
+	h.StartUserPurge()
 
 	// Event reminders are pinned to a start time the feed can move under them, so
 	// they are re-resolved every time a new feed lands rather than only at
@@ -599,6 +603,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 				// session; a phone is not a reason to relax it.
 				r.With(httprate.LimitByIP(10, 5*time.Minute)).
 					Post("/users/{id}/delete", h.RequireSuperAdminAPI(h.AdminDeleteUser))
+				// Erasing skips the retention window, so it takes the same limiter and the
+				// same typed confirmation as the delete above. Restoring is the safe
+				// direction and is not limited.
+				r.With(httprate.LimitByIP(10, 5*time.Minute)).
+					Post("/users/{id}/purge", h.RequireSuperAdminAPI(h.AdminPurgeUser))
+				r.Post("/users/{id}/restore", h.RequireSuperAdminAPI(h.AdminRestoreUser))
 				r.Post("/users/{id}/api-access", h.RequireSuperAdminAPI(h.AdminToggleAPIAccess))
 				r.Post("/users/{id}/translator", h.RequireSuperAdminAPI(h.AdminToggleTranslator))
 				r.Post("/users/{id}/confirm-role", h.RequireAdminAPI(h.AdminConfirmRole))
@@ -824,6 +834,15 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// reason this route exists, while still making mass deletion slow.
 		r.With(httprate.LimitByIP(10, 5*time.Minute)).
 			Post("/admin/users/{id}/delete", h.RequireSuperAdmin(h.AdminDeleteUser))
+		// Erasure on request, for a trainer who asked for their data to be gone rather
+		// than for their account to stop working. It destroys the row instead of
+		// waiting out the retention window, so it is limited and confirmed exactly as
+		// the delete above is.
+		r.With(httprate.LimitByIP(10, 5*time.Minute)).
+			Post("/admin/users/{id}/purge", h.RequireSuperAdmin(h.AdminPurgeUser))
+		// The undo. Deliberately not rate limited: putting a wrongly deleted account
+		// back should never be the action a brake gets in the way of.
+		r.Post("/admin/users/{id}/restore", h.RequireSuperAdmin(h.AdminRestoreUser))
 		r.Post("/admin/users/{id}/api-access", h.RequireSuperAdmin(h.AdminToggleAPIAccess))
 		r.Post("/admin/users/{id}/translator", h.RequireSuperAdmin(h.AdminToggleTranslator))
 		r.Post("/admin/refresh-data", h.RequireSuperAdmin(h.AdminRefreshData))

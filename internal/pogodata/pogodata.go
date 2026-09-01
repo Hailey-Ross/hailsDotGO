@@ -537,7 +537,11 @@ type Store struct {
 	// The store knows nothing about the database and must not learn.
 	raidsApplied func()
 	raidSchedule []RaidWindow
-	raidStats    raidReconcileStats
+	// raidSuppressions is what the event pages currently say is NOT running. Kept
+	// beside the schedule and for the same reason: the admin scraper check shows it,
+	// and a tier that has gone missing needs somewhere to point at.
+	raidSuppressions []RaidSuppression
+	raidStats        raidReconcileStats
 	// raidsBuiltFor is the next instant the reconciliation could answer differently,
 	// so the periodic rebuild is a clock comparison until a window opens or shuts.
 	raidsBuiltFor time.Time
@@ -1075,15 +1079,7 @@ func (s *Store) Start() {
 			s.RefreshShinyDates()
 		}
 	}()
-	go func() {
-		// Crossing a rotation boundary changes who is live with no new data
-		// involved, and neither upstream fetch is anywhere near frequent enough
-		// to notice. This is a clock comparison every five minutes; the work only
-		// happens once raidsBuiltFor has actually passed.
-		for range time.NewTicker(5 * time.Minute).C {
-			s.maybeRebuildRaids()
-		}
-	}()
+	go s.watchRaidBoundaries()
 	go s.scheduleRaidRefresh() // raids + max battles refresh on Mountain Time schedule
 }
 
@@ -1608,7 +1604,20 @@ func (s *Store) fetchPGAPIRaids() (json.RawMessage, error) {
 		shadow bool
 	}{
 		{"mega", "6", false},
+		// legendary_mega is a separate upstream key holding the Legendary Megas,
+		// Mega Latias and Mega Latios among them. It was silently dropped until
+		// 2026-09-01: the pair only reached the site at all because the Mega
+		// Ascension page happened to name them, and any week without such a page
+		// would have lost them outright.
+		{"legendary_mega", "6", false},
 		{"ultra_beast", "5", false},
+		// ex is upstream's Elite Raid key, and it was the one level of the ten in
+		// RaidLevel.php that this table never mapped. Nothing is being dropped today,
+		// but classifyRaidTier already reads an "elite-raid" slug as tier 5, so an
+		// Elite Raid rotation would have made tier 5 authoritative with no upstream
+		// card for the reconciler to annotate. Tier 5 is where the raid finder and
+		// the tier tabs already put Elite Raids.
+		{"ex", "5", false},
 		{"lvl5", "5", false},
 		{"lvl3", "3", false},
 		{"lvl1", "1", false},
@@ -1616,7 +1625,7 @@ func (s *Store) fetchPGAPIRaids() (json.RawMessage, error) {
 		{"shadow_lvl3", "3", true},
 		{"shadow_lvl1", "1", true},
 	}
-	grouped, total, err := s.fetchPGAPIGrouped(url, tierMap)
+	grouped, total, err := s.fetchPGAPIGrouped(url, tierMap, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1641,7 +1650,7 @@ func (s *Store) fetchMaxBattles() (json.RawMessage, error) {
 		{"tier_2", "2", false},
 		{"tier_3", "3", false},
 	}
-	grouped, total, err := s.fetchPGAPIGrouped(url, tierMap)
+	grouped, total, err := s.fetchPGAPIGrouped(url, tierMap, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1655,11 +1664,13 @@ func (s *Store) fetchMaxBattles() (json.RawMessage, error) {
 
 // fetchPGAPIGrouped fetches a pokemon-go-api "currentList" endpoint and maps the named
 // source tiers onto our destination tier keys, returning the grouped bosses and a count.
+// emptyListIsFine says whether an endpoint is allowed to answer with a flat empty
+// array instead of a tier keyed map. See the guard below.
 func (s *Store) fetchPGAPIGrouped(url string, tierMap []struct {
 	src    string
 	dst    string
 	shadow bool
-}) (map[string][]raidBoss, int, error) {
+}, emptyListIsFine bool) (map[string][]raidBoss, int, error) {
 	raw, err := s.fetch(url)
 	if err != nil {
 		return nil, 0, err
@@ -1668,10 +1679,21 @@ func (s *Store) fetchPGAPIGrouped(url string, tierMap []struct {
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return nil, 0, err
 	}
-	// currentList changed from a tier-keyed map to a flat array in the max battles endpoint.
-	// If it's an array, return empty grouped data without error (correct when none are active).
+	// currentList changed from a tier-keyed map to a flat array in the max battles
+	// endpoint. If it's an array, return empty grouped data without error (correct
+	// when none are active).
+	//
+	// Scoped to the caller that needs it. This used to fire for any endpoint, and it
+	// returns BEFORE the "no bosses parsed" guard below, so the day raidboss.json
+	// adopted the same shape the store would have written {} over cache/raids.json
+	// and served it: reconcileRaids fails open on an EMPTY upstream blob and {} is
+	// two bytes, so tiers 1 and 3, which no window governs, would simply have gone
+	// missing with nothing logged anywhere.
 	if cl := bytes.TrimSpace(resp.CurrentList); len(cl) > 0 && cl[0] == '[' {
-		return make(map[string][]raidBoss), 0, nil
+		if emptyListIsFine {
+			return make(map[string][]raidBoss), 0, nil
+		}
+		return nil, 0, fmt.Errorf("currentList at %s is a flat array, not a tier map", url)
 	}
 	var currentList map[string]json.RawMessage
 	if err := json.Unmarshal(resp.CurrentList, &currentList); err != nil {
@@ -1679,6 +1701,11 @@ func (s *Store) fetchPGAPIGrouped(url string, tierMap []struct {
 	}
 	grouped := make(map[string][]raidBoss)
 	total := 0
+	// Several source keys fold onto one destination tier: ultra_beast and lvl5 both
+	// become tier 5, and mega and legendary_mega both become tier 6. Upstream listing
+	// a boss under two of them would otherwise put two identical cards on the grid,
+	// before the reconciler ever sees them.
+	seen := make(map[string]bool)
 	for _, m := range tierMap {
 		blob, ok := currentList[m.src]
 		if !ok {
@@ -1690,7 +1717,13 @@ func (s *Store) fetchPGAPIGrouped(url string, tierMap []struct {
 			continue
 		}
 		for _, b := range bosses {
-			grouped[m.dst] = append(grouped[m.dst], bossFromPGAPI(b, m.shadow))
+			boss := bossFromPGAPI(b, m.shadow)
+			key := m.dst + "|" + bossKey(boss.PokemonName, m.shadow)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			grouped[m.dst] = append(grouped[m.dst], boss)
 			total++
 		}
 	}
@@ -1799,8 +1832,8 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 		s.mu.Unlock()
 		s.notifyRaidsApplied()
 		if st.Windows > 0 {
-			raidNote = fmt.Sprintf("schedule: %d rotations, %d live, %d expired dropped, %d built locally, %d awaiting upstream",
-				st.Windows, st.Active, st.Dropped, st.Synthesized, st.Pending)
+			raidNote = fmt.Sprintf("schedule: %d rotations, %d live, %d expired dropped, %d built locally, %d awaiting upstream, %d published as up next",
+				st.Windows, st.Active, st.Dropped, st.Synthesized, st.Pending, st.Upcoming)
 			// The event page reader is the one part of this that depends on
 			// upstream markup rather than on a JSON contract, so it gets its own
 			// pair of numbers. If LeekDuck reshapes a Raids section these fall to
@@ -1808,6 +1841,23 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 			if st.EventWindows > 0 || st.FromEventPages > 0 {
 				raidNote += fmt.Sprintf(", %d live from event pages supplying %d bosses",
 					st.EventWindows, st.FromEventPages)
+			}
+			// Suppression is the only rule here that can empty a whole tier, so a
+			// tier going missing has to be a number on this screen rather than
+			// something an admin finds by reading the served JSON.
+			if st.Suppressed > 0 {
+				raidNote += fmt.Sprintf(", %d group(s) suspended by an event page note, removing %d live rotation(s)",
+					st.Suppressed, st.SuppressedWindows)
+				// Naming the page matters more than the count. The count says a tier
+				// went missing; this says what it went missing on the strength of,
+				// which is the only way to tell a real suspension from a note the
+				// reader has misread.
+				if names := suppressionSummary(s.RaidSuppressions()); names != "" {
+					raidNote += " (" + names + ")"
+				}
+			}
+			if st.SuppressionDisarmed {
+				raidNote += ", a suspension was IGNORED because applying it would have emptied every tier"
 			}
 			// Name what is being waited on, not just how many. "3 awaiting
 			// upstream" tells an admin nothing they can act on; "Mega Latios
@@ -2035,6 +2085,76 @@ func (s *Store) Evolutions() json.RawMessage {
 	defer s.mu.RUnlock()
 	return s.evolutions
 }
+
+// evolutionTargets answers "which species may this species become", keyed by
+// lowercased species name.
+//
+// Built once from the table compiled into the binary, NOT from the live upstream
+// blob, because it is a validation table and evolutions change once in a blue
+// moon. Compiled in means it is always there: no warm up window where a legitimate
+// evolve is refused because a fetch has not landed, no failure mode where an
+// upstream outage decides what a trainer may do with their own collection, and no
+// per request parse. If a new evolution ships, regenerate the fallback file.
+//
+// The FORMS are deliberately unioned. Upstream carries one entry per species per
+// form, so Rattata appears twice, Normal evolving to Raticate and Alola evolving
+// to Alolan Raticate. The evolve endpoint takes the target region as its own field
+// and the row stores the species name bare, so the only question this table
+// answers is whether the SPECIES line is real. Splitting by form would reject an
+// Alolan Rattata whose row, correctly, says only "Rattata".
+var evolutionTargets = loadEvolutionTargets()
+
+func loadEvolutionTargets() map[string]map[string]bool {
+	data, err := fallbackFS.ReadFile("fallback/pokemon_evolutions.json")
+	if err != nil {
+		log.Printf("pogodata: evolution table: %v", err)
+		return nil
+	}
+	var entries []struct {
+		PokemonName string `json:"pokemon_name"`
+		Evolutions  []struct {
+			PokemonName string `json:"pokemon_name"`
+		} `json:"evolutions"`
+	}
+	if err := json.Unmarshal(bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF}), &entries); err != nil {
+		log.Printf("pogodata: evolution table: parse error: %v", err)
+		return nil
+	}
+	out := make(map[string]map[string]bool, len(entries))
+	for _, e := range entries {
+		from := strings.ToLower(strings.TrimSpace(e.PokemonName))
+		if from == "" {
+			continue
+		}
+		for _, to := range e.Evolutions {
+			name := strings.TrimSpace(to.PokemonName)
+			if name == "" {
+				continue
+			}
+			if out[from] == nil {
+				out[from] = make(map[string]bool, len(e.Evolutions))
+			}
+			out[from][name] = true
+		}
+	}
+	return out
+}
+
+// CanEvolveTo reports whether `from` may become `into`. A species with no entry
+// has no evolutions, so the answer is simply no.
+func CanEvolveTo(from, into string) bool {
+	into = strings.TrimSpace(into)
+	for name := range evolutionTargets[strings.ToLower(strings.TrimSpace(from))] {
+		if strings.EqualFold(name, into) {
+			return true
+		}
+	}
+	return false
+}
+
+// EvolutionTableSize reports how many species the compiled-in table covers. Zero
+// means the embedded file is missing or unparseable, which a test asserts against.
+func EvolutionTableSize() int { return len(evolutionTargets) }
 func (s *Store) SpriteCacheGet(slug string) ([]byte, bool) {
 	v, ok := s.spriteCache.Load(slug)
 	if !ok {
@@ -2052,8 +2172,9 @@ func (s *Store) AllData() json.RawMessage {
 		FastMoves    json.RawMessage `json:"fastMoves"`
 		ChargedMoves json.RawMessage `json:"chargedMoves"`
 		Raids        json.RawMessage `json:"raids"`
-		// UpcomingRaids is the rotation schedule ahead of the grid: the soonest
-		// rotation per tier, plus any that is live but has no card yet.
+		// UpcomingRaids is the rotation schedule ahead of the grid: EVERY rotation
+		// the scrapers know about that has not opened yet, one entry per rotation
+		// per day, plus any that is live but has no card yet. See buildUpcoming.
 		UpcomingRaids json.RawMessage `json:"upcomingRaids,omitempty"`
 		MaxBattles    json.RawMessage `json:"maxBattles"`
 		Shinies       json.RawMessage `json:"shinies"`

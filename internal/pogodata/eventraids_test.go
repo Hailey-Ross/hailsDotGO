@@ -3,6 +3,7 @@ package pogodata
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -138,16 +139,80 @@ func TestParseEventPageRaidsGoFestHabitats(t *testing.T) {
 	}
 }
 
-// TestParseEventPageRaidsSkipsUngovernedTier pins the one filter this reader has.
-// The LEGO event's Raids section is real and correctly formed, and its contents
-// still must not reach the grid: tier 1 rotates rarely, no feed anywhere carries
-// timing for it, and it is left to upstream exactly as it always has been.
-func TestParseEventPageRaidsSkipsUngovernedTier(t *testing.T) {
+// TestParseEventPageRaidsReadsATierOneSection: a tier 1 Raids section is read like
+// any other now that governedTiers holds 1 and 3, so a page that dates a 1 star
+// rotation reaches the grid with the window it states rather than as an undated
+// upstream card.
+//
+// The markup here is the LEGO event's, minus the two sentences that say where those
+// raids happen. Those sentences are the subject of the test below and they are the
+// reason the real page contributes nothing.
+func TestParseEventPageRaidsReadsATierOneSection(t *testing.T) {
+	page := strings.Replace(readRaidFixture(t, "lego_raids.html"),
+		"<p>The following Pokémon will appear more frequently in raids at participating LEGO Store locations. "+
+			"You may encounter one with a Special Background!</p>"+
+			"<p>These raids are local only—Remote Raid Passes cannot be used. "+
+			"Trainers can participate in one raid per day per store.</p>",
+		"<p>The following Pokémon will appear more frequently in raids.</p>", 1)
+	if strings.Contains(page, "participating") {
+		t.Fatal("the fixture's location sentences did not match; this test is no longer testing what it says")
+	}
+	roster := parseEventPageRaids(page, day(t, "2026-08-03"), day(t, "2026-09-30"))
+	if len(roster) != 1 {
+		t.Fatalf("read %d bosses from the 1-star raid section, want 1: %v", len(roster), rosterIndex(roster))
+	}
+	if roster[0].tier != "1" || roster[0].shadow {
+		t.Errorf("classified as tier %q shadow=%v, want tier 1", roster[0].tier, roster[0].shadow)
+	}
+	if roster[0].boss.Name != "Pikachu" {
+		t.Errorf("read %q, want Pikachu", roster[0].boss.Name)
+	}
+}
+
+// TestParseEventPageRaidsSkipsALocationLimitedRoster is the LEGO page as it actually
+// is. Its raids happen in LEGO stores and bar Remote Raid Passes, so a worldwide
+// grid whose promise is "these are the raids you can do" must not carry that
+// Pikachu, and it did for a day after tier 1 became governed.
+func TestParseEventPageRaidsSkipsALocationLimitedRoster(t *testing.T) {
 	roster := parseEventPageRaids(
 		readRaidFixture(t, "lego_raids.html"),
 		day(t, "2026-08-03"), day(t, "2026-09-30"))
 	if len(roster) != 0 {
-		t.Fatalf("read %d bosses from a 1-star raid section, want none: %v", len(roster), rosterIndex(roster))
+		t.Errorf("read %d bosses off a store only roster, want none: %v", len(roster), rosterIndex(roster))
+	}
+}
+
+// TestEventPageLocationLimitedPhrases pins each phrase on its own, and pins the
+// near misses that must NOT trip it. The rule declines to add a boss, so a false
+// positive costs a whole event's roster.
+func TestEventPageLocationLimitedPhrases(t *testing.T) {
+	cases := []struct {
+		prose   string
+		limited bool
+	}{
+		{"These raids are local only. Remote Raid Passes cannot be used.", true},
+		{"Remote Raid Pass cannot be used for these raids.", true},
+		{"These raids are local only, so bring a friend.", true},
+		{"Pikachu will appear in raids at participating LEGO Store locations.", true},
+		{"Raids will be held at participating retail locations.", true},
+		// Near misses. Every one of these is ordinary event prose.
+		{"Remote Raid Passes can be used as normal during this event.", false},
+		{"Pikachu will appear in raids around the world.", false},
+		{"Trainers can participate in one raid per day.", false},
+		{"You may encounter one with a Special Background!", false},
+		// A sentence boundary stops the participating clause reaching across into
+		// an unrelated one, which is what the [^.] bound is for.
+		{"Tickets are available at participating stores. Raids run in all locations.", false},
+	}
+	for _, c := range cases {
+		page := `<h2 id="raids" class="event-section-header raids">Raids</h2><p>` + c.prose + `</p>` +
+			`<h3>Appearing in 1-Star Raids</h3><ul class="pkmn-list-flex">` +
+			`<li class="pkmn-list-item"><div class="pkmn-name">Pikachu</div></li></ul>`
+		roster := parseEventPageRaids(page, day(t, "2026-08-03"), day(t, "2026-09-30"))
+		got := len(roster) == 0
+		if got != c.limited {
+			t.Errorf("%q: read %d bosses, limited=%v want limited=%v", c.prose, len(roster), got, c.limited)
+		}
 	}
 }
 
@@ -402,13 +467,13 @@ func TestAdditiveWindowDoesNotDropUpstreamBosses(t *testing.T) {
 
 	// Without the event page window, the seasonal rotation is the only authority
 	// and Mega Victreebel goes.
-	_, _, before := reconcileRaids(upstream, []RaidWindow{seasonalMegaWindow(now)}, now, megaOnlyLookup, defaultRaidCPMs)
+	_, _, before := reconcileRaids(upstream, []RaidWindow{seasonalMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
 	if before.Dropped != 1 {
 		t.Fatalf("Dropped %d without the event page window, want 1: the drop rule itself must keep working", before.Dropped)
 	}
 
 	served, _, after := reconcileRaids(upstream,
-		[]RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)}, now, megaOnlyLookup, defaultRaidCPMs)
+		[]RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
 	if after.Dropped != 0 {
 		t.Errorf("Dropped %d with the event page window, want 0", after.Dropped)
 	}
@@ -429,7 +494,7 @@ func TestAdditiveWindowDoesNotDropUpstreamBosses(t *testing.T) {
 func TestAdditiveWindowNeverTakesOverATier(t *testing.T) {
 	now := time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC)
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Gyarados"},{"pokemon_name":"Mega Aggron"}]}`)
-	served, _, stats := reconcileRaids(upstream, []RaidWindow{eventPageMegaWindow(now)}, now, megaOnlyLookup, defaultRaidCPMs)
+	served, _, stats := reconcileRaids(upstream, []RaidWindow{eventPageMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
 	if stats.Dropped != 0 {
 		t.Errorf("Dropped %d, want 0: an event page must not be able to remove a boss", stats.Dropped)
 	}
@@ -448,7 +513,7 @@ func TestAdditiveWindowSynthesizesAMissingBoss(t *testing.T) {
 	now := time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC)
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Gyarados"}]}`)
 	served, _, stats := reconcileRaids(upstream,
-		[]RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)}, now, megaOnlyLookup, defaultRaidCPMs)
+		[]RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
 	if stats.Synthesized != 1 || stats.FromEventPages != 1 {
 		t.Fatalf("stats: %d synthesized, %d from event pages, want 1 and 1", stats.Synthesized, stats.FromEventPages)
 	}
@@ -487,7 +552,7 @@ func TestSeasonalWindowWinsTheLabelOnASharedBoss(t *testing.T) {
 	shared := eventPageMegaWindow(now)
 	shared.Bosses = []WindowBoss{{Name: "Mega Gyarados"}}
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Gyarados"}]}`)
-	served, _, _ := reconcileRaids(upstream, []RaidWindow{seasonalMegaWindow(now), shared}, now, megaOnlyLookup, defaultRaidCPMs)
+	served, _, _ := reconcileRaids(upstream, []RaidWindow{seasonalMegaWindow(now), shared}, nil, now, megaOnlyLookup, defaultRaidCPMs)
 	cards := servedTier(t, served, "6")
 	if len(cards) != 1 {
 		t.Fatalf("tier 6 has %d cards, want 1", len(cards))
@@ -514,7 +579,7 @@ func TestEventPageWindowsLockedSkipsRaidBattlesEvents(t *testing.T) {
 			"already-in-the-feed": {HTML: page, FetchedAt: time.Now()},
 		},
 	}
-	windows := s.eventPageWindowsLocked()
+	windows, _ := s.eventPageRaidsLocked()
 	if len(windows) == 0 {
 		t.Fatal("no windows built at all")
 	}
@@ -530,7 +595,7 @@ func TestEventPageWindowsLockedSkipsRaidBattlesEvents(t *testing.T) {
 	// A page that leaves the feed leaves the memo with it, or the map grows for
 	// the life of the process.
 	s.events = json.RawMessage(`[{"eventID":"something-else","eventType":"event","start":"2026-08-31T10:00:00.000","end":"2026-09-04T23:59:00.000"}]`)
-	if got := s.eventPageWindowsLocked(); len(got) != 0 {
+	if got, _ := s.eventPageRaidsLocked(); len(got) != 0 {
 		t.Errorf("built %d windows for a feed naming no scraped event", len(got))
 	}
 	if len(s.eventRaidCache) != 0 {
@@ -550,7 +615,7 @@ func TestEventPageWindowsLockedIsQuietWithNothingToRead(t *testing.T) {
 			eventDetails: map[string]eventDetail{"x": {HTML: "   "}}},
 	}
 	for i, s := range cases {
-		if got := s.eventPageWindowsLocked(); len(got) != 0 {
+		if got, _ := s.eventPageRaidsLocked(); len(got) != 0 {
 			t.Errorf("case %d: built %d windows, want none", i, len(got))
 		}
 	}
@@ -575,7 +640,7 @@ func TestFeedWindowWinsAnExactTie(t *testing.T) {
 	// Both orderings, because the answer must not depend on which source the
 	// rebuild happened to append first.
 	for _, windows := range [][]RaidWindow{{feed, page}, {page, feed}} {
-		served, _, _ := reconcileRaids(upstream, windows, now, megaOnlyLookup, defaultRaidCPMs)
+		served, _, _ := reconcileRaids(upstream, windows, nil, now, megaOnlyLookup, defaultRaidCPMs)
 		cards := servedTier(t, served, "5")
 		if len(cards) != 1 {
 			t.Fatalf("tier 5 has %d cards, want 1", len(cards))

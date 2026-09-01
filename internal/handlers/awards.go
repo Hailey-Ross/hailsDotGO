@@ -62,7 +62,7 @@ func (h *Handlers) APIAwardsList(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) APIAwardsOf(w http.ResponseWriter, r *http.Request) {
 	username := chi.URLParam(r, "username")
 	var userID uint
-	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0`, username).Scan(&userID); err != nil {
+	if err := h.db.QueryRow(`SELECT id FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, username).Scan(&userID); err != nil {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
@@ -119,7 +119,7 @@ func (h *Handlers) APIUsersSearch(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(`
 		SELECT username, COALESCE(trainer_name, '')
 		FROM users
-		WHERE disabled = 0
+		WHERE disabled = 0 AND deleted_at IS NULL
 		  AND (username LIKE ? OR (trainer_name != '' AND trainer_name LIKE ?))
 		ORDER BY username
 		LIMIT 10`, like, like)
@@ -182,7 +182,7 @@ func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 	}
 	note := strings.TrimSpace(body.Note)
 	if len(note) > 160 {
-		writeJSONError(w, h.t(r, "error.award_note_length"), http.StatusBadRequest)
+		writeJSONErrorCode(w, h.t(r, "error.award_note_length"), "error.award_note_length", http.StatusBadRequest)
 		return
 	}
 
@@ -221,13 +221,13 @@ func (h *Handlers) APIAwardGrant(w http.ResponseWriter, r *http.Request) {
 	input := strings.TrimSpace(body.Username)
 	if err := h.db.QueryRow(`
 		SELECT id FROM users
-		WHERE disabled = 0 AND (username = ? OR (trainer_name != '' AND trainer_name = ?))
+		WHERE disabled = 0 AND deleted_at IS NULL AND (username = ? OR (trainer_name != '' AND trainer_name = ?))
 		LIMIT 1`, input, input).Scan(&recipientID); err != nil {
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
 		return
 	}
 	if recipientID == u.ID {
-		writeJSONError(w, h.t(r, "error.award_self"), http.StatusBadRequest)
+		writeJSONErrorCode(w, h.t(r, "error.award_self"), "error.award_self", http.StatusBadRequest)
 		return
 	}
 

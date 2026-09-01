@@ -32,10 +32,17 @@ import (
 // bosses and can never remove one, and everything below treats them like any other
 // rotation apart from that.
 
-// governedTiers are the tier keys the events feed describes. Tier 1 and tier 3
-// rotate rarely and no feed anywhere carries timing for them, so they are passed
-// through from upstream untouched.
-var governedTiers = map[string]bool{"5": true, "6": true}
+// governedTiers are the tier keys the schedule may speak for.
+//
+// It was 5 and 6 alone, on the reasoning that tier 1 and tier 3 rotate rarely and no
+// feed carries timing for them. Both halves of that turned out to be wrong. The LEGO
+// event page names Pikachu in 1-star raids with real dates, which this app was
+// already scraping and then discarding; and classifyRaidTier happily builds a tier 1
+// or tier 3 window off a slug, which activeBosses then dropped silently, with no log
+// line, because the tier was not in this map. Rarely is also not never, so tiers 1
+// and 3 were the two left exposed to exactly the upstream staleness this whole file
+// exists to correct.
+var governedTiers = map[string]bool{"1": true, "3": true, "5": true, "6": true}
 
 // Raid boss capture stats are fixed by the game: level 20, or level 25 when the
 // weather is boosted, with IVs floored at 10. Computing at those levels reproduces
@@ -163,6 +170,28 @@ type raidReconcileStats struct {
 	// these go to zero, and a number going to zero is something a person can see.
 	EventWindows   int
 	FromEventPages int
+	// Suppressed is how many governed groups an event page note is silencing right
+	// now, and SuppressedWindows how many live feed rotations that removed from the
+	// grid. Dropped keeps counting the upstream cards a suppression deleted, because
+	// Dropped already means "the schedule says this is gone" and splitting it would
+	// leave two numbers that have to be added together to check anything.
+	//
+	// These exist because suppression is the only rule in this package that can
+	// empty a whole tier. A tier going quietly missing must be a number on the admin
+	// screen, not something found by reading the served JSON.
+	Suppressed        int
+	SuppressedWindows int
+	// Upcoming is how many rotations the up next list published. The fold in
+	// buildUpcoming is now the only thing standing between a scraped rotation and
+	// the page, and a fold that quietly collapses to one entry looks exactly like a
+	// scraper that has stopped finding anything, so it has to be a number on the
+	// admin screen rather than something found by reading the served JSON.
+	Upcoming int
+	// SuppressionDisarmed records the circuit breaker firing: a note was parsed, and
+	// applying it would have left every governed tier empty, so it was ignored.
+	// Always worth saying out loud, because it means one of the two event page
+	// readers is working and the other is not.
+	SuppressionDisarmed bool
 	// PendingList is the same thing named. Pending was a count, and a count only
 	// ever reached a log line: the set itself was discarded on every rebuild, so
 	// the only thing that would ever fix one of these was the next scheduled
@@ -207,7 +236,12 @@ func pendingReason(name string, lookup speciesLookup) string {
 		return "no species data loaded"
 	}
 	if isMegaName(name) {
-		return "mega stats not loaded"
+		if st, _ := lookup(name); st.MegaTableEmpty {
+			return "mega stats not loaded"
+		}
+		// The table is loaded and this Mega is not in it, which no refresh on our
+		// side fixes: it waits on pokemon-go-api publishing the form.
+		return "not in the mega table yet"
 	}
 	if st, ok := lookup(name); !ok {
 		return "species unknown"
@@ -305,6 +339,7 @@ func raidWindowSpan(rawStart, rawEnd string) (start, end time.Time, ok bool) {
 
 var (
 	megaRaidRe   = regexp.MustCompile(`mega[- ]raid`)
+	primalRaidRe = regexp.MustCompile(`primal[- ]raid`)
 	starRaidRe   = regexp.MustCompile(`(\d)[- ]star[- ]raid`)
 	shadowRaidRe = regexp.MustCompile(`shadow[- ]raid`)
 	eliteRaidRe  = regexp.MustCompile(`elite[- ]raid`)
@@ -321,10 +356,18 @@ func classifyRaidTier(eventID, name string) (tier string, shadow bool, ok bool) 
 	hay := strings.ToLower(eventID + " " + name)
 	shadow = shadowRaidRe.MatchString(hay)
 	switch {
-	case megaRaidRe.MatchString(hay):
+	case megaRaidRe.MatchString(hay), primalRaidRe.MatchString(hay):
+		// Primal rides the Mega tier, the same reading isMegaName applies everywhere
+		// else in this package.
 		return "6", false, true
 	case starRaidRe.MatchString(hay):
 		return starRaidRe.FindStringSubmatch(hay)[1], shadow, true
+	case eventHeadingWordStarRe.MatchString(hay):
+		// "five-star" rather than "5-star". eventraids.go has read both spellings
+		// since it was written, because LeekDuck writes "Five-star Raids" as a
+		// heading; this reader knew only digits, so a slug in words classified as
+		// nothing and its whole roster was dropped on the floor.
+		return starWords[eventHeadingWordStarRe.FindStringSubmatch(hay)[1]], shadow, true
 	case shadow:
 		// Shadow rotations are legendaries and read as 5 star in game, but the slug
 		// says only "in-shadow-raids" with no number in it.
@@ -405,10 +448,32 @@ type megaForm struct {
 	Def   int      `json:"def"`
 	Sta   int      `json:"sta"`
 	Image string   `json:"image,omitempty"`
+	// BaseAtk, BaseDef and BaseSta are the BASE species' stat line, lifted from the
+	// same pokedex record the Mega was nested inside.
+	//
+	// A Mega raid boss is fought as the Mega and caught as the base species, so the
+	// card's typing comes from the three fields above and its CP range from these.
+	// Upstream settles it: the Mega Latios card pokemon-go-api publishes reads
+	// 2090 to 2178, which is base Latios at level 20, not Mega Latios' 2758 to 2861.
+	//
+	// json:"-" on all three deliberately. This struct is a wire type, served as
+	// "megas" on /api/data and read by the browser's counter table and by the app,
+	// and the served shape has to stay byte identical. Nothing outside the card
+	// synthesizer wants these: the counters divide by the MEGA's defense, which is
+	// the whole reason this table exists.
+	BaseAtk int `json:"-"`
+	BaseDef int `json:"-"`
+	BaseSta int `json:"-"`
 }
 
 // megaPokedexEntry is the slice of a pokemon-go-api pokedex record this file needs.
 type megaPokedexEntry struct {
+	// Stats is the BASE species' line, which is what a Mega raid boss is caught as.
+	Stats struct {
+		Stamina int `json:"stamina"`
+		Attack  int `json:"attack"`
+		Defense int `json:"defense"`
+	} `json:"stats"`
 	MegaEvolutions map[string]struct {
 		Names struct {
 			English string `json:"English"`
@@ -466,12 +531,15 @@ func parseMegaForms(data json.RawMessage) map[string]megaForm {
 				continue // a card with no typing is not worth building; see speciesLookup
 			}
 			out[key] = megaForm{
-				Name:  m.Names.English,
-				Types: types,
-				Atk:   m.Stats.Attack,
-				Def:   m.Stats.Defense,
-				Sta:   m.Stats.Stamina,
-				Image: m.Assets.Image,
+				Name:    m.Names.English,
+				Types:   types,
+				Atk:     m.Stats.Attack,
+				Def:     m.Stats.Defense,
+				Sta:     m.Stats.Stamina,
+				Image:   m.Assets.Image,
+				BaseAtk: e.Stats.Attack,
+				BaseDef: e.Stats.Defense,
+				BaseSta: e.Stats.Stamina,
 			}
 		}
 	}
@@ -489,9 +557,34 @@ func pgapiTypeName(raw string) string {
 }
 
 // speciesStats is everything needed to build a boss card from scratch.
+//
+// Atk, Def and Sta are what the boss FIGHTS with. CatchAtk, CatchDef and CatchSta
+// are what a trainer catches afterwards, and they differ for exactly one kind of
+// boss: a Mega or a Primal is battled as the Mega and caught as the base species.
+// Zero means "the same as the battle line", which is every ordinary species.
 type speciesStats struct {
-	Types         []string
-	Atk, Def, Sta int
+	Types                        []string
+	Atk, Def, Sta                int
+	CatchAtk, CatchDef, CatchSta int
+	// Image is a last resort sprite for a boss whose rotation carried none, which
+	// is every boss read out of an event page's prose rather than its markup. Only
+	// the Mega table has one to offer.
+	Image string
+	// MegaTableEmpty is set on a FAILED Mega lookup when the Mega table holds
+	// nothing at all, which is a different problem from a Mega the table has simply
+	// never heard of. Carried on the zero value rather than through a wider
+	// signature because pendingReason is the only thing that wants it, and telling
+	// an admin to wait for refreshMegas when the table already holds sixty one forms
+	// sends them after a fetch that will never help. Mega Staraptor is the live case.
+	MegaTableEmpty bool
+}
+
+// catchLine is the stat line a boss's CP range is computed from.
+func (s speciesStats) catchLine() (atk, def, sta int) {
+	if s.CatchAtk == 0 || s.CatchDef == 0 || s.CatchSta == 0 {
+		return s.Atk, s.Def, s.Sta
+	}
+	return s.CatchAtk, s.CatchDef, s.CatchSta
 }
 
 // speciesLookup resolves a boss name to its stats and typing. ok is false when the
@@ -581,12 +674,23 @@ func newSpeciesLookup(pokemon, types json.RawMessage, megas map[string]megaForm)
 		key := normalizeBossName(name)
 		// Megas first, and never fall through to the base species on a miss: a Mega
 		// this app has no data for must produce no card.
-		if strings.HasPrefix(key, "mega ") {
+		//
+		// isMegaName rather than a "mega " prefix test, because Primal Kyogre and
+		// Primal Groudon ride the Mega tier and live in the same Mega table. They were
+		// indexed correctly and then unreachable, and pendingReason would have told an
+		// admin the Mega stats had not loaded when they had.
+		if isMegaName(key) {
 			m, ok := megas[key]
 			if !ok {
-				return speciesStats{}, false
+				return speciesStats{MegaTableEmpty: len(megas) == 0}, false
 			}
-			return speciesStats{Types: m.Types, Atk: m.Atk, Def: m.Def, Sta: m.Sta}, true
+			// The base line rides along so the card can be fought as the Mega and
+			// caught as the base species. See speciesStats and megaForm.
+			return speciesStats{
+				Types: m.Types, Atk: m.Atk, Def: m.Def, Sta: m.Sta,
+				CatchAtk: m.BaseAtk, CatchDef: m.BaseDef, CatchSta: m.BaseSta,
+				Image: m.Image,
+			}, true
 		}
 		if !built {
 			build()
@@ -650,11 +754,41 @@ func speciesFormKey(name, form string) string {
 	return normalizeBossName(name) + "|" + normalizeBossName(form)
 }
 
+// speciesFormPrefixes are the forms both feeds write as a leading adjective while
+// the dataset carries them as a form label.
+//
+// Shadow and Mega are already handled, by normalizeBossName and isMegaName, and
+// nothing knew there was a third kind. Armored Mewtwo is why it matters: it is the
+// only five star raid of the GO Fest Mega Finale weekend, its stats and typing have
+// been sitting in pokemon.json all along under form "A", and the grid showed an
+// empty tier because "armored mewtwo" was read as a species nobody has heard of.
+//
+// The regional prefixes are here for the same reason rather than on spec: a Hisuian
+// or Galarian boss in a governed tier would have failed identically the first time
+// one needed building.
+//
+// "paldean" deliberately maps to the stem: Tauros has three Paldean forms, none of
+// them exactly "paldea", so resolveSpeciesForm finds three candidates and refuses.
+// Guessing which one would put the wrong typing on the card.
+var speciesFormPrefixes = map[string]string{
+	"armored":  "a",
+	"alolan":   "alola",
+	"galarian": "galarian",
+	"hisuian":  "hisuian",
+	"paldean":  "paldea",
+}
+
 // splitSpeciesForm pulls "giratina (altered)" apart into species and form label. A
-// name with no parenthetical is the Normal form.
+// name with no parenthetical is the Normal form, unless it opens with one of the
+// adjectives above.
 func splitSpeciesForm(key string) (species, form string) {
 	open := strings.LastIndex(key, "(")
 	if open < 0 || !strings.HasSuffix(key, ")") {
+		if word, rest, ok := strings.Cut(key, " "); ok {
+			if form, named := speciesFormPrefixes[word]; named {
+				return strings.TrimSpace(rest), form
+			}
+		}
 		return key, "normal"
 	}
 	return strings.TrimSpace(key[:open]), strings.TrimSpace(key[open+1 : len(key)-1])
@@ -693,29 +827,195 @@ type activeBoss struct {
 	window RaidWindow
 }
 
-// preferRaidWindow decides which of two live rotations naming the same boss gets
-// to label its card, and reports whether the candidate should displace the one
-// already held.
+// rawDayRange reads a window's stated calendar days off its floating wall clock
+// strings, which is the only reading the two sources can be compared on.
 //
-// Ending last wins. At a changeover two rotations genuinely overlap and the
-// incoming one is the answer to "how much longer do I have". It settles the event
-// page case the same way and for the same reason: a Mega that the GO Fest page
-// lists for one Sunday, while the month's Mega rotation also has it, is not gone
-// on Monday, so the pill should say the longer of the two.
+// StartsUTC and EndsUTC deliberately are NOT comparable that way: raidWindowSpan
+// reads the start in UTC+14 and the end in UTC-12, so two windows describing
+// consecutive days overlap by 26 hours and their UTC fields say so. The strings do
+// not, and "which day is this rotation for" is a question about the strings.
 //
-// An exact tie goes to the feed. Both describe the same span, so nothing is lost
-// either way, and the feed entry is the more precise source: its event id names the
-// rotation itself rather than the event the rotation happens to sit inside. Armored
-// Mewtwo is the live example, described identically by the GO Fest page and by its
-// own raid-battles entry.
-func preferRaidWindow(candidate, held RaidWindow) bool {
-	if candidate.EndsUTC.After(held.EndsUTC) {
-		return true
+// ok is false when either string is not a date, which is the case in tests that
+// build a window from its UTC fields alone; preferRaidWindow falls back to those.
+func rawDayRange(w RaidWindow) (start, end string, ok bool) {
+	day := func(raw string) (string, bool) {
+		if len(raw) < 10 || raw[4] != '-' || raw[7] != '-' {
+			return "", false
+		}
+		return raw[:10], true
 	}
-	if held.EndsUTC.After(candidate.EndsUTC) {
-		return false
+	s, sOK := day(w.RawStart)
+	e, eOK := day(w.RawEnd)
+	return s, e, sOK && eOK
+}
+
+// raidZoneOffsets is every whole hour UTC offset a trainer can be standing in,
+// UTC-12 through UTC+14. The half hour and three quarter hour zones are left out:
+// this is a measure of how much of the planet a rotation is currently true for, and
+// India moving the answer by a fraction of a zone would not change any comparison.
+const (
+	raidZoneWest = -12
+	raidZoneEast = 14
+)
+
+// windowZoneReach counts the time zones whose local clock is inside this rotation's
+// stated window at this instant.
+//
+// This is the honest form of the question "which day is it". A rotation's times are
+// a floating wall clock, so at 12:00 UTC on 4 September it is the 4th nearly
+// everywhere and the 5th in two zones past the date line. A window for the 4th
+// therefore reaches 23 zones and a window for the 5th reaches 2, and the first is
+// the one a trainer should be reading.
+//
+// ok is false for a window with no usable wall clock, and for a "Z" timestamp, which
+// is a true instant rather than a floating reading and would make the shifted
+// comparison below meaningless.
+func windowZoneReach(w RaidWindow, now time.Time) (int, bool) {
+	if strings.HasSuffix(w.RawStart, "Z") || strings.HasSuffix(w.RawEnd, "Z") {
+		return 0, false
 	}
-	return held.Additive && !candidate.Additive
+	s, _, sOK := ParseFeedTime(w.RawStart, time.UTC)
+	e, _, eOK := ParseFeedTime(w.RawEnd, time.UTC)
+	if !sOK || !eOK {
+		return 0, false
+	}
+	n := 0
+	for off := raidZoneWest; off <= raidZoneEast; off++ {
+		local := now.UTC().Add(time.Duration(off) * time.Hour)
+		if !local.Before(s) && local.Before(e) {
+			n++
+		}
+	}
+	return n, true
+}
+
+// preferRaidWindow decides which of two live rotations naming the same boss gets to
+// label its card, and reports whether the candidate should displace the one already
+// held.
+//
+// It is a lexicographic order over five scalars, and being a total order is a
+// requirement rather than a nicety. An earlier version of this expressed the same
+// intent as a ladder of pairwise cases (contains, disjoint, ends last) and was NOT
+// transitive: an adversarial sweep of every day range triple that can be live at
+// once found 5544 triples where the winner depended on the order the windows
+// happened to be appended in. A comparator that can cycle cannot be tested, because
+// the answer is a property of the slice rather than of the windows.
+//
+// The five, in order:
+//
+//  1. Zone reach, highest first. This is the fix that matters and the reason the
+//     function needs the clock. raidWindowSpan reads a start in UTC+14 and an end in
+//     UTC-12, so consecutive day windows are both live for 26 hours; under a plain
+//     "ends last" rule that handed today's card to tomorrow's window. On Friday
+//     4 September, Mega Raichu X was labelled with the GO Fest SATURDAY habitat
+//     window it also appears in, while Mega Raichu Y, which is on the Sunday list
+//     instead, kept its own Friday window: two bosses out of one list, dated a day
+//     apart. Friday reaches 23 zones at that instant and Saturday reaches 2.
+//  2. The later stated end DAY. This is the changeover case: two rotations genuinely
+//     overlap and the incoming one answers "how much longer do I have". Compared as
+//     a day, not an instant, so an event page's whole day approximation and a feed
+//     entry's real 22:00 close are not treated as different answers.
+//  3. The feed over an event page. Same last day means nothing is lost either way,
+//     and the feed entry is the more precise source: its event id names the rotation
+//     itself rather than the event the rotation sits inside. Armored Mewtwo is the
+//     live example, described identically by the GO Fest page and by its own
+//     raid-battles entry, and Mega Beedrill is the second.
+//  4. The earlier stated start day, so the wider rotation is the label.
+//  5. The event id, so a pair identical in every way this can see still has one
+//     answer rather than "whichever was appended first".
+//
+// A window built without its feed strings falls back to comparing EndsUTC, which is
+// the whole of what this used to do.
+func preferRaidWindow(candidate, held RaidWindow, now time.Time) bool {
+	if cr, cOK := windowZoneReach(candidate, now); cOK {
+		if hr, hOK := windowZoneReach(held, now); hOK && cr != hr {
+			return cr > hr
+		}
+	}
+	cs, ce, cOK := rawDayRange(candidate)
+	hs, he, hOK := rawDayRange(held)
+	if !cOK || !hOK {
+		if !candidate.EndsUTC.Equal(held.EndsUTC) {
+			return candidate.EndsUTC.After(held.EndsUTC)
+		}
+		if held.Additive != candidate.Additive {
+			return held.Additive
+		}
+		return candidate.EventID < held.EventID
+	}
+	if ce != he {
+		return ce > he
+	}
+	if held.Additive != candidate.Additive {
+		return held.Additive
+	}
+	if cs != hs {
+		return cs < hs
+	}
+	return candidate.EventID < held.EventID
+}
+
+// anyAdditiveWindow reports whether the event page reader produced anything at all.
+func anyAdditiveWindow(windows []RaidWindow) bool {
+	for _, w := range windows {
+		if w.Additive {
+			return true
+		}
+	}
+	return false
+}
+
+// activeBosses folds the schedule down to what is live right now: every boss a
+// window names, and which groups the feed is currently the authority on.
+//
+// A group is one tier's worth of one kind of raid: tier 5 normal and tier 5 shadow
+// are folded separately, because the feed schedules them separately and one being
+// described says nothing about the other.
+//
+// It is a function rather than an inline loop solely so the suppression can be
+// disarmed and the fold redone without the rest of reconcileRaids knowing.
+func activeBosses(windows []RaidWindow, sups []RaidSuppression, now time.Time) (
+	active map[string]activeBoss, authoritative map[string]bool, eventWindows, suppressedWindows int) {
+
+	active = map[string]activeBoss{}
+	authoritative = map[string]bool{}
+	for _, w := range windows {
+		if !governedTiers[w.Tier] || !w.Active(now) {
+			continue
+		}
+		group := raidGroupKey(w.Tier, w.Shadow)
+		if silencedBy(sups, w, now) {
+			// An event page says in as many words that this rotation is not running.
+			// It contributes no live boss and is the authority on nothing, so its
+			// bosses are neither annotated onto an upstream card nor synthesized into
+			// one. That is what removes the Regi trio, which existed on the grid ONLY
+			// as a synthesis of this window: upstream had never listed it.
+			//
+			// Which rotations a note reaches is RaidSuppression.Silences, and it is
+			// narrower than "the group is named": a rotation opening inside the note's
+			// span is one of the replacements it promised, not a casualty of it.
+			suppressedWindows++
+			continue
+		}
+		if w.Additive {
+			// Read off an event's page rather than out of the feed's raid data. It
+			// says what IS running, never what is not, so it adds bosses without
+			// taking the group over. See RaidWindow.Additive.
+			eventWindows++
+		} else {
+			// The schedule has something to say about this group right now, so it is
+			// the authority on the whole of it. See the drop rule in reconcileRaids.
+			authoritative[group] = true
+		}
+		for _, b := range w.Bosses {
+			key := bossKey(b.Name, w.Shadow)
+			if prev, ok := active[key]; ok && !preferRaidWindow(w, prev.window, now) {
+				continue
+			}
+			active[key] = activeBoss{boss: b, window: w}
+		}
+	}
+	return active, authoritative, eventWindows, suppressedWindows
 }
 
 // reconcileRaids is the whole rule, kept pure so it can be tested without a store, a
@@ -727,7 +1027,7 @@ func preferRaidWindow(candidate, held RaidWindow) bool {
 // per boss rule below, which drops an expired boss whether or not a replacement is
 // known, because by then the schedule has been read successfully and it says the
 // boss is gone.
-func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Time, lookup speciesLookup, cpms raidCPMs) (json.RawMessage, []UpcomingRaid, raidReconcileStats) {
+func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, suppressions []RaidSuppression, now time.Time, lookup speciesLookup, cpms raidCPMs) (json.RawMessage, []UpcomingRaid, raidReconcileStats) {
 	stats := raidReconcileStats{Windows: len(windows)}
 	if len(windows) == 0 || len(upstream) == 0 {
 		return upstream, nil, stats
@@ -738,34 +1038,47 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		return upstream, nil, stats
 	}
 
-	// A group is one tier's worth of one kind of raid: tier 5 normal and tier 5
-	// shadow are governed separately, because the feed schedules them separately and
-	// one being described says nothing about the other.
-	active := map[string]activeBoss{}
-	authoritative := map[string]bool{}
-	for _, w := range windows {
-		if !governedTiers[w.Tier] || !w.Active(now) {
+	// Which groups an event page is currently silencing, read before anything else
+	// because it changes what "the schedule says is live" even means.
+	suppressed := map[string]bool{}
+	for _, sp := range suppressions {
+		if !sp.Active(now) {
 			continue
 		}
-		if w.Additive {
-			// Read off an event's page rather than out of the feed's raid data. It
-			// says what IS running, never what is not, so it adds bosses without
-			// taking the group over. See RaidWindow.Additive.
-			stats.EventWindows++
-		} else {
-			// The schedule has something to say about this group right now, so it is
-			// the authority on the whole of it. See the drop rule below.
-			authoritative[raidGroupKey(w.Tier, w.Shadow)] = true
-		}
-		for _, b := range w.Bosses {
-			key := bossKey(b.Name, w.Shadow)
-			if prev, ok := active[key]; ok && !preferRaidWindow(w, prev.window) {
-				continue
-			}
-			active[key] = activeBoss{boss: b, window: w}
+		for _, g := range sp.Groups {
+			suppressed[g] = true
 		}
 	}
+
+	active, authoritative, eventWindows, suppressedWindows := activeBosses(windows, suppressions, now)
+
+	// Two ways to decide the note reader is misfiring, and neither is subtle.
+	//
+	// No additive window anywhere means the Raids section reader found nothing on any
+	// page, while the note reader found a note. A page that suspends the seasonal
+	// rotations names their replacements in the same breath, so that combination is
+	// one of the two readers working and the other not, which is exactly the shape a
+	// LeekDuck markup change makes. Note this counts every additive window in the
+	// schedule, not just the live ones: whether some other event happens to have a
+	// rotation open today says nothing about whether this reader still works.
+	//
+	// Nothing live at all in any governed tier is the broader net behind it.
+	//
+	// Known limitation, and it is the reason the parser itself has to fail closed
+	// rather than lean on this: neither test can see a note that wrongly empties one
+	// tier while another stays populated. A safety net here is not a substitute for
+	// not parsing the note wrongly in the first place.
+	if len(suppressed) > 0 && (len(active) == 0 || !anyAdditiveWindow(windows)) {
+		log.Printf("pogodata: raids: a suppression would empty every governed tier, ignoring it")
+		suppressed = nil
+		suppressions = nil
+		stats.SuppressionDisarmed = true
+		active, authoritative, eventWindows, suppressedWindows = activeBosses(windows, nil, now)
+	}
 	stats.Active = len(active)
+	stats.EventWindows = eventWindows
+	stats.Suppressed = len(suppressed)
+	stats.SuppressedWindows = suppressedWindows
 
 	out := make(map[string][]raidBoss, len(tiers))
 	carded := map[string]bool{}
@@ -788,9 +1101,16 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 				kept = append(kept, b)
 				continue
 			}
-			if authoritative[raidGroupKey(tier, shadow)] {
+			group := raidGroupKey(tier, shadow)
+			if authoritative[group] || suppressed[group] {
 				// The schedule knows what is running in this group right now, and
 				// this boss is not it.
+				//
+				// The suppressed half of that test is not redundant. A suppressed feed
+				// window is skipped before it can set authoritative, so without it the
+				// upstream leftovers would be KEPT, which is the exact opposite of the
+				// intent: this is the clause that removes Shadow Giratina and Mega
+				// Gyarados, both of which pokemon-go-api was still listing.
 				//
 				// The drop deliberately does NOT depend on finding an expired window
 				// naming this boss. It used to, and that quietly undid the whole fix:
@@ -803,14 +1123,23 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 				continue
 			}
 			// Nothing is scheduled for this group at all, so there is nothing here
-			// that knows better than upstream. An Elite Raid, a gap in the feed, or
-			// anything new it has no vocabulary for, stays visible.
+			// that knows better than upstream. A gap in the feed, or anything new it
+			// has no vocabulary for, stays visible.
+			//
+			// Elite Raids used to be the example given here and it was wrong:
+			// classifyRaidTier does read "elite-raid", as tier 5, so an Elite Raid
+			// rotation is governed like any other. It does render under the 5 star
+			// label, which is not what the game calls it, but it is not invisible.
 			kept = append(kept, b)
 		}
 		out[tier] = kept
 	}
 
 	// Anything the schedule says is live but upstream has not listed yet.
+	//
+	// No suppression guard here on purpose: this iterates active, which activeBosses
+	// has already emptied of every suppressed feed window. Adding one would be a
+	// second copy of the same rule.
 	for _, key := range sortedKeys(active) {
 		if carded[key] {
 			continue
@@ -844,7 +1173,9 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, now time.Tim
 		log.Printf("pogodata: raid schedule: marshal: %v", err)
 		return upstream, nil, stats
 	}
-	return data, buildUpcoming(windows, carded, now), stats
+	upcoming := buildUpcoming(windows, suppressions, carded, now, lookup)
+	stats.Upcoming = len(upcoming)
+	return data, upcoming, stats
 }
 
 // annotateBoss stamps a boss card with the rotation that governs it. The raw feed
@@ -875,71 +1206,259 @@ func synthesizeBoss(b WindowBoss, w RaidWindow, lookup speciesLookup, cpms raidC
 		// boss picker both match on exactly.
 		name = "Shadow " + name
 	}
+	image := b.Image
+	if image == "" {
+		// A boss read out of a page's prose carries no sprite, because a sentence has
+		// no img tag. Mega Staraptor is the live example. See eventPageProseBosses.
+		image = st.Image
+	}
+	// The CP range is the line a trainer CATCHES, which for a Mega or a Primal is the
+	// base species rather than the thing they just fought. Upstream does the same:
+	// its Mega Latios card reads 2090 to 2178, base Latios at level 20, where Mega
+	// Latios' own stats give 2758 to 2861. The typing above stays the Mega's, because
+	// that is what the counter table and the type filter are ranking against.
+	catchAtk, catchDef, catchSta := st.catchLine()
 	rb := raidBoss{
 		PokemonName:  name,
-		ImageURL:     b.Image,
+		ImageURL:     image,
 		Types:        st.Types,
 		CanBeShiny:   b.CanBeShiny,
-		CP:           CPForLevel(st.Atk, st.Def, st.Sta, raidIVFloor, raidIVFloor, raidIVFloor, cpms.Normal),
-		CPMax:        CPForLevel(st.Atk, st.Def, st.Sta, raidIVCeiling, raidIVCeiling, raidIVCeiling, cpms.Normal),
-		CPBoostedMin: CPForLevel(st.Atk, st.Def, st.Sta, raidIVFloor, raidIVFloor, raidIVFloor, cpms.Boosted),
-		CPBoostedMax: CPForLevel(st.Atk, st.Def, st.Sta, raidIVCeiling, raidIVCeiling, raidIVCeiling, cpms.Boosted),
+		CP:           CPForLevel(catchAtk, catchDef, catchSta, raidIVFloor, raidIVFloor, raidIVFloor, cpms.Normal),
+		CPMax:        CPForLevel(catchAtk, catchDef, catchSta, raidIVCeiling, raidIVCeiling, raidIVCeiling, cpms.Normal),
+		CPBoostedMin: CPForLevel(catchAtk, catchDef, catchSta, raidIVFloor, raidIVFloor, raidIVFloor, cpms.Boosted),
+		CPBoostedMax: CPForLevel(catchAtk, catchDef, catchSta, raidIVCeiling, raidIVCeiling, raidIVCeiling, cpms.Boosted),
 		Source:       "events",
 	}
 	annotateBoss(&rb, w)
 	return rb, true
 }
 
-// buildUpcoming picks what to show under the grid: the soonest rotation per tier
-// that has not started, plus any rotation that is live but has no card yet.
-func buildUpcoming(windows []RaidWindow, carded map[string]bool, now time.Time) []UpcomingRaid {
-	best := map[string]RaidWindow{}
-	live := map[string]RaidWindow{}
+// withBossSprite gives a boss with no sprite of its own the one from the species
+// data, and returns a COPY: the window it came from is memoized per event page and
+// shared with the store's raidSchedule, so writing to it would corrupt both.
+//
+// A boss read out of a page's PROSE carries no image, because a sentence has no img
+// tag. Mega Staraptor is the live case, and it is the reason this exists twice:
+// synthesizeBoss got the same fallback when the prose reader landed, which fixed the
+// card on the grid and did nothing for the up next entry, so Super Mega Raid Day sat
+// in the schedule on 19 September as a name with a blank where every other rotation
+// had a sprite. Only the Mega table has an image to offer, which is the only place a
+// prose read boss can come from anyway.
+func withBossSprite(b WindowBoss, lookup speciesLookup) WindowBoss {
+	if b.Image != "" || lookup == nil {
+		return b
+	}
+	if st, ok := lookup(b.Name); ok && st.Image != "" {
+		b.Image = st.Image
+	}
+	return b
+}
+
+// upcomingKey identifies one boss's appearance in one group over one stated span.
+// It is the unit the up next list is deduplicated on. See foldUpcoming.
+type upcomingKey struct{ group, boss, start, end string }
+
+// bossInGroup is one boss in one group, ignoring the span. It is the set a
+// containment reduction runs within.
+type bossInGroup struct{ group, boss string }
+
+// upcomingSpan is the pair of calendar days a rotation STATES it runs between.
+//
+// Read off the raw feed strings rather than the UTC fields for the same reason
+// rawDayRange does: those two are read in zones fourteen hours apart and are not
+// comparable to each other. The UTC fallback exists only for a window built without
+// feed strings, which is a thing tests do and the readers never do.
+func upcomingSpan(w RaidWindow) (start, end string) {
+	if s, e, ok := rawDayRange(w); ok {
+		return s, e
+	}
+	return w.StartsUTC.Format("2006-01-02"), w.EndsUTC.Format("2006-01-02")
+}
+
+// preferUpcomingWindow picks between two rotations describing the same boss over the
+// same stated days. The feed wins, because its hours are the real ones (06:00 to
+// 22:00 rather than an event page's whole day approximation) and its event id opens
+// the rotation's own modal; failing that, the one running longest; failing that, the
+// id, so the answer is a property of the windows and not of the slice.
+func preferUpcomingWindow(candidate, held RaidWindow) bool {
+	if candidate.Additive != held.Additive {
+		return held.Additive
+	}
+	if !candidate.EndsUTC.Equal(held.EndsUTC) {
+		return candidate.EndsUTC.After(held.EndsUTC)
+	}
+	return candidate.EventID < held.EventID
+}
+
+// foldUpcoming reduces a set of rotations to one entry each, keeping only the bosses
+// that chose it, and drops any rotation left with none.
+//
+// byRotation decides the dimension the fold works in.
+//
+// A rotation that has not opened yet is identified by the span it STATES, because
+// the same boss on two separate runs is two real appearances and both belong on the
+// page: Mega Victreebel is on the GO Fest habitat list for 5 September and is the
+// Mega rotation from the 30th. Two things then collapse. Windows stating the SAME
+// span are one rotation seen from two sources, settled by prefer. And a window whose
+// span sits wholly INSIDE another naming the same boss is not a second appearance at
+// all, it is the same uninterrupted run described again by a shorter source: on
+// 25 August the strip published Mega Gyarados twice, once for its own 26 August to
+// 8 September rotation and once for the GO Fest Sunday habitat list on the 6th,
+// which is a day in the middle of the first. Found in review of the day keyed fold
+// that shipped first.
+//
+// A rotation that is live now has no span dimension at all: it is happening, and one
+// boss happening once is one entry however many windows describe it.
+func foldUpcoming(windows []RaidWindow, byRotation bool, prefer func(candidate, held RaidWindow) bool, live bool, lookup speciesLookup) []UpcomingRaid {
+	keyOf := func(w RaidWindow, boss string) upcomingKey {
+		k := upcomingKey{group: raidGroupKey(w.Tier, w.Shadow), boss: boss}
+		if byRotation {
+			k.start, k.end = upcomingSpan(w)
+		}
+		return k
+	}
+
+	best := make(map[upcomingKey]int, len(windows))
+	for i, w := range windows {
+		for _, b := range w.Bosses {
+			uk := keyOf(w, bossKey(b.Name, w.Shadow))
+			if j, taken := best[uk]; taken && !prefer(w, windows[j]) {
+				continue
+			}
+			best[uk] = i
+		}
+	}
+
+	// Every surviving span is distinct within its boss, so containment between two of
+	// them is strict and at least one is always maximal.
+	spans := map[bossInGroup][]upcomingKey{}
+	for k := range best {
+		g := bossInGroup{k.group, k.boss}
+		spans[g] = append(spans[g], k)
+	}
+	kept := make(map[upcomingKey]bool, len(best))
+	for _, list := range spans {
+		for _, k := range list {
+			inside := false
+			for _, other := range list {
+				if other != k && other.start <= k.start && other.end >= k.end {
+					inside = true
+					break
+				}
+			}
+			if !inside {
+				kept[k] = true
+			}
+		}
+	}
+
+	out := make([]UpcomingRaid, 0, len(windows))
+	for i, w := range windows {
+		seen := make(map[string]bool, len(w.Bosses))
+		bosses := make([]WindowBoss, 0, len(w.Bosses))
+		for _, b := range w.Bosses {
+			key := bossKey(b.Name, w.Shadow)
+			uk := keyOf(w, key)
+			if seen[key] || !kept[uk] || best[uk] != i {
+				continue
+			}
+			seen[key] = true
+			bosses = append(bosses, withBossSprite(b, lookup))
+		}
+		if len(bosses) == 0 {
+			continue
+		}
+		u := upcomingFrom(w, live)
+		u.Bosses = bosses
+		out = append(out, u)
+	}
+	return out
+}
+
+// buildUpcoming picks what to show under the grid: EVERY rotation the schedule knows
+// about that has not started yet, plus every rotation that is live but has bosses
+// with no card on the grid.
+//
+// It used to publish the soonest rotation per tier and throw the rest away. That was
+// wrong in a way nobody could see from the outside, because what it threw away
+// looked exactly like something that had never been scraped: on 2026-09-01 the served
+// list held three entries while the scrapers had sixteen dated rotations running out
+// to 6 October. Mega Ascension's own page names a different Mega for every day of the
+// week and only Thursday's reached the page, so Mega Raichu X and Mega Raichu Y on the
+// Friday were parsed correctly, tested, cached, and then dropped here.
+//
+// Both halves fold, and they fold in different dimensions on purpose. See
+// foldUpcoming. The live half used to keep one window per group, which had the same
+// shape of defect as the future half and hid the second of two rotations changing over
+// in one tier; it was found in review of the first fix to this function.
+//
+// A window that loses every one of its bosses to another window drops out entirely
+// rather than becoming an empty card. That is what removes the Mega Squads windows
+// once Mega Beedrill and Mega Houndoom have chosen their own rotations.
+func buildUpcoming(windows []RaidWindow, suppressions []RaidSuppression, carded map[string]bool, now time.Time, lookup speciesLookup) []UpcomingRaid {
+	live := make([]RaidWindow, 0, len(windows))
+	future := make([]RaidWindow, 0, len(windows))
 	for _, w := range windows {
 		if !governedTiers[w.Tier] {
 			continue
 		}
-		group := raidGroupKey(w.Tier, w.Shadow)
 		if w.Active(now) {
-			// Only interesting while none of its bosses made it onto the grid.
-			anyCarded := false
+			if silencedBy(suppressions, w, now) {
+				// Live in the feed, not live in the game. Advertising it as the Live
+				// placeholder would put "Regirock, Regice and Registeel" under a tier 5
+				// grid that has just been deliberately emptied.
+				continue
+			}
+			// Named only while a boss has no card on the grid. A card says everything
+			// a placeholder would, and more.
+			//
+			// Per boss, not per window. Skipping the whole window as soon as ANY one
+			// of its bosses was carded is what this did, and on the GO Fest Sunday
+			// habitat list that is 17 Megas hidden by one: Mega Falinks is on that
+			// list AND on upstream's tier 6, so with the Mega table lagging a debut,
+			// the other 16 were pending on the grid and skipped here, which is
+			// invisible on the whole public payload. Measured in review at
+			// 2026-09-05T18:00Z with the Mega table emptied: 32 pending, 16 of them
+			// reachable nowhere.
+			uncarded := make([]WindowBoss, 0, len(w.Bosses))
 			for _, b := range w.Bosses {
-				if carded[bossKey(b.Name, w.Shadow)] {
-					anyCarded = true
-					break
+				if !carded[bossKey(b.Name, w.Shadow)] {
+					uncarded = append(uncarded, b)
 				}
 			}
-			if !anyCarded {
-				if prev, ok := live[group]; !ok || w.StartsUTC.After(prev.StartsUTC) {
-					live[group] = w
-				}
+			if len(uncarded) > 0 {
+				w.Bosses = uncarded
+				live = append(live, w)
 			}
 			continue
 		}
 		if w.StartsUTC.Before(now) {
 			continue // already over
 		}
-		if prev, ok := best[group]; !ok || w.StartsUTC.Before(prev.StartsUTC) {
-			best[group] = w
-		}
+		// No suppression test on this branch, deliberately. A rotation that has not
+		// opened yet can only be reached by a note it opens INSIDE, and Silences
+		// exempts exactly those as the replacements the note is promising. Testing
+		// here anyway is what hid the whole Mega Ascension week from the up next
+		// strip, which announced Mega Beedrill on the 8th while the page had a
+		// different Mega for every day in between.
+		future = append(future, w)
 	}
-	out := make([]UpcomingRaid, 0, len(best)+len(live))
-	for _, w := range live {
-		out = append(out, upcomingFrom(w, true))
-	}
-	for group, w := range best {
-		if _, ok := live[group]; ok {
-			// The live placeholder is the more urgent thing to say about this tier.
-			continue
-		}
-		out = append(out, upcomingFrom(w, false))
-	}
+
+	// preferRaidWindow rather than preferUpcomingWindow for the live half, because it
+	// is answering the same question activeBosses just answered about the grid, and
+	// the strip disagreeing with the card beside it would be worse than either answer.
+	out := foldUpcoming(live, false, func(c, h RaidWindow) bool { return preferRaidWindow(c, h, now) }, true, lookup)
+	out = append(out, foldUpcoming(future, true, preferUpcomingWindow, false, lookup)...)
+
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Live != out[j].Live {
 			return out[i].Live
 		}
 		if out[i].StartsAt != out[j].StartsAt {
 			return out[i].StartsAt < out[j].StartsAt
+		}
+		if out[i].Tier != out[j].Tier {
+			return out[i].Tier < out[j].Tier
 		}
 		return out[i].EventID < out[j].EventID
 	})
@@ -971,7 +1490,7 @@ func sortedKeys(m map[string]activeBoss) []string {
 // nextRaidBoundary is the next instant at which the reconciliation could produce a
 // different answer. Storing it lets the periodic rebuild be a clock comparison until
 // a window actually opens or shuts, the same trick shinyBuiltFor plays with the day.
-func nextRaidBoundary(windows []RaidWindow, now time.Time) time.Time {
+func nextRaidBoundary(windows []RaidWindow, sups []RaidSuppression, now time.Time) time.Time {
 	var next time.Time
 	consider := func(t time.Time) {
 		if t.After(now) && (next.IsZero() || t.Before(next)) {
@@ -981,6 +1500,11 @@ func nextRaidBoundary(windows []RaidWindow, now time.Time) time.Time {
 	for _, w := range windows {
 		consider(w.StartsUTC)
 		consider(w.EndsUTC)
+	}
+	// A note opening or lifting changes the answer with no window moving at all.
+	for _, sp := range sups {
+		consider(sp.StartsUTC)
+		consider(sp.EndsUTC)
 	}
 	return next
 }
@@ -998,12 +1522,14 @@ func (s *Store) rebuildRaidsLocked() {
 	// feed's own raid data comes first and governs its tiers; the event pages add
 	// what the feed does not model at all. See eventraids.go.
 	windows := parseRaidWindows(s.events)
-	windows = append(windows, s.eventPageWindowsLocked()...)
-	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, now, newSpeciesLookup(s.pokemon, s.pokemonTypes, s.megaForms), raidCPMsFrom(s.cpMults))
+	pageWindows, suppressions := s.eventPageRaidsLocked()
+	windows = append(windows, pageWindows...)
+	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, suppressions, now, newSpeciesLookup(s.pokemon, s.pokemonTypes, s.megaForms), raidCPMsFrom(s.cpMults))
 	s.raids = served
 	s.raidSchedule = windows
+	s.raidSuppressions = suppressions
 	s.raidStats = stats
-	s.raidsBuiltFor = nextRaidBoundary(windows, now)
+	s.raidsBuiltFor = nextRaidBoundary(windows, suppressions, now)
 	s.setRaidsPendingLocked(stats.PendingList, now)
 	if len(upcoming) > 0 {
 		if data, err := json.Marshal(upcoming); err == nil {
@@ -1012,15 +1538,71 @@ func (s *Store) rebuildRaidsLocked() {
 	} else {
 		s.raidsUpcoming = nil
 	}
-	if stats.Dropped > 0 || stats.Synthesized > 0 || stats.Pending > 0 || stats.FromEventPages > 0 {
-		log.Printf("pogodata: raids: schedule reconciled (%d windows, %d dropped, %d synthesized, %d awaiting upstream, %d from event pages)",
-			stats.Windows, stats.Dropped, stats.Synthesized, stats.Pending, stats.FromEventPages)
+	if stats.Dropped > 0 || stats.Synthesized > 0 || stats.Pending > 0 || stats.FromEventPages > 0 || stats.Suppressed > 0 {
+		log.Printf("pogodata: raids: schedule reconciled (%d windows, %d dropped, %d synthesized, %d awaiting upstream, %d from event pages, %d groups suppressed)",
+			stats.Windows, stats.Dropped, stats.Synthesized, stats.Pending, stats.FromEventPages, stats.Suppressed)
+	}
+}
+
+// raidBoundaryBackstop caps how long the boundary watcher will sleep in one go.
+//
+// The cap is not about the boundary itself, which the timer hits exactly. It is
+// about the schedule moving underneath a sleeping timer: a refresh landing a new
+// rotation changes raidsBuiltFor, and a watcher already asleep until next week would
+// never notice. Waking at least this often re-reads it, and if the real boundary is
+// nearer than the cap the next sleep is the exact remainder.
+//
+// Five minutes rather than something longer for one reason: that is what the ticker
+// this replaced did, and a boundary landing just after the watcher went to sleep is
+// then never later than it used to be. The win is that a boundary the watcher CAN
+// see is now hit exactly rather than up to five minutes late.
+const raidBoundaryBackstop = 5 * time.Minute
+
+// raidBoundaryFloor stops a boundary that is already in the past from spinning the
+// loop. A rebuild that leaves raidsBuiltFor behind the clock is a bug, but it must
+// cost a wakeup a second rather than a whole core.
+const raidBoundaryFloor = time.Second
+
+// watchRaidBoundaries rebuilds the served list at the instant a rotation opens or
+// shuts, rather than noticing up to five minutes later.
+//
+// This used to be a five minute ticker doing a clock comparison, which meant a
+// rotation flip was on the site somewhere between zero and five minutes late for no
+// reason: the store already knows exactly when the answer changes, so it can simply
+// sleep until then. The comparison inside maybeRebuildRaids is kept anyway, because
+// the backstop wakeup below is deliberately early most of the time.
+func (s *Store) watchRaidBoundaries() {
+	timer := time.NewTimer(raidBoundaryBackstop)
+	defer timer.Stop()
+	for {
+		<-timer.C
+		s.maybeRebuildRaids()
+		timer.Reset(s.untilNextRaidBoundary())
+	}
+}
+
+// untilNextRaidBoundary is how long to sleep before the served list could differ.
+func (s *Store) untilNextRaidBoundary() time.Duration {
+	s.mu.RLock()
+	next := s.raidsBuiltFor
+	s.mu.RUnlock()
+	if next.IsZero() {
+		// Nothing scheduled at all, which is the cold start and the empty feed.
+		return raidBoundaryBackstop
+	}
+	switch d := time.Until(next); {
+	case d < raidBoundaryFloor:
+		return raidBoundaryFloor
+	case d > raidBoundaryBackstop:
+		return raidBoundaryBackstop
+	default:
+		return d
 	}
 }
 
 // maybeRebuildRaids re-derives the served blob only once a window boundary has been
-// crossed. Called on a short ticker so a rotation opening or shutting takes effect
-// without waiting on any upstream fetch.
+// crossed. Called by watchRaidBoundaries, which sleeps until that instant, so the
+// comparison here only bites on one of its backstop wakeups.
 func (s *Store) maybeRebuildRaids() {
 	s.mu.Lock()
 	if !s.raidsBuiltFor.IsZero() && time.Now().Before(s.raidsBuiltFor) {
@@ -1034,12 +1616,31 @@ func (s *Store) maybeRebuildRaids() {
 	s.notifyRaidsApplied()
 }
 
-// RaidsUpcoming is the "up next" list: the soonest rotation per tier, plus any that
-// is live but has no card on the grid yet.
+// RaidsUpcoming is the "up next" list: every rotation the schedule knows about that
+// has not opened yet, plus any that is live but has no card on the grid yet.
 func (s *Store) RaidsUpcoming() json.RawMessage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.raidsUpcoming
+}
+
+// RaidSuppressions is what the event pages currently say is not running.
+//
+// The counters in the admin scraper check say a tier went missing; this says what
+// it went missing on the strength of, which is the only way to tell a real
+// suspension from a note the reader has misread.
+func (s *Store) RaidSuppressions() []RaidSuppression {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]RaidSuppression, len(s.raidSuppressions))
+	for i, sp := range s.raidSuppressions {
+		// Groups is copied too. A slice copy of the outer slice shares every inner
+		// one, so a caller ranging over this could still write through into the
+		// store's own schedule.
+		sp.Groups = append([]string(nil), sp.Groups...)
+		out[i] = sp
+	}
+	return out
 }
 
 // ── Pending rotations ────────────────────────────────────────────────────────
@@ -1253,15 +1854,42 @@ func (s *Store) RaidArchiveRows() []RaidArchiveRow {
 		return nil
 	}
 
-	// Windows by event id, so the join below is a lookup rather than a scan per
-	// boss. A rotation can appear more than once at a changeover; the one ending
+	// Windows by event id AND boss, so the join below is a lookup rather than a scan
+	// per boss. A rotation can appear more than once at a changeover; the one ending
 	// last is the incoming one, which is the same tie-break reconcileRaids uses.
-	windows := make(map[string]RaidWindow, len(s.raidSchedule))
-	for _, w := range s.raidSchedule {
-		if prev, ok := windows[w.EventID]; ok && prev.EndsUTC.After(w.EndsUTC) {
-			continue
+	//
+	// Keying on the event id alone was wrong, and quietly. eventPageRaidWindows emits
+	// the BARE event id for every group it builds, deliberately, so that the client
+	// can open the event modal with it: mega-ascension alone produces six windows
+	// under one id, one per day plus the whole-event one. So every Mega Ascension day
+	// boss was warehoused with the LAST day's window. Mega Skarmory was served
+	// correctly as the Wednesday boss and archived as Friday, and the fact table is
+	// keyed on (boss, window start), so the appearance history was recorded on the
+	// wrong day for every day-scoped roster this reader has ever produced.
+	//
+	// Ties are settled on the earliest start, so the answer does not depend on the
+	// order the two window sources were concatenated in. mega-ascension's Friday day
+	// window and its whole-event window really do end at the same instant, and the
+	// whole-event one is the better answer for a boss no day window names.
+	better := func(candidate, held RaidWindow) bool {
+		if !candidate.EndsUTC.Equal(held.EndsUTC) {
+			return candidate.EndsUTC.After(held.EndsUTC)
 		}
-		windows[w.EventID] = w
+		return candidate.StartsUTC.Before(held.StartsUTC)
+	}
+	windows := make(map[string]RaidWindow, len(s.raidSchedule))
+	byEvent := make(map[string]RaidWindow, len(s.raidSchedule))
+	for _, w := range s.raidSchedule {
+		if prev, ok := byEvent[w.EventID]; !ok || better(w, prev) {
+			byEvent[w.EventID] = w
+		}
+		for _, b := range w.Bosses {
+			k := w.EventID + "|" + bossKey(b.Name, w.Shadow)
+			if prev, ok := windows[k]; ok && !better(w, prev) {
+				continue
+			}
+			windows[k] = w
+		}
 	}
 
 	out := make([]RaidArchiveRow, 0, 32)
@@ -1286,8 +1914,18 @@ func (s *Store) RaidArchiveRows() []RaidArchiveRow {
 				// Everything the schedule did not synthesize came from upstream.
 				row.Source = "upstream"
 			}
-			if w, ok := windows[b.EventID]; ok && b.EventID != "" {
-				row.WindowStart, row.WindowEnd = w.StartsUTC, w.EndsUTC
+			if b.EventID != "" {
+				w, ok := windows[b.EventID+"|"+bossKey(b.PokemonName, row.Shadow)]
+				if !ok {
+					// No window under that id names this boss, which happens when
+					// upstream and the schedule spell it differently enough that
+					// bossKey does not join them. The rotation's own span is still a
+					// better answer than none.
+					w, ok = byEvent[b.EventID]
+				}
+				if ok {
+					row.WindowStart, row.WindowEnd = w.StartsUTC, w.EndsUTC
+				}
 			}
 			out = append(out, row)
 		}

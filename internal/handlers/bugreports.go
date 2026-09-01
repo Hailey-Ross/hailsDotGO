@@ -77,7 +77,7 @@ func (h *Handlers) reportAccess(reportID, userID uint, u *auth.User) (string, bo
 // configured superadmin) for notification fan-out.
 func (h *Handlers) staffUserIDs() []uint {
 	rows, err := h.db.Query(
-		`SELECT id FROM users WHERE disabled = 0 AND (role IN ('moderator','admin') OR username = ?)`,
+		`SELECT id FROM users WHERE disabled = 0 AND deleted_at IS NULL AND (role IN ('moderator','admin') OR username = ?)`,
 		auth.SuperadminUser,
 	)
 	if err != nil {
@@ -163,11 +163,11 @@ func (h *Handlers) CreateBugReport(w http.ResponseWriter, r *http.Request) {
 	subject := strings.TrimSpace(body.Subject)
 	message := strings.TrimSpace(body.Body)
 	if subject == "" || len(subject) > 160 {
-		writeJSONError(w, "subject required (max 160 chars)", http.StatusBadRequest)
+		writeJSONErrorCode(w, "subject required (max 160 chars)", "subject_required", http.StatusBadRequest)
 		return
 	}
 	if message == "" {
-		writeJSONError(w, "description required", http.StatusBadRequest)
+		writeJSONErrorCode(w, "description required", "description_required", http.StatusBadRequest)
 		return
 	}
 
@@ -455,7 +455,7 @@ func (h *Handlers) APIPostBugMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	message := strings.TrimSpace(body.Body)
 	if message == "" {
-		writeJSONError(w, "message required", http.StatusBadRequest)
+		writeJSONErrorCode(w, "message required", "message_required", http.StatusBadRequest)
 		return
 	}
 	visibility := "public"
@@ -515,13 +515,13 @@ func (h *Handlers) APIBugInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	target := strings.TrimSpace(body.Username)
 	if target == "" {
-		writeJSONError(w, "username required", http.StatusBadRequest)
+		writeJSONErrorCode(w, "username required", "username_required", http.StatusBadRequest)
 		return
 	}
 
 	var targetID uint
 	var targetRole string
-	if err := h.db.QueryRow(`SELECT id, role FROM users WHERE username = ? AND disabled = 0`, target).Scan(&targetID, &targetRole); err != nil {
+	if err := h.db.QueryRow(`SELECT id, role FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, target).Scan(&targetID, &targetRole); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -530,7 +530,7 @@ func (h *Handlers) APIBugInvite(w http.ResponseWriter, r *http.Request) {
 	var existing int
 	h.db.QueryRow(`SELECT COUNT(*) FROM bug_report_participants WHERE report_id = ? AND user_id = ?`, reportID, targetID).Scan(&existing)
 	if existing > 0 {
-		writeJSONError(w, "user is already on this report", http.StatusBadRequest)
+		writeJSONErrorCode(w, "user is already on this report", "already_participant", http.StatusBadRequest)
 		return
 	}
 
@@ -559,7 +559,7 @@ func (h *Handlers) APIBugInvite(w http.ResponseWriter, r *http.Request) {
 		var collabCount int
 		h.db.QueryRow(`SELECT COUNT(*) FROM bug_report_participants WHERE report_id = ? AND role = 'collaborator'`, reportID).Scan(&collabCount)
 		if collabCount >= maxReporterCollaborators {
-			writeJSONError(w, "invite limit reached (max 4)", http.StatusBadRequest)
+			writeJSONErrorCode(w, "invite limit reached (max 4)", "invite_limit", http.StatusBadRequest)
 			return
 		}
 	}

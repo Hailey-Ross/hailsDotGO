@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
   translator       TINYINT(1)    NOT NULL DEFAULT 0,
   disabled         TINYINT(1)    NOT NULL DEFAULT 0,
   disabled_reason  VARCHAR(255)  NOT NULL DEFAULT '',
+  -- NULL is a live account. A timestamp means marked for deletion: gone from every
+  -- read path immediately, row retained until the purge sweep removes it. See
+  -- migrate.sql section 53 and userPurgeAfter in internal/handlers.
+  deleted_at       DATETIME      NULL DEFAULT NULL,
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   trainer_name     VARCHAR(64)   NOT NULL DEFAULT '',
   trainer_code     VARCHAR(16)   NOT NULL DEFAULT '',
@@ -45,7 +49,12 @@ CREATE TABLE IF NOT EXISTS users (
   tag_requested_at DATETIME      NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uk_username (username),
-  UNIQUE KEY uk_email (email)
+  UNIQUE KEY uk_email (email),
+  -- The purge sweep is the only query that ranges on deleted_at. The unique keys
+  -- above stay in place across a mark, which is deliberate: a marked account holds
+  -- its username and email until it is purged, so neither can be taken by someone
+  -- else while the retention window is open.
+  KEY idx_users_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -822,7 +831,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (49, 'Event reminder subscriptions (2026-08-27)'),
   (50, 'Several reminders per event subscription (2026-08-27)'),
   (51, 'Where a boxed Pokemon came from (2026-08-30)'),
-  (52, 'Raid boss history, as a star schema (2026-08-31)');
+  (52, 'Raid boss history, as a star schema (2026-08-31)'),
+  (53, 'Marking an account for deletion instead of removing it (2026-08-31)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

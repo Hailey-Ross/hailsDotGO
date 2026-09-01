@@ -119,7 +119,7 @@ func (h *Handlers) listTrainers() []trainerEntry {
 		SELECT ut.user_id, t.name, t.color
 		FROM user_tags ut JOIN tags t ON t.id = ut.tag_id
 		JOIN users u ON u.id = ut.user_id
-		WHERE u.directory_hidden = 0 AND u.disabled = 0
+		WHERE u.directory_hidden = 0 AND u.disabled = 0 AND u.deleted_at IS NULL
 		ORDER BY ut.user_id, t.name`); err == nil {
 		defer tagRows.Close()
 		for tagRows.Next() {
@@ -138,7 +138,7 @@ func (h *Handlers) listTrainers() []trainerEntry {
 		       COALESCE(raid_xp,0), created_at, COALESCE(profile_public,0), COALESCE(shinies_hidden,0),
 		       CASE WHEN last_seen_at IS NOT NULL AND last_seen_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END
 		FROM users
-		WHERE directory_hidden = 0 AND disabled = 0
+		WHERE directory_hidden = 0 AND disabled = 0 AND deleted_at IS NULL
 		ORDER BY username ASC`)
 	if err != nil {
 		return []trainerEntry{}
@@ -266,7 +266,7 @@ func (h *Handlers) lookupTrainer(username string) (trainerEntry, uint, bool) {
 		       COALESCE(profile_public,0), COALESCE(shinies_hidden,0),
 		       CASE WHEN last_seen_at IS NOT NULL AND last_seen_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END
 		FROM users
-		WHERE username = ? AND directory_hidden = 0 AND disabled = 0`, username).
+		WHERE username = ? AND directory_hidden = 0 AND disabled = 0 AND deleted_at IS NULL`, username).
 		Scan(&userID, &t.Username, &t.TrainerName, &t.TrainerCode, &t.Avatar, &t.Pronouns,
 			&t.Region, &t.Country, &t.LocationDisplay, &role, &t.SpecialRank,
 			&t.FavPokemon, &t.FavPokemonForm, &t.FavSpriteURL, &t.RaidXP, &t.JoinedAt,

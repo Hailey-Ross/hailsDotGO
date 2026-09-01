@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -323,6 +324,11 @@ type adminUserRecord struct {
 	RaterWeight     float64         `json:"rater_weight"`
 	TrustScore      float64         `json:"trust_score"`
 	SpecialRank     string          `json:"special_rank"`
+	// DeletedAt is "" for a live account and a date for one marked for deletion.
+	// Surfaced because the row survives the mark: without it a deleted account looks
+	// entirely normal in this list, an accidental deletion is invisible, and there is
+	// nothing to act on to undo one. See user_deletion.go.
+	DeletedAt string `json:"deleted_at,omitempty"`
 }
 
 func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
@@ -331,7 +337,7 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 		       u.disabled, COALESCE(u.disabled_reason, ''), u.directory_hidden, u.raid_banned,
 		       COUNT(s.id) AS strike_count, u.created_at, u.api_access, u.translator,
 		       COALESCE(u.raid_xp, 0), COALESCE(u.rater_weight, 1.000),
-		       COALESCE(u.trust_score, 0), COALESCE(u.special_rank, '')
+		       COALESCE(u.trust_score, 0), COALESCE(u.special_rank, ''), u.deleted_at
 		FROM users u
 		LEFT JOIN user_strikes s ON s.user_id = u.id
 		GROUP BY u.id
@@ -347,12 +353,16 @@ func (h *Handlers) AdminUsersAPI(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var u adminUserRecord
 		var createdAt time.Time
+		var deletedAt sql.NullTime
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.PendingRole,
 			&u.Disabled, &u.DisabledReason, &u.DirectoryHidden, &u.RaidBanned, &u.StrikeCount, &createdAt, &u.APIAccess,
-			&u.Translator, &u.RaidXP, &u.RaterWeight, &u.TrustScore, &u.SpecialRank); err != nil {
+			&u.Translator, &u.RaidXP, &u.RaterWeight, &u.TrustScore, &u.SpecialRank, &deletedAt); err != nil {
 			continue
 		}
 		u.CreatedAt = createdAt.Format("2006-01-02")
+		if deletedAt.Valid {
+			u.DeletedAt = deletedAt.Time.Format("2006-01-02")
+		}
 		if auth.SuperadminUser != "" && u.Username == auth.SuperadminUser {
 			u.APIAccess = true
 			u.Translator = true
@@ -1189,16 +1199,16 @@ func (h *Handlers) AdminRefreshActivity(w http.ResponseWriter, r *http.Request) 
 	w.Write([]byte(`{"ok":true}`))
 }
 
-// AdminDeleteUser permanently removes an account and everything tied to it.
-// Superadmin only, and irreversible: there is no tombstone row and nothing is
-// archived, which is why the caller has to retype the target's username.
+// AdminDeleteUser marks an account as deleted. Superadmin only, and the caller has
+// to retype the target's username.
 //
-// Most of the work is already done by the schema. Of the columns pointing at
-// users.id, all but two carry a foreign key that either cascades or nulls. The
-// statements below cover what the database cannot clean up on its own, and every
-// one of them must run before the DELETE, while the rows they join against still
-// exist. Sessions need no handling: fk_session_user cascades, so the account is
-// logged out everywhere by the delete itself.
+// The mark IS the deletion as far as anyone using the site can tell: the account
+// stops resolving in every read path and its sessions are dropped on the spot.
+// What it no longer does is destroy the row, which is held for the retention
+// window so that a deletion made in error can be lifted with AdminRestoreUser.
+// AdminPurgeUser is the way past the window, for a trainer who asked for erasure
+// rather than for their account to go. The model is written out in
+// user_deletion.go.
 func (h *Handlers) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	// The route is already wrapped in RequireSuperAdmin. Repeated here so the
 	// handler cannot be re-mounted behind a weaker gate by accident.
@@ -1241,82 +1251,164 @@ func (h *Handlers) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.db.Begin()
-	if err != nil {
-		log.Printf("admin delete user %d: begin: %v", id, err)
-		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
-	cleanup := []struct {
-		what string
-		stmt string
-	}{
-		// Neither column has a foreign key behind it, so nothing nulls them for us
-		// and they would be left pointing at an id that no longer exists.
-		{"custom_tag_requests.reviewed_by",
-			`UPDATE custom_tag_requests SET reviewed_by = NULL WHERE reviewed_by = ?`},
-		{"bug_report_participants.added_by",
-			`UPDATE bug_report_participants SET added_by = NULL WHERE added_by = ?`},
-
-		// reporter_id is ON DELETE SET NULL, but reporter_email is a plain string
-		// and would outlive the account whose address it is.
-		{"bug_reports.reporter_email",
-			`UPDATE bug_reports SET reporter_email = NULL WHERE reporter_id = ?`},
-
-		// trust_events.lobby_id has no foreign key to raid_lobbies, so deleting a
-		// host strands other trainers' events. Null the dead reference rather than
-		// delete the row: users.trust_score is a stored running sum of
-		// applied_delta, so removing those rows would silently desync scores that
-		// belong to trainers who are still here. uk_te_vote tolerates the NULL.
-		{"trust_events.lobby_id",
-			`UPDATE trust_events te JOIN raid_lobbies l ON l.id = te.lobby_id
-			    SET te.lobby_id = NULL
-			  WHERE l.host_id = ?`},
-
-		// raid_ratings.post_id has no foreign key to raid_posts and is NOT NULL, so
-		// unlike the events above these rows cannot be kept once the host's posts
-		// cascade away. Nothing caches them: AdminClearRatings deletes the same
-		// rows with no recompute afterwards.
-		{"raid_ratings orphaned by raid_posts",
-			`DELETE r FROM raid_ratings r
-			   JOIN raid_posts p ON p.id = r.post_id
-			  WHERE p.user_id = ?`},
-	}
-	for _, c := range cleanup {
-		if _, err := tx.Exec(c.stmt, id); err != nil {
-			log.Printf("admin delete user %d: cleanup %s: %v", id, c.what, err)
-			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// Matched on the username as well as the id so the confirmation is atomic with
-	// the delete. Without it there is a window, however small, in which the account
-	// is renamed or deleted and recreated between the lookup above and this line,
-	// and the typed confirmation would then have approved a different account.
-	res, err := tx.Exec(`DELETE FROM users WHERE id = ? AND username = ?`, id, targetUsername)
+	// MARKED, not deleted. See user_deletion.go for the two stage model and why the
+	// row is retained. Everything above this line is unchanged: the guards are the
+	// same guards, because marking is still the most destructive thing a superadmin
+	// can do to an account from their point of view.
+	n, err := h.markUserDeleted(id, targetUsername)
 	if err != nil {
 		log.Printf("admin delete user %d: %v", id, err)
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		// The account changed underneath us. The deferred rollback undoes the
-		// cleanup statements above, so nothing is left half done.
+	if n == 0 {
+		// Either the account changed underneath us between the lookup and here, or it
+		// was already marked. Both are "there is no live account by that name to act
+		// on", which is what the caller needs to know.
 		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("admin delete user %d: commit: %v", id, err)
-		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}
 
 	// There is no audit table in this app, so the service log is the only lasting
 	// record that this happened.
-	log.Printf("admin: superadmin %q permanently deleted user %d (%q, role %q)",
+	log.Printf("admin: superadmin %q marked user %d (%q, role %q) for deletion; row is purged after %d days",
+		actor.Username, id, targetUsername, targetRole, int(userPurgeAfter.Hours()/24))
+
+	// The date comes back with the ok, because the account stays in the panel's
+	// list now and needs its badge immediately. Letting the browser fill in today
+	// instead would be a day out whenever the two clocks disagree, and the column
+	// is UTC. Purely additive: a client that ignores the key is unaffected.
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":         true,
+		"deleted_at": time.Now().UTC().Format("2006-01-02"),
+	})
+}
+
+// AdminRestoreUser lifts a deletion mark, putting the account back on the site.
+//
+// This is the undo the retention window exists to make possible. Without it the
+// window bought nothing anyone could actually use: reversing a deletion meant
+// editing a column by hand in the database, which is not a thing to ask of someone
+// who has just deleted the wrong account.
+//
+// No typed confirmation, deliberately. Every other guard is the delete's guard,
+// but retyping a username is a brake on destroying the wrong account and there is
+// nothing to destroy here. The worst outcome of a misclick is an account back on
+// the site that can be deleted again in one click.
+func (h *Handlers) AdminRestoreUser(w http.ResponseWriter, r *http.Request) {
+	// The route is already wrapped in RequireSuperAdmin. Repeated here so the
+	// handler cannot be re-mounted behind a weaker gate by accident.
+	actor := h.currentUser(r)
+	if actor == nil || !actor.IsSuperAdmin() {
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
+		return
+	}
+
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
+		return
+	}
+
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
+		return
+	}
+
+	n, err := h.restoreUser(id, targetUsername)
+	if err != nil {
+		log.Printf("admin restore user %d: %v", id, err)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	if n == 0 {
+		// Either the account is not marked, or it was renamed underneath us. Both
+		// mean there is no deletion here to lift.
+		writeJSONError(w, h.t(r, "error.adm_restore_not_marked"), http.StatusNotFound)
+		return
+	}
+
+	log.Printf("admin: superadmin %q restored user %d (%q, role %q); the deletion mark is lifted",
+		actor.Username, id, targetUsername, targetRole)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+// AdminPurgeUser destroys a marked account's row now rather than waiting out the
+// retention window.
+//
+// It exists for one reason. /privacy tells trainers that asking gets their account
+// and everything attached to it deleted, and a row held for ninety days is not
+// that. A moderation deletion should take the window, because the window is the
+// undo; a trainer who asked to be erased should not have to wait it out, because
+// the waiting is the part they asked against.
+//
+// The account must be marked first, always. That keeps one deletion path instead
+// of two: an erasure is a delete followed by an erase, so nothing reaches the row
+// without having gone through AdminDeleteUser first, and a superadmin has to have
+// seen the account in its deleted state before destroying it. purgeOneUser
+// enforces the same rule in SQL rather than trusting this check.
+func (h *Handlers) AdminPurgeUser(w http.ResponseWriter, r *http.Request) {
+	actor := h.currentUser(r)
+	if actor == nil || !actor.IsSuperAdmin() {
+		writeJSONError(w, h.t(r, "error.unauthorized"), http.StatusForbidden)
+		return
+	}
+
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		ConfirmUsername string `json:"confirm_username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
+
+	// Unreachable in practice, since an account cannot be marked by its own owner
+	// and only a marked account gets this far. Kept because it costs a comparison,
+	// and the day that stops being true it is the guard that matters most.
+	if uint64(actor.ID) == id {
+		writeJSONError(w, h.t(r, "error.adm_delete_self"), http.StatusForbidden)
+		return
+	}
+
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
+		return
+	}
+	// Compared against the username just loaded from the database, never against
+	// anything the browser supplied, so a stale panel cannot erase a recycled id.
+	if !confirmMatchesUsername(body.ConfirmUsername, targetUsername) {
+		writeJSONError(w, h.t(r, "error.adm_delete_confirm_mismatch"), http.StatusBadRequest)
+		return
+	}
+
+	switch err := h.purgeOneUser(id, targetUsername); {
+	case errors.Is(err, errUserNotMarked):
+		writeJSONError(w, h.t(r, "error.adm_purge_not_marked"), http.StatusConflict)
+		return
+	case err != nil:
+		log.Printf("admin purge user %d: %v", id, err)
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+
+	// The service log is the only lasting record, and this is the line that says an
+	// account went early rather than through the sweep.
+	log.Printf("admin: superadmin %q erased user %d (%q, role %q) ahead of the retention window",
 		actor.Username, id, targetUsername, targetRole)
 
 	w.Header().Set("Content-Type", "application/json")

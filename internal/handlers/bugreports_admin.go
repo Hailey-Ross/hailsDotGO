@@ -383,7 +383,7 @@ func decodeLabelBody(w http.ResponseWriter, r *http.Request) (name, color string
 // AdminStaffList returns active staff (for the assignee dropdown and filter).
 func (h *Handlers) AdminStaffList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(
-		`SELECT username, role FROM users WHERE disabled = 0 AND (role IN ('moderator','admin') OR username = ?) ORDER BY username`,
+		`SELECT username, role FROM users WHERE disabled = 0 AND deleted_at IS NULL AND (role IN ('moderator','admin') OR username = ?) ORDER BY username`,
 		auth.SuperadminUser,
 	)
 	if err != nil {
@@ -437,7 +437,7 @@ func (h *Handlers) AdminBugReportAssign(w http.ResponseWriter, r *http.Request) 
 
 	var targetID uint
 	var targetRole string
-	if err := h.db.QueryRow(`SELECT id, role FROM users WHERE username = ? AND disabled = 0`, target).Scan(&targetID, &targetRole); err != nil {
+	if err := h.db.QueryRow(`SELECT id, role FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, target).Scan(&targetID, &targetRole); err != nil {
 		writeJSONError(w, "user not found", http.StatusNotFound)
 		return
 	}

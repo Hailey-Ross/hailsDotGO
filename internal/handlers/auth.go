@@ -58,7 +58,7 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	var hash string
 	var disabled bool
 	var disabledReason string
-	err := h.db.QueryRow(`SELECT id, password, disabled, COALESCE(disabled_reason,'') FROM users WHERE username = ?`, username).
+	err := h.db.QueryRow(`SELECT id, password, disabled, COALESCE(disabled_reason,'') FROM users WHERE username = ? AND deleted_at IS NULL`, username).
 		Scan(&userID, &hash, &disabled, &disabledReason)
 	if err == sql.ErrNoRows {
 		fail(h.t(r, "error.invalid_credentials"))
