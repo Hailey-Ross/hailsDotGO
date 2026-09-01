@@ -88,12 +88,12 @@ func (h *Handlers) AdminAwardCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(body.Name)
 	if name == "" || len(name) > 64 {
-		writeJSONError(w, h.t(r, "error.rv2_award_name"), http.StatusBadRequest)
+		writeJSONErrorCode(w, h.t(r, "error.rv2_award_name"), "error.rv2_award_name", http.StatusBadRequest)
 		return
 	}
 	slug := slugify(name)
 	if slug == "" {
-		writeJSONError(w, h.t(r, "error.rv2_award_name"), http.StatusBadRequest)
+		writeJSONErrorCode(w, h.t(r, "error.rv2_award_name"), "error.rv2_award_name", http.StatusBadRequest)
 		return
 	}
 	icon := strings.TrimSpace(body.Icon)
@@ -126,32 +126,75 @@ func (h *Handlers) AdminAwardUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
 	}
+	// POINTERS, so an absent key can be told from a cleared one.
+	//
+	// This is a PATCH and it used to behave like a whole replacement: seven plain
+	// fields, one UPDATE across every column, and Go decoding an absent key as the
+	// zero value. A body carrying only {"active": false} therefore blanked the name,
+	// wiped the description, cleared the icon and colour and reset both ranks. That
+	// is the opposite of the partial body rule the admin settings writes follow, and
+	// both sit in the same panel.
 	var body struct {
-		Name         string `json:"name"`
-		Description  string `json:"description"`
-		Icon         string `json:"icon"`
-		Color        string `json:"color"`
-		Active       bool   `json:"active"`
-		SortOrder    int    `json:"sort_order"`
-		MinGrantRank int    `json:"min_grant_rank"`
+		Name         *string `json:"name"`
+		Description  *string `json:"description"`
+		Icon         *string `json:"icon"`
+		Color        *string `json:"color"`
+		Active       *bool   `json:"active"`
+		SortOrder    *int    `json:"sort_order"`
+		MinGrantRank *int    `json:"min_grant_rank"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
-	name := strings.TrimSpace(body.Name)
-	if name == "" || len(name) > 64 {
-		writeJSONError(w, h.t(r, "error.rv2_award_name"), http.StatusBadRequest)
+
+	// Column names are literals here and only values are parameterised, so this
+	// builds a narrower statement rather than a wider surface.
+	sets := make([]string, 0, 7)
+	args := make([]any, 0, 8)
+	set := func(col string, v any) {
+		sets = append(sets, col+" = ?")
+		args = append(args, v)
+	}
+	if body.Name != nil {
+		name := strings.TrimSpace(*body.Name)
+		// Validated only when it is actually being written. A name absent from the
+		// body is not an empty name.
+		if name == "" || len(name) > 64 {
+			writeJSONErrorCode(w, h.t(r, "error.rv2_award_name"), "error.rv2_award_name", http.StatusBadRequest)
+			return
+		}
+		set("name", name)
+	}
+	if body.Description != nil {
+		set("description", strings.TrimSpace(*body.Description))
+	}
+	if body.Icon != nil {
+		set("icon", strings.TrimSpace(*body.Icon))
+	}
+	if body.Color != nil {
+		set("color", strings.TrimSpace(*body.Color))
+	}
+	if body.Active != nil {
+		set("active", *body.Active)
+	}
+	if body.SortOrder != nil {
+		set("sort_order", *body.SortOrder)
+	}
+	if body.MinGrantRank != nil {
+		rank := *body.MinGrantRank
+		if rank < 0 || rank > 5 {
+			rank = 0
+		}
+		set("min_grant_rank", rank)
+	}
+	if len(sets) == 0 {
+		writeJSONError(w, "no fields to update", http.StatusBadRequest)
 		return
 	}
-	if body.MinGrantRank < 0 || body.MinGrantRank > 5 {
-		body.MinGrantRank = 0
-	}
-	if _, err := h.db.Exec(`
-		UPDATE awards SET name = ?, description = ?, icon = ?, color = ?, active = ?, sort_order = ?, min_grant_rank = ?
-		WHERE id = ?`,
-		name, strings.TrimSpace(body.Description), strings.TrimSpace(body.Icon),
-		strings.TrimSpace(body.Color), body.Active, body.SortOrder, body.MinGrantRank, id); err != nil {
+
+	args = append(args, id)
+	if _, err := h.db.Exec(`UPDATE awards SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
 		return
 	}

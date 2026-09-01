@@ -58,10 +58,15 @@
       <button class="admin-nav-link" data-tab="raidsv2">{{T "admin.tab.raids"}}</button>
     </div>
 
+    {{if .User.IsAdmin}}
     <div class="admin-nav-group">
       <span class="admin-nav-heading">System</span>
+      {{/* Admin gated to match its own routes. GET /api/admin/stats and its mobile twin are
+           both RequireAdmin, so offering this to a moderator gave them a tab whose only
+           endpoint always refused them, and it rendered empty with no explanation. */}}
       <button class="admin-nav-link" data-tab="stats">{{T "admin.tab.stats"}}</button>
     </div>
+    {{end}}
   </nav>
 
   <div class="admin-panels">
@@ -912,6 +917,10 @@ const STRINGS = {
   btnConfirmDelete:    {{T "admin.js.btn_confirm_delete"}},
   deleteWarning:       {{T "admin.js.delete_warning"}},
   deleteConfirmPh:     {{T "admin.js.delete_confirm_ph"}},
+  btnRestoreUser:      {{T "admin.js.btn_restore_user"}},
+  btnPurgeUser:        {{T "admin.js.btn_purge_user"}},
+  btnConfirmPurge:     {{T "admin.js.btn_confirm_purge"}},
+  purgeWarning:        {{T "admin.js.purge_warning"}},
   btnUnhide:        {{T "admin.js.btn_unhide"}},
   btnHide:          {{T "admin.js.btn_hide"}},
   btnBanRaids:      {{T "admin.js.btn_ban_raids"}},
@@ -1020,6 +1029,7 @@ const STRINGS = {
   itemDisable:      {{T "admin.js.item_disable"}},
   refreshOk:        {{T "admin.js.refresh_ok"}},
   refreshFail:      {{T "admin.js.refresh_fail"}},
+  deleted:          {{T "admin.js.user_deleted"}},
   scrapersRunning:  {{T "admin.js.scrapers_running"}},
   scrapersOk:       {{T "admin.js.scrapers_ok"}},
   scrapersFail:     {{T "admin.js.scrapers_fail"}},
@@ -1718,6 +1728,7 @@ function renderMiniCard(u) {
     <div class="um-mini-badges">
       <span class="um-role-badge ${roleBadgeClass(u)}">${esc(roleBadgeLabel(u))}</span>
       <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? STRINGS.disabled : STRINGS.active}</span>
+      ${u.deleted_at ? `<span class="um-status-badge um-status-off" title="Marked ${esc(u.deleted_at)}. The row is retained and then removed.">${STRINGS.deleted}</span>` : ''}
       ${dirBadge}${raidBanBadge}${strikeBadge}${pendingBadge}
     </div>
     ${tagPillsMini ? `<div class="um-mini-tags">${tagPillsMini}</div>` : ''}
@@ -1729,8 +1740,12 @@ function renderUserDetail(u) {
   const isMe         = u.id === ME_ID;
   const isSuperAdmin = u.username === SUPERADMIN;
   const canDisable   = !isMe && !isSuperAdmin;
-  const canRename    = !isSuperAdmin || (IS_SUPERADMIN && isMe);
-  const canSetPw     = !isSuperAdmin || (IS_SUPERADMIN && isMe);
+  // mayActOn on the server refuses when caller rank <= target rank, so a superadmin
+  // acting on their OWN account is always refused: equal rank is not greater. The
+  // template used to offer Rename and Set Password there anyway, so the buttons were
+  // real, clickable, and guaranteed to fail. Follow the server.
+  const canRename    = !isSuperAdmin;
+  const canSetPw     = !isSuperAdmin;   // same mayActOn refusal as canRename above
   const cap          = s => s.charAt(0).toUpperCase() + s.slice(1);
   const canManageTags = IS_MOD && (u.username !== SUPERADMIN || IS_SUPERADMIN);
 
@@ -1779,8 +1794,17 @@ function renderUserDetail(u) {
   const raidStatsBtn  = IS_ADMIN ? `<button class="um-btn" onclick="toggleExpand(${u.id}, 'raidstats')">${STRINGS.btnRaidStats}</button>` : '';
   // Owner only, and never the owner's own row: the server refuses both, this just
   // keeps the button off screens where it could only ever fail.
-  const deleteUserBtn = IS_SUPERADMIN && !isMe && u.username !== SUPERADMIN
-    ? `<button class="um-btn um-btn-danger" onclick="toggleExpand(${u.id}, 'delete')">${STRINGS.btnDeleteUser}</button>` : '';
+  //
+  // An account that is already marked swaps Delete for the two things that can
+  // still be done to it: Restore lifts the mark, Erase Now destroys the row without
+  // waiting out the retention window. Delete is not offered again because the
+  // server refuses a second mark, which is what stops the clock being restarted.
+  const mayDelete     = IS_SUPERADMIN && !isMe && u.username !== SUPERADMIN;
+  const deleteUserBtn = !mayDelete ? ''
+    : u.deleted_at
+      ? `<button class="um-btn um-btn-ok" onclick="restoreUser(${u.id})">${STRINGS.btnRestoreUser}</button>
+         <button class="um-btn um-btn-danger" onclick="toggleExpand(${u.id}, 'purge')">${STRINGS.btnPurgeUser}</button>`
+      : `<button class="um-btn um-btn-danger" onclick="toggleExpand(${u.id}, 'delete')">${STRINGS.btnDeleteUser}</button>`;
   const confirmRoleBtn= IS_ADMIN && u.pending_role && u.username !== SUPERADMIN ? `
     <button class="um-btn um-btn-ok" onclick="confirmRole(${u.id})">${STRINGS.btnConfirmRole} ${esc(cap(u.pending_role))}</button>
     <button class="um-btn um-btn-danger" onclick="rejectRole(${u.id})">${STRINGS.btnRejectRole}</button>` : '';
@@ -1799,6 +1823,7 @@ function renderUserDetail(u) {
       <div class="um-badges">
         <span class="um-role-badge ${roleBadgeClass(u)}">${esc(roleBadgeLabel(u))}</span>
         <span class="um-status-badge ${u.disabled ? 'um-status-off' : 'um-status-on'}">${u.disabled ? STRINGS.disabled : STRINGS.active}</span>
+      ${u.deleted_at ? `<span class="um-status-badge um-status-off" title="Marked ${esc(u.deleted_at)}. The row is retained and then removed.">${STRINGS.deleted}</span>` : ''}
         <span class="um-status-badge" title="${STRINGS.trustScore}">${STRINGS.trustScore}: ${(u.trust_score ?? 0).toFixed(1)}</span>
         ${u.special_rank === 'trusted' ? `<span class="um-status-badge um-status-api">✅ ${STRINGS.specialTrusted}</span>` : ''}
         ${u.special_rank === 'content_creator' ? `<span class="um-status-badge um-status-api">🎬 ${STRINGS.specialCC}</span>` : ''}
@@ -1913,6 +1938,19 @@ function toggleExpand(id, type) {
         <span id="delete-status-${id}" style="font-size:0.8rem"></span>
       </div>
     </div>`;
+  } else if (type === 'purge') {
+    // Same shape as the delete panel above, and the same typed confirmation, because
+    // this is the half of a deletion that cannot be taken back.
+    el.innerHTML = `<div class="um-strikes-panel">
+      <p style="font-size:0.82rem;color:#fc8181;margin:0 0 0.5rem">${STRINGS.purgeWarning}</p>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+        <input type="text" id="purge-confirm-${id}" class="auth-input" maxlength="32"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="${STRINGS.deleteConfirmPh}" style="flex:1;min-width:200px;font-size:0.85rem">
+        <button class="um-btn um-btn-danger" onclick="confirmPurgeUser(${id})">${STRINGS.btnConfirmPurge}</button>
+        <span id="purge-status-${id}" style="font-size:0.8rem"></span>
+      </div>
+    </div>`;
   }
 }
 
@@ -1983,14 +2021,59 @@ async function confirmDisable(id) {
   }
 }
 
-// Permanent deletion. The typed username is checked again on the server against
-// the account it just loaded, so this is a courtesy gate, not the real one.
+// Deletion, which marks the account rather than removing it. The typed username is
+// checked again on the server against the account it just loaded, so this is a
+// courtesy gate, not the real one.
+//
+// The account STAYS in the list afterwards, wearing its Deleted badge. It used to be
+// dropped from it, which was right when the row was really gone; now dropping it
+// would hide the only two controls that can still act on it.
 async function confirmDeleteUser(id) {
   const typed    = (document.getElementById('delete-confirm-' + id)?.value || '').trim();
   const statusEl = document.getElementById('delete-status-' + id);
   const btn      = document.querySelector(`#um-expand-${id} .um-btn-danger`);
   if (btn) btn.disabled = true;
   const res = await csrfFetch('/admin/users/' + id + '/delete', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({confirm_username: typed}),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    // The date comes from the server: the column is UTC, and a browser a few hours
+    // ahead would otherwise badge the account with tomorrow.
+    if (u) u.deleted_at = d.deleted_at || '';
+    redrawAfterUserLifecycleChange();
+  } else {
+    if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
+    if (btn) btn.disabled = false;
+  }
+}
+
+// The undo, and the reason the row is kept at all. No typed confirmation: the server
+// does not ask for one either, because putting an account back is not the direction
+// that destroys anything.
+async function restoreUser(id) {
+  const res = await csrfFetch('/admin/users/' + id + '/restore', { method: 'POST' });
+  if (res.ok) {
+    const u = users.find(u => u.id === id);
+    if (u) u.deleted_at = '';
+    redrawAfterUserLifecycleChange();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert(d.error || STRINGS.actionFailed);
+  }
+}
+
+// Erasing skips the retention window. This one really does remove the row, so unlike
+// the delete above it closes the modal and drops the account from the list.
+async function confirmPurgeUser(id) {
+  const typed    = (document.getElementById('purge-confirm-' + id)?.value || '').trim();
+  const statusEl = document.getElementById('purge-status-' + id);
+  const btn      = document.querySelector(`#um-expand-${id} .um-btn-danger`);
+  if (btn) btn.disabled = true;
+  const res = await csrfFetch('/admin/users/' + id + '/purge', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({confirm_username: typed}),
@@ -2004,6 +2087,16 @@ async function confirmDeleteUser(id) {
     if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
     if (btn) btn.disabled = false;
   }
+}
+
+// Redraw after a mark or a restore, both of which change which buttons the account
+// should be offering. The expanded panel is forgotten as well as cleared: refreshModal
+// rebuilds the detail with an empty expand slot, and leaving the state pointing at a
+// panel that is no longer on screen makes the next click on that button a no-op.
+function redrawAfterUserLifecycleChange() {
+  expandedId = expandedType = null;
+  refreshModal();
+  renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
 }
 
 async function toggleDisable(id, disable) {

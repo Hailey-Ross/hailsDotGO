@@ -18,6 +18,27 @@ export async function loadGameData(): Promise<GameData> {
   return cached;
 }
 
+// reloadGameData fetches again and replaces the page's copy only once it has the
+// new one.
+//
+// The blob is served with an ETag and Cache-Control: no-cache, so a call that finds
+// nothing has changed costs a 304 and a few hundred bytes rather than the whole
+// bundle. Only the raids page needs this: a rotation opens or shuts on a schedule
+// nobody reloads a tab for.
+//
+// It does NOT clear the cache up front. Doing that left every other consumer on the
+// page with nothing to read whenever a refresh failed, which turned one dropped
+// request into a broken IV calculator.
+export async function reloadGameData(): Promise<GameData> {
+  let res = await fetch("/api/app/data");
+  if (res.status === 401) {
+    res = await fetch("/api/data");
+  }
+  if (!res.ok) throw new Error(`Failed to reload game data: ${res.status}`);
+  cached = (await res.json()) as GameData;
+  return cached;
+}
+
 export function pokemonByName(data: GameData, name: string) {
   return (data.pokemon ?? []).find(
     (p) => p.pokemon_name.toLowerCase() === name.toLowerCase()

@@ -20,6 +20,39 @@ export const dateFmt = new Intl.DateTimeFormat(typeof SITE_LANG !== "undefined" 
   weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
 });
 
+// The pieces a calendar needs, all from Intl rather than from locale strings: they
+// are already translated everywhere, and the raids page carries no localised date
+// wording of its own.
+const siteLang = () => (typeof SITE_LANG !== "undefined" ? SITE_LANG : "en");
+
+// monthDayFmt labels a calendar cell that opens a new month, so "1" reads as "1 Oct".
+export const monthDayFmt = new Intl.DateTimeFormat(siteLang(), { month: "short", day: "numeric" });
+
+// weekdayFmt heads a calendar column, and also labels a cell on a phone, where the
+// grid collapses to one column and the column heads are gone.
+export const weekdayFmt = new Intl.DateTimeFormat(siteLang(), { weekday: "short" });
+
+// weekStartsOn is the first column of the calendar: Sunday for English, Monday
+// everywhere else. Intl.Locale.weekInfo would answer this properly and Firefox does
+// not implement it, so this is the honest two case version rather than a lookup that
+// silently falls back for a third of viewers.
+export function weekStartsOn(): number {
+  return siteLang().toLowerCase().startsWith("en") ? 0 : 1;
+}
+
+// startOfWeek is the Sunday or Monday on or before d, at local midnight.
+export function startOfWeek(d: Date): Date {
+  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const shift = (out.getDay() - weekStartsOn() + 7) % 7;
+  out.setDate(out.getDate() - shift);
+  return out;
+}
+
+// dayKey identifies a local calendar day, for bucketing rotations into cells.
+export function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
 // relTime renders a duration as "3d 4h" or "2h 15m". Never returns "0m": a
 // countdown that has all but expired should read as a minute left, not as nothing.
 export function relTime(ms: number): string {

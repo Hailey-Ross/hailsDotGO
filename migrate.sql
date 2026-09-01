@@ -1001,3 +1001,14 @@ CREATE TABLE IF NOT EXISTS raid_appearance_fact (
   CONSTRAINT fk_raid_appearance_boss FOREIGN KEY (boss_id)
     REFERENCES raid_boss_dim (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 53. Marking an account for deletion instead of removing it (2026-08-31)
+-- Account deletion becomes a MARK plus a delayed purge rather than an immediate row
+-- delete. deleted_at NULL means a live account; a timestamp means the account is gone
+-- as far as the site is concerned and its row is waiting to be purged.
+--
+-- The index is on deleted_at alone because the purge sweep is the only query that
+-- ranges on it. Every other read tests it for NULL alongside disabled, which is
+-- already covered by the lookups those queries use.
+ALTER TABLE users ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL AFTER disabled_reason;
+CREATE INDEX idx_users_deleted_at ON users (deleted_at);

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"pogo.hails.cc/internal/pogodata"
 )
 
 type shinyRecord struct {
@@ -277,13 +279,55 @@ func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.db.Exec(
+	// Read the row first, for two reasons that used to be missing entirely.
+	//
+	// One, it is the ownership check. The UPDATE below is scoped to user_id, but
+	// its RowsAffected was never inspected, so evolving a row belonging to someone
+	// else changed nothing and still answered 204. A caller could not tell that
+	// apart from success.
+	//
+	// Two, it is the only way to know what the entry currently IS. Without it the
+	// handler took the target on trust and wrote it verbatim, so any authenticated
+	// caller could turn a Magikarp into a Rayquaza, or into anything else at all.
+	var current string
+	switch err := h.db.QueryRow(
+		`SELECT pokemon_id FROM user_shinies WHERE id = ? AND user_id = ?`, id, u.ID,
+	).Scan(&current); {
+	case err == sql.ErrNoRows:
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
+		return
+	case err != nil:
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+
+	// The evolution has to be one the game actually has. The table is compiled in,
+	// so it is always available and there is no warm up case to handle.
+	//
+	// Regional and costumed entries are safe because the table is keyed on the bare
+	// species name with its forms unioned, which is what this column holds: an
+	// Alolan Rattata is stored as "Rattata" with its region in its own column. See
+	// pogodata.evolutionTargets.
+	if !pogodata.CanEvolveTo(current, body.Into) {
+		writeJSONError(w, fmt.Sprintf("%s does not evolve into %s", current, body.Into), http.StatusBadRequest)
+		return
+	}
+
+	res, err := h.db.Exec(
 		// UTC_TIMESTAMP, not NOW: caught_at is written in UTC from Go, and the two dates on one row
 		// should not be on different clocks.
 		`UPDATE user_shinies SET pokemon_id = ?, region = ?, evolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ?`,
 		body.Into, body.Region, id, u.ID,
-	); err != nil {
+	)
+	if err != nil {
 		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	// Still checked, even though the row was just read: the two statements are not
+	// in one transaction, so a delete in between is possible. Rare, but "changed
+	// nothing" must never answer 204.
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		writeJSONError(w, h.t(r, "error.not_found"), http.StatusNotFound)
 		return
 	}
 
@@ -317,7 +361,7 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 	var profilePublic, shiniesHidden int
 	err := h.db.QueryRow(`
 		SELECT id, COALESCE(profile_public,0), COALESCE(shinies_hidden,0)
-		FROM users WHERE username = ? AND disabled = 0`, username,
+		FROM users WHERE username = ? AND disabled = 0 AND deleted_at IS NULL`, username,
 	).Scan(&userID, &profilePublic, &shiniesHidden)
 	if err != nil || profilePublic == 0 || shiniesHidden == 1 {
 		w.Header().Set("Content-Type", "application/json")
@@ -439,6 +483,33 @@ var shinyMethods = []struct{ value, i18n string }{
 	{"go_tour", "shinies.js.method_go_tour"},
 }
 
+// regionLabel is the display name for a region tag, translated.
+//
+// The site already carries these labels as locale keys (`js.common.form_alolan` and friends), and
+// the browser renders regional names through them. This endpoint did not: it called humanizeRegion,
+// which is pure string manipulation, so a trainer reading the site in German got a localized
+// species name with an English adjective welded to it. "Alolan Rattfratz".
+//
+// Going through the keys fixes the punctuation for free, which humanizeRegion could never have got
+// right by upper-casing words. The table spells them: `pau` is "Pa'u" and not "Pau", `pom_pom` is
+// "Pom-Pom", and both striped Basculin are hyphenated.
+//
+// humanizeRegion stays as the fallback, because the tags this is called with include the Unown
+// letters and Vivillon patterns, which have no key of their own and never will: there are 48 of
+// them and "Unown B" needs no translating.
+func (h *Handlers) regionLabel(r *http.Request, region string) string {
+	if region == "" {
+		return humanizeRegion(region)
+	}
+	key := "js.common.form_" + region
+	// TFunc answers with the key itself when it has no translation, which is the only
+	// signal available that a lookup missed.
+	if v := h.t(r, key); v != key {
+		return v
+	}
+	return humanizeRegion(region)
+}
+
 // humanizeRegion turns a region tag like "dusk_mane" into a display label "Dusk Mane". Labels are
 // best-effort: the authoritative ones live client-side in ts/shared/regionalForms.ts, and this
 // endpoint only exists so the Add form's pickers can stay roughly in sync.
@@ -473,7 +544,7 @@ func (h *Handlers) MobileShiniesReference(w http.ResponseWriter, r *http.Request
 
 	regions := make([]option, 0, len(regionValues))
 	for _, v := range regionValues {
-		regions = append(regions, option{Value: v, Label: humanizeRegion(v)})
+		regions = append(regions, option{Value: v, Label: h.regionLabel(r, v)})
 	}
 
 	methods := make([]option, 0, len(shinyMethods))
@@ -507,4 +578,24 @@ func writeJSONError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// writeJSONErrorCode is writeJSONError with a machine readable `code` beside the
+// prose, so a client can attach a failure to the field that caused it.
+//
+// The settings and auth routes have answered this shape for a while and the app's
+// error routing was built against it; everything else answered `{"error": msg}`
+// alone, so a native client had two choices, match on English prose or
+// reimplement the validation rule locally to know which field to mark. The report
+// form was doing the second for two of its rules.
+//
+// `code` is a STABLE identifier and part of the contract, so it must not be
+// reworded when the message is. Where a route already has an i18n key for the
+// message, that key is the natural code and the settings routes use it that way.
+// Where the message is a bare English string, the code is a short snake_case name
+// chosen once and left alone.
+func writeJSONErrorCode(w http.ResponseWriter, msg, code string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": msg, "code": code})
 }

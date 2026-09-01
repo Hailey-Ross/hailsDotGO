@@ -66,7 +66,7 @@ func (h *Handlers) MobileLogin(w http.ResponseWriter, r *http.Request) {
 	var hash string
 	var disabled bool
 	err := h.db.QueryRow(
-		`SELECT id, password, disabled FROM users WHERE username = ?`, body.Username,
+		`SELECT id, password, disabled FROM users WHERE username = ? AND deleted_at IS NULL`, body.Username,
 	).Scan(&userID, &hash, &disabled)
 	if err == sql.ErrNoRows {
 		writeJSONError(w, "invalid credentials", http.StatusUnauthorized)
@@ -298,9 +298,7 @@ func (h *Handlers) MobileRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		// The key travels with the message so the app can point at the offending
 		// field rather than matching on prose.
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		json.NewEncoder(w).Encode(map[string]string{"error": h.t(r, key), "code": key})
+		writeJSONErrorCode(w, h.t(r, key), key, status)
 		return
 	}
 	if err != nil {

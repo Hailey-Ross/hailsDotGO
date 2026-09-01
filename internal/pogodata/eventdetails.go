@@ -3,6 +3,7 @@ package pogodata
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,6 +29,27 @@ type eventDetail struct {
 // detailRefreshAge is how old a scraped page may get before it is re-fetched.
 // LeekDuck edits pages as Niantic updates details, so a slow cycle is enough.
 const detailRefreshAge = 12 * time.Hour
+
+// detailRefreshAgeNear is the same thing for an event that is running now or opens
+// within detailNearWindow.
+//
+// Twelve hours was a fine number while these pages were only modal content. They
+// are not any more: since eventraids.go they are the ONLY source for a whole class
+// of rotation, and those rotations are scoped to a single calendar day. Mega
+// Ascension names a different Mega for each day of its week, so a twelve hour cycle
+// against a one day window means our copy can be half a rotation out of date, on the
+// exact pages a trainer is most likely to be reading. Against an events feed on
+// thirty minutes and a raid feed on roughly two and a half hours, the page scraper
+// was the coarsest source by five times while carrying data neither of the others
+// has.
+//
+// Three hours applies to about a dozen of the sixty cached pages, so the extra
+// traffic to LeekDuck is small and stays behind the same one and a half second
+// spacing every other scrape uses.
+const detailRefreshAgeNear = 3 * time.Hour
+
+// detailNearWindow is how far ahead an event counts as imminent.
+const detailNearWindow = 24 * time.Hour
 
 // detailSchemaVersion identifies the cleanup rules that produced a cached page.
 // The disk cache stores whole rendered HTML, so a change to cleanEventContent or
@@ -143,6 +166,7 @@ var detailPolicy = func() *bluemonday.Policy {
 type feedEntry struct {
 	EventID string  `json:"eventID"`
 	Link    string  `json:"link"`
+	Start   *string `json:"start"`
 	End     *string `json:"end"`
 }
 
@@ -188,7 +212,7 @@ var earliestOnEarth = time.FixedZone("EoE", 14*60*60)
 func planDetailRefresh(entries []feedEntry, fetchedAt map[string]time.Time, now time.Time, loc *time.Location) (active map[string]bool, jobs []detailJob) {
 	active = make(map[string]bool, len(entries))
 	for _, e := range entries {
-		if e.EventID == "" || e.Link == "" {
+		if e.EventID == "" {
 			continue
 		}
 		// Skip events that already ended; nobody opens their modal.
@@ -200,13 +224,60 @@ func planDetailRefresh(entries []feedEntry, fetchedAt map[string]time.Time, now 
 		if active[e.EventID] {
 			continue // duplicate id in the feed; one job is enough
 		}
+		_, cached := fetchedAt[e.EventID]
+		if e.Link == "" && !cached {
+			// Nothing to scrape and nothing to protect. Deliberately NOT active: a
+			// feed of junk is mostly entries shaped like this, and the caller reads an
+			// empty active set as "keep everything" rather than as "delete
+			// everything". See TestRefreshEventDetailsKeepsCacheOnJunkFeed.
+			continue
+		}
+		// A blank link on an entry whose page we ALREADY hold is a different claim
+		// from an event that has left the feed, and only the second one should cost
+		// that page. The caller evicts every id that is not active, so an upstream
+		// entry that loses its link for one refresh used to take its raid windows and
+		// any suspension note down with it, silently. Requiring the cached copy is
+		// what keeps the junk feed guard above working: a junk entry names an event
+		// we have never scraped, so it still contributes nothing to active.
 		active[e.EventID] = true
-		if at, ok := fetchedAt[e.EventID]; ok && now.Sub(at) < detailRefreshAge {
+		if e.Link == "" {
+			continue
+		}
+		if at, ok := fetchedAt[e.EventID]; ok && now.Sub(at) < detailRefreshMaxAge(e, now) {
 			continue
 		}
 		jobs = append(jobs, detailJob{e.EventID, e.Link})
 	}
 	return active, jobs
+}
+
+// detailRefreshMaxAge is how stale this event's page is allowed to get.
+//
+// An event that is running, or opens within a day, is scraped four times as often,
+// because its page is where the day scoped raid rosters live. An unparseable start
+// gets the slow cycle: guessing "imminent" from a string we could not read would
+// put every malformed entry in the feed on the fast path forever.
+//
+// The start is read in earliestOnEarth rather than in the caller's anywhereOnEarth.
+// That zone is the right one for the END, because the caller uses it on a DELETE
+// path where the latest possible reading is the safe one. A start is the opposite
+// question, and the two readings are 26 hours apart: reading a start in UTC-12
+// would leave an event's page on the slow cycle for its whole opening day in every
+// zone ahead of that one.
+func detailRefreshMaxAge(e feedEntry, now time.Time) time.Duration {
+	if e.Start == nil {
+		return detailRefreshAge
+	}
+	start, _, ok := ParseFeedTime(*e.Start, earliestOnEarth)
+	if !ok {
+		return detailRefreshAge
+	}
+	if start.After(now.Add(detailNearWindow)) {
+		return detailRefreshAge
+	}
+	// Already started, or starting within the window. The end was checked above, so
+	// anything reaching here has not finished.
+	return detailRefreshAgeNear
 }
 
 // refreshEventDetails scrapes the LeekDuck page of every active event in the
@@ -270,10 +341,11 @@ func (s *Store) refreshEventDetails(feed json.RawMessage) {
 	s.mu.Lock()
 	evicted := 0
 	for id := range s.eventDetails {
-		if !active[id] {
-			delete(s.eventDetails, id)
-			evicted++
+		if active[id] || suppressionHoldsPage(s.raidSuppressions, id, now) {
+			continue
 		}
+		delete(s.eventDetails, id)
+		evicted++
 	}
 	data, err := json.Marshal(eventDetailsFile{SchemaVersion: detailSchemaVersion, Details: s.eventDetails})
 	// These pages are a source of raid rotations, not just modal content, so a
@@ -541,7 +613,41 @@ var detailClient = &http.Client{
 
 // scrapeEventPage fetches one LeekDuck event page and returns the sanitized
 // HTML of its main content block.
+// eventPageMoved is a page that has become a client side redirect stub. The feed
+// keeps the old slug long after LeekDuck renames a page, and the stub answers 200
+// with a body that has no content in it at all.
+type eventPageMoved struct{ to string }
+
+func (e eventPageMoved) Error() string { return "page moved to " + e.to }
+
+// scrapeEventPage fetches one event page, following a rename once.
+//
+// The rename matters more than it sounds. A stub has no .page-content, so the scrape
+// errors, and refreshEventDetails keeps the copy it already had: for Super Mega Raid
+// Day that copy is the pre-announcement stub reading "Stay tuned for more details",
+// and it can never heal, because every retry twelve hours later fetches the same
+// stub. Mega Staraptor's GO debut would have stayed invisible indefinitely.
 func (s *Store) scrapeEventPage(pageURL string) (string, error) {
+	body, err := s.fetchEventPage(pageURL)
+	var moved eventPageMoved
+	if !errors.As(err, &moved) {
+		return body, err
+	}
+	u, uerr := url.Parse(pageURL)
+	if uerr != nil {
+		return "", err
+	}
+	target, uerr := u.Parse(moved.to)
+	if uerr != nil || !allowedDetailHost(target) || target.String() == pageURL {
+		return "", err
+	}
+	// Once, deliberately: a stub pointing at another stub is a loop, and one hop is
+	// all a rename needs.
+	log.Printf("pogodata: event details: %s has moved to %s", pageURL, target)
+	return s.fetchEventPage(target.String())
+}
+
+func (s *Store) fetchEventPage(pageURL string) (string, error) {
 	u, err := url.Parse(pageURL)
 	if err != nil || !allowedDetailHost(u) {
 		return "", fmt.Errorf("refusing non-leekduck link %q", pageURL)
@@ -584,6 +690,9 @@ func extractEventBody(r io.Reader) (string, error) {
 		content = doc.Find("div.page-content").First()
 	}
 	if content.Length() == 0 {
+		if to, ok := movedTarget(doc); ok {
+			return "", eventPageMoved{to: to}
+		}
 		return "", fmt.Errorf("no .page-content found")
 	}
 
@@ -598,6 +707,30 @@ func extractEventBody(r io.Reader) (string, error) {
 		return "", fmt.Errorf("sanitized content empty")
 	}
 	return sanitized, nil
+}
+
+// movedRefreshURLRe pulls the target out of a meta refresh content attribute, which
+// looks like `0; url=/events/new-slug/`.
+var movedRefreshURLRe = regexp.MustCompile(`(?i)\burl\s*=\s*['"]?([^'";]+)`)
+
+// movedTarget reads the redirect a content-free page points at, from either the
+// canonical link or a meta refresh. Only used once a page has already been found to
+// have no content, so it cannot hijack a real page that happens to be canonicalized
+// somewhere else.
+func movedTarget(doc *goquery.Document) (string, bool) {
+	if href, ok := doc.Find(`link[rel="canonical"]`).First().Attr("href"); ok {
+		if href = strings.TrimSpace(href); href != "" {
+			return href, true
+		}
+	}
+	if content, ok := doc.Find(`meta[http-equiv="refresh"]`).First().Attr("content"); ok {
+		if m := movedRefreshURLRe.FindStringSubmatch(content); m != nil {
+			if href := strings.TrimSpace(m[1]); href != "" {
+				return href, true
+			}
+		}
+	}
+	return "", false
 }
 
 // loadEventDetailsFromDisk restores the scraped page cache. Caller must hold s.mu.

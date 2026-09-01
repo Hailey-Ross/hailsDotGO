@@ -591,9 +591,7 @@ func (h *Handlers) MobileSettingsPut(w http.ResponseWriter, r *http.Request) {
 	if key != "" {
 		// The i18n key travels alongside the message so the app can attach the
 		// failure to the right field instead of parsing prose.
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": h.t(r, key), "code": key})
+		writeJSONErrorCode(w, h.t(r, key), key, http.StatusBadRequest)
 		return
 	}
 	if err != nil {
