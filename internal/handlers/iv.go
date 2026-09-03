@@ -476,6 +476,12 @@ type pokemonBoxEntry struct {
 	Note         string          `json:"note"`
 	Provenance   string          `json:"provenance"`
 	CreatedAt    time.Time       `json:"created_at"`
+	// SpriteURL is the form's own art, resolved here rather than by each client.
+	//
+	// Empty, and omitted, when the form has no distinct sprite, which is the common
+	// case: a client falls back to the species dex number and is right to. See
+	// boxSpriteURL.
+	SpriteURL string `json:"sprite_url,omitempty"`
 }
 
 // boxFormPattern bounds the form field without pinning it to a list.
@@ -661,6 +667,23 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"id": id})
 }
 
+// boxSpriteURL resolves a stored box row to the art of the form it actually is.
+//
+// Nothing in the game data bundle can tell two forms of a species apart for this purpose:
+// both Zacian rows are pokemon_id 888, so a client drawing 888.png shows Hero of Many
+// Battles for a stored Crowned Sword while printing "Crowned_sword" in the text beside it.
+// The species plus the form spelling is the only pair that identifies the art, and the
+// tables that map it live here, so the answer is resolved once on the server rather than
+// reimplemented in every client.
+//
+// Never shiny. The box has no shiny concept, so this passes "" and not "shiny".
+//
+// Returns "" for a form with no art of its own, which is most of them. That is a real
+// answer rather than a failure: the caller falls back to the species dex sprite.
+func boxSpriteURL(species, form string) string {
+	return spriteURLSlug(regionalSpriteSlug(species, regionTagForBundleForm(species, form)), "")
+}
+
 func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -732,6 +755,7 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 			pct := math.Round(float64(*e.AtkIV+*e.DefIV+*e.StaIV)/45.0*1000) / 10
 			e.IVPct = &pct
 		}
+		e.SpriteURL = boxSpriteURL(e.PokemonName, e.Form)
 		entries = append(entries, e)
 	}
 
@@ -764,5 +788,40 @@ func (h *Handlers) DeletePokemonIV(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "not found", http.StatusNotFound)
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ClearPokemonBox empties the caller's box in one statement.
+//
+// An empty box is a SUCCESS, not a 404. The resource here is the box itself, which
+// always exists, and the post-condition the caller asked for holds either way.
+// APIEventUnsubscribe answers the same way for the same reason: already gone is still
+// a 204, so a client does not have to know whether its list was stale, and a retry
+// after a timed out request does not turn into an error the trainer has to read.
+// That is the opposite of DeletePokemonIV above, where the id names a specific row and
+// its absence is genuinely a miss.
+//
+// user_id is the whole predicate. user_pokemon_box carries no other ownership column
+// and no soft delete column, and nothing has an inbound foreign key to it, so there is
+// nothing else to clean up and no reason for a transaction. The shiny collection is a
+// different table and is deliberately untouched: the app's dialog promises exactly that.
+//
+// No body is read. A DELETE with no id has nothing to say, and decoding one would only
+// invent a way for this to fail.
+func (h *Handlers) ClearPokemonBox(w http.ResponseWriter, r *http.Request) {
+	u := h.currentUser(r)
+	if u == nil {
+		writeJSONError(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	if _, err := h.db.Exec(`DELETE FROM user_pokemon_box WHERE user_id = ?`, u.ID); err != nil {
+		log.Printf("clear pokemon box for user %d: %v", u.ID, err)
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// 204 with no body, matching every other delete in this API. The count was
+	// considered and dropped: the client's own total comes from a COUNT(*) over the
+	// whole table on the next list, so a number here would be the only bodied delete
+	// in the tree in exchange for nothing the client cannot already work out.
 	w.WriteHeader(http.StatusNoContent)
 }

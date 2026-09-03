@@ -265,3 +265,35 @@ func TestManifestReleasedCardsCarryNoDate(t *testing.T) {
 		}
 	}
 }
+
+// The manifest is the ONE payload whose sprite URL must be absolute.
+//
+// Everywhere else the server can send a site relative path, because the app runs sprite
+// URLs through ApiClient.absoluteUrl before drawing them. The shiny dex does not: both
+// ShinyDexScreen and ShinyDexDetailSheet pass card.spriteUrl straight to the image loader.
+// A relative path there is a thousand blank cards on every build of the app already in a
+// trainer's hands, and no server change can rescue it afterwards.
+//
+// So this asserts the shape the shipped app depends on, not merely the shape we prefer.
+func TestManifestSpriteURLsAreAbsoluteAndProxied(t *testing.T) {
+	m := manifestForTest(t)
+	if len(m.Cards) == 0 {
+		t.Fatal("no cards to check")
+	}
+	for _, c := range m.Cards {
+		if !strings.HasPrefix(c.SpriteURL, "http://") && !strings.HasPrefix(c.SpriteURL, "https://") {
+			t.Fatalf("card %q sprite_url is not absolute (%q); the app renders this one without absoluteUrl", c.Key, c.SpriteURL)
+		}
+		if strings.Contains(c.SpriteURL, "githubusercontent.com") {
+			t.Fatalf("card %q still hotlinks its sprite: %s", c.Key, c.SpriteURL)
+		}
+		if !strings.Contains(c.SpriteURL, PokemonSpritePath+"shiny/") {
+			t.Fatalf("card %q sprite_url does not go through the shiny sprite proxy: %s", c.Key, c.SpriteURL)
+		}
+		// It must also be a name the proxy will actually serve.
+		file := c.SpriteURL[strings.LastIndex(c.SpriteURL, "/")+1:]
+		if !pokemonSpriteAllowed(file) {
+			t.Fatalf("card %q sprite_url %q ends in a name the proxy allowlist rejects", c.Key, c.SpriteURL)
+		}
+	}
+}

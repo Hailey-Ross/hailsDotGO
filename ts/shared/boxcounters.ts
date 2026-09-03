@@ -37,6 +37,9 @@ export interface BoxEntry {
   def_iv: number | null;
   sta_iv: number | null;
   approx_ivs?: ApproxIVs | null;
+  // The form's own art, resolved server side. Absent when the form has no
+  // distinct sprite, which is most of them.
+  sprite_url?: string;
 }
 
 // The number shown before the expander. Enough to answer "what do I bring"
@@ -358,7 +361,10 @@ function buildRow(data: GameData, s: ScoredEntry, rank: number): HTMLElement {
   const nameTd = el("td");
   nameTd.style.whiteSpace = "nowrap";
   const img = el("img");
-  img.src = pokeSprite(s.pokemonId);
+  // Both forms of a species rank here, and the dex number cannot tell them
+  // apart: it is 888 for either Zacian. The row already says which form it is,
+  // so the sprite has to agree with it. The server resolves the form's art.
+  img.src = s.entry.sprite_url || pokeSprite(s.pokemonId);
   img.alt = s.entry.pokemon_name;
   img.className = "poke-sprite";
   img.loading = "lazy";

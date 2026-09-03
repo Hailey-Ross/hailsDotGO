@@ -338,12 +338,12 @@ type publicShinyRecord struct {
 	// ID is sent ONLY to the owner of the collection, so their own profile can link straight to the
 	// entry in the shiny checklist. omitempty keeps it out of everyone else's payload entirely:
 	// nobody needs another trainer's row ids.
-	ID        uint64     `json:"id,omitempty"`
-	PokemonID string     `json:"pokemon_id"`
+	ID        uint64 `json:"id,omitempty"`
+	PokemonID string `json:"pokemon_id"`
 	// Dex is the SPECIES dex number, which is what the trainer page sorts the expanded collection
 	// by. It cannot be read back off SpriteURL: costume art is not keyed by dex at all, and a
 	// regional sprite carries its PokeAPI variant id (Alolan Vulpix is 10091, not 37).
-	Dex int `json:"dex"`
+	Dex       int        `json:"dex"`
 	Form      string     `json:"form"`
 	Region    string     `json:"region"`
 	Costume   string     `json:"costume"`
@@ -354,7 +354,31 @@ type publicShinyRecord struct {
 	EvolvedAt *time.Time `json:"evolved_at"`
 }
 
+// MobileShiniesOfUser is APIShiniesOfUser with absolute sprite URLs.
+//
+// It exists because the app renders THIS payload without ApiClient.absoluteUrl:
+// TrainerProfileScreen.kt passes shiny.spriteUrl straight to the image loader, unlike
+// ShinyCollectionScreen which wraps it. Every other sprite field can be site relative
+// because the app resolves it; this one cannot, and no later server change rescues a build
+// already on a phone.
+//
+// A mobile only wrapper rather than wrapping inside APIShiniesOfUser, because that handler
+// also serves the website (server.go registers it on both trees) and baseURL falls back to
+// pogo.hails.app when BASE_URL is unset. Wrapping there would point a self hosted site's
+// sprites at our server. Same shape as toMobileTrainer, for the same reason.
+//
+// This also fixes a break that predates the sprite proxy: costume sprite paths have always
+// been site relative, so costumed shinies on another trainer's profile were already blank in
+// the app.
+func (h *Handlers) MobileShiniesOfUser(w http.ResponseWriter, r *http.Request) {
+	h.shiniesOfUser(w, r, true)
+}
+
 func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
+	h.shiniesOfUser(w, r, false)
+}
+
+func (h *Handlers) shiniesOfUser(w http.ResponseWriter, r *http.Request, absolute bool) {
 	username := chi.URLParam(r, "username")
 
 	var userID int
@@ -396,6 +420,9 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Dex = h.store.PokemonDexID(s.PokemonID)
 		s.SpriteURL = h.resolveShinySpriteURL(s.PokemonID, s.Region, s.Costume)
+		if absolute {
+			s.SpriteURL = absoluteURL(s.SpriteURL)
+		}
 		out = append(out, s)
 	}
 
