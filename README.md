@@ -62,7 +62,7 @@ For how to build from a tagged release and how to upgrade an existing install to
 
 **FlexDex is coming soon to an Android device near you.**
 
-FlexDex is the Android companion app for hailsDotGO. It signs in to the same account, reads the same data, and writes to the same database as the website, so a shiny logged on your phone is on your profile before you put it down. It is a separate repository from this one.
+FlexDex is the Android companion app for hailsDotGO. It signs in to the same account, reads the same data, and writes to the same database as the website, so a shiny logged on your phone is on your profile before you put it down.
 
 **▶ [Watch a short tour of build 32](https://youtube.com/shorts/N03vO9PLuy8)**
 
