@@ -3,14 +3,17 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-sql-driver/mysql"
 	"pogo.hails.cc/internal/pogodata"
 )
 
@@ -101,18 +104,81 @@ type shinyAddInput struct {
 	EventTag  string `json:"event_tag"`
 	Method    string `json:"method"`
 	CaughtAt  string `json:"caught_at"`
+
+	// ClientToken is optional and identifies the REQUEST, not the shiny, so a client
+	// that has to retry a write it never got an answer to cannot duplicate the row.
+	// Absent means "behave as before"; the website never sends one.
+	ClientToken string `json:"client_token"`
+}
+
+// shinyAddTokenKind names this endpoint's rows in user_request_tokens. The table is
+// shared, so a token spent on an add cannot be mistaken for one spent elsewhere.
+const shinyAddTokenKind = "shiny_add"
+
+// clientTokenPattern is deliberately narrow: printable ASCII that survives a URL, a log
+// line and an ascii_bin column without any escaping question. A UUIDv4, which is what the
+// app mints, is 36 characters and fits well inside it.
+var clientTokenPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,64}$`)
+
+// normalizeClientToken reads the optional idempotency token off an add.
+//
+// Absent and empty are the same thing and mean "no token, carry on as before". Empty must
+// never reach the table: stored as a key it would make a trainer's second untokened add
+// look like a replay of their first, and silently throw away a real catch.
+//
+// Length and charset are CHECKED rather than truncated. The column holds 64 and MySQL
+// truncates silently, so a longer token would be cut down to a prefix that could collide
+// with a different token: the one failure worth ruling out here, since the whole point of
+// the token is that two of them are never confused.
+func normalizeClientToken(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", true
+	}
+	if !clientTokenPattern.MatchString(s) {
+		return "", false
+	}
+	return s, true
+}
+
+// findSpentToken returns the row a token already produced, and whether it had been spent.
+func (h *Handlers) findSpentToken(userID uint, token string) (int64, bool) {
+	var refID int64
+	err := h.db.QueryRow(`
+		SELECT ref_id FROM user_request_tokens
+		 WHERE user_id = ? AND kind = ? AND token = ?`,
+		userID, shinyAddTokenKind, token,
+	).Scan(&refID)
+	if err != nil {
+		return 0, false
+	}
+	return refID, true
 }
 
 // insertShiny validates a decoded add payload and inserts one shiny for the user. On failure it
 // returns a non-zero HTTP status and an i18n key suitable for writeJSONError; on success the new
 // row id with status 0. Duplicates are allowed by design (migration 33 dropped the unique
 // constraint), so there is no 409 path.
+//
+// An optional client_token makes the call safe to RETRY. A timeout tells a client that its
+// request failed, not whether the server applied it, so a queued add resent after one would
+// otherwise insert the shiny twice. With a token, a second delivery finds the token already
+// spent and answers with the id the first one produced. The client cannot tell the two apart,
+// which is the whole point: it only ever needs to know "did this succeed", and both are yes.
+//
+// The dedupe is on the TOKEN and never on the shiny's own fields. Catching two of the same
+// shiny on one day is ordinary, and those two rows are identical on everything the client
+// sends, so content matching would throw away a real catch.
 func (h *Handlers) insertShiny(userID uint, body shinyAddInput) (int64, int, string) {
 	body.PokemonID = strings.TrimSpace(body.PokemonID)
 	if body.PokemonID == "" {
 		return 0, http.StatusBadRequest, "error.shiny_pokemon_required"
 	}
 	if !validRegions[body.Region] {
+		return 0, http.StatusBadRequest, "error.invalid_json"
+	}
+	token, ok := normalizeClientToken(body.ClientToken)
+	if !ok {
 		return 0, http.StatusBadRequest, "error.invalid_json"
 	}
 	caughtAt, hasCaughtAt, err := parseCaughtAt(body.CaughtAt)
@@ -126,15 +192,69 @@ func (h *Handlers) insertShiny(userID uint, body shinyAddInput) (int64, int, str
 	if !hasCaughtAt {
 		caughtAt = time.Now().UTC().Truncate(24 * time.Hour)
 	}
-	result, err := h.db.Exec(`
+
+	const insertSQL = `
 		INSERT INTO user_shinies (user_id, pokemon_id, form, region, costume, event_tag, method, caught_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+
+	if token == "" {
+		result, err := h.db.Exec(insertSQL,
+			userID, body.PokemonID, body.Form, body.Region, body.Costume, body.EventTag, body.Method, caughtAt,
+		)
+		if err != nil {
+			return 0, http.StatusInternalServerError, "error.db"
+		}
+		id, _ := result.LastInsertId()
+		return id, 0, ""
+	}
+
+	// Already spent: this is a retry of a delivery that landed.
+	if refID, spent := h.findSpentToken(userID, token); spent {
+		return refID, 0, ""
+	}
+
+	// The shiny and its token go in together or not at all. Two separate statements would
+	// leave a window where the row is committed and the token is not, and a retry arriving
+	// inside it would insert the shiny a second time: exactly the bug the token exists for.
+	tx, err := h.db.Begin()
+	if err != nil {
+		return 0, http.StatusInternalServerError, "error.db"
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once Commit has run
+
+	result, err := tx.Exec(insertSQL,
 		userID, body.PokemonID, body.Form, body.Region, body.Costume, body.EventTag, body.Method, caughtAt,
 	)
 	if err != nil {
 		return 0, http.StatusInternalServerError, "error.db"
 	}
 	id, _ := result.LastInsertId()
+
+	if _, err := tx.Exec(`
+		INSERT INTO user_request_tokens (user_id, kind, token, ref_id)
+		VALUES (?, ?, ?, ?)`,
+		userID, shinyAddTokenKind, token, id,
+	); err != nil {
+		// 1062 means another delivery of this same token committed while we were working.
+		// Rolling back discards THIS transaction's shiny row, so the winner's is the only
+		// one, and its id is the answer both deliveries get.
+		//
+		// The rollback has to come BEFORE the lookup, not just for tidiness: on REPEATABLE
+		// READ the transaction is still reading from the snapshot it opened with, which
+		// predates the winner's commit, so a read inside it would not find the row at all.
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			_ = tx.Rollback()
+			if refID, spent := h.findSpentToken(userID, token); spent {
+				return refID, 0, ""
+			}
+		}
+		return 0, http.StatusInternalServerError, "error.db"
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, http.StatusInternalServerError, "error.db"
+	}
 	return id, 0, ""
 }
 
@@ -338,12 +458,12 @@ type publicShinyRecord struct {
 	// ID is sent ONLY to the owner of the collection, so their own profile can link straight to the
 	// entry in the shiny checklist. omitempty keeps it out of everyone else's payload entirely:
 	// nobody needs another trainer's row ids.
-	ID        uint64     `json:"id,omitempty"`
-	PokemonID string     `json:"pokemon_id"`
+	ID        uint64 `json:"id,omitempty"`
+	PokemonID string `json:"pokemon_id"`
 	// Dex is the SPECIES dex number, which is what the trainer page sorts the expanded collection
 	// by. It cannot be read back off SpriteURL: costume art is not keyed by dex at all, and a
 	// regional sprite carries its PokeAPI variant id (Alolan Vulpix is 10091, not 37).
-	Dex int `json:"dex"`
+	Dex       int        `json:"dex"`
 	Form      string     `json:"form"`
 	Region    string     `json:"region"`
 	Costume   string     `json:"costume"`
@@ -354,7 +474,31 @@ type publicShinyRecord struct {
 	EvolvedAt *time.Time `json:"evolved_at"`
 }
 
+// MobileShiniesOfUser is APIShiniesOfUser with absolute sprite URLs.
+//
+// It exists because the app renders THIS payload without ApiClient.absoluteUrl:
+// TrainerProfileScreen.kt passes shiny.spriteUrl straight to the image loader, unlike
+// ShinyCollectionScreen which wraps it. Every other sprite field can be site relative
+// because the app resolves it; this one cannot, and no later server change rescues a build
+// already on a phone.
+//
+// A mobile only wrapper rather than wrapping inside APIShiniesOfUser, because that handler
+// also serves the website (server.go registers it on both trees) and baseURL falls back to
+// pogo.hails.app when BASE_URL is unset. Wrapping there would point a self hosted site's
+// sprites at our server. Same shape as toMobileTrainer, for the same reason.
+//
+// This also fixes a break that predates the sprite proxy: costume sprite paths have always
+// been site relative, so costumed shinies on another trainer's profile were already blank in
+// the app.
+func (h *Handlers) MobileShiniesOfUser(w http.ResponseWriter, r *http.Request) {
+	h.shiniesOfUser(w, r, true)
+}
+
 func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
+	h.shiniesOfUser(w, r, false)
+}
+
+func (h *Handlers) shiniesOfUser(w http.ResponseWriter, r *http.Request, absolute bool) {
 	username := chi.URLParam(r, "username")
 
 	var userID int
@@ -396,6 +540,9 @@ func (h *Handlers) APIShiniesOfUser(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Dex = h.store.PokemonDexID(s.PokemonID)
 		s.SpriteURL = h.resolveShinySpriteURL(s.PokemonID, s.Region, s.Costume)
+		if absolute {
+			s.SpriteURL = absoluteURL(s.SpriteURL)
+		}
 		out = append(out, s)
 	}
 
@@ -439,9 +586,14 @@ func (h *Handlers) MobileShiniesGet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
-// MobileShiniesAdd records a shiny for the caller and returns {id, sprite_url}, so the app can
-// render the new entry immediately without a follow-up fetch. Shares insertShiny with the web
+// MobileShiniesAdd records a shiny for the caller and returns {id, sprite_url, ok}, so the app
+// can render the new entry immediately without a follow-up fetch. Shares insertShiny with the web
 // add endpoint; the only difference is the response shape.
+//
+// A retry carrying a client_token already spent gets this SAME body back, id included, rather
+// than a 409. The sprite resolves from the request rather than from the stored row so the two
+// answers cannot drift, and so a replay still answers after the trainer has deleted the catch:
+// the write did happen, and telling the client otherwise would only make it write again.
 func (h *Handlers) MobileShiniesAdd(w http.ResponseWriter, r *http.Request) {
 	u := h.currentUser(r)
 	if u == nil {
@@ -465,6 +617,7 @@ func (h *Handlers) MobileShiniesAdd(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{
 		"id":         id,
 		"sprite_url": h.resolveShinySpriteURL(strings.TrimSpace(body.PokemonID), body.Region, body.Costume),
+		"ok":         true,
 	})
 }
 

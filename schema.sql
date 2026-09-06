@@ -111,6 +111,31 @@ CREATE TABLE IF NOT EXISTS user_shinies (
 -- ALTER TABLE user_shinies ADD INDEX idx_user_shiny (user_id, pokemon_id);
 -- ALTER TABLE user_shinies DROP INDEX uk_user_shiny;
 
+-- Idempotency tokens for writes a client may have to retry, so a queued add that
+-- times out can be resent without duplicating the row it may already have made.
+--
+-- The key is on the REQUEST, not the shiny: migration 33 dropped uk_user_shiny on
+-- purpose because two of the same shiny caught on one day are a real pair of rows,
+-- identical on every field the client sends.
+--
+-- Separate from user_shinies so a token outlives the row it made: a retry arriving
+-- after the trainer deleted the catch must not put it back. kind leaves room for
+-- evolve and the IV scan to reuse the mechanism.
+--
+-- token is ascii_bin because the database default collation is case insensitive,
+-- which would fold two different tokens into one and silently swallow a real catch.
+CREATE TABLE IF NOT EXISTS user_request_tokens (
+  user_id    INT UNSIGNED    NOT NULL,
+  kind       VARCHAR(32)     NOT NULL,
+  token      VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  ref_id     BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, kind, token),
+  KEY idx_urt_created (created_at),
+  CONSTRAINT fk_urt_user FOREIGN KEY (user_id)
+    REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Admin corrections to the embedded shiny dex baseline, which carries in_go and
 -- shiny_released for every National Dex species and every regional form. Only
 -- CHANGED rows live here, so the table stays sparse and a corrected baseline can
@@ -832,7 +857,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (50, 'Several reminders per event subscription (2026-08-27)'),
   (51, 'Where a boxed Pokemon came from (2026-08-30)'),
   (52, 'Raid boss history, as a star schema (2026-08-31)'),
-  (53, 'Marking an account for deletion instead of removing it (2026-08-31)');
+  (53, 'Marking an account for deletion instead of removing it (2026-08-31)'),
+  (54, 'Making a queued write safe to retry (2026-09-06)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

@@ -57,8 +57,19 @@ export function chargedMoveByName(data: GameData, name: string) {
   );
 }
 
-export function pokeSprite(id: number): string {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+// Our own proxy, never PokeAPI's host directly. Hotlinking made every card on a page a
+// request from the trainer's browser to a third party, and upstream serves art that never
+// changes with a five minute max-age. See internal/handlers/pokemon_sprite.go.
+//
+// Site relative, so it resolves against whatever host is serving the page. That is what
+// lets a self hosted instance serve its own sprites without configuring anything.
+export function pokeSprite(id: number | string): string {
+  return `/api/pokemon-sprite/${id}.png`;
+}
+
+// The shiny of the same slug. Same proxy, its own directory upstream.
+export function pokeSpriteShiny(id: number | string): string {
+  return `/api/pokemon-sprite/shiny/${id}.png`;
 }
 
 export function cpForLevel(

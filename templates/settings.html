@@ -928,8 +928,11 @@
   var favSprite    = document.getElementById('fav-pokemon-sprite');
   var favPrimalOpt = document.getElementById('fav-primal-opt');
 
+  // Our own sprite proxy, matching spriteURLSlug in internal/handlers/trainers.go. The
+  // preview here and the value the server stores on save must agree, or the picture a
+  // trainer approves is not the one their profile ends up showing.
   function buildFavSpriteURL(id, form) {
-    var base = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
+    var base = '/api/pokemon-sprite/';
     if (form === 'shiny') return base + 'shiny/' + id + '.png';
     if (form === 'primal') {
       if (id === 383) return base + '10007.png';

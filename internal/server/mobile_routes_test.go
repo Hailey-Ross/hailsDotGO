@@ -1,12 +1,16 @@
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // These are source-level assertions rather than a walk of the built router, because
@@ -80,7 +84,12 @@ func TestMobileAliasesAreRegistered(t *testing.T) {
 		`r.Get("/feedback/options", h.MobileFeedbackOptions)`,
 		`r.Get("/awards", h.APIAwardsList)`,
 		`r.Get("/awards/of/{username}", h.APIAwardsOf)`,
-		`r.Get("/shinies/of/{username}", h.APIShiniesOfUser)`,
+		// The MOBILE variant, deliberately, not the web handler. The app renders this
+		// payload's sprite_url without ApiClient.absoluteUrl (TrainerProfileScreen.kt),
+		// so it needs an absolute URL where every other sprite field can be relative.
+		// Swapping this back to h.APIShiniesOfUser blanks the shiny grid on every
+		// trainer profile in every installed build.
+		`r.Get("/shinies/of/{username}", h.MobileShiniesOfUser)`,
 		// Bare on purpose, like APIAwardGrant: RequireAuth answers a 303 on the
 		// web path, and this handler makes its own 401. See the guard test below.
 		`r.Get("/users/search", h.APIUsersSearch)`,
@@ -332,4 +341,71 @@ func joinRouteContinuations(group string) []string {
 		out = append(out, cur)
 	}
 	return out
+}
+
+// The box clear is the one call in this tree that destroys a whole collection with no
+// undo, and the gate the trainer sees is on the client: a Bearer token skips the typed
+// phrase entirely. The limiter is therefore the only thing bounding it, and losing it
+// would not fail anything else, so it is asserted here rather than trusted.
+//
+// LimitByAccount rather than LimitByIP is part of the assertion. A shared mobile
+// network puts a whole town behind one address, and the account is what is actually
+// worth bounding on a route that only an authenticated caller can reach.
+func TestClearBoxKeepsItsAccountLimiter(t *testing.T) {
+	group := mobileGroup(t)
+
+	var found bool
+	for _, line := range joinRouteContinuations(group) {
+		if !strings.Contains(line, "h.ClearPokemonBox)") {
+			continue
+		}
+		found = true
+		re := regexp.MustCompile(`r\.With\(h\.LimitByAccount\((\d+), time\.Hour\)\)\.Delete\("/iv/pokemon", h\.ClearPokemonBox\)`)
+		m := re.FindStringSubmatch(line)
+		if m == nil {
+			t.Errorf("ClearPokemonBox is registered without its per-account hourly limiter, so it inherits the group's 120/min baseline: %s", strings.TrimSpace(line))
+			continue
+		}
+		if m[1] != "3" {
+			t.Errorf("ClearPokemonBox limit = %s/hour, want 3/hour", m[1])
+		}
+	}
+	if !found {
+		t.Error("ClearPokemonBox is not registered in the mobile group, so the app's clear box button answers 404")
+	}
+}
+
+// DELETE /iv/pokemon and DELETE /iv/pokemon/{id} are two different routes on the same
+// prefix, and the whole feature rests on chi resolving them apart. If a future chi
+// swallowed the bare path into the wildcard, clearing the box would delete one row and
+// deleting one row would clear the box, both silently and both destructive.
+//
+// A standalone router rather than the real one: New needs a live database and a loaded
+// data store before a single route exists. What is under test here is chi's matching,
+// not the handlers, so the nesting is what has to match production.
+func TestClearBoxAndByIDDeleteDoNotShadowEachOther(t *testing.T) {
+	r := chi.NewRouter()
+	r.Route("/api/mobile/v1", func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Post("/iv/pokemon", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("save")) })
+			r.Get("/iv/pokemon", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("list")) })
+			r.Delete("/iv/pokemon/{id}", func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("byid:" + chi.URLParam(r, "id")))
+			})
+			r.Delete("/iv/pokemon", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("clear")) })
+		})
+	})
+
+	for _, tc := range []struct{ method, path, want string }{
+		{http.MethodDelete, "/api/mobile/v1/iv/pokemon", "clear"},
+		{http.MethodDelete, "/api/mobile/v1/iv/pokemon/42", "byid:42"},
+		{http.MethodGet, "/api/mobile/v1/iv/pokemon", "list"},
+		{http.MethodPost, "/api/mobile/v1/iv/pokemon", "save"},
+	} {
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+		if got := rec.Body.String(); got != tc.want {
+			t.Errorf("%s %s resolved to %q, want %q", tc.method, tc.path, got, tc.want)
+		}
+	}
 }

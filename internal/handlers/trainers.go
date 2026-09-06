@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -89,18 +90,83 @@ func pokemonSpriteURL(id int, form string) string {
 	return spriteURLSlug(strconv.Itoa(id), form)
 }
 
-// spriteURLSlug builds a PokeAPI sprite URL from a slug rather than an id. Nearly every slug
+// legacyPokemonSpriteBase is where Pokemon sprite URLs used to point before the proxy
+// existed. users.fav_sprite_url is the one place such a URL was ever WRITTEN DOWN, so rows
+// saved by an older binary still carry it.
+//
+// Kept as a literal rather than derived: this string must not follow spriteURLSlug when
+// that changes again, because its whole job is to recognise what was written in the past.
+const legacyPokemonSpriteBase = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
+
+// normalizePokemonSpriteURL rewrites a stored hotlink onto our proxy, and leaves anything
+// else alone.
+//
+// A stored value is otherwise permanent: nothing rewrites fav_sprite_url once it is set, so
+// without this every trainer who picked a favourite before the proxy shipped would keep
+// announcing it to GitHub forever, and the change would only apply to new choices. A prefix
+// swap rather than recomputing from the dex id, because the tail of the old URL is already
+// exactly the slug the proxy takes, shiny directory included.
+func normalizePokemonSpriteURL(u string) string {
+	if rest, ok := strings.CutPrefix(u, legacyPokemonSpriteBase); ok {
+		return PokemonSpritePath + rest
+	}
+	return u
+}
+
+// favSpriteWriteBack is one pending repair of users.fav_sprite_url.
+//
+// `was` is the value the row held when it was read, and it is part of the WHERE rather than
+// decoration: between the read and this write the trainer may have saved a different
+// favourite, and without the guard the repair overwrites their new choice with the old
+// species' art. That leaves fav_pokemon and fav_sprite_url permanently disagreeing, because
+// the only recompute path fires when fav_sprite_url is EMPTY and it no longer is.
+type favSpriteWriteBack struct {
+	id       int
+	was, now string
+}
+
+// flushFavSpriteWriteBacks persists queued repairs on one goroutine, after the read cursor
+// that produced them has been released.
+func (h *Handlers) flushFavSpriteWriteBacks(pending []favSpriteWriteBack) {
+	if len(pending) == 0 {
+		return
+	}
+	go func() {
+		for _, p := range pending {
+			if _, err := h.db.Exec(
+				`UPDATE users SET fav_sprite_url = ? WHERE id = ? AND fav_sprite_url = ?`,
+				p.now, p.id, p.was,
+			); err != nil {
+				// Not fatal: the value was already corrected for the render that queued
+				// it, and the next directory load queues it again. Logged because a
+				// silent failure here repeats forever with nothing to show for it.
+				log.Printf("fav_sprite_url write back for user %d: %v", p.id, err)
+			}
+		}
+	}()
+}
+
+// spriteURLSlug builds a Pokemon sprite URL from a slug rather than an id. Nearly every slug
 // is just a number, but the Unown letters are pokemon-form records with no id of their own and
 // so are filed under 201-b, 201-exclamation and friends (see unownSpriteSlug).
+//
+// Points at our own proxy, not at PokeAPI's host. Every sprite URL this server produces
+// comes through here, so this one line is what decides whether a browser talks to a third
+// party to draw a Pokemon. See internal/handlers/pokemon_sprite.go. (The app also builds
+// some sprite URLs on the device, which this cannot reach.)
+//
+// Site relative on purpose. A browser resolves it against the page, a self hosted instance
+// serves its own sprites without configuring anything, and the app runs sprite URLs through
+// ApiClient.absoluteUrl. The one payload that must be absolute is the shiny dex manifest,
+// which the app renders without that helper, and it wraps this call itself.
 func spriteURLSlug(slug, form string) string {
 	if slug == "" {
 		return ""
 	}
-	const base = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
 	if form == "shiny" {
-		return base + "shiny/" + slug + ".png"
+		return PokemonSpritePath + "shiny/" + slug + ".png"
 	}
-	return base + slug + ".png"
+	return PokemonSpritePath + slug + ".png"
 }
 
 // listTrainers builds the directory: every account that is not hidden or disabled,
@@ -146,6 +212,7 @@ func (h *Handlers) listTrainers() []trainerEntry {
 	defer rows.Close()
 
 	var trainers []trainerEntry
+	var writeBacks []favSpriteWriteBack
 	for rows.Next() {
 		var t trainerEntry
 		var userID int
@@ -171,15 +238,28 @@ func (h *Handlers) listTrainers() []trainerEntry {
 		if t.Tags == nil {
 			t.Tags = []tagEntry{}
 		}
-		if t.FavPokemon != "" && t.FavSpriteURL == "" {
+		// A row written before the sprite proxy existed holds a raw upstream URL. Rewrite
+		// it for this render, and queue the rewrite so the row converges rather than being
+		// fixed again on every directory load.
+		if healed := normalizePokemonSpriteURL(t.FavSpriteURL); healed != t.FavSpriteURL {
+			writeBacks = append(writeBacks, favSpriteWriteBack{id: userID, was: t.FavSpriteURL, now: healed})
+			t.FavSpriteURL = healed
+		} else if t.FavPokemon != "" && t.FavSpriteURL == "" {
 			if id := h.store.PokemonDexID(t.FavPokemon); id != 0 {
 				t.FavSpriteURL = pokemonSpriteURL(id, t.FavPokemonForm)
-				uid, url := userID, t.FavSpriteURL
-				go h.db.Exec(`UPDATE users SET fav_sprite_url = ? WHERE id = ?`, url, uid)
+				writeBacks = append(writeBacks, favSpriteWriteBack{id: userID, was: "", now: t.FavSpriteURL})
 			}
 		}
 		trainers = append(trainers, t)
 	}
+	// Fired AFTER the cursor is done with, and as one goroutine rather than one per row.
+	//
+	// These used to be `go h.db.Exec` from inside the loop, which on the first directory
+	// render after a deploy spawns one goroutine per legacy row while the read still holds a
+	// connection. The pool is ten (internal/db/db.go), so a few hundred of them starve every
+	// other request on the site until they drain.
+	h.flushFavSpriteWriteBacks(writeBacks)
+
 	if trainers == nil {
 		trainers = []trainerEntry{}
 	}
@@ -278,6 +358,9 @@ func (h *Handlers) lookupTrainer(username string) (trainerEntry, uint, bool) {
 	t.ProfilePublic = profilePublicInt > 0
 	t.ShiniesHidden = shiniesHiddenInt > 0
 	t.Online = onlineInt > 0
+	// Read only here. The directory query is what writes the healed value back; doing it
+	// in both places would mean two writers for one column and no extra correctness.
+	t.FavSpriteURL = normalizePokemonSpriteURL(t.FavSpriteURL)
 	if len(t.TrainerCode) == 12 {
 		t.TrainerCodeFormatted = t.TrainerCode[:4] + " " + t.TrainerCode[4:8] + " " + t.TrainerCode[8:]
 	} else {
