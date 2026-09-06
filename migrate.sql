@@ -1012,3 +1012,37 @@ CREATE TABLE IF NOT EXISTS raid_appearance_fact (
 -- already covered by the lookups those queries use.
 ALTER TABLE users ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL AFTER disabled_reason;
 CREATE INDEX idx_users_deleted_at ON users (deleted_at);
+
+-- 54. Making a queued write safe to retry (2026-09-06)
+-- The app is growing an offline outbox, and a queue has to retry. A timeout does not
+-- tell the client whether the write landed, so a retry can duplicate a row that is
+-- already there.
+--
+-- Deduping on the shiny itself is not available: section 33 dropped uk_user_shiny on
+-- purpose because catching two of the same shiny on one day is ordinary, and those two
+-- rows are identical on every field the client sends. So the key is on the REQUEST. The
+-- client mints a token when the trainer taps Add, stores it beside the queued entry, and
+-- resends it unchanged on every retry.
+--
+-- Its own table rather than a column on user_shinies for two reasons. A token has to
+-- outlive the row it made, or a retry arriving after the trainer deleted the catch would
+-- put it back. And kind leaves room for evolve and the IV scan to use the same mechanism
+-- without a second schema decision.
+--
+-- token is ascii_bin because the database default collation is case insensitive, which
+-- would fold two genuinely different tokens into one and silently swallow a real catch:
+-- exactly the failure this table exists to prevent.
+--
+-- No sweeper yet. Rows are tiny and bounded by the adds a trainer actually makes, and
+-- idx_urt_created is here so a retention sweep can be added later without another ALTER.
+CREATE TABLE IF NOT EXISTS user_request_tokens (
+  user_id    INT UNSIGNED    NOT NULL,
+  kind       VARCHAR(32)     NOT NULL,
+  token      VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  ref_id     BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, kind, token),
+  KEY idx_urt_created (created_at),
+  CONSTRAINT fk_urt_user FOREIGN KEY (user_id)
+    REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

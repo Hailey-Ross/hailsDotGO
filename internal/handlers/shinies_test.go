@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -192,5 +195,90 @@ func TestParseCaughtAt(t *testing.T) {
 	// server's, and refusing them a date they are currently living in would be nonsense.
 	if _, _, err := parseCaughtAt(tomorrow); err != nil {
 		t.Errorf("tomorrow was rejected, but timezones make it reachable: %v", err)
+	}
+}
+
+// The idempotency token is the only thing standing between a retried offline add and a
+// duplicated catch, so the two ways it can silently fail both have to be closed here.
+//
+// An EMPTY token must never be stored. Stored as a key it would make a trainer's second
+// untokened add look like a replay of their first, and the add would vanish.
+//
+// An OVER-LONG token must be rejected, not truncated. user_request_tokens.token holds 64
+// and MySQL truncates silently, so a longer one would be cut to a prefix that a different
+// token could share, and one of the two adds would vanish the same way.
+func TestNormalizeClientToken(t *testing.T) {
+	// Accepted, and passed through byte for byte.
+	for _, in := range []string{
+		"550e8400-e29b-41d4-a716-446655440000", // a UUIDv4, which is what the app mints
+		"550E8400-E29B-41D4-A716-446655440000", // case is preserved; the column is ascii_bin
+		"abcdefgh",                             // the shortest thing accepted
+		"a.b_c:d-e12",
+		strings.Repeat("x", 64), // the longest thing the column holds
+	} {
+		got, ok := normalizeClientToken(in)
+		if !ok {
+			t.Errorf("token %q was rejected", in)
+			continue
+		}
+		if got != in {
+			t.Errorf("token %q came back as %q; it must be stored verbatim", in, got)
+		}
+	}
+
+	// Absent, in every shape a client can express it. All mean "no token, behave as before",
+	// which is a normalized empty string and NOT an error.
+	for _, in := range []string{"", "   ", "\t\n"} {
+		got, ok := normalizeClientToken(in)
+		if !ok {
+			t.Errorf("%q must be treated as absent, not rejected", in)
+		}
+		if got != "" {
+			t.Errorf("%q normalized to %q; an absent token must be empty so it is never stored", in, got)
+		}
+	}
+
+	// Rejected. Each of these would either not fit the column or not survive it intact.
+	for _, in := range []string{
+		strings.Repeat("x", 65),    // one over: MySQL would truncate this into a collision
+		"short7",                   // too short to be a token worth trusting
+		"has space in it aaaa",     // not URL, log, or column safe
+		"quote'injection--attempt", // apostrophe
+		"emoji-token-\U0001F600aa", // non-ASCII in an ascii column
+		"slash/token/aaaa",
+	} {
+		if got, ok := normalizeClientToken(in); ok {
+			t.Errorf("token %q was accepted as %q; it must be rejected", in, got)
+		}
+	}
+}
+
+// The table is defined twice, once in migrate.sql for an existing install and once in
+// schema.sql for a fresh one, and nothing makes the two agree. Adding it to one and
+// forgetting the other is the classic drift here, and it does not fail until a real
+// install runs the file that was missed.
+//
+// The two properties pinned are the ones that carry meaning rather than style: the
+// ascii_bin collation (the default is case insensitive, which would fold two different
+// tokens into one and swallow a real catch) and the primary key that makes a token unique
+// per user per kind, which is the whole dedupe.
+func TestRequestTokenTableIsInBothSchemas(t *testing.T) {
+	for _, file := range []string{"migrate.sql", "schema.sql"} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", file))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		src := strings.ReplaceAll(string(raw), "\r\n", "\n")
+
+		for _, want := range []string{
+			"CREATE TABLE IF NOT EXISTS user_request_tokens",
+			"COLLATE ascii_bin",
+			"PRIMARY KEY (user_id, kind, token)",
+			"REFERENCES users (id) ON DELETE CASCADE",
+		} {
+			if !strings.Contains(src, want) {
+				t.Errorf("%s does not contain %q", file, want)
+			}
+		}
 	}
 }

@@ -157,9 +157,13 @@ func loadCSRFKey() ([]byte, error) {
 // feature and a loud journal line is better than one that will not boot at all,
 // and the operator sees this within seconds of the restart.
 func warnPendingMigrations(db *sql.DB) {
-	required := []struct{ table, column string }{
-		{"user_pokemon_box", "is_shadow"},
-		{"user_pokemon_box", "is_purified"},
+	// feature names what actually breaks, because the operator reading the journal is
+	// trying to match a bug report to a cause. A message that always blamed the same two
+	// features would point at the wrong one the moment a third entry was added.
+	required := []struct{ table, column, feature string }{
+		{"user_pokemon_box", "is_shadow", "the Pokemon box and saving from the IV calculator"},
+		{"user_pokemon_box", "is_purified", "the Pokemon box and saving from the IV calculator"},
+		{"user_request_tokens", "token", "adding a shiny from the app"},
 	}
 	for _, r := range required {
 		var n int
@@ -174,8 +178,8 @@ func warnPendingMigrations(db *sql.DB) {
 		}
 		if n == 0 {
 			log.Printf("MIGRATION PENDING: %s.%s is missing. This build's queries need it, "+
-				"so the Pokemon box and saving from the IV calculator will fail until you run "+
-				"`go run ./cmd/migrate`.", r.table, r.column)
+				"so %s will fail until you run `go run ./cmd/migrate`.",
+				r.table, r.column, r.feature)
 		}
 	}
 }

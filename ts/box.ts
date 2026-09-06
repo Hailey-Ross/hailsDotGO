@@ -34,6 +34,9 @@ interface BoxEntry {
   def_iv: number | null;
   sta_iv: number | null;
   note: string;
+  // The form's own art, resolved server side. Absent when the form has no
+  // distinct sprite, which is most of them.
+  sprite_url?: string;
 }
 
 const PAGE_SIZE = 50;
@@ -171,7 +174,12 @@ function buildTable(data: GameData, entries: BoxEntry[], reload: () => void): HT
     );
     if (stat) {
       const img = el("img");
-      img.src = pokeSprite(stat.pokemon_id);
+      // Nothing in the bundle separates two forms of a species for sprite
+      // purposes: both Zacian rows are pokemon_id 888, so the dex number alone
+      // drew Hero of Many Battles beside the text "(Crowned_sword)". The server
+      // resolves the form's own art and sends it; the dex sprite is the right
+      // answer only when it does not.
+      img.src = e.sprite_url || pokeSprite(stat.pokemon_id);
       img.alt = e.pokemon_name;
       img.className = "poke-sprite";
       img.loading = "lazy";
