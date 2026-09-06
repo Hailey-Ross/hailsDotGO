@@ -7,7 +7,7 @@ A fan-made Pokémon GO companion web app built in Go.
 - IV Calculator with manual entry, form and Pokémon status support, and OCR screenshot scanning that reads CP, HP, dust, the level arc, and appraisal automatically, and can identify a nicknamed Pokémon from its candy
 - Events page with full details sourced from LeekDuck via ScrapedDuck
 - Shiny Dex plus a personal shiny collection tracker with regional forms (Alolan, Galarian, Hisuian, Paldean)
-- Trainer Directory with dedicated profile pages, a real-time Raid Finder with matchmaking, lobbies, and a trust system
+- Trainer Directory with dedicated profile pages, plus a real-time Raid Finder with matchmaking, lobbies, and a trust system (the Raid Finder is in early alpha)
 - Friends list, real-time raid notifications with 🔔 badge and optional ding sound, and blocked-user management
 - Community feedback (positive/neutral/negative trainer reviews) visible on every trainer profile
 - In-app bug reports ("Report Me Not") with a threaded reporter and staff messenger, labels, assignments, canned responses, and satisfaction ratings
@@ -34,7 +34,7 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 | Run the site day to day | [Operations](https://github.com/Hailey-Ross/hailsDotGO/wiki/Operations) |
 | Use the JSON API | [API Reference](https://github.com/Hailey-Ross/hailsDotGO/wiki/API-Reference) |
 | Use the Android companion app | [Companion App](https://github.com/Hailey-Ross/hailsDotGO/wiki/Companion-App) |
-| Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
+| Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder) (early alpha), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
 | Understand roles and permissions | [Accounts and Roles](https://github.com/Hailey-Ross/hailsDotGO/wiki/Accounts-and-Roles), [Admin Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Admin-Guide) |
 | Report a bug or a player, and triage reports | [Bug Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Bug-Reports), [Player Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Player-Reports) |
 | Translate the site or add a language | [Localization](https://github.com/Hailey-Ross/hailsDotGO/wiki/Localization), [Translator Workspace](https://github.com/Hailey-Ross/hailsDotGO/wiki/Translator-Workspace) |
@@ -71,7 +71,7 @@ The headline feature is the scanner. Tap a floating bubble while looking at any 
 Beyond that:
 
 - Raid bosses by tier with CP and weather-boosted ranges, expanding to their top counters, with the ranking maths ported from the website and unit tested for parity
-- Raid Finder queues and lobbies end to end: confirm, invite, report the outcome, rate the host, and report a player from inside the lobby
+- Raid Finder queues and lobbies are coming soon and are in early alpha: once they land you can confirm, invite, report the outcome, rate the host, and report a player from inside the lobby
 - Shiny collection plus the full shiny dex as a searchable checklist, both working offline
 - Pokémon Box, the IV calculator, a DPS calculator and the PvP IV ranker, with the battle maths running on the phone rather than being fetched
 - Events with detail pages, and a bell that sets up to five reminders per event, resolved in your own timezone by the server
