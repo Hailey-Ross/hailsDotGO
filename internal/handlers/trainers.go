@@ -516,12 +516,94 @@ type mobileTrainer struct {
 	// this a client would have to reverse a colour out of localised text, and
 	// would get it wrong in every language but English.
 	RaidRankClass string      `json:"raid_rank_class,omitempty"`
-	JoinedAt      string      `json:"joined_at"`
-	Online        bool        `json:"online"`
-	SuperDonator  bool        `json:"super_donator"`
-	ProfilePublic bool        `json:"profile_public"`
-	ShiniesHidden bool        `json:"shinies_hidden"`
-	Tags          []mobileTag `json:"tags"`
+	JoinedAt      string `json:"joined_at"`
+	Online        bool   `json:"online"`
+	SuperDonator  bool   `json:"super_donator"`
+	ProfilePublic bool   `json:"profile_public"`
+	ShiniesHidden bool   `json:"shinies_hidden"`
+	// IsFriend, IsFollowing and FollowsMe describe the CALLER's relationship to
+	// this trainer, not anything about the trainer. They are on every trainer the
+	// API hands out so a list can badge a row; before this a client could only
+	// learn a relationship from the profile endpoint, one trainer and four
+	// COUNT(*) round trips at a time.
+	//
+	// A friend is a mutual follow. There is no friendship table: follows are
+	// directional by design (migrate.sql section 34, "user_id follows friend_id")
+	// and socialLists already expresses the mutual case as a self join.
+	//
+	// toMobileTrainer cannot fill these, because it does not know the caller.
+	// Every handler that builds one of these owes them a value; false is a claim,
+	// not an absence.
+	IsFriend    bool        `json:"is_friend"`
+	IsFollowing bool        `json:"is_following"`
+	FollowsMe   bool        `json:"follows_me"`
+	Tags        []mobileTag `json:"tags"`
+}
+
+// viewerFollows is who one trainer follows and who follows them, keyed by
+// username because that is what the DTO carries.
+//
+// Loaded once for a whole directory render. The profile endpoint asks the same
+// question one trainer at a time with COUNT(*), which is right for one row and
+// wrong for several hundred.
+type viewerFollows struct {
+	following map[string]bool
+	followers map[string]bool
+}
+
+// loadViewerFollows reads both directions of the caller's follows.
+//
+// Two queries rather than one join onto the directory: listTrainers is shared
+// with the website's trainer directory, so the relationship must not be welded
+// into it. Both are index reads, the outbound on the PRIMARY KEY
+// (user_id, friend_id) and the inbound on the index InnoDB keeps behind
+// fk_uf_friend.
+//
+// An error leaves the map empty rather than failing the request: a directory
+// with no relationship badges is worth serving, and the fallback tier is the
+// one every stranger already gets.
+func (h *Handlers) loadViewerFollows(userID uint) viewerFollows {
+	v := viewerFollows{following: map[string]bool{}, followers: map[string]bool{}}
+	collect := func(query string, into map[string]bool) {
+		rows, err := h.db.Query(query, userID)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var username string
+			if rows.Scan(&username) == nil {
+				into[username] = true
+			}
+		}
+	}
+	collect(`
+		SELECT u.username FROM user_follows uf
+		JOIN users u ON u.id = uf.friend_id
+		WHERE uf.user_id = ?`, v.following)
+	collect(`
+		SELECT u.username FROM user_follows uf
+		JOIN users u ON u.id = uf.user_id
+		WHERE uf.friend_id = ?`, v.followers)
+	return v
+}
+
+// stamp writes the caller's relationship to one trainer onto their DTO.
+func (v viewerFollows) stamp(t *mobileTrainer) {
+	t.IsFollowing = v.following[t.Username]
+	t.FollowsMe = v.followers[t.Username]
+	t.IsFriend = t.IsFollowing && t.FollowsMe
+}
+
+// viewerLocation reads one trainer's own region and country.
+//
+// A separate read because the session carries no location: auth.User is
+// username, role and language, and nothing has ever needed where its owner
+// lives. This is the caller's own row, so no privacy gate applies to it.
+func (h *Handlers) viewerLocation(userID uint) (region, country string) {
+	h.db.QueryRow(`SELECT COALESCE(region,''), COALESCE(country,'') FROM users WHERE id = ?`, userID).
+		Scan(&region, &country)
+	return region, country
 }
 
 // toMobileTrainer applies the same visibility rules the templates apply, so a JSON
@@ -609,8 +691,8 @@ const mobileTrainersMaxLimit = 500
 // MobileTrainers serves the trainers directory.
 //
 // Ordering is whatever listTrainers produced (online first, then staff by rank,
-// then supporters, then raid XP, then name) and is never re-sorted here. The
-// filter below preserves it.
+// then supporters, then raid XP, then name). The filter below preserves it, and
+// so does ?sort=relationship, which only groups that order into tiers.
 func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.requireUserAPI(w, r)
 	if !ok {
@@ -629,10 +711,25 @@ func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Loaded once for the whole directory, and unconditionally: the relationship
+	// flags ride on every row whether or not the caller asked for the sort, so a
+	// list can badge a trainer without a round trip per row.
+	rel := h.loadViewerFollows(u.ID)
+
 	list := h.listTrainers()
 	out := make([]mobileTrainer, 0, len(list))
 	for _, t := range list {
-		out = append(out, toMobileTrainer(t, t.Username == u.Username))
+		mt := toMobileTrainer(t, t.Username == u.Username)
+		rel.stamp(&mt)
+		out = append(out, mt)
+	}
+
+	// Opt in, because listTrainers and its sort are shared with the website's
+	// trainer directory. Tiering unconditionally would reorder /trainers for
+	// everyone, which is a decision nobody has made.
+	if strings.EqualFold(r.URL.Query().Get("sort"), trainerSortRelationship) {
+		region, country := h.viewerLocation(u.ID)
+		out = sortTrainersForViewer(out, region, country)
 	}
 
 	// Same condition as TrainersPage, read from the same two places. -1 means the
@@ -659,6 +756,85 @@ func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 		UserGrantRank: grantRank,
 		Total:         total,
 	})
+}
+
+// trainerSortRelationship is the ?sort= value that groups the directory around
+// the caller. Anything else, including nothing, leaves the order alone.
+const trainerSortRelationship = "relationship"
+
+// The tiers ?sort=relationship groups the directory into. Lower sorts first.
+const (
+	tierFriend = iota
+	tierFollowing
+	tierFollower
+	tierSameArea
+	tierEveryoneElse
+)
+
+// viewerTier places one trainer relative to the caller.
+//
+// It takes the DTO, not the row, and that is the whole privacy story. The
+// server holds everyone's raw country whatever their settings say, so tiering
+// on users.country would make a trainer's POSITION in the list an oracle for
+// whether a private trainer shares your country, which is the same leak
+// filterMobileTrainers is written the way it is to avoid. A trainer who
+// publishes no location cannot reach tierSameArea and lands with the strangers.
+// That is the correct answer, not a gap.
+func viewerTier(t mobileTrainer, myRegion, myCountry string) int {
+	switch {
+	case t.IsFriend:
+		return tierFriend
+	case t.IsFollowing:
+		return tierFollowing
+	case t.FollowsMe:
+		return tierFollower
+	case sameLocality(t.Region, myRegion) && sameLocality(t.Country, myCountry):
+		return tierSameArea
+	}
+	return tierEveryoneElse
+}
+
+// sameLocality compares two free text place names.
+//
+// Free text is not an exaggeration: settings.go stores r.FormValue("country") as
+// typed behind a bare maxlength, so UK, United Kingdom and england are three
+// different countries here and no amount of normalising would fix that
+// honestly. Trimmed and case insensitive is as far as this goes.
+//
+// A blank never matches a blank. Without that, every trainer who publishes no
+// location tiers together above real strangers, which is the opposite of what
+// the tier means.
+func sameLocality(a, b string) bool {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	return a != "" && strings.EqualFold(a, b)
+}
+
+// sortTrainersForViewer groups the directory into relationship tiers, keeping
+// the order inside each tier exactly as it arrived.
+//
+// The tier is a prefix key on top of the directory's own order (online, then
+// staff by rank, then supporters, then raid XP, then name), not a replacement
+// for it, which is what the stable sort buys.
+//
+// This runs over the whole directory before paging, which is the point: sorting
+// a PAGE by relationship only floats friends to the top of whichever page they
+// already landed on.
+func sortTrainersForViewer(in []mobileTrainer, myRegion, myCountry string) []mobileTrainer {
+	// Tiers computed once per trainer rather than inside the comparator, which
+	// would recompute them O(n log n) times.
+	tiers := make([]int, len(in))
+	order := make([]int, len(in))
+	for i, t := range in {
+		tiers[i] = viewerTier(t, myRegion, myCountry)
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool { return tiers[order[a]] < tiers[order[b]] })
+
+	out := make([]mobileTrainer, len(in))
+	for pos, i := range order {
+		out[pos] = in[i]
+	}
+	return out
 }
 
 // filterMobileTrainers narrows the directory to trainers matching q, preserving
@@ -787,6 +963,13 @@ func (h *Handlers) MobileTrainerProfile(w http.ResponseWriter, r *http.Request) 
 		h.db.QueryRow(`SELECT id, option_id FROM user_feedback WHERE author_id = ? AND target_id = ?`,
 			viewer.ID, userID).Scan(&out.MyFeedbackID, &out.MyFeedbackOptionID)
 	}
+
+	// The same three flags the directory stamps on every row, copied from the
+	// answers already computed above. Without this the trainer object inside a
+	// profile would flatly contradict the envelope around it.
+	out.Trainer.IsFollowing = out.IsFollowing
+	out.Trainer.FollowsMe = out.FollowsMe
+	out.Trainer.IsFriend = out.IsFriend
 
 	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE friend_id = ?`, userID).Scan(&out.FollowerCount)
 	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ?`, userID).Scan(&out.FollowingCount)
