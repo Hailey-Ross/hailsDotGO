@@ -80,6 +80,18 @@ type ivRequest struct {
 	// scanned can re-ask with CP 0 and this set, and the solver falls back to the
 	// arc. See IVCalculate for why that cannot be done on the device.
 	ArcLevel *float64 `json:"arc_level"`
+	// AtkIV, DefIV and StaIV are IVs the caller already knows, read off the
+	// appraisal bars before the solve. Optional, and pointers because an IV of 0
+	// is a real reading rather than an absent one.
+	//
+	// All three or none. A bar reader answers with a whole spread or abstains,
+	// so a partial triple did not come from one, and half-applying it would
+	// invent a constraint the caller never asserted. Unlike TopStat and
+	// AppraisalBars, which are hints whose worst case is a wide answer, this is
+	// an assertion: a malformed one is refused rather than ignored.
+	AtkIV *int `json:"atk_iv"`
+	DefIV *int `json:"def_iv"`
+	StaIV *int `json:"sta_iv"`
 }
 
 // dustBrackets maps the BASE stardust power-up cost to the level range it implies.
@@ -261,6 +273,22 @@ func intersectRangesWithLevel(ranges []levelRange, lvl, tol float64) []levelRang
 	return out
 }
 
+// snapUpToHalfStep returns the first half level at or above lvl.
+//
+// Game levels exist only on half steps, and every level this server publishes
+// is on one. A range edge that is not (an arc_level the caller did not round,
+// which /iv/calculate and /iv/scan both accept on their range check alone)
+// would otherwise be walked in 0.5 increments off the grid: 21.8, 22.3, 22.8,
+// each one missing cpmByLevel and falling out at the continue in the level
+// loop, so the whole solve answers with nothing and says nothing about why.
+//
+// The window such an edge describes is right. Only its phase is wrong, which
+// is why this snaps the walk rather than validating the input: it repairs any
+// off-grid range whatever produced it, and is a no-op on every aligned one.
+func snapUpToHalfStep(lvl float64) float64 {
+	return math.Ceil(lvl*2) / 2
+}
+
 // enumerateWithBuddyRetry runs the enumeration and, when the first pass finds
 // nothing, retries one level higher: an active Best Buddy displays CP and HP
 // boosted by one level while the dust cost reflects the true level. The bool
@@ -308,7 +336,7 @@ func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, po
 		if maxLvl > levelCap {
 			maxLvl = levelCap
 		}
-		for lvl := lr.MinLvl; lvl <= maxLvl; lvl += 0.5 {
+		for lvl := snapUpToHalfStep(lr.MinLvl); lvl <= maxLvl; lvl += 0.5 {
 			levelSet[lvl] = true
 		}
 	}
@@ -321,6 +349,24 @@ func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, po
 	for atkIV := 0; atkIV <= 15; atkIV++ {
 		for defIV := 0; defIV <= 15; defIV++ {
 			for staIV := 0; staIV <= 15; staIV++ {
+				// A caller supplied IV triple, applied first because it is the
+				// most selective filter here and because it has to compose with
+				// the level loop below: a spread the caller read off the
+				// appraisal bars still has to be found at a LEVEL, and the Best
+				// Buddy retry only fires when this pass finds nothing.
+				//
+				// solveWithIVConstraint decides whether a triple reaches this
+				// function at all, and clears TopStat and AppraisalBars before it
+				// does. Nothing here has to reconcile the three.
+				if req.AtkIV != nil && atkIV != *req.AtkIV {
+					continue
+				}
+				if req.DefIV != nil && defIV != *req.DefIV {
+					continue
+				}
+				if req.StaIV != nil && staIV != *req.StaIV {
+					continue
+				}
 				ivSum := atkIV + defIV + staIV
 				if ivSum < ivSumMin || ivSum > ivSumMax {
 					continue
@@ -371,6 +417,62 @@ func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, po
 	return candidates
 }
 
+// solveWithIVConstraint runs the solve against a caller supplied IV triple,
+// falling back to the unconstrained answer when the triple fits nothing. It
+// returns the candidates, whether a Best Buddy interpretation was used, and
+// whether the triple had to be ignored.
+//
+// Two passes, and the order is the whole design:
+//
+//  1. The triple applied INSIDE the sweep, with TopStat and AppraisalBars
+//     cleared. An exact IV read subsumes a star band and a top stat: both are
+//     statements about the same three numbers, and weaker ones. When they
+//     disagree the exact read wins, because a star band read off a rounded
+//     badge is a far softer signal than three bars measured to a fraction of an
+//     IV unit. Leaving the hints in let one of them delete the caller's own
+//     answer from the list and blame the IV read for it.
+//
+//  2. Only if that finds nothing: today's solve, hints applied and no triple,
+//     reported with ignored set.
+//
+// Applying the triple inside the sweep rather than filtering the result is what
+// makes the Best Buddy retry reachable. An active Best Buddy displays CP and HP
+// one level up, and enumerateWithBuddyRetry only shifts when a pass comes back
+// empty. Filtering afterwards meant a correctly read Best Buddy whose displayed
+// stats also matched some other spread never got the shift: the first pass was
+// non-empty, so the retry never fired, and the trainer was told their bars did
+// not fit. Machamp CP 1964, HP 140, dust 3000 with a true 12/13/13 at level 22
+// is that case.
+//
+// The fallback is section 3.4 of the request this implements: when the triple
+// fits nothing the caller gets the unconstrained list, never an empty one.
+// Either the IVs were misread or the CP, HP or dust was, and the server cannot
+// tell which any more than the client can. Hiding a correct answer behind a bad
+// reading is the worse of the two failures.
+//
+// The second sweep runs only on a mismatch and is well under a millisecond.
+func solveWithIVConstraint(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool, bool) {
+	if req.AtkIV == nil || req.DefIV == nil || req.StaIV == nil {
+		candidates, buddy := enumerateIVs(req, poke, cpms)
+		return candidates, buddy, false
+	}
+
+	constrained := req
+	constrained.TopStat = ""
+	constrained.AppraisalBars = nil
+	if candidates, buddy := enumerateIVs(constrained, poke, cpms); len(candidates) > 0 {
+		return candidates, buddy, false
+	}
+
+	wide := req
+	wide.AtkIV, wide.DefIV, wide.StaIV = nil, nil, nil
+	candidates, buddy := enumerateIVs(wide, poke, cpms)
+	// A solve that is empty WITHOUT the triple was not emptied by the triple.
+	// Reporting it as ignored would point the caller at their IV read when the
+	// CP, HP or dust is what nothing fits.
+	return candidates, buddy, len(candidates) > 0
+}
+
 func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 	var req ivRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -387,6 +489,21 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ArcLevel != nil && (*req.ArcLevel < 1 || *req.ArcLevel > 51) {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	known := 0
+	for _, iv := range []*int{req.AtkIV, req.DefIV, req.StaIV} {
+		if iv == nil {
+			continue
+		}
+		known++
+		if *iv < 0 || *iv > 15 {
+			writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+			return
+		}
+	}
+	if known != 0 && known != 3 {
+		writeJSONError(w, "atk_iv, def_iv and sta_iv must be sent together", http.StatusBadRequest)
 		return
 	}
 	// Nothing to solve against: no CP to match and no arc to sweep would enumerate
@@ -437,13 +554,18 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidates, buddyAssumed := enumerateIVs(req, *poke, cpms)
+	candidates, buddyAssumed, ivIgnored := solveWithIVConstraint(req, *poke, cpms)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"candidates": candidates,
 		"count":      len(candidates),
-		"definitive": len(candidates) == 1,
+		// definitive is len(candidates) == 1, EXCEPT when a supplied triple fit
+		// nothing: the one answer there is the one the solve would have given
+		// without the triple, and the caller's own reading contradicts it. A
+		// client gating a confident single-answer screen on this flag must not
+		// be handed one in that case.
+		"definitive": len(candidates) == 1 && !ivIgnored,
 		"pokemon":    poke,
 		// arc_rescue says the answer came from the arc rather than from a CP.
 		//
@@ -453,6 +575,15 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		// with what is on their screen and never say why.
 		"arc_rescue":         req.CP == 0 && req.ArcLevel != nil,
 		"best_buddy_assumed": buddyAssumed,
+		// iv_constraint_ignored says a supplied atk_iv/def_iv/sta_iv triple
+		// matched no candidate and the unconstrained list is what came back. It
+		// is how a caller tells "your IVs pinned it" from "your IVs pinned
+		// nothing, here is everything". Always false when no triple was sent.
+		//
+		// It does NOT mean the caller misread the bars. It can also mean the CP,
+		// HP or dust was misread, and the list it accompanies is the one the
+		// hints (top_stat, appraisal_bars) still shape.
+		"iv_constraint_ignored": ivIgnored,
 	})
 }
 

@@ -2019,6 +2019,26 @@ func (s *Store) Events() json.RawMessage {
 //
 // fn runs with no lock held and may call back into the store, but it runs inline
 // on the refresh path, so anything long lived belongs in a goroutine of its own.
+// ApplySolverData applies known good pokemon stat and CP multiplier payloads,
+// the two blobs the IV solver reads. It is the same sink the refresh path uses,
+// so a store seeded this way answers exactly as a refreshed one does for those
+// two sets.
+//
+// It exists for the same reason ApplyPokedexSpecies does: the handlers layer has
+// no other way to stand a populated store up in a test, and Refresh goes to the
+// network. An empty payload is skipped rather than applied, so a caller can seed
+// one blob without blanking the other.
+func (s *Store) ApplySolverData(pokemon, cpMultipliers json.RawMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(pokemon) > 0 {
+		s.applyResult("pokemon", pokemon)
+	}
+	if len(cpMultipliers) > 0 {
+		s.applyResult("cp_multipliers", cpMultipliers)
+	}
+}
+
 func (s *Store) SetEventsAppliedHook(fn func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

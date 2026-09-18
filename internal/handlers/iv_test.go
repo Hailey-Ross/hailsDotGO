@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"pogo.hails.cc/internal/pogodata"
 )
 
 func loadCPMs(t *testing.T) []cpmEntry {
@@ -406,6 +408,398 @@ func TestArcLevelLeavesAMatchingSolveAlone(t *testing.T) {
 	t.Errorf("the hundo at 22.5 fell out when an agreeing arc level was supplied (%d without, %d with)", len(without), len(with))
 }
 
+func intPtr(v int) *int { return &v }
+
+func f64Ptr(v float64) *float64 { return &v }
+
+func TestSnapUpToHalfStep(t *testing.T) {
+	for _, c := range []struct{ in, want float64 }{
+		{22.5, 22.5}, {22.0, 22.0}, {1.0, 1.0}, {51.0, 51.0},
+		{21.8, 22.0}, {22.3, 22.5}, {1.1, 1.5}, {22.75, 23.0},
+		// A hair ABOVE a half step snaps to the next one, which loses 22.0 from
+		// the walk. Pinned as the known behavior rather than as a wish: no client
+		// can produce it (both take their level from the CPM table), and the only
+		// way in is a hand-written arc_level of 22.500000000000004, which returned
+		// nothing at all before the snap existed.
+		{22.000000000000004, 22.5},
+	} {
+		if got := snapUpToHalfStep(c.in); got != c.want {
+			t.Errorf("snapUpToHalfStep(%v) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+// An arc_level that is not on a half step used to answer 200 with an empty
+// list and no explanation: the level window it described was correct, but the
+// walk started on its unaligned edge and stepped 0.5 at a time past every real
+// level. Neither shipping client can send one (both take their level out of
+// the CPM table), but /iv/scan accepts a caller-supplied float on a range check
+// alone, and so does this endpoint.
+func TestUnalignedArcLevelStillSolves(t *testing.T) {
+	cpms := loadCPMs(t)
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 0, HP: 140, DustCost: 3000, TrainerLevel: 46,
+		ArcLevel: f64Ptr(22.3),
+	}
+	candidates, _ := enumerateIVs(req, machamp, cpms)
+	if len(candidates) == 0 {
+		t.Fatal("an off-grid arc level solved to nothing, so the walk is still off phase")
+	}
+	for _, c := range candidates {
+		if c.Level*2 != float64(int(c.Level*2)) {
+			t.Errorf("candidate sits off the half-step grid: %+v", c)
+		}
+	}
+	found := false
+	for _, c := range candidates {
+		if c.AtkIV == 15 && c.DefIV == 15 && c.StaIV == 15 && c.Level == 22.5 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the hundo at 22.5 is not inside the window an arc read of 22.3 describes")
+	}
+}
+
+// The aligned case, pinned on the LOW EDGE of the arc window, because that is
+// the level a snap that rounded the wrong way would eat.
+//
+// An earlier version of this test used dust 3000 with arc 22.5 and asserted only
+// that every candidate sat between 22.0 and 23.0. That solve returns every one
+// of its candidates at a single level, so the assertion was vacuous and the test
+// passed just as happily with the snap reverted. This one does not: an arc of
+// 23.0 with no dust describes [22.5, 23.5], and the low edge carries real
+// candidates, so losing it is visible in the level set.
+func TestAlignedArcWindowKeepsItsLowEdge(t *testing.T) {
+	cpms := loadCPMs(t)
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 0, HP: 140, TrainerLevel: 46,
+		ArcLevel: f64Ptr(23.0),
+	}
+	candidates, _ := enumerateIVs(req, machamp, cpms)
+	if len(candidates) == 0 {
+		t.Fatal("the aligned arc level stopped solving")
+	}
+	levels := map[float64]int{}
+	for _, c := range candidates {
+		levels[c.Level]++
+	}
+	for _, want := range []float64{22.5, 23.0, 23.5} {
+		if levels[want] == 0 {
+			t.Errorf("no candidate at level %v; the window [22.5, 23.5] produced %v", want, levels)
+		}
+	}
+	for lvl := range levels {
+		if lvl < 22.5 || lvl > 23.5 {
+			t.Errorf("candidate outside the arc window at level %v: %v", lvl, levels)
+		}
+	}
+}
+
+// A known IV triple collapses a solve to the spread it names. Driven on the
+// CP-free case, because that is the one the constraint is worth having for: CP
+// pins the spread already, while without it the attack and defense axes are
+// free and the uncapped response carries every one of them.
+func TestIVConstraintNarrowsTheCPFreeSolve(t *testing.T) {
+	cpms := loadCPMs(t)
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 0, HP: 140, DustCost: 3000, TrainerLevel: 46,
+		IsLucky: boolPtr(false), IsShadow: boolPtr(false), IsPurified: boolPtr(false),
+	}
+	wide, _, _ := solveWithIVConstraint(req, machamp, cpms)
+	if len(wide) < 2 {
+		t.Fatalf("need a wide list to narrow, got %d", len(wide))
+	}
+
+	req.AtkIV, req.DefIV, req.StaIV = intPtr(15), intPtr(15), intPtr(15)
+	got, _, ignored := solveWithIVConstraint(req, machamp, cpms)
+	if ignored {
+		t.Fatal("a triple that matches a candidate must not be reported as ignored")
+	}
+	if len(got) == 0 || len(got) >= len(wide) {
+		t.Fatalf("got %d candidates out of %d, want a strictly narrowed list", len(got), len(wide))
+	}
+	for _, c := range got {
+		if c.AtkIV != 15 || c.DefIV != 15 || c.StaIV != 15 {
+			t.Errorf("candidate outside the constraint survived: %+v", c)
+		}
+	}
+	found := false
+	for _, c := range got {
+		if c.Level == 22.5 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the hundo at 22.5 did not survive its own constraint: %+v", got)
+	}
+}
+
+// The load-bearing case: a triple that matches nothing hands back the
+// unconstrained list with the flag set, never an empty one. Either the bars
+// were misread or the CP, HP or dust was, and an empty answer would hide a
+// correct solve behind a bad reading.
+func TestIVConstraintImpossibleKeepsTheWideList(t *testing.T) {
+	cpms := loadCPMs(t)
+	// Deliberately the CP-free solve rather than the CP one. With a CP the
+	// unconstrained list is a single candidate, and "the wide list came back"
+	// then only distinguishes 1 from 0, which is not what this test claims to
+	// prove. Here it is 512 rows.
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 0, HP: 140, DustCost: 3000, TrainerLevel: 46,
+	}
+	wide, _, _ := solveWithIVConstraint(req, machamp, cpms)
+	if len(wide) < 2 {
+		t.Fatalf("need a wide list to keep, got %d", len(wide))
+	}
+
+	// HP 140 pins the stamina IV per level, and 0 is not one of the values it can
+	// take here, so this is the mismatch case. It doubles as the proof that a zero
+	// IV is applied rather than read as absent: an absent triple reports ignored
+	// false.
+	req.AtkIV, req.DefIV, req.StaIV = intPtr(0), intPtr(0), intPtr(0)
+	got, _, ignored := solveWithIVConstraint(req, machamp, cpms)
+	if !ignored {
+		t.Fatal("a triple matching no candidate must report iv_constraint_ignored")
+	}
+	if len(got) != len(wide) {
+		t.Fatalf("got %d candidates, want the unconstrained %d back", len(got), len(wide))
+	}
+}
+
+// With no triple the filter is a pass-through, which is what keeps every
+// existing client byte-identical.
+func TestIVConstraintAbsentIsANoOp(t *testing.T) {
+	cpms := loadCPMs(t)
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 1964, HP: 140, DustCost: 3000, TrainerLevel: 46,
+	}
+	wide, _ := enumerateIVs(req, machamp, cpms)
+	got, _, ignored := solveWithIVConstraint(req, machamp, cpms)
+	if ignored {
+		t.Error("no triple was sent, so nothing can have been ignored")
+	}
+	if len(got) != len(wide) {
+		t.Errorf("got %d candidates, want %d unchanged", len(got), len(wide))
+	}
+}
+
+// A correctly read Best Buddy has to survive its own constraint.
+//
+// The card displays CP and HP one level above the true level, and the retry that
+// finds that only fires when a pass comes back empty. While the triple was
+// filtered onto the finished list instead of applied inside the sweep, this
+// solve was non-empty at the displayed level, the retry never fired, and the
+// trainer was told their bars did not fit: 15/15/15 at 22.5 came back with
+// iv_constraint_ignored set, on a card whose real spread is 12/13/13 at 23.
+func TestIVConstraintRescuesABestBuddy(t *testing.T) {
+	cpms := loadCPMs(t)
+	req := ivRequest{
+		PokemonName: "Machamp", CP: 1964, HP: 140, DustCost: 3000, TrainerLevel: 46,
+		AtkIV: intPtr(12), DefIV: intPtr(13), StaIV: intPtr(13),
+	}
+	got, buddy, ignored := solveWithIVConstraint(req, machamp, cpms)
+	if ignored {
+		t.Fatalf("a correct Best Buddy read was reported as ignored: %+v", got)
+	}
+	if !buddy {
+		t.Error("the Best Buddy interpretation was not reported")
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d candidates, want the single 12/13/13 spread: %+v", len(got), got)
+	}
+	if got[0].AtkIV != 12 || got[0].DefIV != 13 || got[0].StaIV != 13 || got[0].Level != 23 {
+		t.Errorf("wrong candidate: %+v", got[0])
+	}
+}
+
+// An exact triple outranks the two hints read off the same dialog.
+//
+// top_stat and appraisal_bars are weaker statements about the same three
+// numbers. While they were applied inside the sweep and the triple was filtered
+// on afterwards, a star band off by one silently deleted the caller's own answer
+// and the response blamed the IV read: the first case below returned 175 rows
+// without the hundo in them, and the second returned an EMPTY list with
+// iv_constraint_ignored false, which is the one outcome the contract forbids.
+func TestIVConstraintOutranksTheAppraisalHints(t *testing.T) {
+	cpms := loadCPMs(t)
+	bars := 2 // a two-star band, IV sum 30 to 36, which excludes a hundo
+
+	cases := []struct {
+		name string
+		req  ivRequest
+	}{
+		{"cp-free solve with a wrong star band", ivRequest{
+			PokemonName: "Machamp", CP: 0, HP: 140, DustCost: 3000, TrainerLevel: 46,
+			ArcLevel: f64Ptr(22.5), AppraisalBars: &bars,
+			AtkIV: intPtr(15), DefIV: intPtr(15), StaIV: intPtr(15),
+		}},
+		{"cp solve with a wrong star band", ivRequest{
+			PokemonName: "Machamp", CP: 1964, HP: 140, DustCost: 3000, TrainerLevel: 46,
+			AppraisalBars: &bars,
+			AtkIV:         intPtr(15), DefIV: intPtr(15), StaIV: intPtr(15),
+		}},
+		{"cp-free solve with a wrong top stat", ivRequest{
+			PokemonName: "Machamp", CP: 0, HP: 140, DustCost: 3000, TrainerLevel: 46,
+			ArcLevel: f64Ptr(22.5), TopStat: "def",
+			AtkIV: intPtr(15), DefIV: intPtr(15), StaIV: intPtr(15),
+		}},
+	}
+
+	for _, c := range cases {
+		got, _, ignored := solveWithIVConstraint(c.req, machamp, cpms)
+		if len(got) == 0 {
+			t.Errorf("%s: returned an empty list", c.name)
+			continue
+		}
+		if ignored {
+			t.Errorf("%s: a hint overrode the triple and it was reported as ignored (%d rows)", c.name, len(got))
+			continue
+		}
+		for _, x := range got {
+			if x.AtkIV != 15 || x.DefIV != 15 || x.StaIV != 15 {
+				t.Errorf("%s: candidate outside the triple survived: %+v", c.name, x)
+			}
+		}
+	}
+}
+
+// solverStore stands a store up with the two blobs the IV solver reads.
+//
+// Every other test here drives the enumerator directly, which left the HANDLER
+// wiring uncovered: the constraint could have been left out of IVCalculate
+// altogether, or applied to the wrong request, and the whole suite stayed green.
+func solverStore(t *testing.T) *pogodata.Store {
+	t.Helper()
+	poke, err := os.ReadFile("../pogodata/fallback/pokemon.json")
+	if err != nil {
+		t.Fatalf("read pokemon fallback: %v", err)
+	}
+	cpm, err := os.ReadFile("../pogodata/fallback/cp_multipliers.json")
+	if err != nil {
+		t.Fatalf("read cp_multipliers fallback: %v", err)
+	}
+	s := pogodata.New()
+	s.ApplySolverData(poke, cpm)
+	return s
+}
+
+// The response IVCalculate actually serves, key by key.
+func TestIVCalculateServesTheConstraint(t *testing.T) {
+	t.Setenv("CACHE_DIR", t.TempDir())
+	h := &Handlers{store: solverStore(t)}
+
+	post := func(t *testing.T, body string) map[string]any {
+		t.Helper()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/mobile/v1/iv/calculate", strings.NewReader(body))
+		h.IVCalculate(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
+		}
+		var got map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatalf("response is not JSON: %v (%s)", err, w.Body.String())
+		}
+		return got
+	}
+
+	const machampCard = `"pokemon_name":"Machamp","cp":1964,"hp":140,"dust_cost":3000,"trainer_level":46`
+
+	t.Run("no triple is unchanged and the flag is still published", func(t *testing.T) {
+		got := post(t, `{`+machampCard+`}`)
+		if got["count"] != float64(1) || got["definitive"] != true {
+			t.Errorf("count = %v, definitive = %v, want 1 and true", got["count"], got["definitive"])
+		}
+		v, ok := got["iv_constraint_ignored"]
+		if !ok {
+			t.Fatal("iv_constraint_ignored is missing from the response")
+		}
+		if v != false {
+			t.Errorf("iv_constraint_ignored = %v, want false when no triple was sent", v)
+		}
+	})
+
+	t.Run("a matching triple pins it", func(t *testing.T) {
+		got := post(t, `{`+machampCard+`,"atk_iv":15,"def_iv":15,"sta_iv":15}`)
+		if got["count"] != float64(1) || got["definitive"] != true || got["iv_constraint_ignored"] != false {
+			t.Errorf("count = %v, definitive = %v, ignored = %v; want 1, true, false",
+				got["count"], got["definitive"], got["iv_constraint_ignored"])
+		}
+	})
+
+	t.Run("a triple that fits nothing keeps the list and drops definitive", func(t *testing.T) {
+		got := post(t, `{`+machampCard+`,"atk_iv":0,"def_iv":0,"sta_iv":0}`)
+		if got["count"] != float64(1) {
+			t.Errorf("count = %v, want the unconstrained 1", got["count"])
+		}
+		if got["iv_constraint_ignored"] != true {
+			t.Errorf("iv_constraint_ignored = %v, want true", got["iv_constraint_ignored"])
+		}
+		if got["definitive"] != false {
+			t.Error("definitive must not be true on a solve whose own triple fit nothing")
+		}
+	})
+
+	t.Run("a solve that is empty anyway does not blame the triple", func(t *testing.T) {
+		// No spread reaches HP 999 at CP 1964, so this solve is empty with or
+		// without the triple and the triple eliminated nothing.
+		got := post(t, `{"pokemon_name":"Machamp","cp":1964,"hp":999,"dust_cost":3000,"trainer_level":46,"atk_iv":15,"def_iv":15,"sta_iv":15}`)
+		if got["count"] != float64(0) {
+			t.Fatalf("count = %v, want 0", got["count"])
+		}
+		if got["iv_constraint_ignored"] != false {
+			t.Error("an empty solve was reported as the triple being ignored")
+		}
+	})
+
+	t.Run("a wrong star band does not delete the answer", func(t *testing.T) {
+		got := post(t, `{`+machampCard+`,"appraisal_bars":2,"atk_iv":15,"def_iv":15,"sta_iv":15}`)
+		if got["count"] != float64(1) || got["iv_constraint_ignored"] != false {
+			t.Errorf("count = %v, ignored = %v; want 1 and false", got["count"], got["iv_constraint_ignored"])
+		}
+	})
+
+	t.Run("a Best Buddy is solved rather than blamed", func(t *testing.T) {
+		got := post(t, `{`+machampCard+`,"atk_iv":12,"def_iv":13,"sta_iv":13}`)
+		if got["count"] != float64(1) || got["iv_constraint_ignored"] != false {
+			t.Fatalf("count = %v, ignored = %v; want 1 and false", got["count"], got["iv_constraint_ignored"])
+		}
+		if got["best_buddy_assumed"] != true {
+			t.Error("best_buddy_assumed = false on a card that only solves one level up")
+		}
+	})
+}
+
+// The two refusals carry different messages on purpose, so a caller can tell a
+// malformed triple from an out-of-range one in a log. TestIVCalculateRequestBounds
+// compares status codes only, so the text is pinned here.
+func TestIVTripleRefusalMessages(t *testing.T) {
+	h := &Handlers{}
+	for _, c := range []struct{ name, body, want string }{
+		{
+			"two of three",
+			`{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":14,"def_iv":9}`,
+			"atk_iv, def_iv and sta_iv must be sent together",
+		},
+		{
+			"an iv out of range",
+			`{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":16,"def_iv":9,"sta_iv":15}`,
+			"invalid parameters",
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/mobile/v1/iv/calculate", strings.NewReader(c.body))
+		h.IVCalculate(w, r)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", c.name, w.Code)
+		}
+		if !strings.Contains(w.Body.String(), c.want) {
+			t.Errorf("%s: body = %s, want it to carry %q", c.name, strings.TrimSpace(w.Body.String()), c.want)
+		}
+	}
+}
+
 // The request bounds, checked before the store is ever consulted, so a bare
 // Handlers is enough to drive them.
 //
@@ -430,6 +824,12 @@ func TestIVCalculateRequestBounds(t *testing.T) {
 		{"an arc level below 1 is refused", `{"pokemon_name":"Machamp","cp":0,"hp":140,"trainer_level":46,"arc_level":0.5}`, http.StatusBadRequest},
 		{"an arc level above 51 is refused", `{"pokemon_name":"Machamp","cp":0,"hp":140,"trainer_level":46,"arc_level":52}`, http.StatusBadRequest},
 		{"no name is refused", `{"pokemon_name":"","cp":1964,"hp":140,"trainer_level":46}`, http.StatusBadRequest},
+		{"a full in-range iv triple is accepted", `{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":14,"def_iv":9,"sta_iv":15}`, 0},
+		{"an all-zero iv triple is a real reading", `{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":0,"def_iv":0,"sta_iv":0}`, 0},
+		{"an iv above 15 is refused", `{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":16,"def_iv":9,"sta_iv":15}`, http.StatusBadRequest},
+		{"a negative iv is refused", `{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":14,"def_iv":9,"sta_iv":-1}`, http.StatusBadRequest},
+		{"two of three ivs is refused", `{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"atk_iv":14,"def_iv":9}`, http.StatusBadRequest},
+		{"one of three ivs is refused", `{"pokemon_name":"Machamp","cp":1964,"hp":140,"trainer_level":46,"sta_iv":15}`, http.StatusBadRequest},
 	}
 
 	for _, c := range cases {
