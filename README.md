@@ -14,7 +14,7 @@ A fan-made Pokémon GO companion web app built in Go.
 - Player reporting for bad actors (spoofing, harassment, and more) routed to a shared moderator queue
 - User accounts (open or invite-only registration) with signup email confirmation and self-service password reset by email, plus staff roles, strikes, tags, and awards
 - Supporter store with optional donation perks (PayPal)
-- Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates
+- Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates. Pokémon names are accepted in any of those languages wherever the site asks for one, and stored under their English name so a collection entered in one language still lines up with everything else
 - Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
 - **FlexDex**, an Android companion app on the same account and the same database, which scans a Pokémon straight off your screen while you play and carries almost the whole site as native screens
 
