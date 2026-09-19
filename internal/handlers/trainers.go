@@ -245,7 +245,7 @@ func (h *Handlers) listTrainers() []trainerEntry {
 			writeBacks = append(writeBacks, favSpriteWriteBack{id: userID, was: t.FavSpriteURL, now: healed})
 			t.FavSpriteURL = healed
 		} else if t.FavPokemon != "" && t.FavSpriteURL == "" {
-			if id := h.store.PokemonDexID(t.FavPokemon); id != 0 {
+			if id := h.store.ResolveDexID(t.FavPokemon, ""); id != 0 {
 				t.FavSpriteURL = pokemonSpriteURL(id, t.FavPokemonForm)
 				writeBacks = append(writeBacks, favSpriteWriteBack{id: userID, was: "", now: t.FavSpriteURL})
 			}

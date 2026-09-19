@@ -601,6 +601,11 @@ type Store struct {
 	evolutions       json.RawMessage
 	pokemonIDMap     map[string]int
 	pokemonNamesById map[int]map[string]string // dex ID → {lang_code → translated name}
+	// nameIdx inverts the two maps above so a name arriving from a client can be
+	// resolved back to its English form. Rebuilt by rebuildNameIndexLocked
+	// whenever either one changes; nil until the species list has loaded. See
+	// resolve.go.
+	nameIdx *nameIndex
 	// Pokedex species text, reduced to one entry per species per language. See
 	// pokedex.go for what is reduced and why it has to be. pokedexDex is the full
 	// species list, so a species with no text still has a defined blank entry;
@@ -775,6 +780,7 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 				}
 			}
 		}
+		s.rebuildNameIndexLocked()
 	case "pokemon_moves":
 		s.pokemonMoves = data
 	case "fast_moves":
@@ -922,6 +928,7 @@ func (s *Store) applyResult(key string, data json.RawMessage) {
 			break
 		}
 		s.pokemonNamesById = nameMap
+		s.rebuildNameIndexLocked()
 	case "pokedex_species":
 		// The reduced genus, flavour text and legendary/mythical flags. See
 		// pokedex.go; this is the only shape accepted, since the payload is built
@@ -2036,6 +2043,21 @@ func (s *Store) ApplySolverData(pokemon, cpMultipliers json.RawMessage) {
 	}
 	if len(cpMultipliers) > 0 {
 		s.applyResult("cp_multipliers", cpMultipliers)
+	}
+}
+
+// ApplySpeciesNames applies a translated species name payload, the blob the
+// inbound name resolver inverts.
+//
+// The sibling of ApplySolverData, and it exists for the same reason: the handlers
+// layer has no other way to stand up a store that can resolve a French or Japanese
+// species name, and refreshPokemonNames goes to the network. Apply the species
+// list first, since the index is built by crossing the two.
+func (s *Store) ApplySpeciesNames(names json.RawMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(names) > 0 {
+		s.applyResult("pokemon_names", names)
 	}
 }
 

@@ -895,6 +895,7 @@
   "error.shiny_caught_at": "That catch date is not valid.",
   "error.shiny_form_duplicate": "You already caught that form.",
   "error.shiny_pokemon_required": "A Pokemon is required.",
+  "error.shiny_pokemon_unknown": "That is not a Pokemon we know.",
   "error.store_color_format": "Invalid color format.",
   "error.store_sub_not_found": "Subscription not found or already cancelled.",
   "error.store_supporter_required": "An active Supporter Pack is required.",

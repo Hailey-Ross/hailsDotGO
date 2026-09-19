@@ -126,7 +126,10 @@ func (h *Handlers) MobilePokedexSpecies(w http.ResponseWriter, r *http.Request) 
 		writeJSONError(w, "unknown species", http.StatusNotFound)
 		return
 	}
-	writeJSONWithETag(w, r, mobilePokedexOne{Dex: dex, PokedexEntry: entry})
+	// Private, because the body is chosen by the caller's language while the URL
+	// names only the dex number. MobilePokedex above already says the same thing
+	// about its own body for the same reason.
+	writeJSONWithETagPrivate(w, r, mobilePokedexOne{Dex: dex, PokedexEntry: entry})
 }
 
 // pokedexBytes returns the marshalled response and its ETag for one language,

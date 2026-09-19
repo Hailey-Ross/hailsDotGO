@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 func boolPtr(v bool) *bool { return &v }
@@ -530,8 +532,54 @@ var (
 		"lightest": true, "lighter": true, "light": true,
 		"heavy": true, "heavier": true, "heaviest": true,
 		"average": true,
+		// The same labels on a German, Spanish, French or Japanese screen. Before
+		// cleanOCRName kept non Latin text these lines were deleted to empty and
+		// could never be chosen; now they survive the clean, so they have to be
+		// excluded by name like the English ones. Lowercased, because the lookup is.
+		"angriff": true, "verteidigung": true, "bonbons": true, "sternenstaub": true,
+		"staub": true, "entwickeln": true, "grösse": true, "größe": true, "gewicht": true,
+		"crypto": true, "kp": true, "wp": true,
+		"ataque": true, "defensa": true, "caramelos": true, "polvo": true, "estelar": true,
+		"evolucionar": true, "altura": true, "peso": true, "oscuro": true, "afortunado": true,
+		"pc": true, "ps": true,
+		"attaque": true, "défense": true, "poussière": true, "évolution": true,
+		"taille": true, "poids": true, "obscur": true, "chanceux": true, "pv": true,
+		"アメ": true, "ほしのすな": true, "こうげき": true, "ぼうぎょ": true, "たいりょく": true,
+		"つよくする": true, "強化": true, "進化": true, "たかさ": true, "おもさ": true,
+		"シャドウ": true, "リトレーン": true, "メガ": true, "エネルギー": true, "ラッキー": true,
 	}
 )
+
+// lettersOnly reduces a token to its letters, lowercased, for testing against
+// nameExclusions.
+//
+// RapidOCR runs a label into its value, and cleanOCRName now keeps digits, so
+// "CP1964" and "HP140/140" no longer arrive as the bare "cp" and "hp" the
+// exclusion list knows. Without this a CP line in the card zone, which the game
+// draws large, can be picked as the species name.
+func lettersOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
+}
+
+// excludedName reports whether a candidate line is a known UI label rather than a
+// species, as a whole and word by word.
+func excludedName(name string) bool {
+	if nameExclusions[strings.ToLower(name)] || nameExclusions[lettersOnly(name)] {
+		return true
+	}
+	for _, w := range strings.Fields(strings.ToLower(name)) {
+		if nameExclusions[w] || nameExclusions[lettersOnly(w)] {
+			return true
+		}
+	}
+	return false
+}
 
 func titleCase(s string) string {
 	words := strings.Fields(strings.ToLower(s))
@@ -565,20 +613,20 @@ func detectName(lines []ocrLine, fullText string, h int) (string, string) {
 			continue
 		}
 		name := cleanOCRName(l.Text)
-		if name == "" || len(name) < 2 || len(name) > 20 {
+		// Counted in runes, not bytes. A Japanese species name is three bytes a
+		// character, so a byte bound of 20 would throw away anything past six
+		// characters while letting a 20 letter Latin string through.
+		if n := utf8.RuneCountInString(name); name == "" || n < 2 || n > 20 {
 			continue
 		}
-		if nameExclusions[strings.ToLower(name)] {
+		// A name has letters in it. The clean keeps digits now, which is what
+		// stopped Porygon2 being read as Porygon, and that means a bare stat line
+		// survives it where it used to come out empty. Nothing else here would
+		// reject one, since a number matches no exclusion word.
+		if !strings.ContainsFunc(name, unicode.IsLetter) {
 			continue
 		}
-		skip := false
-		for _, w := range strings.Fields(strings.ToLower(name)) {
-			if nameExclusions[w] {
-				skip = true
-				break
-			}
-		}
-		if skip {
+		if excludedName(name) {
 			continue
 		}
 		if l.boxHeight() > bestH {
@@ -592,10 +640,35 @@ func detectName(lines []ocrLine, fullText string, h int) (string, string) {
 	return "", ""
 }
 
+// nameKeepPunct is the punctuation that appears inside real species names, and so
+// must survive the clean rather than be deleted with the rest.
+//
+// Both apostrophes are here because the stat list spells Farfetch'd with the curly
+// one while a keyboard and most readers produce the straight one. The gender signs
+// are the whole difference between the two Nidoran, and the period and colon carry
+// Mr. Mime, Mime Jr. and Type: Null.
+const nameKeepPunct = "-'’.:♀♂ "
+
+// cleanOCRName strips a line read off the screen down to the characters a species
+// name can contain.
+//
+// It used to keep only 7 bit letters plus a hyphen, a straight apostrophe and a
+// space, which deleted rather more than it was meant to. Digits went, so Porygon2
+// came out as "Porygon" and was matched, solved and scored as a Porygon with no
+// error anywhere. Accents went, so the Flabébé the game draws came out "Flabb".
+// Every non Latin script went entirely, so a Japanese or Korean screen produced an
+// empty name.
+//
+// Now it keeps letters, marks and digits in any script, plus the punctuation above,
+// and leaves the matching to findSpecies, whose fold is what decides that
+// "Farfetchd" and "Farfetch'd" are the same species.
 func cleanOCRName(text string) string {
 	var b strings.Builder
 	for _, c := range text {
-		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '\'' || c == ' ' {
+		switch {
+		case unicode.IsLetter(c), unicode.IsDigit(c), unicode.IsMark(c):
+			b.WriteRune(c)
+		case strings.ContainsRune(nameKeepPunct, c):
 			b.WriteRune(c)
 		}
 	}
@@ -1166,6 +1239,13 @@ func (h *Handlers) IVFromOCR(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal(h.store.Pokemon(), &pokeList)
 	var cpms []cpmEntry
 	_ = json.Unmarshal(h.store.CPMultipliers(), &cpms)
+
+	// A name read off a localized game screen is not in the stat list, which is
+	// keyed in English. Fold it back before matching so a German or French
+	// screenshot resolves to the same species an English one would.
+	if english, ok := h.resolveSpecies(r, pokemonName); ok {
+		pokemonName = english
+	}
 
 	// Same preference rule the solve uses, so the species the plausibility check
 	// below is measured against is the species the solve will actually score.

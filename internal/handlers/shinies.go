@@ -94,8 +94,9 @@ func parseCaughtAt(s string) (time.Time, bool, error) {
 }
 
 // shinyAddInput is the JSON body both the web and mobile add endpoints accept. pokemon_id is
-// the species NAME string (e.g. "Growlithe"), stored verbatim; it is only resolved to a dex id
-// at read time to build the sprite.
+// the species NAME string (e.g. "Growlithe"). It may arrive in any language the store carries
+// translations for and is folded to the English spelling on the way in, so the column always
+// holds English; it is resolved to a dex id at read time to build the sprite.
 type shinyAddInput struct {
 	PokemonID string `json:"pokemon_id"`
 	Form      string `json:"form"`
@@ -155,6 +156,22 @@ func (h *Handlers) findSpentToken(userID uint, token string) (int64, bool) {
 	return refID, true
 }
 
+// shinyFieldsTooLong reports whether any of the free text fields on a shiny would
+// overflow its column: form VARCHAR(32), costume VARCHAR(64), event_tag
+// VARCHAR(128), method VARCHAR(32).
+//
+// Nothing checked these before, so an over long value reached MySQL and came back
+// a 500 rather than a 400. Counted in runes, because the columns count characters
+// and a byte measure both under counts a Japanese value and, if it were used to
+// cut rather than refuse, would land mid character and produce invalid utf8mb4.
+//
+// Shared by the add and the update, which write the same columns from the same
+// client and disagreed about this until now.
+func shinyFieldsTooLong(form, costume, eventTag, method string) bool {
+	return tooLongRunes(form, 32) || tooLongRunes(costume, 64) ||
+		tooLongRunes(eventTag, 128) || tooLongRunes(method, 32)
+}
+
 // insertShiny validates a decoded add payload and inserts one shiny for the user. On failure it
 // returns a non-zero HTTP status and an i18n key suitable for writeJSONError; on success the new
 // row id with status 0. Duplicates are allowed by design (migration 33 dropped the unique
@@ -173,6 +190,31 @@ func (h *Handlers) insertShiny(userID uint, body shinyAddInput) (int64, int, str
 	body.PokemonID = strings.TrimSpace(body.PokemonID)
 	if body.PokemonID == "" {
 		return 0, http.StatusBadRequest, "error.shiny_pokemon_required"
+	}
+	// The species is the join key: shinyDexCard.Key is "<species>:<region>" and it
+	// is the only thing a client matches a row to a card on. A name that resolves
+	// to nothing used to be stored anyway, and the catch then had no sprite and
+	// never counted toward the dex, permanently and with no way to repair it. So
+	// this refuses instead, and stores the English spelling whatever language the
+	// caller used.
+	//
+	// 422 rather than 400, and the difference is load bearing for the app's
+	// offline queue. ShinyOutboxDrain reads a 400 as "the request is malformed,
+	// which is a bug in this app and no later try fixes it" and takes the catch
+	// straight out of the queue. Any other answered status is retried with backoff
+	// up to six times instead. The realistic cause here is drift between the
+	// species table the app ships and the one this process last refreshed, which a
+	// retry genuinely does fix, so a queued catch must not be given up on the
+	// first attempt. The malformed body cases below stay 400, because those really
+	// are bugs a retry cannot fix.
+	if english, ok := h.store.ResolveSpecies(body.PokemonID, ""); ok {
+		body.PokemonID = english
+	} else if h.store.SpeciesLoaded() {
+		return 0, http.StatusUnprocessableEntity, "error.shiny_pokemon_unknown"
+	}
+
+	if shinyFieldsTooLong(body.Form, body.Costume, body.EventTag, body.Method) {
+		return 0, http.StatusBadRequest, "error.invalid_json"
 	}
 	if !validRegions[body.Region] {
 		return 0, http.StatusBadRequest, "error.invalid_json"
@@ -307,6 +349,10 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validRegions[body.Region] {
+		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
+		return
+	}
+	if shinyFieldsTooLong(body.Form, body.Costume, body.EventTag, body.Method) {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
@@ -538,6 +584,10 @@ func (h *Handlers) shiniesOfUser(w http.ResponseWriter, r *http.Request, absolut
 		if isOwner {
 			s.ID = id
 		}
+		// Fold the stored species to English FIRST, so the row the client gets
+		// back carries the join key the shiny dex card is built on, not only a
+		// sprite that happens to render.
+		s.PokemonID = h.normalizeStoredSpecies(s.PokemonID)
 		s.Dex = h.store.PokemonDexID(s.PokemonID)
 		s.SpriteURL = h.resolveShinySpriteURL(s.PokemonID, s.Region, s.Costume)
 		if absolute {
@@ -577,6 +627,10 @@ func (h *Handlers) MobileShiniesGet(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
 			continue
 		}
+		// Fold the stored species to English FIRST, so the row the client gets
+		// back carries the join key the shiny dex card is built on, not only a
+		// sprite that happens to render.
+		s.PokemonID = h.normalizeStoredSpecies(s.PokemonID)
 		s.Dex = h.store.PokemonDexID(s.PokemonID)
 		s.SpriteURL = h.resolveShinySpriteURL(s.PokemonID, s.Region, s.Costume)
 		out = append(out, s)
@@ -714,7 +768,31 @@ func (h *Handlers) MobileShiniesReference(w http.ResponseWriter, r *http.Request
 // Regional variants keep their own PokeAPI sprite slug and intentionally ignore the costume,
 // matching the client where regional cards do not carry costume art. Nothing sorts on this
 // string: the species dex travels as publicShinyRecord.Dex. Returns "" when nothing resolves.
+// normalizeStoredSpecies folds a stored pokemon_id to its English spelling,
+// leaving it alone when it resolves to nothing.
+//
+// Rows written before names were normalized on the way in can hold a translated
+// species, and pokemon_id is the shiny dex JOIN KEY: both clients build the card
+// key as "<pokemon_id>:<region>" (`ts/shinies.ts`, and ShinyDexModels.kt calls it
+// the only thing a collection row may be joined to a card on). Healing only the
+// sprite and the dex number would leave those catches still not counting, which is
+// the exact harm the write path now refuses to create.
+func (h *Handlers) normalizeStoredSpecies(name string) string {
+	if english, ok := h.store.ResolveSpecies(name, ""); ok {
+		return english
+	}
+	return name
+}
+
 func (h *Handlers) resolveShinySpriteURL(pokemonID, region, costume string) string {
+	// Rows written before names were normalized on the way in can hold a
+	// translated species, and every table consulted below is keyed in English.
+	// Fold once here so the regional slug, the costume art and the base sprite all
+	// look up the same thing. No language hint: a stored row does not record which
+	// language it was written in, so the sweep has to cover all of them.
+	if english, ok := h.store.ResolveSpecies(pokemonID, ""); ok {
+		pokemonID = english
+	}
 	if slug := regionalSpriteSlug(pokemonID, region); slug != "" {
 		return spriteURLSlug(slug, "shiny")
 	}

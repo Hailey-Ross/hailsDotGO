@@ -548,7 +548,11 @@ function buildHostForm(): HTMLElement {
     let tier = 0;
     if (isCustom) {
       // Prefer the picked entry; free text still works for unlisted bosses.
-      boss = (customPicker ? (customPicker.getSelected()?.label ?? customPicker.input.value) : '').trim().slice(0, 64);
+      // Send .name, the English key, NOT .label, which is the localized display
+      // string. boss_name is the matchmaking key: raid_queue is joined to
+      // raid_lobbies on it, so a German host posting "Glurak" and a French
+      // trainer queueing "Dracaufeu" formed two pools that never met.
+      boss = (customPicker ? (customPicker.getSelected()?.name ?? customPicker.input.value) : '').trim().slice(0, 64);
     } else {
       boss = sel.value.trim();
       tier = parseInt((sel.options[sel.selectedIndex] as HTMLOptionElement)?.dataset.tier || '0') || 0;

@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS locales (
   CONSTRAINT fk_loc_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO locales (code, enabled) VALUES ('es', 1), ('fr', 1), ('de', 1);
+INSERT INTO locales (code, enabled) VALUES ('es', 1), ('fr', 1), ('de', 1), ('ja', 1);
 
 CREATE TABLE IF NOT EXISTS translator_applications (
   id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,

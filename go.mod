@@ -15,6 +15,7 @@ require (
 	golang.org/x/crypto v0.52.0
 	golang.org/x/image v0.43.0
 	golang.org/x/oauth2 v0.36.0
+	golang.org/x/text v0.39.0
 )
 
 require (
@@ -29,5 +30,4 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
 )

@@ -77,6 +77,52 @@ func (h *Handlers) currentBossTiers() map[string]uint8 {
 	return bossTiersFrom(h.store.Raids())
 }
 
+// bossNamePrefixes are the variant words a boss name can carry in front of the
+// species. They are matched case insensitively and re-emitted in this spelling, so
+// the canonical form is the one bossTiersFrom's keys use.
+var bossNamePrefixes = []string{"Shadow ", "Mega ", "Primal ", "Dynamax "}
+
+// canonicalBossName folds a boss name a client sent back to the English spelling
+// the tier map and the matchmaking join are keyed on.
+//
+// The lobby and the queue are matched by string equality on boss_name
+// (raid_lobbies joined to raid_queue), so two trainers who name the same boss in
+// two languages form two pools and never see each other. The website's custom raid
+// picker sent the localized label rather than the English key, so those rows exist.
+//
+// The variant prefix is split off and put back rather than resolved, because the
+// species table knows nothing about "Shadow" and resolving the whole string would
+// fail. A name that resolves to nothing is returned exactly as it arrived, which is
+// what keeps a genuinely custom boss ("Unlisted event raid") working.
+func (h *Handlers) canonicalBossName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return name
+	}
+	// A name that is already a served boss is already canonical, and rewriting it
+	// could only move it OUT of the tier map and turn lobby creation into a 400.
+	// No current name does that, but the safety is a property of an upstream name
+	// table we do not control: one future collision between an English name and
+	// another species' translated name would silently break a live boss. This
+	// removes the whole class.
+	if _, served := h.currentBossTiers()[name]; served {
+		return name
+	}
+	for _, prefix := range bossNamePrefixes {
+		if len(name) <= len(prefix) || !strings.EqualFold(name[:len(prefix)], prefix) {
+			continue
+		}
+		if english, ok := h.store.ResolveSpecies(name[len(prefix):], ""); ok {
+			return prefix + english
+		}
+		return name
+	}
+	if english, ok := h.store.ResolveSpecies(name, ""); ok {
+		return english
+	}
+	return name
+}
+
 // bossTiersFrom is split out so the name matching can be tested without a store.
 // The keys are DISPLAY names and the match downstream is exact, including the
 // "Shadow " prefix, which is the one thing a change to the raid blob could quietly
@@ -748,8 +794,10 @@ func (h *Handlers) APIRaidQueueJoin(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
-	bossName := strings.TrimSpace(body.BossName)
-	if bossName == "" || len(bossName) > 64 {
+	// Fold to the English spelling before the length check, so what is measured
+	// is what would be stored and matched on.
+	bossName := h.canonicalBossName(body.BossName)
+	if bossName == "" || tooLongRunes(bossName, 64) {
 		writeJSONError(w, h.t(r, "error.lobby_boss_name"), http.StatusBadRequest)
 		return
 	}
@@ -843,9 +891,9 @@ func (h *Handlers) APIRaidLobbyCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, h.t(r, "error.invalid_json"), http.StatusBadRequest)
 		return
 	}
-	bossName := strings.TrimSpace(body.BossName)
+	bossName := h.canonicalBossName(body.BossName)
 	note := strings.TrimSpace(body.Note)
-	if bossName == "" || len(bossName) > 64 {
+	if bossName == "" || tooLongRunes(bossName, 64) {
 		writeJSONError(w, h.t(r, "error.lobby_boss_name"), http.StatusBadRequest)
 		return
 	}

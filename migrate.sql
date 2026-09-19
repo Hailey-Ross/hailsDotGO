@@ -1046,3 +1046,14 @@ CREATE TABLE IF NOT EXISTS user_request_tokens (
   CONSTRAINT fk_urt_user FOREIGN KEY (user_id)
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 55. Turning Japanese on (2026-09-19)
+-- ja.json has been compiled into the binary for a while and is the second most
+-- complete bundle after English, but the locales table was only ever seeded with
+-- es, fr and de. publicLangs reads that table, so langEnabled('ja') was false:
+-- the web switcher never offered Japanese and /api/mobile/v1/i18n/ja answered 404,
+-- while the Android app was shipping a full Japanese build.
+--
+-- INSERT IGNORE so an install where an admin already added the row by hand through
+-- the translator workspace is left exactly as it is, enabled flag included.
+INSERT IGNORE INTO locales (code, enabled) VALUES ('ja', 1);

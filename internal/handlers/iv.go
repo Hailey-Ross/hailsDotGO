@@ -518,10 +518,18 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "data unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	// The name may have come from a localized game screen or a trainer's keyboard,
+	// so fold it back to the English spelling the stat list is keyed on. An
+	// unresolvable name falls through unchanged and is answered by the 404 below.
+	matchName := req.PokemonName
+	if english, ok := h.resolveSpecies(r, req.PokemonName); ok {
+		matchName = english
+	}
+
 	var poke *pokemonStatEntry
 	var firstMatch *pokemonStatEntry
 	for i := range pokeList {
-		if !strings.EqualFold(pokeList[i].PokemonName, req.PokemonName) {
+		if !strings.EqualFold(pokeList[i].PokemonName, matchName) {
 			continue
 		}
 		if req.Form != "" {
@@ -621,7 +629,46 @@ type pokemonBoxEntry struct {
 // long tail of costumes: 273 distinct values in the current dataset), not the
 // shadow or purified state, so an allow list here would reject almost every
 // real save. It only has to stay inside the column and carry nothing exotic.
-var boxFormPattern = regexp.MustCompile(`^[A-Za-z0-9_ -]{0,64}$`)
+// The ASCII-only shape this replaces rejected two real things. Pa'u, Oricorio's
+// Hawaiian form, carries an apostrophe and was refused outright in English. And
+// every accented or non Latin spelling was refused, so a form name that came off
+// a localized screen could not be saved at all.
+//
+// Still a deny list in spirit: letters, marks, digits, spaces and the handful of
+// punctuation real form names use. No angle brackets, quotes or ampersand, for the
+// same reason trainerNamePunct excludes them.
+var boxFormPattern = regexp.MustCompile(`^[\p{L}\p{M}\p{N}_ '\x{2019}.:-]{0,64}$`)
+
+// canonicalBoxForm rewrites a form to the stat list's own spelling for that
+// species, when the list has a form that folds to the same thing.
+//
+// Everything downstream is keyed on that spelling: boxSpriteURL derives the sprite
+// slug from it, and IVCalculate matches it with EqualFold against the same list.
+// A form that the list does not know is returned untouched, because the field is
+// deliberately free text for costumes, which run to 273 distinct values and would
+// almost all be refused by an allow list.
+func (h *Handlers) canonicalBoxForm(species, form string) string {
+	if form == "" || species == "" {
+		return form
+	}
+	var pokeList []pokemonStatEntry
+	if err := json.Unmarshal(h.store.Pokemon(), &pokeList); err != nil {
+		return form
+	}
+	folded := pogodata.FoldName(form)
+	if folded == "" {
+		return form
+	}
+	for i := range pokeList {
+		if !strings.EqualFold(pokeList[i].PokemonName, species) {
+			continue
+		}
+		if pogodata.FoldName(pokeList[i].Form) == folded {
+			return pokeList[i].Form
+		}
+	}
+	return form
+}
 
 // maxPokemonBoxSize caps a trainer's box. It also caps what the list endpoint
 // will return in one page, because the raids page asks for the whole box to rank
@@ -723,10 +770,31 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	if len(body.PokemonName) > 64 {
+	// Counted in runes: the column is VARCHAR(64) and MySQL counts characters, so
+	// a byte cap silently allowed only 21 Japanese characters into a 64 character
+	// column while claiming to allow 64.
+	if tooLongRunes(body.PokemonName, 64) {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
 		return
 	}
+	// The species is stored verbatim and every later read is keyed in English: the
+	// box list derives its sprite from this column, and the raid ranking scores the
+	// row against the species' base stats. A name that resolves to nothing used to
+	// be accepted anyway and produced a permanently sprite-less, unscoreable row.
+	// Resolve it, store English, and refuse what does not resolve.
+	if english, ok := h.resolveSpecies(r, body.PokemonName); ok {
+		body.PokemonName = english
+	} else if h.store.SpeciesLoaded() {
+		writeJSONError(w, "unknown pokemon", http.StatusBadRequest)
+		return
+	}
+	// The form has to be canonicalized too, and for the same reason. boxSpriteURL
+	// and the solver's form match are both keyed on the stat list's spelling, so a
+	// row saved as ("Marowak", "アローラのすがた") would get the plain Marowak
+	// sprite and be scored against the wrong stat row, silently. Only a form the
+	// stat list actually knows is rewritten: the rest of the field is free text by
+	// design, since costumes alone run to 273 distinct values.
+	body.Form = h.canonicalBoxForm(body.PokemonName, body.Form)
 	// Truncate on runes, not bytes. The column is VARCHAR(160), which MySQL
 	// counts in characters, and the note field accepts 160 of them. A Japanese
 	// or emoji note is three or four bytes per character, so a byte slice landed
