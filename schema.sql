@@ -858,7 +858,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (51, 'Where a boxed Pokemon came from (2026-08-30)'),
   (52, 'Raid boss history, as a star schema (2026-08-31)'),
   (53, 'Marking an account for deletion instead of removing it (2026-08-31)'),
-  (54, 'Making a queued write safe to retry (2026-09-06)');
+  (54, 'Making a queued write safe to retry (2026-09-06)'),
+  (55, 'Turning Japanese on (2026-09-19)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';
