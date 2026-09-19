@@ -1097,30 +1097,9 @@ function buildFeedbackCard(f: FeedbackDue): HTMLElement {
 }
 
 
-const weatherEmoji: Dict = {
-  'Clear': '☀️', 'Partly Cloudy': '⛅', 'Overcast': '☁️',
-  'Rainy': '🌧️', 'Snow': '❄️', 'Fog': '🌫️', 'Windy': '💨', 'Extreme': '⚠️',
-};
-
-function loadWeatherBanner(): void {
-  if (!RAID_CTX.loggedIn) return;
-  fetch('/api/weather').then((r) => r.json()).then((w) => {
-    const slot = document.getElementById('weather-banner-slot');
-    if (!slot || !w.pogo_weather) return;
-    const emoji = weatherEmoji[w.pogo_weather] || '🌡️';
-    const types = (w.boosted_types || []).join(', ');
-    let text = '<strong>' + esc(w.pogo_weather) + '</strong>';
-    if (types) text += ': ' + esc(types) + ' ' + esc(RF2.wxSuffix);
-    slot.innerHTML = '<div class="weather-banner"><span class="weather-banner-icon">' + emoji +
-      '</span><span class="weather-banner-text">' + text + '</span></div>';
-  }).catch(() => {});
-}
-
-
 function initRaidFinder(): void {
   if (loaded || !root) return;
   loaded = true;
-  loadWeatherBanner();
   fetchState();
   if (countdownTimer === null) countdownTimer = window.setInterval(tickCountdowns, 250);
   setPolling('idle');
