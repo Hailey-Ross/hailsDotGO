@@ -194,7 +194,8 @@
     { "label": "Studded Jacket", "code": "f:BB_2026" },
     { "label": "Eggshell", "code": "f:SPRING_2026" },
     { "label": "Red Kebaya", "code": "c:INDONESIA_2025_NOEVOLVE" },
-    { "label": "Holiday Decorations", "code": "f:WINTER_2025" }
+    { "label": "Holiday Decorations", "code": "f:WINTER_2025" },
+    { "label": "Friede's Goggles", "code": "f:GOGGLES_2026" }
   ],
 
   "aliases": {
