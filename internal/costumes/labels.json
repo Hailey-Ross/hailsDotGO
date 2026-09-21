@@ -195,7 +195,9 @@
     { "label": "Eggshell", "code": "f:SPRING_2026" },
     { "label": "Red Kebaya", "code": "c:INDONESIA_2025_NOEVOLVE" },
     { "label": "Holiday Decorations", "code": "f:WINTER_2025" },
-    { "label": "Friede's Goggles", "code": "f:GOGGLES_2026" }
+    { "label": "Friede's Goggles", "code": "f:GOGGLES_2026" },
+    { "label": "Yellow Cap", "code": "f:SPRING_2026_B" },
+    { "label": "Blue Cap", "code": "f:SPRING_2026_A" }
   ],
 
   "aliases": {
