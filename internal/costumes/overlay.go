@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -57,6 +58,11 @@ func Init(costumesDir string) {
 	// would keep serving labels that are no longer on disk.
 	ov = overlayFile{}
 
+	// The catalog overlay loads FIRST, and the order is load-bearing rather than tidy: the label
+	// load below checks each code against the catalog, so with the runtime catalog still empty it
+	// would discard the label an admin gave a discovered costume, on every single boot.
+	loadCatalogOverlayLocked()
+
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		log.Printf("costumes: create overlay dir %q: %v", dir, err)
 		rebuildLocked()
@@ -81,17 +87,17 @@ func Init(costumesDir string) {
 		return
 	}
 
-	// Drop entries whose code no longer has art upstream. The catalog is the authority on what
-	// exists; an overlay entry pointing at a vanished code would resolve to a 404 sprite.
-	kept := next.Shared[:0]
+	// A label whose code has no art is skipped at resolution time (rebuildLocked leaves it out of
+	// the merged set), but it is KEPT here on purpose.
+	//
+	// It used to be filtered out of `next` before assignment, which meant the next write persisted
+	// the shortened list: one transient gap in the catalog, and a name an admin typed was gone for
+	// good. Labels are user data. Dropping one silently is not a tidy-up, it is data loss.
 	for _, e := range next.Shared {
-		if _, ok := cat.Codes[e.Code]; ok {
-			kept = append(kept, e)
-		} else {
-			log.Printf("costumes: overlay label %q -> %s has no art upstream (skipped)", e.Label, e.Code)
+		if _, ok := effCat.codes[e.Code]; !ok {
+			log.Printf("costumes: overlay label %q -> %s has no art upstream (inert, kept)", e.Label, e.Code)
 		}
 	}
-	next.Shared = kept
 
 	ov = next
 	rebuildLocked()
@@ -107,6 +113,9 @@ func overlayPath() string { return filepath.Join(dir, "labels.json") }
 // Curated labels are appended FIRST, so they win: resolution takes the first shared entry whose
 // code covers the species, and an admin must never be able to shadow a curated label.
 func rebuildLocked() {
+	// The catalog view first: the label merge below asks it which codes actually have art.
+	rebuildCatLocked()
+
 	next := labelSet{
 		Comment:                lab.Comment,
 		Species:                lab.Species,
@@ -116,6 +125,12 @@ func rebuildLocked() {
 		NameCheckIgnore:        lab.NameCheckIgnore,
 	}
 	next.Shared = append(append([]shared{}, lab.Shared...), overlayShared(lab.Shared, ov.Shared)...)
+	// An overlay label whose code has no art anywhere resolves to a 404 sprite, so it is left out
+	// of the merged set. It stays on disk: see the note in Init about this being user data.
+	next.Shared = slices.DeleteFunc(next.Shared, func(e shared) bool {
+		_, ok := effCat.codes[e.Code]
+		return !ok
+	})
 	next.Hidden = append(append([]string{}, lab.Hidden...), overlayHidden(lab.Hidden, ov.Hidden)...)
 
 	effective = &next
@@ -137,7 +152,7 @@ func Name(code, label, by string) error {
 		return fmt.Errorf("the overlay directory is not initialised")
 	}
 
-	entry, ok := cat.Codes[code]
+	entry, ok := effCat.codes[code]
 	if !ok {
 		return fmt.Errorf("%s has no shiny art upstream", code)
 	}
@@ -171,7 +186,7 @@ func Hide(code string) error {
 	if dir == "" {
 		return fmt.Errorf("the overlay directory is not initialised")
 	}
-	if _, ok := cat.Codes[code]; !ok {
+	if _, ok := effCat.codes[code]; !ok {
 		return fmt.Errorf("%s is not in the catalog", code)
 	}
 	if labelledLocked(code) {
@@ -270,7 +285,7 @@ func NamedInPanel() []NamedHere {
 			continue
 		}
 		n := NamedHere{Code: e.Code, Label: e.Label, By: e.By, At: e.At}
-		if c, ok := cat.Codes[e.Code]; ok && len(c.Dex) > 0 {
+		if c, ok := effCat.codes[e.Code]; ok && len(c.Dex) > 0 {
 			n.Dex = c.Dex
 			n.SpriteURL = SpritePath + assetFile(c.Dex[0], e.Code)
 		}
@@ -366,7 +381,7 @@ func collisionLocked(label string, dex []int) error {
 		if !strings.EqualFold(s.Label, label) {
 			continue
 		}
-		e, ok := cat.Codes[s.Code]
+		e, ok := effCat.codes[s.Code]
 		if !ok {
 			continue
 		}
@@ -383,7 +398,7 @@ func collisionLocked(label string, dex []int) error {
 		if !ok {
 			continue
 		}
-		if e, ok := cat.Codes[code]; ok {
+		if e, ok := effCat.codes[code]; ok {
 			for _, d := range e.Dex {
 				if want[d] {
 					return fmt.Errorf("%q is already used for %s on %s; pick a different label", label, code, species)

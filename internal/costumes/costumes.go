@@ -52,6 +52,15 @@ type Unnamed struct {
 	Suggested string `json:"suggested"` // what Dittobase calls it, if it knows
 	Dex       []int  `json:"dex"`
 	SpriteURL string `json:"sprite_url"` // shiny art for the first eligible species
+
+	// Set only for a costume the site found by itself, which is the difference between an admin
+	// confirming a name and an admin inventing one. The tab turns Pending plus Suggested into a
+	// one-click approve, so if these ever stop being populated the automation silently reverts to
+	// ordinary typing and nothing else breaks to say so.
+	Pending      bool   `json:"pending,omitempty"`
+	Source       string `json:"source,omitempty"`
+	Why          string `json:"why,omitempty"`
+	DiscoveredAt string `json:"discovered_at,omitempty"`
 }
 
 type catalog struct {
@@ -90,6 +99,12 @@ var (
 	ov        overlayFile
 	effective *labelSet
 	dir       string
+
+	// The catalog gets the same treatment, so a costume found after the last deploy can be
+	// resolved without one. See catalog_overlay.go.
+	ovCat  catalogOverlay
+	disc   discoveryState
+	effCat *catView
 )
 
 func init() {
@@ -111,10 +126,24 @@ func labels() *labelSet {
 	return effective
 }
 
-// covers reports whether a code has shiny art for this species.
+// view returns the merged label set and the merged catalog together, under one lock.
+//
+// Together, deliberately. Resolution needs both, and taking them separately would mean two
+// acquisitions per lookup on a path that runs once per label per species: MobileCostumes walks
+// all 1025 species, so a per-lookup lock is tens of thousands of acquisitions per request. Take
+// the snapshot once at the top of a call and thread it down, the way LabelsForDex already does
+// with the label set.
+func view() (*labelSet, *catView) {
+	mu.RLock()
+	defer mu.RUnlock()
+	return effective, effCat
+}
+
+// covers reports whether a code has shiny art for this species. For a single lookup; anything
+// looping should take a view() once instead.
 func covers(code string, dex int) bool {
-	e, ok := cat.Codes[code]
-	return ok && slices.Contains(e.Dex, dex)
+	_, c := view()
+	return c.covers(code, dex)
 }
 
 // resolve maps a label to a costume code for a species: a curated override wins, else a
@@ -124,15 +153,15 @@ func resolve(dex int, species, label string) (string, bool) {
 	if label == "" || dex == 0 {
 		return "", false
 	}
-	l := labels()
+	l, c := view()
 	if canonical, ok := l.Aliases[label]; ok {
 		label = canonical
 	}
-	if code, ok := l.Species[species][label]; ok && covers(code, dex) {
+	if code, ok := l.Species[species][label]; ok && c.covers(code, dex) {
 		return code, true
 	}
 	for _, s := range l.Shared {
-		if s.Label == label && covers(s.Code, dex) {
+		if s.Label == label && c.covers(s.Code, dex) {
 			return s.Code, true
 		}
 	}
@@ -153,12 +182,12 @@ func SpriteURL(dex int, species, label string) (string, bool) {
 // any shared costume it is eligible for, skipping a code an override already covers so the
 // same art is never offered under two labels.
 func LabelsForDex(dex int, species string) []string {
-	l := labels()
+	l, c := view()
 	var out []string
 	usedCodes := map[string]bool{}
 
 	for label, code := range l.Species[species] {
-		if !covers(code, dex) {
+		if !c.covers(code, dex) {
 			continue
 		}
 		out = append(out, label)
@@ -169,7 +198,7 @@ func LabelsForDex(dex int, species string) []string {
 	sort.Strings(out)
 
 	for _, s := range l.Shared {
-		if usedCodes[s.Code] || slices.Contains(out, s.Label) || !covers(s.Code, dex) {
+		if usedCodes[s.Code] || slices.Contains(out, s.Label) || !c.covers(s.Code, dex) {
 			continue
 		}
 		out = append(out, s.Label)
@@ -241,12 +270,55 @@ func AllowedFile(name string) bool {
 		return false
 	}
 	code := string(body[0]) + ":" + body[1:]
-	return covers(code, dex)
+
+	// Candidates are included: an admin has to SEE a sprite to judge whether it is a costume,
+	// and reasoning from the code name instead is what put four wrong labels in the picker. The
+	// set stays closed either way, built from an upstream directory listing and never from
+	// anything a request supplies, so this is not an open proxy. Resolution is a separate
+	// question and stays catalog-only: covers() still refuses a candidate, so nothing a trainer
+	// can type will ever point at one.
+	_, c := view()
+	return c.showable(code, dex)
 }
 
-// OriginURL is where the proxy pulls a sprite from on a cache miss. The base is pinned to the
-// asset commit the catalog was synced from, so the bytes at this URL never change.
+// parseAssetFile splits a sprite filename back into the species and code it was built from.
+// Returns false for anything AllowedFile would refuse.
+func parseAssetFile(name string) (int, string, bool) {
+	rest, ok := strings.CutPrefix(name, "pm")
+	if !ok {
+		return 0, "", false
+	}
+	dexStr, rest, ok := strings.Cut(rest, ".")
+	if !ok {
+		return 0, "", false
+	}
+	dex, err := strconv.Atoi(dexStr)
+	if err != nil {
+		return 0, "", false
+	}
+	body, ok := strings.CutSuffix(rest, ".s.icon.png")
+	if !ok || len(body) < 2 {
+		return 0, "", false
+	}
+	return dex, string(body[0]) + ":" + body[1:], true
+}
+
+// OriginURL is where the proxy pulls a sprite from on a cache miss. The base is pinned to an
+// asset commit, so the bytes at this URL never change.
+//
+// Which commit depends on where the code came from. The embedded catalog pins one commit for
+// everything it holds, but a costume discovered at runtime has art that only exists at a LATER
+// commit, so serving it off the embedded base would 404 every time. Resolved per (code, dex)
+// rather than per code, because an existing costume can gain a species whose art is newer than
+// the rest of it.
 func OriginURL(name string) string {
+	if dex, code, ok := parseAssetFile(name); ok {
+		if _, c := view(); c != nil {
+			if b := c.base[baseKey(code, dex)]; b != "" {
+				return b + name
+			}
+		}
+	}
 	return cat.AssetBase + name
 }
 
@@ -264,12 +336,13 @@ func Unlabelled() []Unnamed {
 		hidden[h] = true
 	}
 
+	_, c := view()
 	var out []Unnamed
-	for code, e := range cat.Codes {
+	for code, e := range c.codes {
 		if labelled[code] || hidden[code] || len(e.Dex) == 0 {
 			continue
 		}
-		out = append(out, Unnamed{
+		row := Unnamed{
 			Code:      code,
 			Pretty:    e.Pretty,
 			Suggested: e.Suggested,
@@ -277,7 +350,12 @@ func Unlabelled() []Unnamed {
 			// The sprite is guaranteed servable: AllowedFile gates on catalog membership and this
 			// code is in the catalog, so the review tab can never render a broken image.
 			SpriteURL: SpritePath + assetFile(e.Dex[0], code),
-		})
+		}
+		// Provenance, for the codes that have any. Read under the same lock the view came from.
+		if oe := overlayEntryFor(code); oe != nil {
+			row.Pending, row.Source, row.Why, row.DiscoveredAt = true, oe.Source, oe.Why, oe.DiscoveredAt
+		}
+		out = append(out, row)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
 	return out
@@ -505,8 +583,9 @@ func leadingWhitespace(seg []byte) string {
 // its own slice would corrupt the catalog for everyone until the next restart. 140 short slices is
 // nothing next to the five network calls this feeds.
 func CatalogDex() map[string][]int {
-	out := make(map[string][]int, len(cat.Codes))
-	for code, e := range cat.Codes {
+	_, c := view()
+	out := make(map[string][]int, len(c.codes))
+	for code, e := range c.codes {
 		out[code] = slices.Clone(e.Dex)
 	}
 	return out

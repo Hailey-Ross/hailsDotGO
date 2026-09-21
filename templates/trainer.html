@@ -225,6 +225,7 @@
 // See shinies.html: the merged costume labels, so the browser knows about costumes named in the
 // admin panel since the last deploy.
 const COSTUME_LABELS = {{.CostumeLabels}};
+const COSTUME_CATALOG = {{.CostumeCatalog}};
 const TRAINER_CTX = {
   username: {{.Data.Trainer.Username}},
   isMod: {{if and .User .User.IsMod}}true{{else}}false{{end}},

@@ -20,7 +20,18 @@ type Labels = {
   hidden: string[];
 };
 
-const CAT = catalog as unknown as Catalog;
+// The catalog changes at runtime too, for the same reason labels do: the discovery job can admit
+// a costume the game shipped after our last deploy, and it lands in an overlay on the server
+// rather than in the file compiled in here. The shinies and trainer templates inject whatever the
+// compiled-in copy is missing as COSTUME_CATALOG. Without this a discovered costume would resolve
+// on public profiles and in the app but stay untypeable in the picker, which is the same bug one
+// step further down the pipe.
+declare const COSTUME_CATALOG: Record<string, { pretty: string; dex: number[] }> | null | undefined;
+const catalogDelta = typeof COSTUME_CATALOG !== "undefined" ? (COSTUME_CATALOG ?? {}) : {};
+const CAT: Catalog = {
+  ...(catalog as unknown as Catalog),
+  codes: { ...(catalog as unknown as Catalog).codes, ...catalogDelta },
+};
 
 // Labels are the one part of this that changes at runtime: an admin can name a costume in the
 // admin panel, and it lands in an overlay on the server rather than in the file compiled in here.

@@ -84,6 +84,17 @@ type PageData struct {
 	// costume named in the admin panel would show on public profiles (resolved in Go) but not in
 	// the picker, until a redeploy. Empty on pages that do not need it.
 	CostumeLabels template.JS
+
+	// CostumeCatalog is what the runtime catalog overlay adds on top of the embedded catalog.json
+	// the browser has compiled in. Injected alongside CostumeLabels and for the same reason: the
+	// client resolver gates every lookup on its compiled-in catalog, so without this a costume
+	// discovered since the last deploy would resolve on public profiles and in the app but stay
+	// untypeable in the picker. Usually "{}".
+	CostumeCatalog template.JS
+
+	// CostumeReviewCount is how many costumes are waiting on an admin. Admins only; it drives the
+	// badge on the Admin nav item, copying the Reports badge next to it.
+	CostumeReviewCount int
 }
 
 func New(store *pogodata.Store, db *sql.DB) *Handlers {
@@ -295,6 +306,18 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 		} else {
 			log.Printf("costumes: marshal labels for %s: %v", page, err)
 		}
+		// The codes the browser's compiled-in catalog is missing. "null" on failure, so the
+		// injected value is still valid JS and the client falls back to what it has.
+		pd.CostumeCatalog = template.JS("null")
+		if b, err := json.Marshal(costumes.CatalogDelta()); err == nil {
+			pd.CostumeCatalog = template.JS(scriptSafeJSON(b))
+		} else {
+			log.Printf("costumes: marshal catalog delta for %s: %v", page, err)
+		}
+	}
+	// Cheap: two map reads under one lock, no query and no network, unlike the report counts above.
+	if u != nil && u.IsAdmin() {
+		pd.CostumeReviewCount = costumes.ReviewCount()
 	}
 	if err := clone.ExecuteTemplate(w, "base", pd); err != nil {
 		log.Printf("render %q: %v", page, err)

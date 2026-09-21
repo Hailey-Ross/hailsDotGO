@@ -81,7 +81,36 @@ function payload() {
     },
   ];
 
-  return { ok: true, costumes, named };
+  // A costume the discovery job found AND named. Its row is the one-click approve, which is the
+  // whole point of the automation: the admin confirms a name rather than inventing one.
+  if (costumes.length) {
+    costumes[0].suggested = "Friede's Goggles";
+    costumes[0].pending = true;
+    costumes[0].why = "upstream does not flag it, but dittobase calls it \"Friede's Goggles\"";
+  }
+
+  // What the job could NOT judge. Before this existed such a code was invisible here, which is
+  // how a real costume stayed unreachable for months.
+  const candidates = [
+    {
+      code: "f:MYSTERY_2026",
+      pretty: "Mystery 2026",
+      suggested: "",
+      dex: [25],
+      species: ["Pikachu"],
+      why: "upstream does not flag this form a costume and nothing corroborates it",
+      sprite_url: spriteURL(25, "f:MYSTERY_2026"),
+      sprites: [{ dex: 25, species: "Pikachu", url: spriteURL(25, "f:MYSTERY_2026") }],
+    },
+  ];
+
+  return {
+    ok: true,
+    costumes,
+    candidates,
+    named,
+    counts: { pending: costumes.length, candidates: candidates.length },
+  };
 }
 
 // ------------------------------------------------------------------ the stub DOM
@@ -123,6 +152,9 @@ function stubDom() {
   const namedCard = el("div");
   const namedList = el("div");
   namedCard.style.display = "none";
+  const candidateCard = el("div");
+  const candidateList = el("div");
+  candidateCard.style.display = "none";
   // A real recorded element, not a stub with a no-op listener: the "Fetch new costumes" handler
   // has to be drivable, because the answer it writes used to be destroyed by the refresh that
   // followed it and nothing noticed.
@@ -139,6 +171,8 @@ function stubDom() {
     "costume-zoom-close": zoomClose,
     "costume-named-card": namedCard,
     "costume-named-list": namedList,
+    "costume-candidate-card": candidateCard,
+    "costume-candidate-list": candidateList,
   };
 
   globalThis.document = {
@@ -148,7 +182,8 @@ function stubDom() {
     addEventListener() {}, // the Escape-to-close binding
   };
   globalThis.confirm = () => true;
-  return { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList, handlers };
+  return { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList,
+    candidateCard, candidateList, handlers };
 }
 
 // ---------------------------------------------------------------------- the run
@@ -163,7 +198,8 @@ const end = html.indexOf("})();", start) + "})();".length;
 const src = html.slice(start, end);
 
 const data = payload();
-const { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList, handlers } = stubDom();
+const { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList,
+  candidateCard, candidateList, handlers } = stubDom();
 
 // What DriftCheck answers when upstream has nothing new. It is the case that used to be invisible:
 // the note was written, then wiped by the refresh a few hundred ms later, so a working check looked
@@ -234,7 +270,10 @@ if (handlers.filter((h) => h.evt === "click").length < want * 2) {
 // Clicking a thumbnail must open the costume at full size on EVERY species that has it. A 56px
 // thumbnail is not enough to name a costume from, and the name is permanent once trainers use it.
 const thumbClicks = handlers.filter((h) => h.evt === "click" && h.node.tag === "img");
-if (thumbClicks.length !== want) fail("the sprite thumbnails are not clickable");
+// Candidates get one too: judging whether something IS a costume is even more dependent on seeing
+// the art than naming one is.
+const wantThumbs = want + data.candidates.length;
+if (thumbClicks.length !== wantThumbs) fail("the sprite thumbnails are not clickable");
 
 // Pick the costume with the most species, so a single-species one cannot make this pass by luck.
 const multi = data.costumes.reduce((a, b) => (b.sprites.length > a.sprites.length ? b : a));
@@ -383,8 +422,61 @@ if (deletes[0] !== wantDelete) {
   fail(`Remove name sent ${JSON.stringify(deletes[0])}, want a DELETE to ${JSON.stringify(wantDelete)}`);
 }
 
+// ------------------------------------------------- the discovery queue and the one-click approve
+// A candidate is the state that did not exist before: a code with art that nothing vouches for.
+// It used to be invisible here, and the costume it was hiding stayed unreachable for months.
+const candidateRows = candidateList.children.length;
+if (candidateRows !== data.candidates.length) {
+  fail(`the review queue rendered ${candidateRows} rows, want ${data.candidates.length}`);
+}
+if (candidateCard.style.display === "none") fail("the review queue card stayed hidden");
+
+// Two buttons, both wired, and NO name box: naming is a separate decision that happens after
+// someone has said the thing is a costume at all.
+const candButtons = candidateList.children
+  .flatMap((row) => row.children)
+  .flatMap((node) => (node.children ? node.children : []))
+  .filter((n) => n.tag === "button");
+if (candButtons.length !== 2 * data.candidates.length) {
+  fail(`a candidate row has ${candButtons.length} buttons, want 2 per row`);
+}
+if (candidateList.children.flatMap((r) => r.children).some((n) => n.tag === "input")) {
+  fail("a candidate row must not offer a name box before it is confirmed a costume");
+}
+for (const b of candButtons) {
+  if (!handlers.some((h) => h.node === b && h.evt === "click")) {
+    fail(`the ${JSON.stringify(b._text)} button has no click handler`);
+  }
+}
+
+// The one-click approve. The button has to SAY the name it is about to apply, or an admin is
+// confirming something they have not read, and a label cannot be taken back once trainers use it.
+const pendingRow = data.costumes.find((c) => c.pending);
+const approve = made.find((n) => n.tag === "button" && n._text.startsWith("Approve "));
+if (!approve) fail("a corroborated costume should offer a one-click approve naming it");
+else if (!approve._text.includes(pendingRow.suggested)) {
+  fail(`the approve button reads ${JSON.stringify(approve._text)}, want the suggested name in it`);
+}
+
+// Dismissing sends the admin's verdict to the right place.
+const dismiss = candButtons.find((b) => b._text === "Not a costume");
+const dismissClick = handlers.find((h) => h.node === dismiss && h.evt === "click");
+if (!dismissClick) fail("the dismiss button has no click handler");
+posted.length = 0;
+try {
+  dismissClick.fn();
+} catch (e) {
+  fail(`dismissing a candidate threw: ${e}`);
+}
+await new Promise((r) => setTimeout(r, 50));
+if (!posted.some((u) => u === "/api/admin/costumes/dismiss")) {
+  fail(`dismissing posted ${JSON.stringify(posted)}, want /api/admin/costumes/dismiss`);
+}
+
 console.log(
-  `admin Costumes tab renders ${want} costumes with working name controls, and clicking ${multi.code} ` +
+  `admin Costumes tab renders ${want} costumes with working name controls, ${candidateRows} ` +
+    `awaiting a verdict with two wired buttons and no name box, a one-click ` +
+    `${JSON.stringify(approve ? approve._text : "")}, and clicking ${multi.code} ` +
     `zooms to ${bigs.length} sprite(s), one per species. Fetching upstream leaves its answer on ` +
     `screen. A name given here can be taken back, and one trainers already use cannot. Nothing throws.`,
 );

@@ -50,7 +50,7 @@ func driftCheck(force bool) pogodata.ScraperCheck {
 	start := time.Now()
 	res := pogodata.ScraperCheck{Key: "costumes"}
 
-	files, age, err := assets(force)
+	files, _, age, err := assets(force)
 	if err != nil {
 		res.Error = err.Error()
 		res.DurationMs = time.Since(start).Milliseconds()
@@ -369,6 +369,7 @@ func more(total, shown int) string {
 var (
 	assetMu      sync.Mutex
 	assetList    []string
+	assetSHA     string // the commit assetList came from; written with it, read with it
 	assetAt      time.Time
 	assetHold    time.Time // do not retry before the quota resets
 	assetHoldErr error
@@ -392,9 +393,13 @@ const (
 	listDeadline = 45 * time.Second
 )
 
-// assets returns the upstream file listing and how stale the answer is, fetching when the cache
-// has expired or force is set.
-func assets(force bool) ([]string, time.Duration, error) {
+// assets returns the upstream file listing, the commit it came from, and how stale the answer is,
+// fetching when the cache has expired or force is set.
+//
+// The commit travels WITH the listing rather than being read separately afterwards. Discovery pins
+// a new costume's sprite URL to it, and a pin taken from a different fetch than the listing that
+// found the file is a 404 waiting to happen.
+func assets(force bool) ([]string, string, time.Duration, error) {
 	waiting := now()
 
 	assetMu.Lock()
@@ -405,16 +410,16 @@ func assets(force bool) ([]string, time.Duration, error) {
 		// six admins pressing refresh at once would each wait for the one in front and then go and
 		// fetch again anyway, which is the pile-up the lock was supposed to prevent.
 		if !force || assetAt.After(waiting) {
-			return assetList, age, nil
+			return assetList, assetSHA, age, nil
 		}
 	}
 	// The hold outranks force. A forced retry inside a rate limit window cannot succeed, and a
 	// rejected request still counts against us, so the honest answer is the reason we are waiting.
 	if now().Before(assetHold) {
-		return nil, 0, assetHoldErr
+		return nil, "", 0, assetHoldErr
 	}
 
-	files, err := fetchAssets()
+	files, sha, err := fetchAssets()
 	if err != nil {
 		// An ordinary failure is NOT cached: locking the button out for five minutes after a
 		// transient is worse than the transient. Only a rate limit sets a hold.
@@ -431,11 +436,11 @@ func assets(force bool) ([]string, time.Duration, error) {
 				assetHold, assetHoldErr = until, err
 			}
 		}
-		return nil, 0, err
+		return nil, "", 0, err
 	}
-	assetList, assetAt = files, now()
+	assetList, assetSHA, assetAt = files, sha, now()
 	assetHold, assetHoldErr = time.Time{}, nil
-	return files, 0, nil
+	return files, sha, 0, nil
 }
 
 // rateLimitError is an exhausted GitHub quota, carrying the moment it resets so the cache can
@@ -505,7 +510,7 @@ func orUnknown(s string) string {
 // It sends GITHUB_TOKEN when the server has one. This was the only GitHub caller in the tree that
 // did not, which is why an admin pressing the button repeatedly could exhaust the anonymous budget
 // for everything else on the box.
-func listAssets() ([]string, error) {
+func listAssets() ([]string, string, error) {
 	const (
 		repo = "PokeMiners/pogo_assets"
 		dir  = "Images/Pokemon - 256x256/Addressable Assets"
@@ -540,7 +545,7 @@ func listAssets() ([]string, error) {
 		SHA string `json:"sha"`
 	}
 	if err := get(ghAPI+"/repos/"+repo+"/commits/master", &head); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	type tree struct {
@@ -556,7 +561,7 @@ func listAssets() ([]string, error) {
 	for seg := range strings.SplitSeq(dir, "/") {
 		var t tree
 		if err := get(ghAPI+"/repos/"+repo+"/git/trees/"+cur, &t); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		next := ""
 		for _, e := range t.Tree {
@@ -566,17 +571,17 @@ func listAssets() ([]string, error) {
 			}
 		}
 		if next == "" {
-			return nil, fmt.Errorf("upstream layout changed: %q not found", seg)
+			return nil, "", fmt.Errorf("upstream layout changed: %q not found", seg)
 		}
 		cur = next
 	}
 
 	var t tree
 	if err := get(ghAPI+"/repos/"+repo+"/git/trees/"+cur, &t); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if t.Truncated {
-		return nil, fmt.Errorf("asset tree truncated by the API")
+		return nil, "", fmt.Errorf("asset tree truncated by the API")
 	}
 	out := make([]string, 0, len(t.Tree))
 	for _, e := range t.Tree {
@@ -584,5 +589,5 @@ func listAssets() ([]string, error) {
 			out = append(out, e.Path)
 		}
 	}
-	return out, nil
+	return out, head.SHA, nil
 }

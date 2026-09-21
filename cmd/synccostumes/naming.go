@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"pogo.hails.cc/internal/costumenames"
 )
 
 // suggestedLabel is the name to propose for an unlabelled costume: the one Dittobase gives it
@@ -15,7 +17,7 @@ import (
 func suggestedLabel(e *catalogEntry, nm names, code string) string {
 	counts := map[string]int{}
 	for _, dex := range e.Dex {
-		if n := nm.get(code, dex); n != "" {
+		if n := nm.Get(code, dex); n != "" {
 			counts[n]++
 		}
 	}
@@ -49,8 +51,8 @@ func nameCheck(cat *catalog, lab *labels, nameToDex map[string]int, nm names) []
 		if ignore[code] || seen[where] {
 			return
 		}
-		ditto := nm.get(code, dex)
-		if ditto == "" || sharesWord(label, ditto) {
+		ditto := nm.Get(code, dex)
+		if ditto == "" || costumenames.SharesWord(label, ditto) {
 			return
 		}
 		seen[where] = true
@@ -80,11 +82,11 @@ func nameCheck(cat *catalog, lab *labels, nameToDex map[string]int, nm names) []
 		// names is agreement: only flag a label that matches none of them.
 		var names []string
 		for _, dex := range e.Dex {
-			if n := nm.get(s.Code, dex); n != "" {
+			if n := nm.Get(s.Code, dex); n != "" {
 				names = append(names, n)
 			}
 		}
-		if len(names) == 0 || anySharesWord(s.Label, names) {
+		if len(names) == 0 || costumenames.AnySharesWord(s.Label, names) {
 			continue
 		}
 		out = append(out, finding{
@@ -94,56 +96,6 @@ func nameCheck(cat *catalog, lab *labels, nameToDex map[string]int, nm names) []
 	}
 
 	sortFindings(out)
-	return out
-}
-
-func anySharesWord(label string, names []string) bool {
-	for _, n := range names {
-		if sharesWord(label, n) {
-			return true
-		}
-	}
-	return false
-}
-
-// sharesWord reports whether two names have any significant word in common, comparing on
-// 5-character prefixes so ordinary morphology does not trip the check: "Fashion" matches
-// "Fashionable", "Holiday" matches "Holidays".
-func sharesWord(a, b string) bool {
-	as, bs := significant(a), significant(b)
-	if len(as) == 0 || len(bs) == 0 {
-		return true // nothing to compare; do not cry wolf
-	}
-	for _, x := range as {
-		for _, y := range bs {
-			if strings.HasPrefix(x, y) || strings.HasPrefix(y, x) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// stopWords are too common to carry meaning: "Hat" would make "Straw Hat" and "Detective Hat"
-// look like the same costume, which is exactly the confusion this check exists to catch.
-var stopWords = map[string]bool{
-	"the": true, "a": true, "of": true, "and": true, "s": true,
-	"costume": true, "outfit": true, "hat": true, "pokemon": true,
-}
-
-func significant(s string) []string {
-	var out []string
-	for _, w := range strings.Fields(slugify(s)) {
-		for _, part := range strings.Split(w, "-") {
-			if len(part) < 3 || stopWords[part] {
-				continue
-			}
-			if len(part) > 5 {
-				part = part[:5]
-			}
-			out = append(out, part)
-		}
-	}
 	return out
 }
 

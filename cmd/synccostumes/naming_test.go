@@ -18,7 +18,7 @@ func TestNoNameReasonsDistinguishesTheCauses(t *testing.T) {
 		"c:ALREADY":   {Dex: []int{25}}, // has a cached name, so nothing to explain
 	}}
 	nm := names{}
-	nm.set("c:ALREADY", 25, "Witch Hat")
+	nm.Set("c:ALREADY", 25, "Witch Hat")
 
 	got := noNameReasons(cat, nm, []nameOutcome{
 		{code: "c:NO_PAGE", dex: 25, reason: `no page: tried "pikachu-no-page" exactly and as a prefix/suffix match`},
@@ -64,7 +64,7 @@ func TestNoNameReasonsFlagsMixedCauses(t *testing.T) {
 func TestNoNameReasonsIgnoresACodeNamedOnOneSpecies(t *testing.T) {
 	cat := &catalog{Codes: map[string]*catalogEntry{"c:PARTLY": {Dex: []int{31, 34}}}}
 	nm := names{}
-	nm.set("c:PARTLY", 34, "Crown")
+	nm.Set("c:PARTLY", 34, "Crown")
 
 	got := noNameReasons(cat, nm, []nameOutcome{{code: "c:PARTLY", dex: 31, reason: "no page: tried x"}})
 

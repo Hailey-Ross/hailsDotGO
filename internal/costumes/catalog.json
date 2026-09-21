@@ -1,6 +1,6 @@
 {
-  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@acd2f4a5a98790c84782f24322c0840b1a4f1838/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
-  "sourceCommit": "acd2f4a5a98790c84782f24322c0840b1a4f1838",
+  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@d4432a333e123bfe8f44153f51bf58aa8d34d5b1/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
+  "sourceCommit": "d4432a333e123bfe8f44153f51bf58aa8d34d5b1",
   "codes": {
     "c:ANNIVERSARY": {
       "pretty": "Anniversary",
@@ -769,44 +769,44 @@
       ]
     },
     "f:ANNIVERSARY_2026_MALAYSIA_01": {
-      "pretty": "",
+      "pretty": "Anniversary 2026 Malaysia 01",
+      "suggested": "Pikachu Anniversary 2026 Malaysia 01",
       "dex": [
         25
       ],
       "female": [
         25
-      ],
-      "unconfirmed": true
+      ]
     },
     "f:ANNIVERSARY_2026_PHILIPPINE_01": {
-      "pretty": "",
+      "pretty": "Anniversary 2026 Philippine 01",
+      "suggested": "Pikachu Anniversary 2026 Philippine 01",
       "dex": [
         25
       ],
       "female": [
         25
-      ],
-      "unconfirmed": true
+      ]
     },
     "f:ANNIVERSARY_2026_SINGAPORE_01": {
-      "pretty": "",
+      "pretty": "Anniversary 2026 Singapore 01",
+      "suggested": "Pikachu Anniversary 2026 Singapore 01",
       "dex": [
         25
       ],
       "female": [
         25
-      ],
-      "unconfirmed": true
+      ]
     },
     "f:ANNIVERSARY_2026_TAIWAN_01": {
-      "pretty": "",
+      "pretty": "Anniversary 2026 Taiwan 01",
+      "suggested": "Pikachu Anniversary 2026 Taiwan 01",
       "dex": [
         25
       ],
       "female": [
         25
-      ],
-      "unconfirmed": true
+      ]
     },
     "f:BB_2026": {
       "pretty": "Bb 2026",
@@ -1094,6 +1094,16 @@
         25
       ]
     },
+    "f:GOGGLES_2026": {
+      "pretty": "",
+      "suggested": "Friede's Goggles",
+      "dex": [
+        4,
+        5,
+        6
+      ],
+      "unconfirmed": true
+    },
     "f:GOTOUR_2024_A": {
       "pretty": "Gotour 2024 A",
       "suggested": "Lucas's Hat",
@@ -1257,6 +1267,13 @@
     "f:KURTA": {
       "pretty": "Kurta",
       "suggested": "Kurta",
+      "dex": [
+        25
+      ]
+    },
+    "f:K_2026_A_01": {
+      "pretty": "K 2026 A 01",
+      "suggested": "Pikachu K 2026 A 01",
       "dex": [
         25
       ]

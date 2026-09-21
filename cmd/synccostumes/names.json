@@ -328,6 +328,18 @@
   "f:ANNIVERSARY_2026": {
     "25": "Professor Willow’s assistant"
   },
+  "f:ANNIVERSARY_2026_MALAYSIA_01": {
+    "25": "Pikachu Anniversary 2026 Malaysia 01"
+  },
+  "f:ANNIVERSARY_2026_PHILIPPINE_01": {
+    "25": "Pikachu Anniversary 2026 Philippine 01"
+  },
+  "f:ANNIVERSARY_2026_SINGAPORE_01": {
+    "25": "Pikachu Anniversary 2026 Singapore 01"
+  },
+  "f:ANNIVERSARY_2026_TAIWAN_01": {
+    "25": "Pikachu Anniversary 2026 Taiwan 01"
+  },
   "f:COPY_2019": {
     "25": "Clone"
   },
@@ -396,6 +408,11 @@
   "f:GOFEST_2026_CAP_YELLOW": {
     "25": "Instinct Cap"
   },
+  "f:GOGGLES_2026": {
+    "4": "Friede's Goggles",
+    "5": "Friede's Goggles",
+    "6": "Friede's Goggles"
+  },
   "f:GOTOUR_2024_A": {
     "25": "Lucas's Hat"
   },
@@ -419,6 +436,9 @@
   },
   "f:KURTA": {
     "25": "Kurta"
+  },
+  "f:K_2026_A_01": {
+    "25": "Pikachu K 2026 A 01"
   },
   "f:POP_STAR": {
     "25": "Pop Star"

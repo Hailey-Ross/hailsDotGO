@@ -790,6 +790,22 @@
     </div>
   </div>
 
+  <!-- Costumes the discovery job could not judge. Above the "Named here" card because this is the
+       earlier question: not "what is it called" but "is it a costume at all". Before this existed a
+       code upstream would not vouch for was invisible here, and Friede's Goggles sat unreachable
+       for months as a result. -->
+  <div class="admin-card" id="costume-candidate-card" style="display:none">
+    <h2>Needs a look</h2>
+    <p class="admin-desc">
+      Costumes found upstream that could not be confirmed automatically: the game does not flag them
+      as costumes, and nothing else names them. They might be real costumes, or they might be
+      ordinary alternate forms. <strong>Look at the artwork.</strong> Confirming one puts it in the
+      backlog above to be named; dismissing one drops it for good, so it stops coming back every
+      hour. Nothing here is visible to trainers either way.
+    </p>
+    <div id="costume-candidate-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+  </div>
+
   <!-- Names given here, and the only ones that can be taken back. A named costume leaves the
        backlog above at once, so without this there is no way back to a name at all: the escape
        hatch existed in the API and nothing in the browser could reach it, which is how two GO Tour
@@ -1297,6 +1313,15 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     }
     text.appendChild(name);
 
+    // Where it came from. A costume the site worked out for itself deserves more scepticism than
+    // one upstream flagged, and an admin cannot apply any if the row does not say which it is.
+    if (c.pending && c.why) {
+      var why = document.createElement('div');
+      why.textContent = 'found automatically: ' + c.why;
+      why.style.cssText = 'font-size:0.8rem;color:var(--text-2)';
+      text.appendChild(why);
+    }
+
     // The cross-check below only runs when upstream has a name, so on these rows the spelling typed
     // here is the only line of defence. Say that out loud: a silent guard reads exactly like a
     // guard that passed. Stated quietly rather than in alarm colours, because it is true of every
@@ -1340,7 +1365,12 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
 
     var save = document.createElement('button');
     save.className = 'btn-primary';
-    save.textContent = 'Name';
+    // A costume the job found AND found a name for is one click: the box is already filled with
+    // the name upstream uses, and saying so on the button is the difference between an admin
+    // confirming a name and an admin inventing one. Editing the box turns it back into naming.
+    save.textContent = (c.pending && c.suggested) ? 'Approve "' + c.suggested + '"' : 'Name';
+    if (c.pending && c.suggested) save.title = 'Adds this label and makes the costume selectable';
+    input.addEventListener('input', function() { save.textContent = 'Name'; });
     form.appendChild(save);
 
     var hide = document.createElement('button');
@@ -1409,6 +1439,8 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
   }
 
   // ── Names given here, and taking one back ───────────────────
+  var candidateCard = document.getElementById('costume-candidate-card');
+  var candidateList = document.getElementById('costume-candidate-list');
   var namedCard = document.getElementById('costume-named-card');
   var namedList = document.getElementById('costume-named-list');
 
@@ -1481,6 +1513,94 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     return wrap;
   }
 
+  // A candidate row asks one question, so it has exactly two buttons and no name box. Naming
+  // comes later, from the backlog above, once somebody has said it is a costume at all.
+  function candidateRow(c) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem;'
+      + 'border:1px solid var(--border);border-radius:6px;flex-wrap:wrap';
+
+    var img = document.createElement('img');
+    img.src = c.sprite_url;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.title = 'View larger';
+    img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;cursor:zoom-in';
+    img.addEventListener('click', function() { openZoom(c); });
+    wrap.appendChild(img);
+
+    var text = document.createElement('div');
+    text.style.cssText = 'min-width:0;flex:1';
+
+    var name = document.createElement('div');
+    name.textContent = c.pretty || c.code;
+    name.style.cssText = 'color:var(--text-1);font-weight:600';
+    text.appendChild(name);
+
+    var code = document.createElement('div');
+    code.textContent = c.code + '  ·  ' + (c.species || []).join(', ');
+    code.style.cssText = 'font-size:0.8rem;color:var(--text-2);font-family:ui-monospace,monospace';
+    text.appendChild(code);
+
+    if (c.why) {
+      var why = document.createElement('div');
+      why.textContent = c.why;
+      why.style.cssText = 'font-size:0.8rem;color:var(--text-2);font-style:italic';
+      text.appendChild(why);
+    }
+    wrap.appendChild(text);
+
+    var form = document.createElement('div');
+    form.style.cssText = 'display:flex;gap:0.4rem;align-items:center;flex:none';
+
+    var yes = document.createElement('button');
+    yes.className = 'btn-primary';
+    yes.textContent = "It's a costume";
+    yes.title = 'Move it to the backlog above so it can be named';
+    form.appendChild(yes);
+
+    var no = document.createElement('button');
+    no.className = 'btn-secondary';
+    no.textContent = 'Not a costume';
+    no.title = 'Drop it for good, so it stops being offered';
+    form.appendChild(no);
+
+    var err = document.createElement('div');
+    err.style.cssText = 'font-size:0.8rem;color:#f85149;flex-basis:100%';
+
+    function act(fn) {
+      yes.disabled = no.disabled = true;
+      err.textContent = '';
+      fn().then(function() { load(); })
+        .catch(function(e) {
+          err.textContent = e.message;
+          yes.disabled = no.disabled = false;
+        });
+    }
+
+    yes.addEventListener('click', function() {
+      act(function() { return post('/api/admin/costumes/admit', {code: c.code}); });
+    });
+    no.addEventListener('click', function() {
+      if (!confirm('Drop ' + c.code + ' for good? It will stop being offered for review.')) return;
+      act(function() { return post('/api/admin/costumes/dismiss', {code: c.code}); });
+    });
+
+    wrap.appendChild(form);
+    wrap.appendChild(err);
+    return wrap;
+  }
+
+  function renderCandidates(list) {
+    candidateList.textContent = '';
+    if (!list || !list.length) {
+      candidateCard.style.display = 'none';
+      return;
+    }
+    list.forEach(function(c) { candidateList.appendChild(candidateRow(c)); });
+    candidateCard.style.display = '';
+  }
+
   function renderNamed(named) {
     namedList.textContent = '';
     if (!named || !named.length) {
@@ -1508,6 +1628,7 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
         // reported as "could not load", which is exactly how this tab lied about being broken.
         try {
           render(costumes);
+          renderCandidates(d.candidates);
           renderNamed(d.named);
         } catch (e) {
           console.error('costume tab render failed', e);
@@ -1515,9 +1636,11 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
           return;
         }
         if (!keepStatus) {
-          status.textContent = costumes.length
-            ? costumes.length + ' costume' + (costumes.length === 1 ? '' : 's') + ' with no name'
-            : '';
+          var waiting = (d.candidates || []).length;
+          var parts = [];
+          if (costumes.length) parts.push(costumes.length + ' costume' + (costumes.length === 1 ? '' : 's') + ' with no name');
+          if (waiting) parts.push(waiting + ' waiting to be checked');
+          status.textContent = parts.join(', ');
         }
       })
       .catch(function(e) {

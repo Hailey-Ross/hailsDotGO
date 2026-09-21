@@ -336,18 +336,18 @@ func resetAssetCache(t *testing.T) {
 func TestAssetCacheServesASecondPressWithoutRefetching(t *testing.T) {
 	resetAssetCache(t)
 	calls := 0
-	fetchAssets = func() ([]string, error) {
+	fetchAssets = func() ([]string, string, error) {
 		calls++
-		return []string{"pm25.cFALL_2018.s.icon.png"}, nil
+		return []string{"pm25.cFALL_2018.s.icon.png"}, "testsha", nil
 	}
 	clock := time.Now()
 	now = func() time.Time { return clock }
 
-	if _, age, err := assets(false); err != nil || age != 0 {
+	if _, _, age, err := assets(false); err != nil || age != 0 {
 		t.Fatalf("first call: age = %v, err = %v, want a fresh fetch", age, err)
 	}
 	clock = clock.Add(30 * time.Second)
-	if _, age, err := assets(false); err != nil || age != 30*time.Second {
+	if _, _, age, err := assets(false); err != nil || age != 30*time.Second {
 		t.Fatalf("second call: age = %v, err = %v, want a cached answer aged 30s", age, err)
 	}
 	if calls != 1 {
@@ -358,9 +358,9 @@ func TestAssetCacheServesASecondPressWithoutRefetching(t *testing.T) {
 func TestAssetCacheExpires(t *testing.T) {
 	resetAssetCache(t)
 	calls := 0
-	fetchAssets = func() ([]string, error) {
+	fetchAssets = func() ([]string, string, error) {
 		calls++
-		return []string{"pm25.cFALL_2018.s.icon.png"}, nil
+		return []string{"pm25.cFALL_2018.s.icon.png"}, "testsha", nil
 	}
 	clock := time.Now()
 	now = func() time.Time { return clock }
@@ -378,9 +378,9 @@ func TestAssetCacheExpires(t *testing.T) {
 func TestAssetCacheDoesNotCacheAnOrdinaryFailure(t *testing.T) {
 	resetAssetCache(t)
 	calls := 0
-	fetchAssets = func() ([]string, error) {
+	fetchAssets = func() ([]string, string, error) {
 		calls++
-		return nil, errors.New("dial tcp: connection refused")
+		return nil, "", errors.New("dial tcp: connection refused")
 	}
 
 	assets(false)
@@ -397,13 +397,13 @@ func TestAssetCacheHoldsOffAfterARateLimit(t *testing.T) {
 	resetAssetCache(t)
 	calls := 0
 	limit := rateLimitError{reset: time.Now().Add(40 * time.Minute), msg: "github rate limit reached, set GITHUB_TOKEN"}
-	fetchAssets = func() ([]string, error) {
+	fetchAssets = func() ([]string, string, error) {
 		calls++
-		return nil, limit
+		return nil, "testsha", limit
 	}
 
-	_, _, first := assets(false)
-	_, _, second := assets(false)
+	_, _, _, first := assets(false)
+	_, _, _, second := assets(false)
 
 	if calls != 1 {
 		t.Errorf("fetched %d times, want 1: the hold must survive the second press", calls)
@@ -412,7 +412,7 @@ func TestAssetCacheHoldsOffAfterARateLimit(t *testing.T) {
 		t.Errorf("errors differ: %v then %v, want the same explanation both times", first, second)
 	}
 	// Even a forced refresh must respect it: forcing cannot conjure quota.
-	if _, _, err := assets(true); err == nil || calls != 1 {
+	if _, _, _, err := assets(true); err == nil || calls != 1 {
 		t.Errorf("forced call: err = %v after %d fetches, want the held error and no new fetch", err, calls)
 	}
 }
@@ -420,13 +420,13 @@ func TestAssetCacheHoldsOffAfterARateLimit(t *testing.T) {
 func TestForcedRefreshBypassesTheCache(t *testing.T) {
 	resetAssetCache(t)
 	calls := 0
-	fetchAssets = func() ([]string, error) {
+	fetchAssets = func() ([]string, string, error) {
 		calls++
-		return []string{fmt.Sprintf("pm%d.cFALL_2018.s.icon.png", 24+calls)}, nil
+		return []string{fmt.Sprintf("pm%d.cFALL_2018.s.icon.png", 24+calls)}, "testsha", nil
 	}
 
 	assets(false)
-	files, age, err := assets(true)
+	files, _, age, err := assets(true)
 	if err != nil {
 		t.Fatalf("forced call: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestForcedRefreshBypassesTheCache(t *testing.T) {
 		t.Errorf("forced call returned %v (age %v), want the fresh listing", files, age)
 	}
 	// And the fresh answer replaces the cache, so the next Check Scrapers run benefits.
-	cached, _, _ := assets(false)
+	cached, _, _, _ := assets(false)
 	if !slices.Equal(cached, files) {
 		t.Errorf("cache holds %v, want the forced answer %v", cached, files)
 	}
@@ -519,12 +519,16 @@ func TestListAssetsSendsTheToken(t *testing.T) {
 	ghAPI = srv.URL
 	defer func() { ghAPI = realAPI }()
 
-	files, err := listAssets()
+	files, sha, err := listAssets()
 	if err != nil {
 		t.Fatalf("listAssets: %v", err)
 	}
 	if n := missing.Load(); n != 0 {
 		t.Errorf("%d request(s) went out without the token", n)
+	}
+	// The commit travels with the listing now: discovery pins a new sprite's URL to it.
+	if sha == "" {
+		t.Error("listAssets must report the commit its listing came from")
 	}
 	if !slices.Equal(files, []string{"pm25.cFALL_2018.s.icon.png"}) {
 		t.Errorf("files = %v, want the one blob", files)
@@ -555,7 +559,7 @@ func TestListAssetsRefusesATruncatedTree(t *testing.T) {
 	ghAPI = srv.URL
 	defer func() { ghAPI = realAPI }()
 
-	if _, err := listAssets(); err == nil || !strings.Contains(err.Error(), "truncated") {
+	if _, _, err := listAssets(); err == nil || !strings.Contains(err.Error(), "truncated") {
 		t.Errorf("err = %v, want a refusal to sync a partial listing", err)
 	}
 }

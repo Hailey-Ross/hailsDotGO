@@ -58,8 +58,118 @@ func (h *Handlers) AdminCostumes(w http.ResponseWriter, r *http.Request) {
 		out = append(out, row)
 	}
 
+	cands := costumes.Candidates()
+	queue := make([]candidateCostume, 0, len(cands))
+	for _, c := range cands {
+		row := candidateCostume{Candidate: c}
+		for _, dex := range c.Dex {
+			name := names[dex]
+			if name != "" {
+				row.Species = append(row.Species, name)
+			}
+			if name == "" {
+				name = fmt.Sprintf("dex %d", dex)
+			}
+			// Candidates are not in the catalog, so SpriteURLFor refuses them. The proxy serves
+			// them anyway (AllowedFile admits discovered candidates), because judging a costume
+			// means looking at it.
+			row.Sprites = append(row.Sprites, costumeSprite{
+				Dex: dex, Species: name, URL: costumes.SpritePath + costumes.CandidateFile(dex, c.Code),
+			})
+		}
+		queue = append(queue, row)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"ok": true, "costumes": out, "named": h.namedHere(names)})
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":         true,
+		"costumes":   out,
+		"candidates": queue,
+		"named":      h.namedHere(names),
+		"counts":     map[string]int{"pending": len(out), "candidates": len(queue)},
+	})
+}
+
+// candidateCostume is a code the discovery job could not judge: it has shiny art, but nothing
+// upstream vouches for it and nothing corroborates it. Shown with its sprite, because the sprite
+// is the one thing that reliably settles the question and the code name actively misleads.
+type candidateCostume struct {
+	costumes.Candidate
+	Species []string        `json:"species"`
+	Sprites []costumeSprite `json:"sprites"`
+}
+
+// AdminAdmitCostume records an admin's verdict that a candidate really is a costume. It enters the
+// catalog and becomes resolvable at once, but stays unnamed: naming is a separate, deliberate act,
+// because a label is user data that can never be renamed.
+func (h *Handlers) AdminAdmitCostume(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&body); err != nil {
+		costumeErr(w, http.StatusBadRequest, "could not read the request")
+		return
+	}
+
+	by := ""
+	if u := h.currentUser(r); u != nil {
+		by = u.Username
+	}
+	if err := costumes.AdmitCandidate(body.Code, by); err != nil {
+		costumeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	log.Printf("costumes: %s admitted %s from the review queue", by, body.Code)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// AdminDismissCostume records the opposite verdict, permanently. Without it the same ordinary
+// alternate forms would be re-offered every hour, and a review queue nobody can empty is a review
+// queue nobody reads.
+func (h *Handlers) AdminDismissCostume(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&body); err != nil {
+		costumeErr(w, http.StatusBadRequest, "could not read the request")
+		return
+	}
+
+	by := ""
+	if u := h.currentUser(r); u != nil {
+		by = u.Username
+	}
+	if err := costumes.Dismiss(body.Code, by); err != nil {
+		costumeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	log.Printf("costumes: %s dismissed %s as not a costume", by, body.Code)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// AdminDiscoverCostumes runs a discovery pass now, rather than waiting for the hourly one. The
+// answer is the pass itself, so an admin watching for an event drop can see what it decided.
+func (h *Handlers) AdminDiscoverCostumes(w http.ResponseWriter, r *http.Request) {
+	rep, err := costumes.Discover(r.URL.Query().Get("refresh") == "1", costumeNamesCache())
+	if err != nil {
+		costumeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	h.alertNewCostumes()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":         true,
+		"admitted":   rep.Admitted,
+		"candidates": rep.Candidates,
+		"scanned":    rep.Scanned,
+		"notes":      rep.Notes,
+		"synced":     rep.Commit,
+	})
 }
 
 // namedCostume is one costume this panel named, with what it would cost to take the name back.

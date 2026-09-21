@@ -258,6 +258,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	h.StartEventReminderSweeper()
 	h.StartTranslationAutoSync()
 	h.StartCostumeAutoSync()
+	// Finds costumes upstream on its own and tells an admin, instead of waiting for someone to
+	// press a button they have no reason to press. See internal/costumes/discover.go.
+	h.StartCostumeDiscovery()
 	// Warehouses the served raid list on every rebuild. Registered before
 	// store.Start so the boot rebuild is recorded too.
 	h.StartRaidHistory()
@@ -706,8 +709,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 				r.Post("/costumes/name", h.RequireAdminAPI(h.AdminNameCostume))
 				r.Post("/costumes/hide", h.RequireAdminAPI(h.AdminHideCostume))
 				r.Delete("/costumes/name", h.RequireAdminAPI(h.AdminUnnameCostume))
+				r.Post("/costumes/admit", h.RequireAdminAPI(h.AdminAdmitCostume))
+				r.Post("/costumes/dismiss", h.RequireAdminAPI(h.AdminDismissCostume))
 				r.With(httprate.LimitByIP(5, time.Minute)).
 					Post("/check-costumes", h.RequireAdminAPI(h.AdminCheckCostumes))
+				r.With(httprate.LimitByIP(2, time.Minute)).
+					Post("/discover-costumes", h.RequireAdminAPI(h.AdminDiscoverCostumes))
 				r.Get("/sprite-locks", h.RequireAdminAPI(h.AdminGetSpriteLocks))
 				r.Post("/sprite-lock/{slug}", h.RequireAdminAPI(h.AdminSetSpriteLock))
 				r.Delete("/sprite-lock/{slug}", h.RequireAdminAPI(h.AdminDeleteSpriteLock))
@@ -998,6 +1005,11 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/api/admin/costumes/hide", h.RequireAdmin(h.AdminHideCostume))
 		r.Delete("/api/admin/costumes/name", h.RequireAdmin(h.AdminUnnameCostume))
 		r.With(httprate.LimitByIP(5, time.Minute)).Post("/admin/check-costumes", h.RequireAdmin(h.AdminCheckCostumes))
+		// A verdict on something the discovery job could not judge, either way, and a pass on
+		// demand for when an event has just dropped.
+		r.Post("/api/admin/costumes/admit", h.RequireAdmin(h.AdminAdmitCostume))
+		r.Post("/api/admin/costumes/dismiss", h.RequireAdmin(h.AdminDismissCostume))
+		r.With(httprate.LimitByIP(2, time.Minute)).Post("/admin/discover-costumes", h.RequireAdmin(h.AdminDiscoverCostumes))
 
 		r.Get("/api/admin/sprite-locks", h.RequireAdmin(h.AdminGetSpriteLocks))
 		r.Post("/api/admin/sprite-lock/{slug}", h.RequireAdmin(h.AdminSetSpriteLock))
