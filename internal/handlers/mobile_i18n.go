@@ -72,6 +72,23 @@ func (h *Handlers) MobileI18nBundle(w http.ResponseWriter, r *http.Request) {
 // are 50 to 80 KB, so the difference between revalidating and refetching is the difference
 // between a few hundred bytes and the whole bundle on every launch.
 func writeJSONWithETag(w http.ResponseWriter, r *http.Request, v any) {
+	writeJSONWithETagCache(w, r, v, "no-cache")
+}
+
+// writeJSONWithETagPrivate is writeJSONWithETag for a body that depends on WHO is
+// asking rather than only on the URL.
+//
+// "no-cache" alone means revalidate, not "do not store", so a shared cache may
+// still hold one caller's copy and hand it to another. Any response that varies by
+// the caller's account language at a fixed URL needs "private" as well, or two
+// trainers on one cache see each other's language. The /api/mobile/v1 tree sits
+// outside the CSRF group, so it does not even inherit gorilla/csrf's incidental
+// Vary: Cookie.
+func writeJSONWithETagPrivate(w http.ResponseWriter, r *http.Request, v any) {
+	writeJSONWithETagCache(w, r, v, "private, no-cache")
+}
+
+func writeJSONWithETagCache(w http.ResponseWriter, r *http.Request, v any, cacheControl string) {
 	body, err := json.Marshal(v)
 	if err != nil {
 		writeJSONError(w, "server error", http.StatusInternalServerError)
@@ -81,7 +98,7 @@ func writeJSONWithETag(w http.ResponseWriter, r *http.Request, v any) {
 	etag := `"` + hex.EncodeToString(sum[:])[:16] + `"`
 
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", cacheControl)
 	if r.Header.Get("If-None-Match") == etag {
 		w.WriteHeader(http.StatusNotModified)
 		return

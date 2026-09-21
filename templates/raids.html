@@ -6,6 +6,8 @@
   <p>{{T "raids.subtitle"}}</p>
 </div>
 
+<div id="weather-banner-slot"></div>
+
 <div id="raids-app">
   <div class="loading-state">
     <div class="spinner"></div>
@@ -62,8 +64,17 @@ const RD = {
   upNext:          {{T "raids.js.up_next"}},
   upNextDetailsPending: {{T "raids.js.up_next_details_pending"}},
   upNextCount:     {{T "raids.js.up_next_count"}},
-  shadowRaids:     {{T "raids.js.shadow_raids"}}
+  shadowRaids:     {{T "raids.js.shadow_raids"}},
+
+  // The weather banner moved here from the raid finder, because weather boost
+  // changes the counter rankings on this page. The key keeps its raidfinder
+  // namespace: it is already translated in every locale and renaming an English
+  // key orphans the translator edits that point at it.
+  wxSuffix:        {{T "raidfinder.weather_boost_suffix"}}
 };
+// The weather endpoint needs a session, since it reads the city off the
+// trainer's own profile.
+const RAIDS_CTX = { loggedIn: {{if .User}}true{{else}}false{{end}} };
 </script>
 <script src="/static/js/raids.js?v={{.AssetVersion}}"></script>
 {{end}}

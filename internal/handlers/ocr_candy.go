@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"pogo.hails.cc/internal/pogodata"
 )
 
 // ---- Candy-line species detection ----
@@ -105,15 +107,77 @@ func findSpeciesForm(pokeList []pokemonStatEntry, name, form string) *pokemonSta
 			return &pokeList[i]
 		}
 	}
+	// Same loosening findSpecies applies, so a species whose spelling only
+	// matches after folding does not lose its form as well.
+	if folded, ok := unambiguousFold(pokeList, name); ok {
+		for i := range pokeList {
+			if pogodata.FoldName(pokeList[i].PokemonName) == folded &&
+				strings.EqualFold(pokeList[i].Form, form) {
+				return &pokeList[i]
+			}
+		}
+	}
 	return findSpecies(pokeList, name)
 }
 
 // findSpecies resolves a species name in the stat list, preferring the Normal
 // form over regional variants.
+//
+// An exact case-insensitive match is tried against the whole list first, and only
+// then a folded one. The fold ignores accents, punctuation and spacing, which is
+// what a reading off the screen needs: the game draws "Flabébé" where the stat
+// list says "Flabebe", and a reader hands back "Mr Mime" or "Farfetchd" for names
+// the list spells with a period and a curly apostrophe. Exact stays ahead of it so
+// a real name can never lose to another species' loose match.
 func findSpecies(pokeList []pokemonStatEntry, name string) *pokemonStatEntry {
+	if p := findSpeciesBy(pokeList, func(candidate string) bool {
+		return strings.EqualFold(candidate, name)
+	}); p != nil {
+		return p
+	}
+	folded, ok := unambiguousFold(pokeList, name)
+	if !ok {
+		return nil
+	}
+	return findSpeciesBy(pokeList, func(candidate string) bool {
+		return pogodata.FoldName(candidate) == folded
+	})
+}
+
+// unambiguousFold returns name's fold key, and whether exactly one species in the
+// list answers to it.
+//
+// It refuses a fold that two different species share, the same way
+// Store.ResolveSpecies does. Nidoran's two genders both fold to "nidoran" once the
+// gender sign is dropped, and a reader drops that sign routinely because it is a
+// tiny superscript glyph. Taking whichever row came first would solve a male
+// Nidoran against the female's base stats, with no error and no advisory, which is
+// worse than answering "I could not read the species". Forms of one species are
+// not ambiguous: they share a dex, and the caller picks between them.
+func unambiguousFold(pokeList []pokemonStatEntry, name string) (string, bool) {
+	folded := pogodata.FoldName(name)
+	if folded == "" {
+		return "", false
+	}
+	seenDex := 0
+	for i := range pokeList {
+		if pogodata.FoldName(pokeList[i].PokemonName) != folded {
+			continue
+		}
+		if seenDex != 0 && pokeList[i].PokemonID != seenDex {
+			return "", false
+		}
+		seenDex = pokeList[i].PokemonID
+	}
+	return folded, seenDex != 0
+}
+
+// findSpeciesBy is findSpecies' scan, with the name comparison left to the
+// caller: first row wins unless a Normal form turns up later.
+func findSpeciesBy(pokeList []pokemonStatEntry, match func(string) bool) *pokemonStatEntry {
 	var first *pokemonStatEntry
 	for i := range pokeList {
-		if !strings.EqualFold(pokeList[i].PokemonName, name) {
+		if !match(pokeList[i].PokemonName) {
 			continue
 		}
 		if first == nil {

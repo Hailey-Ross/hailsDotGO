@@ -379,6 +379,7 @@ export const EVOLUTION_NEXT: Record<string, string[]> = {
   "Steenee":      ["Tsareena"],
   "Wimpod":       ["Golisopod"],
   "Sandygast":    ["Palossand"],
+  "Type: Null":   ["Silvally"],
   "Jangmo-o":     ["Hakamo-o"],
   "Hakamo-o":     ["Kommo-o"],
   "Cosmog":       ["Cosmoem"],

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -89,18 +90,83 @@ func pokemonSpriteURL(id int, form string) string {
 	return spriteURLSlug(strconv.Itoa(id), form)
 }
 
-// spriteURLSlug builds a PokeAPI sprite URL from a slug rather than an id. Nearly every slug
+// legacyPokemonSpriteBase is where Pokemon sprite URLs used to point before the proxy
+// existed. users.fav_sprite_url is the one place such a URL was ever WRITTEN DOWN, so rows
+// saved by an older binary still carry it.
+//
+// Kept as a literal rather than derived: this string must not follow spriteURLSlug when
+// that changes again, because its whole job is to recognise what was written in the past.
+const legacyPokemonSpriteBase = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
+
+// normalizePokemonSpriteURL rewrites a stored hotlink onto our proxy, and leaves anything
+// else alone.
+//
+// A stored value is otherwise permanent: nothing rewrites fav_sprite_url once it is set, so
+// without this every trainer who picked a favourite before the proxy shipped would keep
+// announcing it to GitHub forever, and the change would only apply to new choices. A prefix
+// swap rather than recomputing from the dex id, because the tail of the old URL is already
+// exactly the slug the proxy takes, shiny directory included.
+func normalizePokemonSpriteURL(u string) string {
+	if rest, ok := strings.CutPrefix(u, legacyPokemonSpriteBase); ok {
+		return PokemonSpritePath + rest
+	}
+	return u
+}
+
+// favSpriteWriteBack is one pending repair of users.fav_sprite_url.
+//
+// `was` is the value the row held when it was read, and it is part of the WHERE rather than
+// decoration: between the read and this write the trainer may have saved a different
+// favourite, and without the guard the repair overwrites their new choice with the old
+// species' art. That leaves fav_pokemon and fav_sprite_url permanently disagreeing, because
+// the only recompute path fires when fav_sprite_url is EMPTY and it no longer is.
+type favSpriteWriteBack struct {
+	id       int
+	was, now string
+}
+
+// flushFavSpriteWriteBacks persists queued repairs on one goroutine, after the read cursor
+// that produced them has been released.
+func (h *Handlers) flushFavSpriteWriteBacks(pending []favSpriteWriteBack) {
+	if len(pending) == 0 {
+		return
+	}
+	go func() {
+		for _, p := range pending {
+			if _, err := h.db.Exec(
+				`UPDATE users SET fav_sprite_url = ? WHERE id = ? AND fav_sprite_url = ?`,
+				p.now, p.id, p.was,
+			); err != nil {
+				// Not fatal: the value was already corrected for the render that queued
+				// it, and the next directory load queues it again. Logged because a
+				// silent failure here repeats forever with nothing to show for it.
+				log.Printf("fav_sprite_url write back for user %d: %v", p.id, err)
+			}
+		}
+	}()
+}
+
+// spriteURLSlug builds a Pokemon sprite URL from a slug rather than an id. Nearly every slug
 // is just a number, but the Unown letters are pokemon-form records with no id of their own and
 // so are filed under 201-b, 201-exclamation and friends (see unownSpriteSlug).
+//
+// Points at our own proxy, not at PokeAPI's host. Every sprite URL this server produces
+// comes through here, so this one line is what decides whether a browser talks to a third
+// party to draw a Pokemon. See internal/handlers/pokemon_sprite.go. (The app also builds
+// some sprite URLs on the device, which this cannot reach.)
+//
+// Site relative on purpose. A browser resolves it against the page, a self hosted instance
+// serves its own sprites without configuring anything, and the app runs sprite URLs through
+// ApiClient.absoluteUrl. The one payload that must be absolute is the shiny dex manifest,
+// which the app renders without that helper, and it wraps this call itself.
 func spriteURLSlug(slug, form string) string {
 	if slug == "" {
 		return ""
 	}
-	const base = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
 	if form == "shiny" {
-		return base + "shiny/" + slug + ".png"
+		return PokemonSpritePath + "shiny/" + slug + ".png"
 	}
-	return base + slug + ".png"
+	return PokemonSpritePath + slug + ".png"
 }
 
 // listTrainers builds the directory: every account that is not hidden or disabled,
@@ -146,6 +212,7 @@ func (h *Handlers) listTrainers() []trainerEntry {
 	defer rows.Close()
 
 	var trainers []trainerEntry
+	var writeBacks []favSpriteWriteBack
 	for rows.Next() {
 		var t trainerEntry
 		var userID int
@@ -171,15 +238,28 @@ func (h *Handlers) listTrainers() []trainerEntry {
 		if t.Tags == nil {
 			t.Tags = []tagEntry{}
 		}
-		if t.FavPokemon != "" && t.FavSpriteURL == "" {
-			if id := h.store.PokemonDexID(t.FavPokemon); id != 0 {
+		// A row written before the sprite proxy existed holds a raw upstream URL. Rewrite
+		// it for this render, and queue the rewrite so the row converges rather than being
+		// fixed again on every directory load.
+		if healed := normalizePokemonSpriteURL(t.FavSpriteURL); healed != t.FavSpriteURL {
+			writeBacks = append(writeBacks, favSpriteWriteBack{id: userID, was: t.FavSpriteURL, now: healed})
+			t.FavSpriteURL = healed
+		} else if t.FavPokemon != "" && t.FavSpriteURL == "" {
+			if id := h.store.ResolveDexID(t.FavPokemon, ""); id != 0 {
 				t.FavSpriteURL = pokemonSpriteURL(id, t.FavPokemonForm)
-				uid, url := userID, t.FavSpriteURL
-				go h.db.Exec(`UPDATE users SET fav_sprite_url = ? WHERE id = ?`, url, uid)
+				writeBacks = append(writeBacks, favSpriteWriteBack{id: userID, was: "", now: t.FavSpriteURL})
 			}
 		}
 		trainers = append(trainers, t)
 	}
+	// Fired AFTER the cursor is done with, and as one goroutine rather than one per row.
+	//
+	// These used to be `go h.db.Exec` from inside the loop, which on the first directory
+	// render after a deploy spawns one goroutine per legacy row while the read still holds a
+	// connection. The pool is ten (internal/db/db.go), so a few hundred of them starve every
+	// other request on the site until they drain.
+	h.flushFavSpriteWriteBacks(writeBacks)
+
 	if trainers == nil {
 		trainers = []trainerEntry{}
 	}
@@ -278,6 +358,9 @@ func (h *Handlers) lookupTrainer(username string) (trainerEntry, uint, bool) {
 	t.ProfilePublic = profilePublicInt > 0
 	t.ShiniesHidden = shiniesHiddenInt > 0
 	t.Online = onlineInt > 0
+	// Read only here. The directory query is what writes the healed value back; doing it
+	// in both places would mean two writers for one column and no extra correctness.
+	t.FavSpriteURL = normalizePokemonSpriteURL(t.FavSpriteURL)
 	if len(t.TrainerCode) == 12 {
 		t.TrainerCodeFormatted = t.TrainerCode[:4] + " " + t.TrainerCode[4:8] + " " + t.TrainerCode[8:]
 	} else {
@@ -433,12 +516,94 @@ type mobileTrainer struct {
 	// this a client would have to reverse a colour out of localised text, and
 	// would get it wrong in every language but English.
 	RaidRankClass string      `json:"raid_rank_class,omitempty"`
-	JoinedAt      string      `json:"joined_at"`
-	Online        bool        `json:"online"`
-	SuperDonator  bool        `json:"super_donator"`
-	ProfilePublic bool        `json:"profile_public"`
-	ShiniesHidden bool        `json:"shinies_hidden"`
-	Tags          []mobileTag `json:"tags"`
+	JoinedAt      string `json:"joined_at"`
+	Online        bool   `json:"online"`
+	SuperDonator  bool   `json:"super_donator"`
+	ProfilePublic bool   `json:"profile_public"`
+	ShiniesHidden bool   `json:"shinies_hidden"`
+	// IsFriend, IsFollowing and FollowsMe describe the CALLER's relationship to
+	// this trainer, not anything about the trainer. They are on every trainer the
+	// API hands out so a list can badge a row; before this a client could only
+	// learn a relationship from the profile endpoint, one trainer and four
+	// COUNT(*) round trips at a time.
+	//
+	// A friend is a mutual follow. There is no friendship table: follows are
+	// directional by design (migrate.sql section 34, "user_id follows friend_id")
+	// and socialLists already expresses the mutual case as a self join.
+	//
+	// toMobileTrainer cannot fill these, because it does not know the caller.
+	// Every handler that builds one of these owes them a value; false is a claim,
+	// not an absence.
+	IsFriend    bool        `json:"is_friend"`
+	IsFollowing bool        `json:"is_following"`
+	FollowsMe   bool        `json:"follows_me"`
+	Tags        []mobileTag `json:"tags"`
+}
+
+// viewerFollows is who one trainer follows and who follows them, keyed by
+// username because that is what the DTO carries.
+//
+// Loaded once for a whole directory render. The profile endpoint asks the same
+// question one trainer at a time with COUNT(*), which is right for one row and
+// wrong for several hundred.
+type viewerFollows struct {
+	following map[string]bool
+	followers map[string]bool
+}
+
+// loadViewerFollows reads both directions of the caller's follows.
+//
+// Two queries rather than one join onto the directory: listTrainers is shared
+// with the website's trainer directory, so the relationship must not be welded
+// into it. Both are index reads, the outbound on the PRIMARY KEY
+// (user_id, friend_id) and the inbound on the index InnoDB keeps behind
+// fk_uf_friend.
+//
+// An error leaves the map empty rather than failing the request: a directory
+// with no relationship badges is worth serving, and the fallback tier is the
+// one every stranger already gets.
+func (h *Handlers) loadViewerFollows(userID uint) viewerFollows {
+	v := viewerFollows{following: map[string]bool{}, followers: map[string]bool{}}
+	collect := func(query string, into map[string]bool) {
+		rows, err := h.db.Query(query, userID)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var username string
+			if rows.Scan(&username) == nil {
+				into[username] = true
+			}
+		}
+	}
+	collect(`
+		SELECT u.username FROM user_follows uf
+		JOIN users u ON u.id = uf.friend_id
+		WHERE uf.user_id = ?`, v.following)
+	collect(`
+		SELECT u.username FROM user_follows uf
+		JOIN users u ON u.id = uf.user_id
+		WHERE uf.friend_id = ?`, v.followers)
+	return v
+}
+
+// stamp writes the caller's relationship to one trainer onto their DTO.
+func (v viewerFollows) stamp(t *mobileTrainer) {
+	t.IsFollowing = v.following[t.Username]
+	t.FollowsMe = v.followers[t.Username]
+	t.IsFriend = t.IsFollowing && t.FollowsMe
+}
+
+// viewerLocation reads one trainer's own region and country.
+//
+// A separate read because the session carries no location: auth.User is
+// username, role and language, and nothing has ever needed where its owner
+// lives. This is the caller's own row, so no privacy gate applies to it.
+func (h *Handlers) viewerLocation(userID uint) (region, country string) {
+	h.db.QueryRow(`SELECT COALESCE(region,''), COALESCE(country,'') FROM users WHERE id = ?`, userID).
+		Scan(&region, &country)
+	return region, country
 }
 
 // toMobileTrainer applies the same visibility rules the templates apply, so a JSON
@@ -526,8 +691,8 @@ const mobileTrainersMaxLimit = 500
 // MobileTrainers serves the trainers directory.
 //
 // Ordering is whatever listTrainers produced (online first, then staff by rank,
-// then supporters, then raid XP, then name) and is never re-sorted here. The
-// filter below preserves it.
+// then supporters, then raid XP, then name). The filter below preserves it, and
+// so does ?sort=relationship, which only groups that order into tiers.
 func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.requireUserAPI(w, r)
 	if !ok {
@@ -546,10 +711,25 @@ func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Loaded once for the whole directory, and unconditionally: the relationship
+	// flags ride on every row whether or not the caller asked for the sort, so a
+	// list can badge a trainer without a round trip per row.
+	rel := h.loadViewerFollows(u.ID)
+
 	list := h.listTrainers()
 	out := make([]mobileTrainer, 0, len(list))
 	for _, t := range list {
-		out = append(out, toMobileTrainer(t, t.Username == u.Username))
+		mt := toMobileTrainer(t, t.Username == u.Username)
+		rel.stamp(&mt)
+		out = append(out, mt)
+	}
+
+	// Opt in, because listTrainers and its sort are shared with the website's
+	// trainer directory. Tiering unconditionally would reorder /trainers for
+	// everyone, which is a decision nobody has made.
+	if strings.EqualFold(r.URL.Query().Get("sort"), trainerSortRelationship) {
+		region, country := h.viewerLocation(u.ID)
+		out = sortTrainersForViewer(out, region, country)
 	}
 
 	// Same condition as TrainersPage, read from the same two places. -1 means the
@@ -576,6 +756,85 @@ func (h *Handlers) MobileTrainers(w http.ResponseWriter, r *http.Request) {
 		UserGrantRank: grantRank,
 		Total:         total,
 	})
+}
+
+// trainerSortRelationship is the ?sort= value that groups the directory around
+// the caller. Anything else, including nothing, leaves the order alone.
+const trainerSortRelationship = "relationship"
+
+// The tiers ?sort=relationship groups the directory into. Lower sorts first.
+const (
+	tierFriend = iota
+	tierFollowing
+	tierFollower
+	tierSameArea
+	tierEveryoneElse
+)
+
+// viewerTier places one trainer relative to the caller.
+//
+// It takes the DTO, not the row, and that is the whole privacy story. The
+// server holds everyone's raw country whatever their settings say, so tiering
+// on users.country would make a trainer's POSITION in the list an oracle for
+// whether a private trainer shares your country, which is the same leak
+// filterMobileTrainers is written the way it is to avoid. A trainer who
+// publishes no location cannot reach tierSameArea and lands with the strangers.
+// That is the correct answer, not a gap.
+func viewerTier(t mobileTrainer, myRegion, myCountry string) int {
+	switch {
+	case t.IsFriend:
+		return tierFriend
+	case t.IsFollowing:
+		return tierFollowing
+	case t.FollowsMe:
+		return tierFollower
+	case sameLocality(t.Region, myRegion) && sameLocality(t.Country, myCountry):
+		return tierSameArea
+	}
+	return tierEveryoneElse
+}
+
+// sameLocality compares two free text place names.
+//
+// Free text is not an exaggeration: settings.go stores r.FormValue("country") as
+// typed behind a bare maxlength, so UK, United Kingdom and england are three
+// different countries here and no amount of normalising would fix that
+// honestly. Trimmed and case insensitive is as far as this goes.
+//
+// A blank never matches a blank. Without that, every trainer who publishes no
+// location tiers together above real strangers, which is the opposite of what
+// the tier means.
+func sameLocality(a, b string) bool {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	return a != "" && strings.EqualFold(a, b)
+}
+
+// sortTrainersForViewer groups the directory into relationship tiers, keeping
+// the order inside each tier exactly as it arrived.
+//
+// The tier is a prefix key on top of the directory's own order (online, then
+// staff by rank, then supporters, then raid XP, then name), not a replacement
+// for it, which is what the stable sort buys.
+//
+// This runs over the whole directory before paging, which is the point: sorting
+// a PAGE by relationship only floats friends to the top of whichever page they
+// already landed on.
+func sortTrainersForViewer(in []mobileTrainer, myRegion, myCountry string) []mobileTrainer {
+	// Tiers computed once per trainer rather than inside the comparator, which
+	// would recompute them O(n log n) times.
+	tiers := make([]int, len(in))
+	order := make([]int, len(in))
+	for i, t := range in {
+		tiers[i] = viewerTier(t, myRegion, myCountry)
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool { return tiers[order[a]] < tiers[order[b]] })
+
+	out := make([]mobileTrainer, len(in))
+	for pos, i := range order {
+		out[pos] = in[i]
+	}
+	return out
 }
 
 // filterMobileTrainers narrows the directory to trainers matching q, preserving
@@ -704,6 +963,13 @@ func (h *Handlers) MobileTrainerProfile(w http.ResponseWriter, r *http.Request) 
 		h.db.QueryRow(`SELECT id, option_id FROM user_feedback WHERE author_id = ? AND target_id = ?`,
 			viewer.ID, userID).Scan(&out.MyFeedbackID, &out.MyFeedbackOptionID)
 	}
+
+	// The same three flags the directory stamps on every row, copied from the
+	// answers already computed above. Without this the trainer object inside a
+	// profile would flatly contradict the envelope around it.
+	out.Trainer.IsFollowing = out.IsFollowing
+	out.Trainer.FollowsMe = out.FollowsMe
+	out.Trainer.IsFriend = out.IsFriend
 
 	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE friend_id = ?`, userID).Scan(&out.FollowerCount)
 	h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE user_id = ?`, userID).Scan(&out.FollowingCount)

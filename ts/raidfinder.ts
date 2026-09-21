@@ -548,7 +548,11 @@ function buildHostForm(): HTMLElement {
     let tier = 0;
     if (isCustom) {
       // Prefer the picked entry; free text still works for unlisted bosses.
-      boss = (customPicker ? (customPicker.getSelected()?.label ?? customPicker.input.value) : '').trim().slice(0, 64);
+      // Send .name, the English key, NOT .label, which is the localized display
+      // string. boss_name is the matchmaking key: raid_queue is joined to
+      // raid_lobbies on it, so a German host posting "Glurak" and a French
+      // trainer queueing "Dracaufeu" formed two pools that never met.
+      boss = (customPicker ? (customPicker.getSelected()?.name ?? customPicker.input.value) : '').trim().slice(0, 64);
     } else {
       boss = sel.value.trim();
       tier = parseInt((sel.options[sel.selectedIndex] as HTMLOptionElement)?.dataset.tier || '0') || 0;
@@ -1093,30 +1097,9 @@ function buildFeedbackCard(f: FeedbackDue): HTMLElement {
 }
 
 
-const weatherEmoji: Dict = {
-  'Clear': '☀️', 'Partly Cloudy': '⛅', 'Overcast': '☁️',
-  'Rainy': '🌧️', 'Snow': '❄️', 'Fog': '🌫️', 'Windy': '💨', 'Extreme': '⚠️',
-};
-
-function loadWeatherBanner(): void {
-  if (!RAID_CTX.loggedIn) return;
-  fetch('/api/weather').then((r) => r.json()).then((w) => {
-    const slot = document.getElementById('weather-banner-slot');
-    if (!slot || !w.pogo_weather) return;
-    const emoji = weatherEmoji[w.pogo_weather] || '🌡️';
-    const types = (w.boosted_types || []).join(', ');
-    let text = '<strong>' + esc(w.pogo_weather) + '</strong>';
-    if (types) text += ': ' + esc(types) + ' ' + esc(RF2.wxSuffix);
-    slot.innerHTML = '<div class="weather-banner"><span class="weather-banner-icon">' + emoji +
-      '</span><span class="weather-banner-text">' + text + '</span></div>';
-  }).catch(() => {});
-}
-
-
 function initRaidFinder(): void {
   if (loaded || !root) return;
   loaded = true;
-  loadWeatherBanner();
   fetchState();
   if (countdownTimer === null) countdownTimer = window.setInterval(tickCountdowns, 250);
   setPolling('idle');

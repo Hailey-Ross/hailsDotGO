@@ -80,6 +80,18 @@ type ivRequest struct {
 	// scanned can re-ask with CP 0 and this set, and the solver falls back to the
 	// arc. See IVCalculate for why that cannot be done on the device.
 	ArcLevel *float64 `json:"arc_level"`
+	// AtkIV, DefIV and StaIV are IVs the caller already knows, read off the
+	// appraisal bars before the solve. Optional, and pointers because an IV of 0
+	// is a real reading rather than an absent one.
+	//
+	// All three or none. A bar reader answers with a whole spread or abstains,
+	// so a partial triple did not come from one, and half-applying it would
+	// invent a constraint the caller never asserted. Unlike TopStat and
+	// AppraisalBars, which are hints whose worst case is a wide answer, this is
+	// an assertion: a malformed one is refused rather than ignored.
+	AtkIV *int `json:"atk_iv"`
+	DefIV *int `json:"def_iv"`
+	StaIV *int `json:"sta_iv"`
 }
 
 // dustBrackets maps the BASE stardust power-up cost to the level range it implies.
@@ -261,6 +273,22 @@ func intersectRangesWithLevel(ranges []levelRange, lvl, tol float64) []levelRang
 	return out
 }
 
+// snapUpToHalfStep returns the first half level at or above lvl.
+//
+// Game levels exist only on half steps, and every level this server publishes
+// is on one. A range edge that is not (an arc_level the caller did not round,
+// which /iv/calculate and /iv/scan both accept on their range check alone)
+// would otherwise be walked in 0.5 increments off the grid: 21.8, 22.3, 22.8,
+// each one missing cpmByLevel and falling out at the continue in the level
+// loop, so the whole solve answers with nothing and says nothing about why.
+//
+// The window such an edge describes is right. Only its phase is wrong, which
+// is why this snaps the walk rather than validating the input: it repairs any
+// off-grid range whatever produced it, and is a no-op on every aligned one.
+func snapUpToHalfStep(lvl float64) float64 {
+	return math.Ceil(lvl*2) / 2
+}
+
 // enumerateWithBuddyRetry runs the enumeration and, when the first pass finds
 // nothing, retries one level higher: an active Best Buddy displays CP and HP
 // boosted by one level while the dust cost reflects the true level. The bool
@@ -308,7 +336,7 @@ func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, po
 		if maxLvl > levelCap {
 			maxLvl = levelCap
 		}
-		for lvl := lr.MinLvl; lvl <= maxLvl; lvl += 0.5 {
+		for lvl := snapUpToHalfStep(lr.MinLvl); lvl <= maxLvl; lvl += 0.5 {
 			levelSet[lvl] = true
 		}
 	}
@@ -321,6 +349,24 @@ func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, po
 	for atkIV := 0; atkIV <= 15; atkIV++ {
 		for defIV := 0; defIV <= 15; defIV++ {
 			for staIV := 0; staIV <= 15; staIV++ {
+				// A caller supplied IV triple, applied first because it is the
+				// most selective filter here and because it has to compose with
+				// the level loop below: a spread the caller read off the
+				// appraisal bars still has to be found at a LEVEL, and the Best
+				// Buddy retry only fires when this pass finds nothing.
+				//
+				// solveWithIVConstraint decides whether a triple reaches this
+				// function at all, and clears TopStat and AppraisalBars before it
+				// does. Nothing here has to reconcile the three.
+				if req.AtkIV != nil && atkIV != *req.AtkIV {
+					continue
+				}
+				if req.DefIV != nil && defIV != *req.DefIV {
+					continue
+				}
+				if req.StaIV != nil && staIV != *req.StaIV {
+					continue
+				}
 				ivSum := atkIV + defIV + staIV
 				if ivSum < ivSumMin || ivSum > ivSumMax {
 					continue
@@ -371,6 +417,62 @@ func enumerateIVsRanges(req ivRequest, ranges []levelRange, levelCap float64, po
 	return candidates
 }
 
+// solveWithIVConstraint runs the solve against a caller supplied IV triple,
+// falling back to the unconstrained answer when the triple fits nothing. It
+// returns the candidates, whether a Best Buddy interpretation was used, and
+// whether the triple had to be ignored.
+//
+// Two passes, and the order is the whole design:
+//
+//  1. The triple applied INSIDE the sweep, with TopStat and AppraisalBars
+//     cleared. An exact IV read subsumes a star band and a top stat: both are
+//     statements about the same three numbers, and weaker ones. When they
+//     disagree the exact read wins, because a star band read off a rounded
+//     badge is a far softer signal than three bars measured to a fraction of an
+//     IV unit. Leaving the hints in let one of them delete the caller's own
+//     answer from the list and blame the IV read for it.
+//
+//  2. Only if that finds nothing: today's solve, hints applied and no triple,
+//     reported with ignored set.
+//
+// Applying the triple inside the sweep rather than filtering the result is what
+// makes the Best Buddy retry reachable. An active Best Buddy displays CP and HP
+// one level up, and enumerateWithBuddyRetry only shifts when a pass comes back
+// empty. Filtering afterwards meant a correctly read Best Buddy whose displayed
+// stats also matched some other spread never got the shift: the first pass was
+// non-empty, so the retry never fired, and the trainer was told their bars did
+// not fit. Machamp CP 1964, HP 140, dust 3000 with a true 12/13/13 at level 22
+// is that case.
+//
+// The fallback is section 3.4 of the request this implements: when the triple
+// fits nothing the caller gets the unconstrained list, never an empty one.
+// Either the IVs were misread or the CP, HP or dust was, and the server cannot
+// tell which any more than the client can. Hiding a correct answer behind a bad
+// reading is the worse of the two failures.
+//
+// The second sweep runs only on a mismatch and is well under a millisecond.
+func solveWithIVConstraint(req ivRequest, poke pokemonStatEntry, cpms []cpmEntry) ([]IVCandidate, bool, bool) {
+	if req.AtkIV == nil || req.DefIV == nil || req.StaIV == nil {
+		candidates, buddy := enumerateIVs(req, poke, cpms)
+		return candidates, buddy, false
+	}
+
+	constrained := req
+	constrained.TopStat = ""
+	constrained.AppraisalBars = nil
+	if candidates, buddy := enumerateIVs(constrained, poke, cpms); len(candidates) > 0 {
+		return candidates, buddy, false
+	}
+
+	wide := req
+	wide.AtkIV, wide.DefIV, wide.StaIV = nil, nil, nil
+	candidates, buddy := enumerateIVs(wide, poke, cpms)
+	// A solve that is empty WITHOUT the triple was not emptied by the triple.
+	// Reporting it as ignored would point the caller at their IV read when the
+	// CP, HP or dust is what nothing fits.
+	return candidates, buddy, len(candidates) > 0
+}
+
 func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 	var req ivRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -389,6 +491,21 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
 		return
 	}
+	known := 0
+	for _, iv := range []*int{req.AtkIV, req.DefIV, req.StaIV} {
+		if iv == nil {
+			continue
+		}
+		known++
+		if *iv < 0 || *iv > 15 {
+			writeJSONError(w, "invalid parameters", http.StatusBadRequest)
+			return
+		}
+	}
+	if known != 0 && known != 3 {
+		writeJSONError(w, "atk_iv, def_iv and sta_iv must be sent together", http.StatusBadRequest)
+		return
+	}
 	// Nothing to solve against: no CP to match and no arc to sweep would enumerate
 	// every level for every spread and answer with noise.
 	if req.CP == 0 && req.ArcLevel == nil {
@@ -401,10 +518,18 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "data unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	// The name may have come from a localized game screen or a trainer's keyboard,
+	// so fold it back to the English spelling the stat list is keyed on. An
+	// unresolvable name falls through unchanged and is answered by the 404 below.
+	matchName := req.PokemonName
+	if english, ok := h.resolveSpecies(r, req.PokemonName); ok {
+		matchName = english
+	}
+
 	var poke *pokemonStatEntry
 	var firstMatch *pokemonStatEntry
 	for i := range pokeList {
-		if !strings.EqualFold(pokeList[i].PokemonName, req.PokemonName) {
+		if !strings.EqualFold(pokeList[i].PokemonName, matchName) {
 			continue
 		}
 		if req.Form != "" {
@@ -437,13 +562,18 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidates, buddyAssumed := enumerateIVs(req, *poke, cpms)
+	candidates, buddyAssumed, ivIgnored := solveWithIVConstraint(req, *poke, cpms)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"candidates": candidates,
 		"count":      len(candidates),
-		"definitive": len(candidates) == 1,
+		// definitive is len(candidates) == 1, EXCEPT when a supplied triple fit
+		// nothing: the one answer there is the one the solve would have given
+		// without the triple, and the caller's own reading contradicts it. A
+		// client gating a confident single-answer screen on this flag must not
+		// be handed one in that case.
+		"definitive": len(candidates) == 1 && !ivIgnored,
 		"pokemon":    poke,
 		// arc_rescue says the answer came from the arc rather than from a CP.
 		//
@@ -453,6 +583,15 @@ func (h *Handlers) IVCalculate(w http.ResponseWriter, r *http.Request) {
 		// with what is on their screen and never say why.
 		"arc_rescue":         req.CP == 0 && req.ArcLevel != nil,
 		"best_buddy_assumed": buddyAssumed,
+		// iv_constraint_ignored says a supplied atk_iv/def_iv/sta_iv triple
+		// matched no candidate and the unconstrained list is what came back. It
+		// is how a caller tells "your IVs pinned it" from "your IVs pinned
+		// nothing, here is everything". Always false when no triple was sent.
+		//
+		// It does NOT mean the caller misread the bars. It can also mean the CP,
+		// HP or dust was misread, and the list it accompanies is the one the
+		// hints (top_stat, appraisal_bars) still shape.
+		"iv_constraint_ignored": ivIgnored,
 	})
 }
 
@@ -476,6 +615,12 @@ type pokemonBoxEntry struct {
 	Note         string          `json:"note"`
 	Provenance   string          `json:"provenance"`
 	CreatedAt    time.Time       `json:"created_at"`
+	// SpriteURL is the form's own art, resolved here rather than by each client.
+	//
+	// Empty, and omitted, when the form has no distinct sprite, which is the common
+	// case: a client falls back to the species dex number and is right to. See
+	// boxSpriteURL.
+	SpriteURL string `json:"sprite_url,omitempty"`
 }
 
 // boxFormPattern bounds the form field without pinning it to a list.
@@ -484,7 +629,46 @@ type pokemonBoxEntry struct {
 // long tail of costumes: 273 distinct values in the current dataset), not the
 // shadow or purified state, so an allow list here would reject almost every
 // real save. It only has to stay inside the column and carry nothing exotic.
-var boxFormPattern = regexp.MustCompile(`^[A-Za-z0-9_ -]{0,64}$`)
+// The ASCII-only shape this replaces rejected two real things. Pa'u, Oricorio's
+// Hawaiian form, carries an apostrophe and was refused outright in English. And
+// every accented or non Latin spelling was refused, so a form name that came off
+// a localized screen could not be saved at all.
+//
+// Still a deny list in spirit: letters, marks, digits, spaces and the handful of
+// punctuation real form names use. No angle brackets, quotes or ampersand, for the
+// same reason trainerNamePunct excludes them.
+var boxFormPattern = regexp.MustCompile(`^[\p{L}\p{M}\p{N}_ '\x{2019}.:-]{0,64}$`)
+
+// canonicalBoxForm rewrites a form to the stat list's own spelling for that
+// species, when the list has a form that folds to the same thing.
+//
+// Everything downstream is keyed on that spelling: boxSpriteURL derives the sprite
+// slug from it, and IVCalculate matches it with EqualFold against the same list.
+// A form that the list does not know is returned untouched, because the field is
+// deliberately free text for costumes, which run to 273 distinct values and would
+// almost all be refused by an allow list.
+func (h *Handlers) canonicalBoxForm(species, form string) string {
+	if form == "" || species == "" {
+		return form
+	}
+	var pokeList []pokemonStatEntry
+	if err := json.Unmarshal(h.store.Pokemon(), &pokeList); err != nil {
+		return form
+	}
+	folded := pogodata.FoldName(form)
+	if folded == "" {
+		return form
+	}
+	for i := range pokeList {
+		if !strings.EqualFold(pokeList[i].PokemonName, species) {
+			continue
+		}
+		if pogodata.FoldName(pokeList[i].Form) == folded {
+			return pokeList[i].Form
+		}
+	}
+	return form
+}
 
 // maxPokemonBoxSize caps a trainer's box. It also caps what the list endpoint
 // will return in one page, because the raids page asks for the whole box to rank
@@ -586,10 +770,31 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-	if len(body.PokemonName) > 64 {
+	// Counted in runes: the column is VARCHAR(64) and MySQL counts characters, so
+	// a byte cap silently allowed only 21 Japanese characters into a 64 character
+	// column while claiming to allow 64.
+	if tooLongRunes(body.PokemonName, 64) {
 		writeJSONError(w, "invalid parameters", http.StatusBadRequest)
 		return
 	}
+	// The species is stored verbatim and every later read is keyed in English: the
+	// box list derives its sprite from this column, and the raid ranking scores the
+	// row against the species' base stats. A name that resolves to nothing used to
+	// be accepted anyway and produced a permanently sprite-less, unscoreable row.
+	// Resolve it, store English, and refuse what does not resolve.
+	if english, ok := h.resolveSpecies(r, body.PokemonName); ok {
+		body.PokemonName = english
+	} else if h.store.SpeciesLoaded() {
+		writeJSONError(w, "unknown pokemon", http.StatusBadRequest)
+		return
+	}
+	// The form has to be canonicalized too, and for the same reason. boxSpriteURL
+	// and the solver's form match are both keyed on the stat list's spelling, so a
+	// row saved as ("Marowak", "アローラのすがた") would get the plain Marowak
+	// sprite and be scored against the wrong stat row, silently. Only a form the
+	// stat list actually knows is rewritten: the rest of the field is free text by
+	// design, since costumes alone run to 273 distinct values.
+	body.Form = h.canonicalBoxForm(body.PokemonName, body.Form)
 	// Truncate on runes, not bytes. The column is VARCHAR(160), which MySQL
 	// counts in characters, and the note field accepts 160 of them. A Japanese
 	// or emoji note is three or four bytes per character, so a byte slice landed
@@ -659,6 +864,23 @@ func (h *Handlers) SavePokemonIV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{"id": id})
+}
+
+// boxSpriteURL resolves a stored box row to the art of the form it actually is.
+//
+// Nothing in the game data bundle can tell two forms of a species apart for this purpose:
+// both Zacian rows are pokemon_id 888, so a client drawing 888.png shows Hero of Many
+// Battles for a stored Crowned Sword while printing "Crowned_sword" in the text beside it.
+// The species plus the form spelling is the only pair that identifies the art, and the
+// tables that map it live here, so the answer is resolved once on the server rather than
+// reimplemented in every client.
+//
+// Never shiny. The box has no shiny concept, so this passes "" and not "shiny".
+//
+// Returns "" for a form with no art of its own, which is most of them. That is a real
+// answer rather than a failure: the caller falls back to the species dex sprite.
+func boxSpriteURL(species, form string) string {
+	return spriteURLSlug(regionalSpriteSlug(species, regionTagForBundleForm(species, form)), "")
 }
 
 func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
@@ -732,6 +954,7 @@ func (h *Handlers) ListPokemonIV(w http.ResponseWriter, r *http.Request) {
 			pct := math.Round(float64(*e.AtkIV+*e.DefIV+*e.StaIV)/45.0*1000) / 10
 			e.IVPct = &pct
 		}
+		e.SpriteURL = boxSpriteURL(e.PokemonName, e.Form)
 		entries = append(entries, e)
 	}
 
@@ -764,5 +987,40 @@ func (h *Handlers) DeletePokemonIV(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "not found", http.StatusNotFound)
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ClearPokemonBox empties the caller's box in one statement.
+//
+// An empty box is a SUCCESS, not a 404. The resource here is the box itself, which
+// always exists, and the post-condition the caller asked for holds either way.
+// APIEventUnsubscribe answers the same way for the same reason: already gone is still
+// a 204, so a client does not have to know whether its list was stale, and a retry
+// after a timed out request does not turn into an error the trainer has to read.
+// That is the opposite of DeletePokemonIV above, where the id names a specific row and
+// its absence is genuinely a miss.
+//
+// user_id is the whole predicate. user_pokemon_box carries no other ownership column
+// and no soft delete column, and nothing has an inbound foreign key to it, so there is
+// nothing else to clean up and no reason for a transaction. The shiny collection is a
+// different table and is deliberately untouched: the app's dialog promises exactly that.
+//
+// No body is read. A DELETE with no id has nothing to say, and decoding one would only
+// invent a way for this to fail.
+func (h *Handlers) ClearPokemonBox(w http.ResponseWriter, r *http.Request) {
+	u := h.currentUser(r)
+	if u == nil {
+		writeJSONError(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	if _, err := h.db.Exec(`DELETE FROM user_pokemon_box WHERE user_id = ?`, u.ID); err != nil {
+		log.Printf("clear pokemon box for user %d: %v", u.ID, err)
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// 204 with no body, matching every other delete in this API. The count was
+	// considered and dropped: the client's own total comes from a COUNT(*) over the
+	// whole table on the next list, so a number here would be the only bodied delete
+	// in the tree in exchange for nothing the client cannot already work out.
 	w.WriteHeader(http.StatusNoContent)
 }

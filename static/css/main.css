@@ -338,7 +338,7 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
-.tab-panel { display: none; animation: fadeUp 0.25s ease both; }
+.tab-panel { display: none; animation: fadeUp 0.25s ease backwards; }
 .tab-panel.active { display: block; }
 
 /* ── Admin dashboard: grouped sidebar navigation ─────────────── */

@@ -6,11 +6,18 @@ import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, RaidBoss, PokemonStat, UpcomingRaid } from "./shared/types";
 import { parseLocal, dateFmt, monthDayFmt, weekdayFmt, startOfWeek, dayKey, relTime } from "./shared/time";
+import { loadWeatherBanner } from "./shared/weather";
 
 declare const JSC: Record<string, string>;
 declare const RD: Record<string, string>;
+declare const RAIDS_CTX: { loggedIn: boolean };
 
 const app = document.getElementById("raids-app")!;
+
+// Fired straight away rather than after the boss list loads: it fills its own
+// slot above the page and does not touch anything the rest of this file builds,
+// so there is nothing to wait for.
+loadWeatherBanner(RAIDS_CTX.loggedIn, RD.wxSuffix);
 
 // renderScope is aborted before each repaint, so anything buildRaidsView attached
 // outside app is removed with the tree it belongs to.

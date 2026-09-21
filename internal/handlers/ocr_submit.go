@@ -375,6 +375,14 @@ func (h *Handlers) IVFromScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The app reads the species off a screen in the device's language, so a
+	// French phone sends a French name. Fold it to the English spelling the stat
+	// list is keyed on before anything is solved or reported against it. An
+	// unresolvable name is left alone and reported by the advisory below.
+	if english, ok := h.resolveSpecies(r, ext.PokemonName); ok {
+		ext.PokemonName = english
+	}
+
 	env := solveEnv{
 		pokeList:     pokeList,
 		cpms:         cpms,

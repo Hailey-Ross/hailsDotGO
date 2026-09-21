@@ -384,6 +384,87 @@ func init() {
 	}
 }
 
+// bundleBaseForms are the bundle form spellings that mean "the ordinary Pokemon".
+//
+// They are not regions and have no variant art: the base dex sprite IS their sprite. Mapping
+// "Normal" to a literal "normal" would invent a tag nothing has ever heard of.
+//
+// Deliberately not exhaustive. The bundle can add another of these at any time, which is why
+// regionTagForBundleForm resolves against the real tables rather than trusting this set to be
+// complete: an unlisted base form simply misses every lookup and falls through to the dex
+// sprite, which is the right answer for it anyway.
+var bundleBaseForms = map[string]bool{
+	"normal":   true, // the overwhelming majority of species
+	"hero":     true, // Palafin
+	"altered":  true, // Giratina
+	"standard": true, // Darmanitan
+}
+
+// bundleFormAliases are the forms whose two vocabularies genuinely disagree.
+//
+// The bundle names the PLACE ("Alola", "Paldea"); the region tags name the ADJECTIVE
+// ("alolan", "paldean"). Galarian and Hisuian carry the adjective on both sides and need no
+// entry. The last two are not place names at all, just different spellings of the same form:
+// the bundle writes Oricorio's as one word and Darmanitan's Galarian standard forme with a
+// suffix the tag does not carry. Without them, two forms that DO have their own art would
+// answer with the base species sprite, which is exactly the bug this fold exists to fix.
+//
+// Keyed by the lowercased bundle form. Mirrors REGION_ALIASES in the companion app's
+// FormRegion.kt, which solves the same mismatch from the other direction.
+var bundleFormAliases = map[string]string{
+	"alola":             "alolan",
+	"paldea":            "paldean",
+	"paldea_aqua":       "paldean_aqua",
+	"paldea_blaze":      "paldean_blaze",
+	"paldea_combat":     "paldean_combat",
+	"pompom":            "pom_pom",
+	"galarian_standard": "galarian",
+}
+
+// regionTagForBundleForm folds a bundle stat form into the region tag vocabulary, or "" when
+// the form names no distinct variant.
+//
+// These are two spellings of one idea and the app has to speak both. A stored box row carries
+// the bundle's form ("Crowned_sword", "Alola", "Dusk_mane"), because that is what selects base
+// stats; every sprite table here is keyed by region tag ("crowned_sword", "alolan",
+// "dusk_mane"). Most pairs differ only in case, which is why a plain lowercase gets so far,
+// but the handful that differ in vocabulary are the ones a trainer notices: Zacian is dex 888
+// in both of its rows, so a Crowned Sword with no fold draws Hero of Many Battles.
+//
+// Unown and Vivillon are folded by species rather than by table, because their tags are
+// prefixed ("unown_z", "viv_polar") and their bundle forms are not. Unown's two punctuation
+// glyphs and Vivillon's Poke Ball pattern are the only spellings that do not fall out of that
+// prefix directly.
+//
+// An unrecognised form returns "", never a guess. The caller falls through to the species dex
+// sprite, which is correct for every form without art of its own, and that is most of them:
+// the costume forms, the Megas, Necrozma Ultra and Galarian Zen Darmanitan all belong there.
+func regionTagForBundleForm(species, form string) string {
+	key := strings.ToLower(strings.TrimSpace(form))
+	if key == "" || bundleBaseForms[key] {
+		return ""
+	}
+	switch species {
+	case "Unown":
+		switch key {
+		case "exclamation_point":
+			return "unown_excl"
+		case "question_mark":
+			return "unown_qmark"
+		}
+		return "unown_" + key
+	case "Vivillon":
+		if key == "pokeball" {
+			key = "poke_ball"
+		}
+		return "viv_" + key
+	}
+	if alias, ok := bundleFormAliases[key]; ok {
+		return alias
+	}
+	return key
+}
+
 // regionalSpriteSlug returns the PokeAPI sprite slug for a species plus region, or "" when
 // the pair is unknown or region is empty. Everything except the Unown letters resolves to a
 // plain numeric id.

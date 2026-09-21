@@ -649,12 +649,6 @@
     <div class="loading-state"><div class="spinner"></div><span>{{T "admin.js.loading_users"}}</span></div>
   </div>
 
-  <div id="um-modal-overlay" class="um-modal-overlay" style="display:none">
-    <div class="um-modal" id="um-modal">
-      <button class="um-modal-close" onclick="closeUserModal()">&times;</button>
-      <div id="um-modal-content"></div>
-    </div>
-  </div>
 </div>
 
 <div id="tab-raidsv2" class="tab-panel">
@@ -811,14 +805,6 @@
     <div id="costume-named-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
   </div>
 
-  <!-- Full-size view of a costume, on every species that has it. A 56px thumbnail is not enough to
-       name a costume from, and the name is effectively permanent once trainers record it. -->
-  <div id="costume-zoom-overlay" class="um-modal-overlay" style="display:none">
-    <div class="um-modal" id="costume-zoom">
-      <button class="um-modal-close" id="costume-zoom-close">&times;</button>
-      <div id="costume-zoom-content"></div>
-    </div>
-  </div>
 </div>
 
 <div id="tab-shiny-dex" class="tab-panel">
@@ -888,6 +874,28 @@
 
   </div><!-- .admin-panels -->
 </div><!-- .admin-layout -->
+
+<!-- Both overlays live outside .admin-layout on purpose. A tab panel keeps a transform after its
+     fade in finishes, and an element with a transform becomes the containing block for its fixed
+     children, so an overlay nested in a tab would size and centre itself against that tab's column
+     instead of the window. Out here they centre on the viewport at any scroll position. -->
+<div id="um-modal-overlay" class="um-modal-overlay" style="display:none">
+  <div class="um-modal" id="um-modal">
+    <button class="um-modal-close" onclick="closeUserModal()">&times;</button>
+    <div id="um-modal-content"></div>
+  </div>
+</div>
+
+{{if .User.IsAdmin}}
+<!-- Full-size view of a costume, on every species that has it. A 56px thumbnail is not enough to
+     name a costume from, and the name is effectively permanent once trainers record it. -->
+<div id="costume-zoom-overlay" class="um-modal-overlay" style="display:none">
+  <div class="um-modal" id="costume-zoom">
+    <button class="um-modal-close" id="costume-zoom-close">&times;</button>
+    <div id="costume-zoom-content"></div>
+  </div>
+</div>
+{{end}}
 {{end}}
 
 {{define "scripts"}}
@@ -1100,6 +1108,12 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
   tabs.addEventListener('click', function(e) {
     const btn = e.target.closest('.admin-nav-link');
     if (!btn) return;
+    // The overlays are fixed to the viewport and no longer live inside a section, so hiding the
+    // section no longer takes them with it. Close whatever is open, or it hangs over the section
+    // just opened. closeUserModal also lifts the body scroll lock, which the old hide never did.
+    closeUserModal();
+    const zoom = document.getElementById('costume-zoom-overlay');
+    if (zoom) zoom.style.display = 'none';
     tabs.querySelectorAll('.admin-nav-link').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
@@ -1648,6 +1662,9 @@ let users = [];
 let usersLoaded = false;
 let expandedId   = null;
 let expandedType = null;
+// Panels that only show state, and so are safe to put back after the modal is rebuilt. The
+// confirmation forms are deliberately absent; see refreshModal for why.
+const REPLAYABLE_PANELS = ['strikes', 'tags', 'raidstats'];
 
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
@@ -1882,19 +1899,74 @@ function refreshModal() {
   if (currentModalUserId === null) return;
   const u = users.find(u => u.id === currentModalUserId);
   if (!u) { closeUserModal(); return; }
+  // The rebuild hands back an empty expand slot and a scrollbox wound back to the top, so an
+  // action taken from inside an open panel used to close it and shift the modal under the
+  // pointer. Put the panel and the scroll position back, without scrolling anything into view:
+  // the admin did not ask for the panel this time round, it was already there.
+  const modal = document.getElementById('um-modal');
+  const keptScroll = modal ? modal.scrollTop : 0;
+  const restore = () => { if (modal) modal.scrollTop = keptScroll; };
   document.getElementById('um-modal-content').innerHTML = renderUserDetail(u);
+  let pending = null;
+  if (expandedId === currentModalUserId && REPLAYABLE_PANELS.includes(expandedType)) {
+    pending = renderExpand(expandedId, expandedType, document.getElementById('um-expand-' + expandedId), false);
+  } else if (expandedId === currentModalUserId) {
+    // A confirmation form (set password, rename, disable, delete, purge) is dropped rather than
+    // replayed. The action that triggered this rebuild may be the very one that replaced the
+    // button the form belongs to, and putting a Confirm Disable back with an emptied reason box
+    // invites a second POST that blanks the reason just saved. Half typed input is better lost
+    // visibly with the panel than silently inside one that looks untouched. Forget the state too,
+    // or the next click on that button would close a panel that is not on screen.
+    expandedId = expandedType = null;
+  }
+  restore();
+  // A panel that fetches first is only a loading line at this point, so the modal is shorter than
+  // it was and the browser clamps the scroll position it was just given. Set it again once the
+  // real content has restored the height.
+  if (pending) pending.then(restore, restore);
+}
+
+// The modal is its own scrollport, so content added near the bottom of a tall detail can land out
+// of sight. Bring it back only when it is not already fully visible, so nothing moves needlessly.
+function revealInModal(el) {
+  const modal = document.getElementById('um-modal');
+  if (!modal || !el) return;
+  requestAnimationFrame(() => {
+    if (!el.isConnected || !el.firstElementChild) return;
+    const m = modal.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.top >= m.top && r.bottom <= m.bottom) return;
+    // Done by hand rather than with scrollIntoView, because `nearest` treats a panel taller than
+    // the modal as already shown once its top edge is on screen and so does nothing at all, which
+    // is exactly the case that needs the scroll. Raid Stats is taller than the modal on a short
+    // window. Put such a panel's top at the top of the scrollport, which shows as much of it as
+    // there is room for; otherwise move by the least that brings it fully into view.
+    const delta = (r.height > m.height || r.top < m.top) ? r.top - m.top : r.bottom - m.bottom;
+    modal.scrollTo({top: modal.scrollTop + delta, behavior: 'smooth'});
+  });
 }
 
 function toggleExpand(id, type) {
   const el = document.getElementById('um-expand-' + id);
   if (expandedId === id && expandedType === type) {
-    el.innerHTML = '';
+    if (el) el.innerHTML = '';
     expandedId = expandedType = null;
     return;
   }
   expandedId   = id;
   expandedType = type;
+  renderExpand(id, type, el, true);
+}
+
+// Draws one panel into the expand slot. Split out of toggleExpand so refreshModal can put an open
+// panel back after a rebuild without disturbing which panel is considered open. `reveal` is true
+// only for a panel the admin just asked for, and is passed on to the renderers that fetch first
+// and grow a second time when the response lands.
+function renderExpand(id, type, el, reveal) {
+  if (!el) return null;
   const u = users.find(u => u.id === id);
+  // Set by the two panels that fetch before they can draw, so the caller can wait on them.
+  let pending = null;
 
   if (type === 'password') {
     el.innerHTML = `<form class="um-form" onsubmit="submitPassword(event,${id})">
@@ -1913,9 +1985,9 @@ function toggleExpand(id, type) {
     </form>`;
   } else if (type === 'strikes') {
     el.innerHTML = `<div class="um-strikes-loading">${STRINGS.loadingStrikes}</div>`;
-    loadStrikes(id, el);
+    pending = loadStrikes(id, el, reveal);
   } else if (type === 'tags') {
-    renderTagExpand(id, el);
+    pending = renderTagExpand(id, el, reveal);
   } else if (type === 'raidstats') {
     renderRaidStatsExpand(id, el);
   } else if (type === 'disable') {
@@ -1952,6 +2024,10 @@ function toggleExpand(id, type) {
       </div>
     </div>`;
   }
+
+  // The two renderers that fetch first reveal themselves once their content lands.
+  if (reveal && !pending) revealInModal(el);
+  return pending;
 }
 
 function setStatus(id, msg, ok) {
@@ -1973,7 +2049,7 @@ async function submitPassword(e, id) {
   });
   if (res.ok) {
     setStatus(id, STRINGS.pwUpdated, true);
-    setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; }, 1200);
+    setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = expandedType = null; }, 1200);
   } else {
     const d = await res.json();
     setStatus(id, d.error || STRINGS.error, false);
@@ -1995,7 +2071,7 @@ async function submitUsername(e, id) {
     const u = users.find(u => u.id === id);
     if (u) u.username = un;
     setStatus(id, STRINGS.usernameUpdated, true);
-    setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = null; renderUsers(); }, 1200);
+    setTimeout(() => { document.getElementById('um-expand-' + id).innerHTML = ''; expandedId = expandedType = null; renderUsers(); }, 1200);
   } else {
     const d = await res.json();
     setStatus(id, d.error || STRINGS.error, false);
@@ -2089,10 +2165,11 @@ async function confirmPurgeUser(id) {
   }
 }
 
-// Redraw after a mark or a restore, both of which change which buttons the account
-// should be offering. The expanded panel is forgotten as well as cleared: refreshModal
-// rebuilds the detail with an empty expand slot, and leaving the state pointing at a
-// panel that is no longer on screen makes the next click on that button a no-op.
+// Redraw after a mark or a restore, both of which change which buttons the account should be
+// offering. This is the one place that deliberately forgets the expanded panel rather than
+// letting refreshModal replay it: the button the panel belongs to may not exist any more, and
+// leaving the state pointing at a panel that is no longer on screen makes the next click on that
+// button a no-op.
 function redrawAfterUserLifecycleChange() {
   expandedId = expandedType = null;
   refreshModal();
@@ -2144,7 +2221,7 @@ async function toggleDirectoryHide(id, hide) {
   }
 }
 
-async function loadStrikes(id, el) {
+async function loadStrikes(id, el, reveal) {
   const res = await fetch('/admin/users/' + id + '/strikes');
   const strikes = res.ok ? await res.json() : [];
   const strikeRows = strikes.length
@@ -2168,6 +2245,7 @@ async function loadStrikes(id, el) {
         <span class="um-form-status" id="um-strike-status-${id}"></span>
       </form>
     </div>`;
+  if (reveal) revealInModal(el);
 }
 
 async function addStrike(e, id) {
@@ -2186,8 +2264,8 @@ async function addStrike(e, id) {
     if (u) u.strike_count++;
     e.target.reason.value = '';
     btn.disabled = false;
-    const el = document.getElementById('um-expand-' + id);
-    loadStrikes(id, el);
+    // renderUsers rebuilds the modal, which replays the strikes panel and reloads the list. Doing
+    // the reload here as well would write it into the slot that rebuild is about to throw away.
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   } else {
     const d = await res.json().catch(() => ({}));
@@ -2201,8 +2279,6 @@ async function removeStrike(userId, strikeId) {
   if (res.ok) {
     const u = users.find(u => u.id === userId);
     if (u && u.strike_count > 0) u.strike_count--;
-    const el = document.getElementById('um-expand-' + userId);
-    loadStrikes(userId, el);
     renderUsers(document.getElementById('um-search').value.trim().toLowerCase());
   }
 }
@@ -2486,7 +2562,7 @@ if (IS_SUPERADMIN) {
   }
 }
 
-async function renderTagExpand(id, el) {
+async function renderTagExpand(id, el, reveal) {
   if (!tagsLoaded) await loadTags();
   const u = users.find(u => u.id === id);
   if (!u) return;
@@ -2503,6 +2579,7 @@ async function renderTagExpand(id, el) {
     ? `<div style="margin-top:0.6rem;font-size:0.8rem;color:var(--text-2)">${STRINGS.customTagNote} ${customTags.map(t => `<span class="user-tag" style="background:${esc(t.color)};pointer-events:none">${esc(t.name)}</span>`).join(' ')}</div>`
     : '';
   el.innerHTML = `<div class="um-strikes-panel"><div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">${addOptions}<span id="um-tag-status-${id}" style="font-size:0.8rem"></span></div>${customNote}</div>`;
+  if (reveal) revealInModal(el);
 }
 
 async function addUserTag(uid) {
@@ -2521,9 +2598,9 @@ async function addUserTag(uid) {
       const u = users.find(u => u.id === uid);
       if (u) { u.tags = u.tags || []; u.tags.push(tag); }
     }
+    // renderUsers rebuilds the modal and replays the tag panel, so it redraws itself with the
+    // tag just added.
     renderUsers(document.getElementById('um-search')?.value.trim().toLowerCase());
-    const el = document.getElementById('um-expand-' + uid);
-    if (el) await renderTagExpand(uid, el);
   } else {
     const d = await res.json().catch(() => ({}));
     if (statusEl) { statusEl.textContent = d.error || STRINGS.error; statusEl.style.color = '#fc8181'; }
@@ -2664,6 +2741,7 @@ async function loadTrustLog(id) {
       ${STRINGS.trustScore}: <strong>${d.trust_score}</strong> · ${STRINGS.trustEffective}: <strong>${d.effective}</strong> (${esc(d.tier)})
     </div>
     <div style="max-height:260px;overflow-y:auto">${rows || `<p style="font-size:0.8rem;color:var(--text-2)">${STRINGS.noGrants}</p>`}</div>`;
+  revealInModal(el);
 }
 
 // ── Raid lobby moderation ──────────────────────────────────────

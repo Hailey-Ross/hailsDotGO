@@ -421,6 +421,22 @@ func (h *Handlers) t(r *http.Request, key string) string {
 	return i18n.TFunc(h.detectLang(r))(key)
 }
 
+// resolveSpecies turns a species name that arrived from a client into the
+// canonical English name the store keys everything on: pokemonIDMap, the shiny
+// dex card key, user_shinies.pokemon_id, the box, the raid lobby boss.
+//
+// The name may be in any language the store carries translations for, and may
+// differ from the stored spelling in case, accents or punctuation. ok is false
+// when it resolves to nothing and when it resolves to more than one species, so
+// callers must not treat the empty string as a species.
+//
+// detectLang costs a session lookup, so this is for a handler resolving ONE
+// name. In a loop, hoist the language once and call store.ResolveSpecies
+// directly rather than paying for a query per row.
+func (h *Handlers) resolveSpecies(r *http.Request, name string) (string, bool) {
+	return h.store.ResolveSpecies(name, h.detectLang(r))
+}
+
 func (h *Handlers) storeEnabled() bool {
 	var v string
 	h.db.QueryRow(`SELECT setting_value FROM site_settings WHERE setting_key = 'store_enabled'`).Scan(&v)
@@ -633,6 +649,13 @@ func truncRunes(s string, n int) string {
 		return s
 	}
 	return string(r[:n])
+}
+
+// tooLongRunes reports whether s would overflow a VARCHAR(n), counting the way
+// MySQL does. It is truncRunes' answer for the fields that should refuse an over
+// long value rather than quietly shorten it.
+func tooLongRunes(s string, n int) bool {
+	return utf8.RuneCountInString(s) > n
 }
 
 // upperFirst capitalises the first character of s, counting runes rather than

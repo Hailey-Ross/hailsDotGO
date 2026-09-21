@@ -1,4 +1,4 @@
-import { loadGameData, pokeName } from "./shared/gamedata";
+import { loadGameData, pokeName, pokeSprite, pokeSpriteShiny } from "./shared/gamedata";
 import { fetchSpeciesData, fetchCryUrl, fetchFormSprites } from "./shared/pokedex";
 import { costumeShinyUrl, costumeEntries, TINY_POKEMON } from "./shared/costumes";
 import { createPicker } from "./shared/picker";
@@ -273,7 +273,7 @@ async function mergeLiveEventOptions() {
 // id is usually a dex or variant id, but the Unown letters have no id of their own and are
 // filed under a string slug (201-b) instead. See UNOWN_LETTERS in shared/regionalForms.
 function spriteUrl(id: number | string) {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`;
+  return pokeSpriteShiny(id);
 }
 
 async function fetchUserShinies(): Promise<UserShiny[]> {
@@ -679,8 +679,7 @@ async function init() {
     const normalImg = document.getElementById("sc-modal-normal") as HTMLImageElement;
     normalImg.style.display = "";
     normalImg.onerror = () => { normalImg.style.display = "none"; };
-    normalImg.src =
-      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${c.spriteId}.png`;
+    normalImg.src = pokeSprite(c.spriteId);
     (document.getElementById("sc-modal-shiny") as HTMLImageElement).src = spriteUrl(c.spriteId);
     modalName.textContent = regionalDisplayName(gameData, s.name, c.region);
     modalStatus.textContent = "";

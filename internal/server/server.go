@@ -288,6 +288,24 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		staticFS.ServeHTTP(w, req)
 	}))
 
+	// Pokemon sprites: every Pokemon picture the website and the app draw, served from here
+	// rather than hotlinked off PokeAPI's host, so a trainer's device never announces which
+	// Pokemon it is looking at to a third party and the art is cached for thirty days
+	// instead of upstream's five minutes. Two routes because a shiny lives in its own
+	// directory under the same file name. See internal/handlers/pokemon_sprite.go.
+	//
+	// Registered HERE, outside the CSRF group, for the same reason the static handler above
+	// is: these are cacheable anonymous GETs. Inside it, gorilla/csrf sets a _pogo_csrf
+	// cookie and a Vary: Cookie on every response, which keys each browser's cache entry on
+	// the whole Cookie header. That token rotates every 12 hours, and a rotation would then
+	// invalidate all thousand-odd cached sprites at once, which is most of the point of
+	// standing in front of upstream in the first place.
+	//
+	// The pre-existing costume and trainer sprite proxies still sit inside the group and
+	// have the same problem on a smaller scale; moving them is a separate change.
+	r.Get("/api/pokemon-sprite/{file}", handlers.PokemonSpriteProxy(cacheDir(), false))
+	r.Get("/api/pokemon-sprite/shiny/{file}", handlers.PokemonSpriteProxy(cacheDir(), true))
+
 	// Digital Asset Links for the Android app. Registered here, directly on r, so the
 	// CSRF group, the per-route rate limiters and RequireAuth never touch it.
 	//
@@ -410,7 +428,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Get("/feedback/options", h.MobileFeedbackOptions)
 			r.Get("/awards", h.APIAwardsList)
 			r.Get("/awards/of/{username}", h.APIAwardsOf)
-			r.Get("/shinies/of/{username}", h.APIShiniesOfUser)
+			// The absolute variant, not the web handler. The app renders this payload
+			// without its absoluteUrl helper, so a site relative sprite path here is a
+			// blank grid on every build already installed. See MobileShiniesOfUser.
+			r.Get("/shinies/of/{username}", h.MobileShiniesOfUser)
 			r.Get("/users/search", h.APIUsersSearch)
 
 			// Two reads the app takes off their web paths today. Same alias
@@ -455,6 +476,19 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Post("/iv/pokemon", h.SavePokemonIV)
 			r.Get("/iv/pokemon", h.ListPokemonIV)
 			r.Delete("/iv/pokemon/{id}", h.DeletePokemonIV)
+			// Clearing the whole box. Chi resolves this against the by-id delete
+			// above by pattern, so both live here without shadowing each other.
+			//
+			// Limited per account rather than per IP, and far tighter than the
+			// group's baseline, because this is the one call in the mobile tree
+			// that destroys up to maxPokemonBoxSize rows with no undo. The app
+			// gates it behind a typed phrase; that gate is on the client and a
+			// Bearer token skips it entirely, so the server bounds what a stolen
+			// token can do. Three an hour is well above anything a trainer does
+			// on purpose. Deliberately NOT mirrored into the web tree: there is
+			// no clear-box UI on the website, and a destructive route with no
+			// caller is only a liability.
+			r.With(h.LimitByAccount(3, time.Hour)).Delete("/iv/pokemon", h.ClearPokemonBox)
 
 			// Shiny collection: GET/POST need mobile response shapes (sprite_url); the rest
 			// reuse the web handlers verbatim since they already work over Bearer auth.

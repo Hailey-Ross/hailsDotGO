@@ -163,6 +163,18 @@ func validateSettingsInput(in settingsInput, classes []pogodata.TrainerClass, lo
 // naming the rule that refused the write, and an error for a server failure.
 func (h *Handlers) applySettings(u *auth.User, in settingsInput) (settingsInput, string, error) {
 	locks, _ := h.loadSpriteLocks()
+
+	// A favorite picked in a translated UI arrives as the translated name, and
+	// the column is read back by the English keyed sprite and dex lookups. Fold it
+	// to English here rather than inside the validator, which stays pure and keeps
+	// clearing a name that resolves to nothing at all. No language hint: the sweep
+	// covers every locale and costs no session lookup.
+	if in.FavPokemon != "" {
+		if english, ok := h.store.ResolveSpecies(in.FavPokemon, ""); ok {
+			in.FavPokemon = english
+		}
+	}
+
 	in, key := validateSettingsInput(in, h.store.TrainerClasses(), locks, userAwardGrantRank(u), h.store.PokemonDexID)
 	if key != "" {
 		return in, key, nil
@@ -436,23 +448,27 @@ type mobileTagRequest struct {
 }
 
 type mobileSettingsResponse struct {
-	TrainerName     string              `json:"trainer_name"`
-	TrainerCode     string              `json:"trainer_code"`
-	TrainerLevel    int                 `json:"trainer_level"`
-	Avatar          string              `json:"avatar"`
-	AvatarURL       string              `json:"avatar_url"`
-	Pronouns        string              `json:"pronouns"`
-	City            string              `json:"city"`
-	Region          string              `json:"region"`
-	Country         string              `json:"country"`
-	LocationDisplay string              `json:"location_display"`
-	ProfilePublic   bool                `json:"profile_public"`
-	ShiniesHidden   bool                `json:"shinies_hidden"`
-	FavPokemon      string              `json:"fav_pokemon"`
-	FavPokemonForm  string              `json:"fav_pokemon_form"`
-	FavSpriteURL    string              `json:"fav_sprite_url"`
-	TagRequest      *mobileTagRequest   `json:"tag_request"`
-	BlockedUsers    []mobileBlockedUser `json:"blocked_users"`
+	TrainerName     string `json:"trainer_name"`
+	TrainerCode     string `json:"trainer_code"`
+	TrainerLevel    int    `json:"trainer_level"`
+	Avatar          string `json:"avatar"`
+	AvatarURL       string `json:"avatar_url"`
+	Pronouns        string `json:"pronouns"`
+	City            string `json:"city"`
+	Region          string `json:"region"`
+	Country         string `json:"country"`
+	LocationDisplay string `json:"location_display"`
+	ProfilePublic   bool   `json:"profile_public"`
+	ShiniesHidden   bool   `json:"shinies_hidden"`
+	FavPokemon      string `json:"fav_pokemon"`
+	FavPokemonForm  string `json:"fav_pokemon_form"`
+	FavSpriteURL    string `json:"fav_sprite_url"`
+	// Lang is the account language. The app can now write it here; before this
+	// it was settable only through the website's CSRF gated /lang form, so an
+	// app only trainer was pinned to the 'en' default forever.
+	Lang         string              `json:"lang"`
+	TagRequest   *mobileTagRequest   `json:"tag_request"`
+	BlockedUsers []mobileBlockedUser `json:"blocked_users"`
 }
 
 func (h *Handlers) mobileSettingsResponse(u *auth.User, in settingsInput) mobileSettingsResponse {
@@ -471,10 +487,13 @@ func (h *Handlers) mobileSettingsResponse(u *auth.User, in settingsInput) mobile
 		ShiniesHidden:   in.ShiniesHidden,
 		FavPokemon:      in.FavPokemon,
 		FavPokemonForm:  in.FavPokemonForm,
+		Lang:            u.Lang,
 		BlockedUsers:    []mobileBlockedUser{},
 	}
 	if in.FavPokemon != "" {
-		if id := h.store.PokemonDexID(in.FavPokemon); id != 0 {
+		// A stored favorite may predate inbound name normalization, so resolve
+		// rather than assume the column already holds the English spelling.
+		if id := h.store.ResolveDexID(in.FavPokemon, ""); id != 0 {
 			out.FavSpriteURL = absoluteURL(pokemonSpriteURL(id, in.FavPokemonForm))
 		}
 	}
@@ -524,6 +543,9 @@ type mobileSettingsUpdate struct {
 	ShiniesHidden   *bool   `json:"shinies_hidden"`
 	FavPokemon      *string `json:"fav_pokemon"`
 	FavPokemonForm  *string `json:"fav_pokemon_form"`
+	// Lang is handled outside merge: it lives on users.lang rather than in
+	// settingsInput, and the web form writes it through /lang instead.
+	Lang *string `json:"lang"`
 }
 
 // merge lays the present fields over the stored settings.
@@ -587,6 +609,21 @@ func (h *Handlers) MobileSettingsPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Language is stored on the user row rather than in settingsInput, and the
+	// website writes it through the CSRF gated /lang form, which a Bearer client
+	// cannot reach. VALIDATED here but written below, after the profile write has
+	// been accepted: these are two statements with no transaction around them, and
+	// a PUT that answers 400 must not have changed the account language on its way
+	// to refusing.
+	lang := ""
+	if body.Lang != nil {
+		lang = strings.TrimSpace(*body.Lang)
+		if !h.langEnabled(lang) {
+			writeJSONErrorCode(w, h.t(r, "error.tl_invalid_lang"), "error.tl_invalid_lang", http.StatusBadRequest)
+			return
+		}
+	}
+
 	in, key, err := h.applySettings(u, body.merge(h.loadSettings(u.ID)))
 	if key != "" {
 		// The i18n key travels alongside the message so the app can attach the
@@ -597,6 +634,15 @@ func (h *Handlers) MobileSettingsPut(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSONError(w, "could not save settings", http.StatusInternalServerError)
 		return
+	}
+
+	if lang != "" {
+		if _, err := h.db.Exec(`UPDATE users SET lang = ? WHERE id = ?`, lang, u.ID); err != nil {
+			writeJSONError(w, "could not save settings", http.StatusInternalServerError)
+			return
+		}
+		// So the echo below reports the language that was just stored.
+		u.Lang = lang
 	}
 
 	// Echo the stored result, not the request: coercions mean what was saved is
