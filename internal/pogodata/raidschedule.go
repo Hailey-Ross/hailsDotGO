@@ -1517,7 +1517,16 @@ func nextRaidBoundary(windows []RaidWindow, sups []RaidSuppression, now time.Tim
 // actually said, which is also what stays in cache/raids.json so the byte comparison
 // in CheckScrapers keeps working.
 func (s *Store) rebuildRaidsLocked() {
-	now := time.Now()
+	s.rebuildRaidsLockedAt(time.Now())
+}
+
+// rebuildRaidsLockedAt is the same rebuild with the instant handed in, which is what
+// the rest of this file already does: reconcileRaids, nextRaidBoundary and
+// setRaidsPendingLocked all take now as a parameter. Only the entry point read the
+// clock, and that left the tests which drive a whole rebuild unable to say when they
+// were running. They assert against a saved copy of the feed, so they passed until
+// its rotations expired and then failed every day after, on code nobody had touched.
+func (s *Store) rebuildRaidsLockedAt(now time.Time) {
 	// Two sources of rotation, joined here rather than inside either reader. The
 	// feed's own raid data comes first and governs its tiers; the event pages add
 	// what the feed does not model at all. See eventraids.go.

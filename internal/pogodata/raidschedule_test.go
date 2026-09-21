@@ -571,7 +571,7 @@ func TestRebuildRaidsLockedIsTheOnlyWriterOfServedRaids(t *testing.T) {
 	s.applyResult("events", json.RawMessage(changeoverEvents))
 	s.applyResult("pokemon", json.RawMessage(pk))
 	s.applyResult("pokemon_types", json.RawMessage(ty))
-	s.rebuildRaidsLocked()
+	s.rebuildRaidsLockedAt(utc(t, "2026-08-27T12:00:00Z"))
 	s.mu.Unlock()
 
 	if !bytes.Equal(s.raidsUpstream, []byte(staleUpstream)) {
@@ -610,7 +610,7 @@ func TestAllDataCarriesTheRaidSchedule(t *testing.T) {
 	s.applyResult("events", json.RawMessage(changeoverEvents))
 	s.applyResult("pokemon", json.RawMessage(pk))
 	s.applyResult("pokemon_types", json.RawMessage(ty))
-	s.rebuildRaidsLocked()
+	s.rebuildRaidsLockedAt(utc(t, "2026-08-27T12:00:00Z"))
 	s.mu.Unlock()
 
 	var blob struct {
@@ -962,7 +962,7 @@ func TestRaidArchiveRowsReadTheServedList(t *testing.T) {
 	s.applyResult("pokemon_types", json.RawMessage(ty))
 	s.applyResult("events", json.RawMessage(changeoverEvents))
 	s.applyResult("raids", json.RawMessage(staleUpstream))
-	s.rebuildRaidsLocked()
+	s.rebuildRaidsLockedAt(utc(t, "2026-08-27T12:00:00Z"))
 	s.mu.Unlock()
 
 	rows := s.RaidArchiveRows()
@@ -1109,12 +1109,12 @@ func TestEveryRaidRebuildNotifies(t *testing.T) {
 	checked := 0
 	for _, name := range order {
 		body := strings.Join(bodies[name], "\n")
-		if !strings.Contains(body, "s.rebuildRaidsLocked()") {
+		if !strings.Contains(body, "s.rebuildRaidsLocked()") && !strings.Contains(body, "s.rebuildRaidsLockedAt(") {
 			continue
 		}
-		// The definition of the helper itself, and the ones that only mention it
-		// in prose, are not call sites.
-		if name == "rebuildRaidsLocked" {
+		// The definitions of the two helpers themselves, and the functions that only
+		// mention them in prose, are not call sites.
+		if name == "rebuildRaidsLocked" || name == "rebuildRaidsLockedAt" {
 			continue
 		}
 		checked++

@@ -581,9 +581,10 @@ const suppressionEvents = `[
 // on a scraped page reaches the reconciler, is memoized with the windows off the
 // same page, and moves the rebuild boundary.
 //
-// It asserts nothing about which bosses are served, because rebuildRaidsLocked reads
-// the real clock and the note's span is a week in the past by now. Whether the rule
-// fires at an instant is what the pure reconcile tests above are for.
+// It asserts nothing about which bosses are served: whether the rule fires at an
+// instant is what the pure reconcile tests above are for. The rebuild is driven at a
+// fixed instant inside the note's span rather than at the real clock, so what it does
+// check cannot expire.
 func TestRebuildRaidsLockedAppliesSuppressions(t *testing.T) {
 	pk, err := os.ReadFile("fallback/pokemon.json")
 	if err != nil {
@@ -602,7 +603,7 @@ func TestRebuildRaidsLockedAppliesSuppressions(t *testing.T) {
 	s.eventDetails = map[string]eventDetail{
 		"mega-ascension": {HTML: megaAscensionNote, FetchedAt: time.Now()},
 	}
-	s.rebuildRaidsLocked()
+	s.rebuildRaidsLockedAt(utc(t, "2026-09-02T12:00:00Z"))
 	s.mu.Unlock()
 
 	if !bytes.Equal(s.raidsUpstream, []byte(suppressedUpstream)) {
