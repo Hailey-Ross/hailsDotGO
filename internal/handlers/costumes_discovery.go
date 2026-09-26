@@ -88,17 +88,34 @@ func (h *Handlers) alertNewCostumes() {
 		return
 	}
 
+	var sent pushResult
 	ids := h.adminUserIDs()
 	if len(ids) > 0 {
 		title, body := costumeAlertText(pending)
 		// Already on the discovery goroutine, so no `go` here: sendPushToUsers is one blocking
 		// round trip per device token, which for a handful of admins is fine, and marking the
 		// alert sent has to happen after it actually went.
-		h.sendPushToUsers(ids, title, body, map[string]string{
+		sent = h.sendPushToUsersOnChannel(ids, title, body, map[string]string{
 			"type":  "costume_review",
 			"code":  pending[0].Code,
 			"count": strconv.Itoa(len(pending)),
-		})
+		}, pushChannelAdmin)
+	}
+
+	// An alert nobody received is not an alert. The record exists to stop an hourly job saying
+	// the same thing every hour, so it may only record what actually arrived somewhere; stamping
+	// a send that reached zero devices retires the notification permanently and leaves an
+	// engineer editing a file on the server as the only way to raise it again. That is exactly
+	// what happened on 2026-09-21, when every token on the site was a dead reinstall.
+	//
+	// So a pass that reaches nobody simply tries again next hour, which is also what makes a
+	// tester installing the app at some unpredictable moment work without anyone coordinating
+	// it: the next pass after their phone registers delivers the backlog.
+	if !sent.Reached() {
+		log.Printf("costume discovery: %d costume(s) need an admin, but the alert reached no device "+
+			"(%d admin(s), %d device(s) tried, %d dropped as unregistered); trying again next pass",
+			len(pending), len(ids), sent.Devices, sent.Dropped)
+		return
 	}
 
 	codes := make([]string, 0, len(pending))
@@ -108,7 +125,8 @@ func (h *Handlers) alertNewCostumes() {
 	if err := costumes.MarkAlerted(codes); err != nil {
 		log.Printf("costume discovery: mark alerted: %v", err)
 	}
-	log.Printf("costume discovery: %d costume(s) need an admin, told %d admin(s)", len(pending), len(ids))
+	log.Printf("costume discovery: %d costume(s) need an admin, told %d admin(s) on %d device(s)",
+		len(pending), len(ids), sent.Delivered)
 }
 
 // costumeAlertText writes the notification. It names the costume where it can, because "Friede's

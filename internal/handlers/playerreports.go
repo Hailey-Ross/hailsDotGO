@@ -152,9 +152,10 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.sendPushToUsers(h.bucketStaffIDs(), "New player report",
+	go h.sendPushToUsersOnChannel(h.bucketStaffIDs(), "New player report",
 		"@"+username+" was reported",
-		map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+		map[string]string{"type": pushTypeReportNewPlayer, "report_id": strconv.FormatUint(uint64(reportID), 10)},
+		pushChannelAdmin)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "id": reportID})
@@ -193,7 +194,7 @@ func (h *Handlers) AdminPlayerReportActioned(w http.ResponseWriter, r *http.Requ
 	if reporterID.Valid {
 		go h.sendPushToUsers([]uint{uint(reporterID.Int64)}, "Thank you",
 			"Your report helped remove a bad actor from the community. Thank you!",
-			map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+			map[string]string{"type": pushTypeReportActioned, "report_id": strconv.FormatUint(uint64(reportID), 10)})
 	}
 
 	w.Header().Set("Content-Type", "application/json")

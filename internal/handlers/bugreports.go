@@ -577,7 +577,8 @@ func (h *Handlers) APIBugInvite(w http.ResponseWriter, r *http.Request) {
 		reportID, u.ID, u.Username+" invited "+target+" to the report",
 	)
 	h.db.Exec(`UPDATE bug_reports SET last_activity_at = NOW() WHERE id = ?`, reportID)
-	go h.sendPushToUsers([]uint{targetID}, "Added to a bug report", "You were added to a bug report", map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+	go h.sendPushToUsers([]uint{targetID}, "Added to a bug report", "You were added to a bug report",
+		map[string]string{"type": pushTypeReportInvited, "report_id": strconv.FormatUint(uint64(reportID), 10)})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
@@ -635,9 +636,10 @@ func (h *Handlers) APIBugReportStatus(w http.ResponseWriter, r *http.Request) {
 		reportID, u.ID, u.Username+" marked this report "+body.Status,
 	)
 	if body.Status == "open" && !isStaff {
-		go h.sendPushToUsers(h.staffUserIDs(), "Report reopened",
+		go h.sendPushToUsersOnChannel(h.staffUserIDs(), "Report reopened",
 			u.Username+" reopened report #"+strconv.FormatUint(uint64(reportID), 10),
-			map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+			map[string]string{"type": pushTypeReportReopened, "report_id": strconv.FormatUint(uint64(reportID), 10)},
+			pushChannelAdmin)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -725,15 +727,23 @@ func parseBugReportID(r *http.Request) (uint, bool) {
 
 // notifyStaffNewReport pushes a new-report alert to all staff.
 func (h *Handlers) notifyStaffNewReport(reportID uint, subject, reporter string) {
-	h.sendPushToUsers(h.staffUserIDs(), "New bug report",
+	h.sendPushToUsersOnChannel(h.staffUserIDs(), "New bug report",
 		reporter+": "+subject,
-		map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+		map[string]string{"type": pushTypeReportNewBug, "report_id": strconv.FormatUint(uint64(reportID), 10)},
+		pushChannelAdmin)
 }
 
 // notifyReportReply pushes a reply alert to the other participants, plus staff
 // when the author is not staff (so reports stay on staff radar).
+// The two sends are deliberate, and the split is by WHY someone is being told rather than by who
+// they are. A participant is following their own report, so it belongs on their ordinary channel
+// even when that participant is staff; a staff member pulled in for radar is being told as staff,
+// so it belongs on the admin channel. Sending the whole list on one channel would either file a
+// trainer's own report under "Admin alerts" or hide the radar copy among raid alerts.
 func (h *Handlers) notifyReportReply(reportID uint, author string, authorID uint, authorIsStaff bool) {
 	recipients := h.reportParticipantIDs(reportID, authorID)
+
+	var radar []uint
 	if !authorIsStaff {
 		seen := map[uint]bool{}
 		for _, id := range recipients {
@@ -741,14 +751,24 @@ func (h *Handlers) notifyReportReply(reportID uint, author string, authorID uint
 		}
 		for _, id := range h.staffUserIDs() {
 			if id != authorID && !seen[id] {
-				recipients = append(recipients, id)
+				radar = append(radar, id)
 			}
 		}
 	}
-	if len(recipients) == 0 {
+	if len(recipients) == 0 && len(radar) == 0 {
 		return
 	}
-	h.sendPushToUsers(recipients, "New reply on a bug report",
-		author+" replied",
-		map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+
+	title, body := "New reply on a bug report", author+" replied"
+	id := strconv.FormatUint(uint64(reportID), 10)
+	// Two maps, not one shared map with one type in it. The app reads the foreground channel off
+	// the type, so the radar copy has to say it is the radar copy.
+	if len(recipients) > 0 {
+		h.sendPushToUsers(recipients, title, body,
+			map[string]string{"type": pushTypeReportReply, "report_id": id})
+	}
+	if len(radar) > 0 {
+		h.sendPushToUsersOnChannel(radar, title, body,
+			map[string]string{"type": pushTypeReportReplyStaff, "report_id": id}, pushChannelAdmin)
+	}
 }

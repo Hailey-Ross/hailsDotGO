@@ -450,9 +450,10 @@ func (h *Handlers) AdminBugReportAssign(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	h.systemNote(reportID, u.ID, u.Username+" assigned this report to "+target)
-	go h.sendPushToUsers([]uint{targetID}, "Report assigned to you",
+	go h.sendPushToUsersOnChannel([]uint{targetID}, "Report assigned to you",
 		"You were assigned report #"+strconv.FormatUint(uint64(reportID), 10),
-		map[string]string{"report_id": strconv.FormatUint(uint64(reportID), 10)})
+		map[string]string{"type": pushTypeReportAssigned, "report_id": strconv.FormatUint(uint64(reportID), 10)},
+		pushChannelAdmin)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true}`))
