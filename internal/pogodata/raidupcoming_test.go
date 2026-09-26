@@ -429,7 +429,14 @@ func TestPreferRaidWindowPicksTheDayInForce(t *testing.T) {
 
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Raichu X"},{"pokemon_name":"Mega Raichu Y"}]}`)
 	for _, windows := range [][]RaidWindow{{ascension, gofest}, {gofest, ascension}} {
-		served, _, _ := reconcileRaids(upstream, windows, nil, now, megaOnlyLookup, defaultRaidCPMs)
+		served, _, _ := reconcileRaids(raidReconcileInput{
+			Upstream:     upstream,
+			Windows:      windows,
+			Suppressions: nil,
+			Now:          now,
+			Lookup:       megaOnlyLookup,
+			CPMs:         defaultRaidCPMs,
+		})
 		cards := servedTier(t, served, "6")
 		if len(cards) != 2 {
 			t.Fatalf("tier 6 has %d cards, want both Raichu forms: %v", len(cards), servedNames(t, served, "6"))

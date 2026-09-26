@@ -1,5 +1,5 @@
 import { loadGameData, reloadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
-import { calcCounters, renderCounterTable, calcSinglePokemon, DEFAULT_CONFIG } from "./shared/counters";
+import { calcCounters, renderCounterTable, calcSinglePokemon, speciesInsideLabel, DEFAULT_CONFIG } from "./shared/counters";
 import { renderBoxVsBoss, renderBoxPlaceholder } from "./shared/boxcounters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
@@ -652,7 +652,10 @@ function buildRaidsView(data: GameData): HTMLElement {
         badgeEl.style.display = "none";
         counterPanel.appendChild(badgeEl);
 
-        fetchSpeciesData(boss.pokemon_name).then(d => {
+        // The species panel is keyed on a real species: a costume label slugs to
+        // something PokeAPI has never heard of, 404s, and the flavor text, genus
+        // and legendary badge all vanish with no error shown.
+        fetchSpeciesData(speciesInsideLabel(data, boss.pokemon_name) ?? boss.pokemon_name).then(d => {
           if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
           if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
           if (d.isLegendary || d.isMythical) {
@@ -800,7 +803,10 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
         badgeEl.style.display = "none";
         counterPanel.appendChild(badgeEl);
 
-        fetchSpeciesData(boss.pokemon_name).then(d => {
+        // The species panel is keyed on a real species: a costume label slugs to
+        // something PokeAPI has never heard of, 404s, and the flavor text, genus
+        // and legendary badge all vanish with no error shown.
+        fetchSpeciesData(speciesInsideLabel(data, boss.pokemon_name) ?? boss.pokemon_name).then(d => {
           if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
           if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
           if (d.isLegendary || d.isMythical) {

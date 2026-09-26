@@ -145,8 +145,14 @@ func TestSuppressionDisarmAlsoClearsTheUpcomingStrip(t *testing.T) {
 	// the page, and no additive window anywhere: the disarm case.
 	unknown := suppressWindow(t, "mega-unknown", "6", false, false,
 		"2026-08-26T06:00:00.000", "2026-09-08T22:00:00.000", "Mega Nothingatall")
-	_, upcoming, stats := reconcileRaids(json.RawMessage(`{"6":[]}`), []RaidWindow{unknown},
-		[]RaidSuppression{liveSuppression(t)}, now, suppressLookup(t), testCPMs(t))
+	_, upcoming, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     json.RawMessage(`{"6":[]}`),
+		Windows:      []RaidWindow{unknown},
+		Suppressions: []RaidSuppression{liveSuppression(t)},
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 
 	if !stats.SuppressionDisarmed {
 		t.Fatal("the breaker did not fire on a suppression that empties everything")

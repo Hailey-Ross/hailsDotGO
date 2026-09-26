@@ -467,13 +467,26 @@ func TestAdditiveWindowDoesNotDropUpstreamBosses(t *testing.T) {
 
 	// Without the event page window, the seasonal rotation is the only authority
 	// and Mega Victreebel goes.
-	_, _, before := reconcileRaids(upstream, []RaidWindow{seasonalMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
+	_, _, before := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      []RaidWindow{seasonalMegaWindow(now)},
+		Suppressions: nil,
+		Now:          now,
+		Lookup:       megaOnlyLookup,
+		CPMs:         defaultRaidCPMs,
+	})
 	if before.Dropped != 1 {
 		t.Fatalf("Dropped %d without the event page window, want 1: the drop rule itself must keep working", before.Dropped)
 	}
 
-	served, _, after := reconcileRaids(upstream,
-		[]RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
+	served, _, after := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      []RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)},
+		Suppressions: nil,
+		Now:          now,
+		Lookup:       megaOnlyLookup,
+		CPMs:         defaultRaidCPMs,
+	})
 	if after.Dropped != 0 {
 		t.Errorf("Dropped %d with the event page window, want 0", after.Dropped)
 	}
@@ -494,7 +507,14 @@ func TestAdditiveWindowDoesNotDropUpstreamBosses(t *testing.T) {
 func TestAdditiveWindowNeverTakesOverATier(t *testing.T) {
 	now := time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC)
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Gyarados"},{"pokemon_name":"Mega Aggron"}]}`)
-	served, _, stats := reconcileRaids(upstream, []RaidWindow{eventPageMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
+	served, _, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      []RaidWindow{eventPageMegaWindow(now)},
+		Suppressions: nil,
+		Now:          now,
+		Lookup:       megaOnlyLookup,
+		CPMs:         defaultRaidCPMs,
+	})
 	if stats.Dropped != 0 {
 		t.Errorf("Dropped %d, want 0: an event page must not be able to remove a boss", stats.Dropped)
 	}
@@ -512,8 +532,14 @@ func TestAdditiveWindowNeverTakesOverATier(t *testing.T) {
 func TestAdditiveWindowSynthesizesAMissingBoss(t *testing.T) {
 	now := time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC)
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Gyarados"}]}`)
-	served, _, stats := reconcileRaids(upstream,
-		[]RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)}, nil, now, megaOnlyLookup, defaultRaidCPMs)
+	served, _, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      []RaidWindow{seasonalMegaWindow(now), eventPageMegaWindow(now)},
+		Suppressions: nil,
+		Now:          now,
+		Lookup:       megaOnlyLookup,
+		CPMs:         defaultRaidCPMs,
+	})
 	if stats.Synthesized != 1 || stats.FromEventPages != 1 {
 		t.Fatalf("stats: %d synthesized, %d from event pages, want 1 and 1", stats.Synthesized, stats.FromEventPages)
 	}
@@ -552,7 +578,14 @@ func TestSeasonalWindowWinsTheLabelOnASharedBoss(t *testing.T) {
 	shared := eventPageMegaWindow(now)
 	shared.Bosses = []WindowBoss{{Name: "Mega Gyarados"}}
 	upstream := json.RawMessage(`{"6":[{"pokemon_name":"Mega Gyarados"}]}`)
-	served, _, _ := reconcileRaids(upstream, []RaidWindow{seasonalMegaWindow(now), shared}, nil, now, megaOnlyLookup, defaultRaidCPMs)
+	served, _, _ := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      []RaidWindow{seasonalMegaWindow(now), shared},
+		Suppressions: nil,
+		Now:          now,
+		Lookup:       megaOnlyLookup,
+		CPMs:         defaultRaidCPMs,
+	})
 	cards := servedTier(t, served, "6")
 	if len(cards) != 1 {
 		t.Fatalf("tier 6 has %d cards, want 1", len(cards))
@@ -640,7 +673,14 @@ func TestFeedWindowWinsAnExactTie(t *testing.T) {
 	// Both orderings, because the answer must not depend on which source the
 	// rebuild happened to append first.
 	for _, windows := range [][]RaidWindow{{feed, page}, {page, feed}} {
-		served, _, _ := reconcileRaids(upstream, windows, nil, now, megaOnlyLookup, defaultRaidCPMs)
+		served, _, _ := reconcileRaids(raidReconcileInput{
+			Upstream:     upstream,
+			Windows:      windows,
+			Suppressions: nil,
+			Now:          now,
+			Lookup:       megaOnlyLookup,
+			CPMs:         defaultRaidCPMs,
+		})
 		cards := servedTier(t, served, "5")
 		if len(cards) != 1 {
 			t.Fatalf("tier 5 has %d cards, want 1", len(cards))

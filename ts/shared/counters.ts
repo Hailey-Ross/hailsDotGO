@@ -135,7 +135,19 @@ export function bossStats(data: GameData, boss: RaidBoss) {
 
   const base = baseSpeciesName(boss.pokemon_name).toLowerCase();
   const hint = bossFormHint(boss.pokemon_name);
-  const candidates = (data.pokemon ?? []).filter((p) => p.pokemon_name.toLowerCase() === base);
+  let candidates = (data.pokemon ?? []).filter((p) => p.pokemon_name.toLowerCase() === base);
+  if (!candidates.length) {
+    // A costume boss is named the way a person would name it, "Charizard wearing
+    // Friede's goggles" or "Captain's Cap Pikachu", because that is what the event
+    // page calls it and the server now serves it that way. No prefix list can strip
+    // that, so search the species list for the longest name inside the label.
+    //
+    // This is not cosmetic, for the reason at the top of this file: a miss here
+    // falls through to the flat 200 defence, and every damage number on the panel is
+    // then computed against a stat nobody has.
+    const sp = speciesInsideLabel(data, boss.pokemon_name);
+    if (sp) candidates = (data.pokemon ?? []).filter((p) => p.pokemon_name.toLowerCase() === sp);
+  }
   if (!candidates.length) return undefined;
 
   if (hint) {
@@ -147,6 +159,30 @@ export function bossStats(data: GameData, boss: RaidBoss) {
   // them read as their base species; they are answered above now, and only reach
   // this line when the Mega dataset has not loaded.
   return candidates.find((p) => (p.form ?? "").toLowerCase() === "normal") ?? candidates[0];
+}
+
+// speciesInsideLabel finds the species a decorated raid boss name is describing, by
+// looking for the longest species name that appears in it as whole words.
+//
+// Longest first, and whole words only, because the short names are inside the long
+// ones: "Mime Jr." contains "Mime", and a shortest-match scan would answer Mr. Mime
+// with the wrong stat line rather than with none.
+//
+// A label that is ONLY a species name returns null, so an ordinary boss the dataset
+// genuinely does not carry keeps failing the way it does today instead of being
+// answered with itself. Exported so the raids page can use the same answer for the
+// species panel, which 404s on a costume label.
+export function speciesInsideLabel(data: GameData, label: string): string | null {
+  const hay = ` ${label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  let best: string | null = null;
+  for (const p of data.pokemon ?? []) {
+    const name = p.pokemon_name.toLowerCase();
+    const needle = ` ${name.replace(/[^a-z0-9]+/g, " ").trim()} `;
+    if (needle.length >= hay.length) continue; // nothing left over: not a decoration
+    if (!hay.includes(needle)) continue;
+    if (!best || name.length > best.length) best = name;
+  }
+  return best;
 }
 
 export function calcCounters(data: GameData, boss: RaidBoss): CounterResult[] {

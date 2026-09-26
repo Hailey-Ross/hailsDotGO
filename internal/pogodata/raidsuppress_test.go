@@ -353,7 +353,14 @@ func TestSuppressionDropsTheSeasonalRotations(t *testing.T) {
 	now := utc(t, "2026-09-01T12:00:00Z")
 	sups := []RaidSuppression{liveSuppression(t)}
 
-	served, _, stats := reconcileRaids(json.RawMessage(suppressedUpstream), suppressedWeek(t), sups, now, suppressLookup(t), testCPMs(t))
+	served, _, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     json.RawMessage(suppressedUpstream),
+		Windows:      suppressedWeek(t),
+		Suppressions: sups,
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 	tiers := decodeTiers(t, served)
 
 	// Tier 5 goes empty by two different mechanisms at once. Shadow Giratina is
@@ -385,8 +392,14 @@ func TestSuppressionIsInertOutsideItsSpan(t *testing.T) {
 	sups := []RaidSuppression{liveSuppression(t)}
 	for _, now := range []string{"2026-08-31T06:00:00Z", "2026-09-06T12:00:00Z"} {
 		t.Run(now, func(t *testing.T) {
-			served, _, stats := reconcileRaids(json.RawMessage(suppressedUpstream), suppressedWeek(t), sups,
-				utc(t, now), suppressLookup(t), testCPMs(t))
+			served, _, stats := reconcileRaids(raidReconcileInput{
+				Upstream:     json.RawMessage(suppressedUpstream),
+				Windows:      suppressedWeek(t),
+				Suppressions: sups,
+				Now:          utc(t, now),
+				Lookup:       suppressLookup(t),
+				CPMs:         testCPMs(t),
+			})
 			tiers := decodeTiers(t, served)
 			if stats.Suppressed != 0 {
 				t.Fatalf("Suppressed %d groups outside the note's own span", stats.Suppressed)
@@ -411,7 +424,14 @@ func TestSuppressionNeverRemovesAnAdditiveBoss(t *testing.T) {
 	windows := []RaidWindow{
 		suppressWindow(t, "mega-ascension", "6", false, true, "2026-09-01T00:01:00.000", "2026-09-01T23:59:00.000", "Mega Victreebel"),
 	}
-	served, _, stats := reconcileRaids(upstream, windows, []RaidSuppression{liveSuppression(t)}, now, suppressLookup(t), testCPMs(t))
+	served, _, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      windows,
+		Suppressions: []RaidSuppression{liveSuppression(t)},
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 	tiers := decodeTiers(t, served)
 
 	if got, want := names(tiers["6"]), []string{"Mega Victreebel"}; !reflect.DeepEqual(got, want) {
@@ -429,8 +449,14 @@ func TestSuppressionNeverRemovesAnAdditiveBoss(t *testing.T) {
 // which would otherwise announce the rotation the grid has just deleted.
 func TestSuppressionDoesNotAdvertiseASilencedRotation(t *testing.T) {
 	now := utc(t, "2026-09-01T12:00:00Z")
-	_, upcoming, _ := reconcileRaids(json.RawMessage(suppressedUpstream), suppressedWeek(t),
-		[]RaidSuppression{liveSuppression(t)}, now, suppressLookup(t), testCPMs(t))
+	_, upcoming, _ := reconcileRaids(raidReconcileInput{
+		Upstream:     json.RawMessage(suppressedUpstream),
+		Windows:      suppressedWeek(t),
+		Suppressions: []RaidSuppression{liveSuppression(t)},
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 
 	for _, u := range upcoming {
 		if u.Live {
@@ -454,8 +480,14 @@ func TestSuppressionDoesNotSilenceItsOwnReplacements(t *testing.T) {
 
 	// Announced days ahead, while the note is in force: it is the answer to "what is
 	// next", not something to hide.
-	_, upcoming, _ := reconcileRaids(json.RawMessage(suppressedUpstream), append(suppressedWeek(t), armored),
-		sups, utc(t, "2026-09-01T12:00:00Z"), suppressLookup(t), testCPMs(t))
+	_, upcoming, _ := reconcileRaids(raidReconcileInput{
+		Upstream:     json.RawMessage(suppressedUpstream),
+		Windows:      append(suppressedWeek(t), armored),
+		Suppressions: sups,
+		Now:          utc(t, "2026-09-01T12:00:00Z"),
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 	if !advertises(upcoming, armored.EventID) {
 		t.Errorf("did not advertise a rotation that opens inside the note: %+v", upcoming)
 	}
@@ -484,8 +516,14 @@ func TestSuppressionDoesNotSilenceItsOwnReplacements(t *testing.T) {
 func TestSuppressionAdvertisesTheRotationAfterItLifts(t *testing.T) {
 	now := utc(t, "2026-09-01T12:00:00Z")
 	after := suppressWindow(t, "after", "5", false, false, "2026-09-10T06:00:00.000", "2026-09-15T22:00:00.000", "Zacian (Hero of Many Battles)")
-	_, upcoming, _ := reconcileRaids(json.RawMessage(suppressedUpstream), append(suppressedWeek(t), after),
-		[]RaidSuppression{liveSuppression(t)}, now, suppressLookup(t), testCPMs(t))
+	_, upcoming, _ := reconcileRaids(raidReconcileInput{
+		Upstream:     json.RawMessage(suppressedUpstream),
+		Windows:      append(suppressedWeek(t), after),
+		Suppressions: []RaidSuppression{liveSuppression(t)},
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 	if !advertises(upcoming, "after") {
 		t.Errorf("did not advertise the rotation that opens after the note lifts: %+v", upcoming)
 	}
@@ -506,17 +544,17 @@ func TestNextRaidBoundaryIncludesSuppressionEdges(t *testing.T) {
 	sups := []RaidSuppression{liveSuppression(t)}
 
 	// Without the suppression the next edge is the additive window shutting.
-	bare := nextRaidBoundary(windows, nil, now)
+	bare := nextRaidBoundary(windows, nil, nil, now)
 	if bare.IsZero() {
 		t.Fatal("no boundary at all from the windows alone")
 	}
 	// The suppression lifts on 2026-09-06T09:59Z, so a schedule whose only remaining
 	// edge is later must still rebuild then.
 	late := []RaidWindow{suppressWindow(t, "regis", "5", false, false, "2026-08-26T06:00:00.000", "2026-09-08T22:00:00.000", "Regirock")}
-	if got, want := nextRaidBoundary(late, sups, now), utc(t, "2026-09-06T09:59:00Z"); !got.Equal(want) {
+	if got, want := nextRaidBoundary(late, sups, nil, now), utc(t, "2026-09-06T09:59:00Z"); !got.Equal(want) {
 		t.Errorf("boundary %s, want the suppression edge %s", got.Format(time.RFC3339), want.Format(time.RFC3339))
 	}
-	if got := nextRaidBoundary(late, nil, now); got.Equal(utc(t, "2026-09-06T09:59:00Z")) {
+	if got := nextRaidBoundary(late, nil, nil, now); got.Equal(utc(t, "2026-09-06T09:59:00Z")) {
 		t.Error("found a suppression edge with no suppressions passed")
 	}
 }
@@ -532,8 +570,14 @@ func TestSuppressionDisarmsWhenItWouldEmptyEverything(t *testing.T) {
 		suppressWindow(t, "shadow-giratina", "5", true, false, seasonStart, seasonEnd, "Giratina (Altered)"),
 		suppressWindow(t, "mega-gyarados", "6", false, false, seasonStart, seasonEnd, "Mega Gyarados"),
 	}
-	served, _, stats := reconcileRaids(json.RawMessage(suppressedUpstream), windows, []RaidSuppression{liveSuppression(t)},
-		now, suppressLookup(t), testCPMs(t))
+	served, _, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     json.RawMessage(suppressedUpstream),
+		Windows:      windows,
+		Suppressions: []RaidSuppression{liveSuppression(t)},
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 	tiers := decodeTiers(t, served)
 
 	if !stats.SuppressionDisarmed || stats.Suppressed != 0 {
@@ -555,7 +599,14 @@ func TestSuppressionLeavesUngovernedTiersAlone(t *testing.T) {
 	windows := []RaidWindow{
 		suppressWindow(t, "mega-ascension", "6", false, true, "2026-09-01T00:01:00.000", "2026-09-01T23:59:00.000", "Mega Victreebel"),
 	}
-	served, _, stats := reconcileRaids(upstream, windows, []RaidSuppression{liveSuppression(t)}, now, suppressLookup(t), testCPMs(t))
+	served, _, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     upstream,
+		Windows:      windows,
+		Suppressions: []RaidSuppression{liveSuppression(t)},
+		Now:          now,
+		Lookup:       suppressLookup(t),
+		CPMs:         testCPMs(t),
+	})
 	tiers := decodeTiers(t, served)
 
 	if stats.SuppressionDisarmed {

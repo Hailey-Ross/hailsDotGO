@@ -436,10 +436,15 @@ type pgapiBoss struct {
 	Assets struct {
 		Image string `json:"image"`
 	} `json:"assets"`
-	Shiny        bool     `json:"shiny"`
-	Types        []string `json:"types"`
-	CPRange      []int    `json:"cpRange"`
-	CPRangeBoost []int    `json:"cpRangeBoost"`
+	Shiny bool     `json:"shiny"`
+	Types []string `json:"types"`
+	// Form is the game's own form id for this boss, "CHARIZARD_GOGGLES_2026" or
+	// "PIKACHU_HORIZONS" or plainly "MEOWSCARADA". It was read and thrown away for a
+	// long time, which is why a costumed boss reached the grid under its plain
+	// species name with the plain sprite: upstream knew, and nothing asked.
+	Form         string `json:"form"`
+	CPRange      []int  `json:"cpRange"`
+	CPRangeBoost []int  `json:"cpRangeBoost"`
 }
 
 // bossFromPGAPI maps a pokemon-go-api entry onto our raidBoss shape. Shadow tiers carry
@@ -454,6 +459,7 @@ func bossFromPGAPI(b pgapiBoss, shadow bool) raidBoss {
 		ImageURL:    b.Assets.Image,
 		Types:       b.Types,
 		CanBeShiny:  b.Shiny,
+		Form:        b.Form,
 	}
 	if len(b.CPRange) == 2 {
 		rb.CP, rb.CPMax = b.CPRange[0], b.CPRange[1]
@@ -483,6 +489,17 @@ type raidBoss struct {
 	// their own local time, which the browser gets by parsing these as local.
 	StartsAt string `json:"starts_at,omitempty"`
 	EndsAt   string `json:"ends_at,omitempty"`
+	// Form is upstream's own form id, carried so reconcileRaids can tell a costumed
+	// card from a plain one and join it to the event page that names the costume.
+	//
+	// It is NOT part of the served contract. reconcileRaids blanks it on every card
+	// it emits, so /api/raids and /api/data are unchanged; it exists here because
+	// the upstream blob round trips through cache/raids.json and s.raidsUpstream as
+	// this struct, so a field with no JSON tag would not survive to be read. The one
+	// place it can still reach a client is a fail open return, where the upstream
+	// blob is handed back verbatim precisely because nothing could be reasoned about
+	// it. Both clients ignore fields they do not declare.
+	Form string `json:"form,omitempty"`
 	// Source is "events" on a card this app built because the raid feed had not
 	// listed the boss yet.
 	Source string `json:"source,omitempty"`
@@ -532,6 +549,10 @@ type Store struct {
 	// card, kept rather than counted so the retry loop has something to act on.
 	// Persisted to cache/raids_pending.json; see setRaidsPendingLocked.
 	raidsPending []RaidPending
+	// raidsEventCards is the set of cards being held off the grid because the event
+	// window that was their only evidence has ended. Persisted to
+	// cache/raids_event_cards.json; see RaidEventCard.
+	raidsEventCards []RaidEventCard
 	// raidsApplied fires after every rebuild of the served raid list, so the
 	// handlers layer can warehouse it. Nil until SetRaidsAppliedHook is called.
 	// The store knows nothing about the database and must not learn.
@@ -690,6 +711,22 @@ func (s *Store) loadFromCache() {
 			// the mtime below claim it was freshly fetched.
 			if n, err := arrayLen(json.RawMessage(data)); err != nil || n == 0 {
 				log.Printf("pogodata: events: ignoring unusable disk cache: %v", err)
+				continue
+			}
+		}
+		if key == "raids" {
+			// The sentence above is exactly as true of raids.json, which refreshRaids
+			// writes with a bare os.WriteFile ten times a day, and nothing used to
+			// check it. A truncated file reached the browser AND the Android app as a
+			// malformed body, because reconcileRaids fails open on an unparseable
+			// upstream by returning the bytes verbatim and writeJSON writes raw bytes.
+			// An empty but valid {} was quieter and no better: tier 1, which no window
+			// governs, simply went missing with nothing logged.
+			//
+			// groupedCount is the same helper CheckScrapers counts this blob with, and
+			// it answers 0 for both shapes.
+			if groupedCount(json.RawMessage(data)) == 0 {
+				log.Printf("pogodata: raids: ignoring unusable disk cache (%d bytes)", len(data))
 				continue
 			}
 		}
@@ -1053,6 +1090,9 @@ func (s *Store) refreshEventsAtStartup() {
 }
 
 func (s *Store) Start() {
+	// Before loadFallback and loadFromCache, both of which end in a rebuild. See
+	// loadRaidsEventCards.
+	s.loadRaidsEventCards()
 	s.loadFallback()              // always works: data is compiled into the binary
 	s.loadFromCache()             // overlay with anything fresher saved to disk
 	s.loadRaidsPending()          // what the last run was still waiting on
@@ -1821,8 +1861,15 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 	// Raids and max battles are shown first (the sources Refresh() cannot reach).
 	//
 	// The note is stashed rather than written straight into the result because run
-	// calls after() before it appends, so there is no result to reach for yet.
+	// calls after() before it appends, so there is no result to reach for yet. It is
+	// also rendered LAST, after the events row below, and that ordering is the fix
+	// for a real defect: this row runs eighty lines before the events row, so the
+	// numbers an admin reads here used to describe the reconciliation against the
+	// PREVIOUS events feed, on the one screen whose whole job is to say what the
+	// button just did.
 	raidNote := ""
+	st := raidReconcileStats{}
+	rebuilt := false
 	run("raids", func() (json.RawMessage, int, error) {
 		d, err := s.fetchPGAPIRaids()
 		if err != nil {
@@ -1835,53 +1882,11 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 		// quietly reshaped raids page.
 		s.mu.Lock()
 		s.rebuildRaidsLocked()
-		st := s.raidStats
+		st = s.raidStats
 		s.mu.Unlock()
 		s.notifyRaidsApplied()
-		if st.Windows > 0 {
-			raidNote = fmt.Sprintf("schedule: %d rotations, %d live, %d expired dropped, %d built locally, %d awaiting upstream, %d published as up next",
-				st.Windows, st.Active, st.Dropped, st.Synthesized, st.Pending, st.Upcoming)
-			// The event page reader is the one part of this that depends on
-			// upstream markup rather than on a JSON contract, so it gets its own
-			// pair of numbers. If LeekDuck reshapes a Raids section these fall to
-			// zero, which is a thing a person can notice on this screen.
-			if st.EventWindows > 0 || st.FromEventPages > 0 {
-				raidNote += fmt.Sprintf(", %d live from event pages supplying %d bosses",
-					st.EventWindows, st.FromEventPages)
-			}
-			// Suppression is the only rule here that can empty a whole tier, so a
-			// tier going missing has to be a number on this screen rather than
-			// something an admin finds by reading the served JSON.
-			if st.Suppressed > 0 {
-				raidNote += fmt.Sprintf(", %d group(s) suspended by an event page note, removing %d live rotation(s)",
-					st.Suppressed, st.SuppressedWindows)
-				// Naming the page matters more than the count. The count says a tier
-				// went missing; this says what it went missing on the strength of,
-				// which is the only way to tell a real suspension from a note the
-				// reader has misread.
-				if names := suppressionSummary(s.RaidSuppressions()); names != "" {
-					raidNote += " (" + names + ")"
-				}
-			}
-			if st.SuppressionDisarmed {
-				raidNote += ", a suspension was IGNORED because applying it would have emptied every tier"
-			}
-			// Name what is being waited on, not just how many. "3 awaiting
-			// upstream" tells an admin nothing they can act on; "Mega Latios
-			// (mega stats not loaded)" tells them whether it is a data gap on our
-			// side or upstream simply being behind.
-			if names := pendingSummary(st.PendingList); names != "" {
-				raidNote += " (" + names + ")"
-			}
-		}
+		rebuilt = true
 	})
-	if raidNote != "" {
-		for i := range out {
-			if out[i].Key == "raids" {
-				out[i].Note = raidNote
-			}
-		}
-	}
 	run("max_battles", func() (json.RawMessage, int, error) {
 		d, err := s.fetchMaxBattles()
 		if err != nil {
@@ -1905,12 +1910,101 @@ func (s *Store) CheckScrapers() []ScraperCheck {
 	run("events", s.fetchEvents, func(d json.RawMessage) {
 		s.mu.Lock()
 		s.eventsFetchedAt = time.Now()
+		// The events feed IS the raid schedule, so a fresh one changes who is live.
+		// This row used to apply the new feed and stop there, leaving the grid built
+		// from the previous one until the next half hourly tick, which is a strange
+		// thing for the button an admin presses BECAUSE the grid looks wrong. The
+		// ordinary path, refreshEvents, has always done exactly this.
+		s.rebuildRaidsLocked()
+		st = s.raidStats
 		s.mu.Unlock()
+		s.notifyRaidsApplied()
+		rebuilt = true
 		go s.refreshEventDetails(d)
 	})
 	if i := len(out) - 1; i >= 0 && out[i].Key == "events" && out[i].OK &&
 		prevEvents > 0 && out[i].Count*2 < prevEvents {
 		out[i].Note = fmt.Sprintf("event count fell from %d to %d, worth checking upstream", prevEvents, out[i].Count)
+	}
+	// Now, and not before: st describes a reconciliation against the events feed
+	// this run has already applied.
+	if rebuilt {
+		if st.Windows == 0 {
+			// No rotations at all is the single most important thing this screen can
+			// say, and it was the one case where it said nothing: the whole note used
+			// to be guarded on Windows > 0. An upstream rename of the eventType key
+			// left this row green, with a plausible count and no note, while
+			// reconcileRaids fell through to serving the upstream blob verbatim. That
+			// is the 2026-08-27 Lunala and Mega Swampert staleness, back on the grid
+			// and invisible from here.
+			raidNote = "schedule: NO ROTATIONS READ, so the grid is whatever upstream last said. The events feed or its raid entries have changed shape"
+		} else {
+			// "live bosses" rather than "live": Active counts distinct bosses, while
+			// the event page clause below counts windows, and one word for both made
+			// the two numbers look comparable when they are not.
+			raidNote = fmt.Sprintf("schedule: %d rotations, %d live bosses, %d expired dropped, %d built locally, %d awaiting upstream, %d published as up next",
+				st.Windows, st.Active, st.Dropped, st.Synthesized, st.Pending, st.Upcoming)
+		}
+		// The event page reader is the one part of this that depends on upstream
+		// markup rather than on a JSON contract, so it gets its own pair of numbers.
+		// If LeekDuck reshapes a Raids section these fall to zero, which is a thing a
+		// person can notice on this screen.
+		//
+		// Printed unconditionally, including at zero, which is the whole point. It
+		// used to be guarded on the numbers being non zero, so the clause this comment
+		// calls the tripwire simply vanished when it fired: an admin saw a shorter
+		// sentence, and only if they remembered the longer one. A number going to zero
+		// can only be noticed if it is on the screen.
+		raidNote += fmt.Sprintf(", %d live from event pages supplying %d bosses",
+			st.EventWindows, st.FromEventPages)
+		// The costume join's own tripwire. CostumeUnnamed counts cards upstream says
+		// are wearing something that no live event page names, and it is the number
+		// that goes UP when the Raids section reader stops working mid event, at the
+		// same time as the pair above goes down.
+		if st.CostumeUnnamed > 0 || st.CostumeReplaced > 0 {
+			raidNote += fmt.Sprintf(", %d costumed boss(es) upstream names nothing for, %d plain card(s) replaced by a costume",
+				st.CostumeUnnamed, st.CostumeReplaced)
+		}
+		// A card held off the grid is the one rule here that removes something on the
+		// strength of an event page having ENDED, so it says which cards and on whose
+		// authority, the same way the suppression clause does.
+		if st.EventCardsDropped > 0 {
+			raidNote += fmt.Sprintf(", %d card(s) held off the grid after their event ended", st.EventCardsDropped)
+			if names := eventCardSummary(st.EventCards, time.Now()); names != "" {
+				raidNote += " (" + names + ")"
+			}
+		}
+		// Suppression is the only rule here that can empty a whole tier, so a
+		// tier going missing has to be a number on this screen rather than
+		// something an admin finds by reading the served JSON.
+		if st.Suppressed > 0 {
+			raidNote += fmt.Sprintf(", %d group(s) suspended by an event page note, removing %d live rotation(s)",
+				st.Suppressed, st.SuppressedWindows)
+			// Naming the page matters more than the count. The count says a tier
+			// went missing; this says what it went missing on the strength of,
+			// which is the only way to tell a real suspension from a note the
+			// reader has misread.
+			if names := suppressionSummary(s.RaidSuppressions()); names != "" {
+				raidNote += " (" + names + ")"
+			}
+		}
+		if st.SuppressionDisarmed {
+			raidNote += ", a suspension was IGNORED because applying it would have emptied every tier"
+		}
+		// Name what is being waited on, not just how many. "3 awaiting
+		// upstream" tells an admin nothing they can act on; "Mega Latios
+		// (mega stats not loaded)" tells them whether it is a data gap on our
+		// side or upstream simply being behind.
+		if names := pendingSummary(st.PendingList); names != "" {
+			raidNote += " (" + names + ")"
+		}
+	}
+	if raidNote != "" {
+		for i := range out {
+			if out[i].Key == "raids" {
+				out[i].Note = raidNote
+			}
+		}
 	}
 	// The genus rides along on the names CSV, so the pokedex check reuses what this
 	// one has already downloaded rather than fetching the same file again. If names

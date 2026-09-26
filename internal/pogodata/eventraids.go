@@ -718,7 +718,14 @@ type eventRaidCacheEntry struct {
 	fetchedAt time.Time
 	start     string
 	end       string
-	windows   []RaidWindow
+	// name is memoized for invalidation only, never read back. The comment below
+	// used to say the key covered everything both derivations read, and it did not:
+	// eventPageRaidWindows and eventPageSuppressions both copy e.Name into the
+	// RaidWindow and the RaidSuppression, where it reaches the up next strip, the
+	// persisted pending set and the admin screen. An event renamed upstream kept its
+	// old label until something else happened to invalidate the page.
+	name    string
+	windows []RaidWindow
 	// suppressions rides along because it is derived from the same page under the
 	// same key. The key already covers everything BOTH derivations read, so a second
 	// memo would be a second copy of one invalidation rule and a second chance to
@@ -740,6 +747,23 @@ type eventRaidCacheEntry struct {
 // window cannot do that, and a Raid Day boss genuinely is available for those
 // hours, so there is nothing left to protect against: bossKey already folds it
 // together with whatever rotation is naming the same boss.
+// ticketedEventTypes are event types whose raids are not available to a trainer who
+// simply opens the game, so their rosters must not reach a grid that says what is in
+// raids right now.
+//
+// eventPageLocationLimited already drops a page that SAYS so, which is how the LEGO
+// store page is refused. It is a prose rule, and the Wild Area pages do not carry the
+// prose: their Raids section reads only "Machamp wearing a modern jacket appears in
+// three-star raids during event hours and may be Shiny", while the rest of the page
+// sells a ticket and describes in person experiences in one city. Read as an ordinary
+// event, the November Wild Areas publish a ticket holders only boss to every trainer
+// on the site, dated to the event window.
+//
+// pokemon-go-fest is deliberately NOT here. Its habitat rosters were the reason the
+// event page reader exists, they are the Mega line ups nothing else in the app can
+// see, and a GO Fest global weekend puts those Megas in raids for everyone.
+var ticketedEventTypes = map[string]bool{"wild-area": true}
+
 func (s *Store) eventPageRaidsLocked() ([]RaidWindow, []RaidSuppression) {
 	if len(s.events) == 0 || len(s.eventDetails) == 0 {
 		return nil, nil
@@ -755,7 +779,7 @@ func (s *Store) eventPageRaidsLocked() ([]RaidWindow, []RaidSuppression) {
 	var out []RaidWindow
 	var sups []RaidSuppression
 	for _, e := range entries {
-		if e.EventID == "" || e.EventType == "raid-battles" {
+		if e.EventID == "" || e.EventType == "raid-battles" || ticketedEventTypes[e.EventType] {
 			continue
 		}
 		d, ok := s.eventDetails[e.EventID]
@@ -766,7 +790,7 @@ func (s *Store) eventPageRaidsLocked() ([]RaidWindow, []RaidSuppression) {
 			continue // a duplicate id in the feed; one reading is enough
 		}
 		seen[e.EventID] = true
-		if c, hit := s.eventRaidCache[e.EventID]; hit && c.fetchedAt.Equal(d.FetchedAt) && c.start == e.Start && c.end == e.End {
+		if c, hit := s.eventRaidCache[e.EventID]; hit && c.fetchedAt.Equal(d.FetchedAt) && c.start == e.Start && c.end == e.End && c.name == e.Name {
 			out = append(out, c.windows...)
 			sups = append(sups, c.suppressions...)
 			continue
@@ -774,7 +798,7 @@ func (s *Store) eventPageRaidsLocked() ([]RaidWindow, []RaidSuppression) {
 		w := eventPageRaidWindows(e, d.HTML)
 		sp := eventPageSuppressions(e, d.HTML)
 		s.eventRaidCache[e.EventID] = eventRaidCacheEntry{
-			fetchedAt: d.FetchedAt, start: e.Start, end: e.End, windows: w, suppressions: sp,
+			fetchedAt: d.FetchedAt, start: e.Start, end: e.End, name: e.Name, windows: w, suppressions: sp,
 		}
 		out = append(out, w...)
 		sups = append(sups, sp...)

@@ -1,6 +1,8 @@
 package pogodata
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -39,9 +41,15 @@ import (
 // event page names Pikachu in 1-star raids with real dates, which this app was
 // already scraping and then discarding; and classifyRaidTier happily builds a tier 1
 // or tier 3 window off a slug, which activeBosses then dropped silently, with no log
-// line, because the tier was not in this map. Rarely is also not never, so tiers 1
-// and 3 were the two left exposed to exactly the upstream staleness this whole file
-// exists to correct.
+// line, because the tier was not in this map.
+//
+// Being governed is not the same as being corrected, and the comment here used to
+// blur the two. Every raid-battles entry in both the live feed and the 60 event
+// cache is tier 5, tier 6 or shadow: nothing has ever published a tier 1 or tier 3
+// rotation, so those two tiers are reached ONLY by additive event page windows,
+// which never make a tier authoritative. Being in this map lets an event annotate
+// and synthesize their cards, which works; it cannot make the drop rule fire for
+// them, and upstream staleness there went unanswered until RaidEventCard.
 var governedTiers = map[string]bool{"1": true, "3": true, "5": true, "6": true}
 
 // Raid boss capture stats are fixed by the game: level 20, or level 25 when the
@@ -162,6 +170,24 @@ type raidReconcileStats struct {
 	Synthesized int
 	Annotated   int
 	Pending     int // active rotations that could not be turned into a card
+	// CostumeUnnamed is how many upstream cards say they are wearing something that
+	// no live event page names, counted only where upstream's own sprite is the
+	// plain species. It is the tripwire for the costume join: while the Horizons
+	// page is being read this is zero, and if the Raids section reader stops working
+	// mid event it goes up while FromEventPages goes down. Both numbers are on the
+	// admin screen for that reason.
+	CostumeUnnamed int
+	// CostumeReplaced is how many plain cards left the grid because a costumed card
+	// for the same species was live beside them. It is a subset of Dropped, which
+	// keeps counting every card the schedule removed, so the two are not added
+	// together.
+	CostumeReplaced int
+	// EventCardsDropped is how many cards are being held off the grid because the
+	// event window that was their only evidence has ended and upstream has published
+	// nothing since. Also a subset of Dropped. EventCards is the set itself, carried
+	// back out so the store can persist it. See RaidEventCard.
+	EventCardsDropped int
+	EventCards        []RaidEventCard
 	// EventWindows is how many of the live rotations were read off an event's
 	// scraped page rather than out of the feed's raid data, and FromEventPages how
 	// many cards on the grid one of those is responsible for. Both are surfaced in
@@ -198,6 +224,98 @@ type raidReconcileStats struct {
 	// refresh, up to a couple of hours away, with the site showing a raid tier
 	// missing a boss for the whole of it and saying nothing.
 	PendingList []RaidPending
+}
+
+// RaidEventCard remembers an upstream card whose only evidence of being live was an
+// event page window.
+//
+// Say exactly that and no more. This cannot tell "the event introduced this boss"
+// from "the event merely named a boss upstream was serving anyway": it has no record
+// of what upstream said before it first saw the two together. What it does know is
+// that the schedule's only reason to believe the card is live has now expired, and
+// that upstream has not published anything new since.
+//
+// It exists because tiers 1 and 3 are reached ONLY by additive event page windows.
+// Those never make a tier authoritative, so the drop rule in reconcileRaids can
+// never fire for them, and pokemon-go-api goes stale at every rotation boundary. The
+// Horizons event's bosses sat on the grid after it ended, with their window
+// annotation silently gone, until upstream happened to rebuild.
+//
+// Dropping them crosses the additive rule deliberately, which is why every guard
+// below is about handing authority straight back to upstream at the first sign it
+// has anything to say.
+type RaidEventCard struct {
+	Group   string `json:"group"`
+	Boss    string `json:"boss"`
+	Species string `json:"species"`
+	EventID string `json:"event_id"`
+	Name    string `json:"name"`
+	// EndsUTC is the window's end, refreshed while the window is live so an extended
+	// event extends the hold.
+	EndsUTC time.Time `json:"ends_utc"`
+	// Fingerprint is the group's upstream roster as it stood when this record was
+	// FIRST written, and is never rewritten afterwards. Refreshing it would absorb a
+	// boss upstream genuinely added mid event and then drop it when the event ended.
+	Fingerprint string    `json:"fingerprint"`
+	FirstSeen   time.Time `json:"first_seen"`
+}
+
+func (r RaidEventCard) key() string { return r.Group + "|" + r.Boss }
+
+// eventCardDropMax caps how long a record may keep a card off the grid.
+//
+// Without a cap the hold is permanent in the one case it is most wrong: a frozen
+// upstream that later republishes a byte identical roster never trips the
+// fingerprint test, so the record would outlive everything. Upstream rebuilds at
+// every real rotation boundary and the tier 5 and 6 rotations turn over roughly
+// fortnightly, so a fortnight is at least one full observed cycle. Past that,
+// "upstream is frozen" is the better explanation, and one stale card is a smaller
+// harm than a tier that quietly stays empty.
+const eventCardDropMax = 14 * 24 * time.Hour
+
+// Expired reports whether this record is past the cap and should be forgotten.
+func (r RaidEventCard) Expired(now time.Time) bool {
+	return now.After(r.EndsUTC.Add(eventCardDropMax))
+}
+
+// Holds reports whether the record is currently keeping its card off the grid.
+func (r RaidEventCard) Holds(now time.Time) bool {
+	return !now.Before(r.EndsUTC) && !r.Expired(now)
+}
+
+// upstreamGroupPrints fingerprints each governed group's upstream roster.
+//
+// Computed from the PARSED UPSTREAM blob, never from the served list: the served
+// list changes the moment a record drops a card from it, which would read as
+// "upstream rebuilt", discard the record, and put the card back on the next
+// rebuild, oscillating forever at a rate no single instant test could see.
+//
+// Grouped rather than keyed by tier because the upstream blob has no shadow
+// dimension at all: shadow rides in the display name. A tier 3 print that included
+// the shadow tier 3 cards would be invalidated by every shadow rotation, which are
+// frequent, and the whole rule would almost never fire while looking like it worked.
+//
+// The set of boss keys, not the card bytes: a CP rebalance or a new sprite is not
+// upstream re-deciding who is in raids.
+func upstreamGroupPrints(tiers map[string][]raidBoss) map[string]string {
+	byGroup := map[string][]string{}
+	for tier, list := range tiers {
+		if !governedTiers[tier] {
+			continue
+		}
+		for _, b := range list {
+			shadow := isShadowName(b.PokemonName)
+			g := raidGroupKey(tier, shadow)
+			byGroup[g] = append(byGroup[g], bossKey(b.PokemonName, shadow))
+		}
+	}
+	out := make(map[string]string, len(byGroup))
+	for g, keys := range byGroup {
+		sort.Strings(keys)
+		sum := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+		out[g] = hex.EncodeToString(sum[:8])
+	}
+	return out
 }
 
 // RaidPending is one rotation the events feed says is live right now that could
@@ -416,6 +534,195 @@ func bossKey(name string, shadow bool) string {
 		return "shadow:" + normalizeBossName(name)
 	}
 	return normalizeBossName(name)
+}
+
+// ── Costume bosses ───────────────────────────────────────────────────────────
+//
+// An event page names a costumed boss the way a person would, "Charizard wearing
+// Friede's goggles" or "Captain's Cap Pikachu", and no species lookup can resolve
+// that: it is not a species. Every such boss used to fail synthesizeBoss, sit in
+// the pending set for the whole event retrying something that could never work, and
+// leave the grid showing upstream's plain card with no window on it.
+//
+// Nothing here guesses at English. Both sides carry the game's own identity: the
+// event page's sprite is a mined asset whose filename encodes the dex number and
+// the form token, and upstream's raidboss.json carries the full form id in a field
+// this app used to discard. "pm6.fGOGGLES_2026.icon.png" and
+// "CHARIZARD_GOGGLES_2026" are the same boss said twice.
+
+// spriteFormRe matches the mined asset grammar, which is the only one of the four
+// LeekDuck uses that carries a form token. The others, "pokemon_icon_015_51.png",
+// "pokemon_icon_pm15_51_pgo_a.png" and "Mega%20Skarmory.png", are handled by
+// spriteDexRe or not at all: this parser fails CLOSED, because a wrong dex would
+// join two different species.
+var (
+	spriteFormRe = regexp.MustCompile(`^pm(\d+)(?:\.f([A-Za-z0-9_]+))?(?:\.c([A-Za-z0-9_]+))?(?:\.g2)?(?:\.s)?\.icon\.png$`)
+	spriteDexRe  = regexp.MustCompile(`^pokemon_icon_(\d+)_\d+\.png$`)
+)
+
+// spriteIdentity reads the dex number, and the form token where there is one, off a
+// boss sprite URL. form is empty for a sprite that names no form, which is the
+// ordinary case and is not an error.
+func spriteIdentity(rawURL string) (dex int, form string, ok bool) {
+	file := rawURL
+	if i := strings.IndexAny(file, "?#"); i >= 0 {
+		file = file[:i]
+	}
+	if i := strings.LastIndex(file, "/"); i >= 0 {
+		file = file[i+1:]
+	}
+	if m := spriteFormRe.FindStringSubmatch(file); m != nil {
+		n := atoiSafe(m[1])
+		if n <= 0 {
+			return 0, "", false
+		}
+		// The .c group is the costume slot in the same grammar. Either carries the
+		// token we join on and they never both appear.
+		token := m[2]
+		if token == "" {
+			token = m[3]
+		}
+		return n, strings.ToUpper(token), true
+	}
+	if m := spriteDexRe.FindStringSubmatch(file); m != nil {
+		// The trailing digits are a numeric form id, not a token anything else in
+		// this app speaks, so the dex is all this grammar is good for.
+		if n := atoiSafe(m[1]); n > 0 {
+			return n, "", true
+		}
+	}
+	return 0, "", false
+}
+
+// costumeGroupDex names one species inside one group, which is the unit a costume
+// replaces: while a costumed Charizard is live in three star raids, the plain
+// Charizard three star card is not a second boss, it is the same slot described
+// worse.
+type costumeGroupDex struct {
+	group string
+	dex   int
+}
+
+// costumeDecorated reports whether an upstream form id says more than the species
+// does. "CHARIZARD_GOGGLES_2026" does; "MEOWSCARADA" does not.
+//
+// It compares against the species name for the card's own dex rather than splitting
+// the id, for the same reason formTokenCandidates uses suffixes: MR_MIME and HO_OH
+// carry the separator a split would have to trust.
+func costumeDecorated(b raidBoss, form string) bool {
+	dex, _, ok := spriteIdentity(b.ImageURL)
+	if !ok {
+		return false
+	}
+	row, known := shinyBaseline[dex]
+	if !known || row.Name == "" {
+		return false
+	}
+	species := strings.ToUpper(strings.NewReplacer(" ", "_", ".", "", "'", "", "-", "_", ":", "").Replace(row.Name))
+	return form != species && strings.HasPrefix(form, species+"_")
+}
+
+// costumeID is the join key between an upstream card and the event page boss that
+// names its costume.
+//
+// It is a distinct type rather than a string with a prefix so that it cannot
+// collide with bossKey's namespace by accident. bossKey is deliberately untouched by
+// any of this: its keys are normalized display names, it is load bearing in seven
+// places, and a costume label genuinely is its own display name.
+//
+// group is part of the key on purpose. The plain active map is keyed without a tier,
+// which is a known and so far harmless hole; there is no reason to inherit it here.
+type costumeID struct {
+	group string
+	dex   int
+	form  string
+}
+
+// formTokenCandidates yields the tokens an upstream form id could be known by on the
+// page side. Upstream writes the whole thing, "CHARIZARD_GOGGLES_2026", while the
+// sprite carries only the tail, "GOGGLES_2026".
+//
+// Suffixes rather than "strip the species name", because species names do not
+// survive that treatment: MR_MIME, HO_OH, TYPE_NULL and PORYGON_Z all contain the
+// separator this would have to split on. The dex is already in the key, so a loose
+// tail can only ever match another form of the same species.
+func formTokenCandidates(form string) []string {
+	form = strings.ToUpper(strings.TrimSpace(form))
+	if form == "" {
+		return nil
+	}
+	out := []string{form}
+	for i := 0; i < len(form); i++ {
+		if form[i] == '_' && i+1 < len(form) {
+			out = append(out, form[i+1:])
+		}
+	}
+	return out
+}
+
+// upstreamFormToken reports the form id a served card should be joined on, falling
+// back to the token in its own sprite. Pikachu is why the fallback is here: upstream
+// has shipped the costume ART under a plain name for longer than it has shipped the
+// form field.
+func upstreamFormToken(b raidBoss) string {
+	if b.Form != "" {
+		return strings.ToUpper(b.Form)
+	}
+	if _, form, ok := spriteIdentity(b.ImageURL); ok {
+		return form
+	}
+	return ""
+}
+
+// speciesByToken indexes every species name by its normalized form, longest first,
+// for the last resort scan in baseSpeciesForBoss.
+//
+// Built from the EMBEDDED shiny baseline rather than from the fetched species blob:
+// it is 1025 names, it is available at init with no network, and a costume boss
+// arriving on a cold boot is exactly when nothing else has landed yet.
+var speciesByToken = func() []string {
+	out := make([]string, 0, len(shinyBaseline))
+	for _, row := range shinyBaseline {
+		if row.Name != "" {
+			out = append(out, row.Name)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if len(out[i]) != len(out[j]) {
+			return len(out[i]) > len(out[j]) // longest first: Mr. Mime before Mime Jr.
+		}
+		return out[i] < out[j]
+	})
+	return out
+}()
+
+// baseSpeciesForBoss resolves the species a costume label is decorating, so its stat
+// line and typing can be looked up while the card keeps the label trainers see.
+//
+// The sprite is asked first, because it is the game's own answer and does not care
+// what language the page is written in. The name scan behind it exists for the
+// legacy sprite grammars, which carry a dex and no token, and for the one page shape
+// that has no sprite at all.
+func baseSpeciesForBoss(b WindowBoss) (string, bool) {
+	if dex, _, ok := spriteIdentity(b.Image); ok {
+		if row, known := shinyBaseline[dex]; known && row.Name != "" {
+			return row.Name, true
+		}
+	}
+	// A whole word scan, longest match first. The residue test is what keeps this
+	// honest: a name that is ONLY a species is not a costume label, and must go on
+	// failing the way it does today rather than being answered with itself.
+	hay := " " + normalizeBossName(b.Name) + " "
+	for _, sp := range speciesByToken {
+		needle := " " + normalizeBossName(sp) + " "
+		if i := strings.Index(hay, needle); i >= 0 {
+			if len(needle) == len(hay) {
+				return "", false
+			}
+			return sp, true
+		}
+	}
+	return "", false
 }
 
 // CPForLevel is the game's CP formula. It lives here rather than in the handlers
@@ -739,14 +1046,34 @@ func resolveSpeciesForm(species, want string, formsBySpecies map[string][]string
 	var hit string
 	n := 0
 	for _, f := range forms {
-		if formLabelsAgree(want, f) {
-			hit, n = f, n+1
+		if !formLabelsAgree(want, f) {
+			continue
 		}
+		// A stat line the game only enters MID BATTLE is never the answer to "which
+		// form is this raid boss", so it does not get to make the answer ambiguous.
+		// Darmanitan is the live case and the only one: the dataset carries
+		// "galarian standard" and "galarian zen", the feeds write "Galarian
+		// Darmanitan", both agree with the prefix, and the resolver refused rather
+		// than guess. The refusal is right in general and wrong here, because a Zen
+		// Mode Darmanitan is not a boss anybody catches.
+		if transformationForms[f] && !transformationForms[want] {
+			continue
+		}
+		hit, n = f, n+1
 	}
 	if n != 1 {
 		return "", false
 	}
 	return hit, true
+}
+
+// transformationForms are stat lines the game only enters part way through a
+// battle. They are real forms and the dataset is right to carry them; they are just
+// never what a raid card means, so resolveSpeciesForm passes over them when
+// something else fits. A name that asks for one by its own label still gets it.
+var transformationForms = map[string]bool{
+	"zen":          true,
+	"galarian zen": true,
 }
 
 // speciesFormKey is the index key for one stat line.
@@ -791,7 +1118,18 @@ func splitSpeciesForm(key string) (species, form string) {
 		}
 		return key, "normal"
 	}
-	return strings.TrimSpace(key[:open]), strings.TrimSpace(key[open+1 : len(key)-1])
+	species, form = strings.TrimSpace(key[:open]), strings.TrimSpace(key[open+1:len(key)-1])
+	// A name can carry BOTH an adjective and a parenthetical, and the prefix map
+	// used to be unreachable as soon as there was a parenthetical: "Galarian
+	// Darmanitan (Standard)" was read as a species called "galarian darmanitan" and
+	// resolved to nothing at all. The dataset spells that form "galarian standard",
+	// which is exactly the two halves joined, so join them.
+	if word, rest, ok := strings.Cut(species, " "); ok {
+		if prefix, named := speciesFormPrefixes[word]; named {
+			return strings.TrimSpace(rest), strings.TrimSpace(prefix + " " + form)
+		}
+	}
+	return species, form
 }
 
 // formLabelsAgree reports whether two form labels describe the same form, allowing
@@ -867,22 +1205,40 @@ const (
 // therefore reaches 23 zones and a window for the 5th reaches 2, and the first is
 // the one a trainer should be reading.
 //
-// ok is false for a window with no usable wall clock, and for a "Z" timestamp, which
-// is a true instant rather than a floating reading and would make the shifted
-// comparison below meaningless.
+// A "Z" endpoint is a TRUE INSTANT and is compared without the shift, because it
+// arrives everywhere at once. So a rotation stated entirely in Z is live in all 27
+// zones or in none, which is what "the same moment for everybody" means, and a
+// rotation with one floating end and one instant end is measured honestly on each.
+//
+// This used to answer ok=false for any Z window, and that is what cost
+// preferRaidWindow its transitivity: the reach term was simply skipped whenever
+// either side was a Z window, leaving a relation that could cycle, with the served
+// answer depending on the order the windows happened to be appended in. The feed
+// really does publish Z timestamps on non raid-battles entries, and
+// eventPageRaidWindows copies them through verbatim, so a Z window in a governed
+// tier is a live shape and not a hypothetical.
+//
+// ok is false only for a window with no usable timestamps at all, which is a thing
+// tests construct and the readers never produce.
 func windowZoneReach(w RaidWindow, now time.Time) (int, bool) {
-	if strings.HasSuffix(w.RawStart, "Z") || strings.HasSuffix(w.RawEnd, "Z") {
-		return 0, false
-	}
 	s, _, sOK := ParseFeedTime(w.RawStart, time.UTC)
 	e, _, eOK := ParseFeedTime(w.RawEnd, time.UTC)
 	if !sOK || !eOK {
 		return 0, false
 	}
+	instantStart := strings.HasSuffix(w.RawStart, "Z")
+	instantEnd := strings.HasSuffix(w.RawEnd, "Z")
 	n := 0
 	for off := raidZoneWest; off <= raidZoneEast; off++ {
 		local := now.UTC().Add(time.Duration(off) * time.Hour)
-		if !local.Before(s) && local.Before(e) {
+		startedBy, endedBy := local, local
+		if instantStart {
+			startedBy = now.UTC()
+		}
+		if instantEnd {
+			endedBy = now.UTC()
+		}
+		if !startedBy.Before(s) && endedBy.Before(e) {
 			n++
 		}
 	}
@@ -975,10 +1331,12 @@ func anyAdditiveWindow(windows []RaidWindow) bool {
 // It is a function rather than an inline loop solely so the suppression can be
 // disarmed and the fold redone without the rest of reconcileRaids knowing.
 func activeBosses(windows []RaidWindow, sups []RaidSuppression, now time.Time) (
-	active map[string]activeBoss, authoritative map[string]bool, eventWindows, suppressedWindows int) {
+	active map[string]activeBoss, authoritative map[string]bool, costumes map[costumeID]string,
+	eventWindows, suppressedWindows int) {
 
 	active = map[string]activeBoss{}
 	authoritative = map[string]bool{}
+	costumes = map[costumeID]string{}
 	for _, w := range windows {
 		if !governedTiers[w.Tier] || !w.Active(now) {
 			continue
@@ -1013,9 +1371,59 @@ func activeBosses(windows []RaidWindow, sups []RaidSuppression, now time.Time) (
 				continue
 			}
 			active[key] = activeBoss{boss: b, window: w}
+			// The costume index is built HERE, beside the active set, so that two
+			// pages naming one costumed boss are settled by preferRaidWindow above
+			// rather than by whichever the map happened to visit last. A second
+			// preference rule somewhere else is how "the answer is a property of the
+			// slice" gets reinvented.
+			if dex, form, ok := spriteIdentity(b.Image); ok && form != "" {
+				costumes[costumeID{group: group, dex: dex, form: form}] = key
+			}
 		}
 	}
-	return active, authoritative, eventWindows, suppressedWindows
+	return active, authoritative, costumes, eventWindows, suppressedWindows
+}
+
+// costumeMatch finds the live event page boss that names this upstream card's
+// costume, and returns the key it is filed under in the active set.
+//
+// form is passed in rather than read off the card, because the caller blanks
+// raidBoss.Form as soon as it has read it and a second read here would find nothing.
+// That is not hypothetical tidiness: it is precisely how this shipped broken for an
+// hour, joining only the bosses whose SPRITE happened to carry the token and
+// silently missing the ones where upstream's art is the plain species, which is the
+// whole case the join exists for.
+func costumeMatch(costumes map[costumeID]string, group, form string, b raidBoss) (key string, dex int, ok bool) {
+	if form == "" || len(costumes) == 0 {
+		return "", 0, false
+	}
+	cardDex, _, haveDex := spriteIdentity(b.ImageURL)
+	if !haveDex {
+		return "", 0, false
+	}
+	for _, token := range formTokenCandidates(form) {
+		if k, hit := costumes[costumeID{group: group, dex: cardDex, form: token}]; hit {
+			return k, cardDex, true
+		}
+	}
+	return "", 0, false
+}
+
+// raidReconcileInput is everything the reconciler reads. It is a struct rather than a
+// parameter list because the rule keeps growing one input at a time, and every growth
+// used to mean editing twenty six call sites in the tests: a mechanical diff of that
+// size is the perfect place for a real change to hide.
+type raidReconcileInput struct {
+	Upstream     json.RawMessage
+	Windows      []RaidWindow
+	Suppressions []RaidSuppression
+	Now          time.Time
+	Lookup       speciesLookup
+	CPMs         raidCPMs
+	// EventCards is the set carried over from the previous rebuild. The new set
+	// comes back on raidReconcileStats, which keeps every rule about it inside this
+	// pure function. See RaidEventCard.
+	EventCards []RaidEventCard
 }
 
 // reconcileRaids is the whole rule, kept pure so it can be tested without a store, a
@@ -1027,15 +1435,36 @@ func activeBosses(windows []RaidWindow, sups []RaidSuppression, now time.Time) (
 // per boss rule below, which drops an expired boss whether or not a replacement is
 // known, because by then the schedule has been read successfully and it says the
 // boss is gone.
-func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, suppressions []RaidSuppression, now time.Time, lookup speciesLookup, cpms raidCPMs) (json.RawMessage, []UpcomingRaid, raidReconcileStats) {
+func reconcileRaids(in raidReconcileInput) (json.RawMessage, []UpcomingRaid, raidReconcileStats) {
+	upstream, windows, suppressions := in.Upstream, in.Windows, in.Suppressions
+	now, lookup, cpms := in.Now, in.Lookup, in.CPMs
+
 	stats := raidReconcileStats{Windows: len(windows)}
-	if len(windows) == 0 || len(upstream) == 0 {
+	if len(windows) == 0 {
 		return upstream, nil, stats
+	}
+	// No usable upstream blob is not a reason to publish nothing. The grid has to
+	// fail open on it, because there is nothing to fail open TO, but the up next
+	// list is built from the schedule alone and needs no upstream at all.
+	//
+	// It used to be discarded here with everything else, and the loop that exists to
+	// recover from "the raid feed has not landed" could not help: retryPendingRaids
+	// acts on the pending set, the pending set comes from the reconciliation that
+	// just returned early, and so it was empty. A boot where the events fetch
+	// succeeded and the raid fetch did not served no bosses and no schedule either,
+	// for up to two and a half hours, while knowing about fifteen rotations.
+	withoutUpstream := func() (json.RawMessage, []UpcomingRaid, raidReconcileStats) {
+		upcoming := buildUpcoming(windows, suppressions, nil, now, lookup)
+		stats.Upcoming = len(upcoming)
+		return upstream, upcoming, stats
+	}
+	if len(upstream) == 0 {
+		return withoutUpstream()
 	}
 	var tiers map[string][]raidBoss
 	if err := json.Unmarshal(upstream, &tiers); err != nil {
 		log.Printf("pogodata: raid schedule: upstream raids parse: %v", err)
-		return upstream, nil, stats
+		return withoutUpstream()
 	}
 
 	// Which groups an event page is currently silencing, read before anything else
@@ -1050,7 +1479,7 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, suppressions
 		}
 	}
 
-	active, authoritative, eventWindows, suppressedWindows := activeBosses(windows, suppressions, now)
+	active, authoritative, costumes, eventWindows, suppressedWindows := activeBosses(windows, suppressions, now)
 
 	// Two ways to decide the note reader is misfiring, and neither is subtle.
 	//
@@ -1073,15 +1502,53 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, suppressions
 		suppressed = nil
 		suppressions = nil
 		stats.SuppressionDisarmed = true
-		active, authoritative, eventWindows, suppressedWindows = activeBosses(windows, nil, now)
+		active, authoritative, costumes, eventWindows, suppressedWindows = activeBosses(windows, nil, now)
 	}
 	stats.Active = len(active)
 	stats.EventWindows = eventWindows
 	stats.Suppressed = len(suppressed)
 	stats.SuppressedWindows = suppressedWindows
 
+	// The event introduced card rule. prints is read from the parsed upstream blob
+	// before anything is dropped from the served list; held carries records forward.
+	prints := upstreamGroupPrints(tiers)
+	prevCards := make(map[string]RaidEventCard, len(in.EventCards))
+	for _, r := range in.EventCards {
+		if !r.Expired(now) {
+			prevCards[r.key()] = r
+		}
+	}
+	nextCards := map[string]RaidEventCard{}
+
 	out := make(map[string][]raidBoss, len(tiers))
 	carded := map[string]bool{}
+	// costumed records, per group, the dex of every species a costumed card is live
+	// for and the name that card is served under. The post pass at the end uses it to
+	// take the plain card of the same species off the grid: upstream lists both, and
+	// only one of them is really in raids.
+	costumed := map[costumeGroupDex]string{}
+	// record notes that this upstream card owes its window to an event page, in a
+	// group nothing else governs. It is keyed on the UPSTREAM boss key rather than
+	// the page's, deliberately: once the window ends the join stops happening and the
+	// card goes back to being served under upstream's own name, which is the name the
+	// record has to recognize it by.
+	record := func(group, key, species string, w RaidWindow) {
+		if !w.Additive || authoritative[group] {
+			return
+		}
+		k := group + "|" + key
+		r, seen := prevCards[k]
+		if !seen {
+			r = RaidEventCard{
+				Group: group, Boss: key, Species: species,
+				EventID: w.EventID, Name: w.Name,
+				Fingerprint: prints[group], FirstSeen: now,
+			}
+		}
+		// Only the end moves. See RaidEventCard.Fingerprint.
+		r.EndsUTC = w.EndsUTC
+		nextCards[k] = r
+	}
 	for tier, bosses := range tiers {
 		if !governedTiers[tier] {
 			out[tier] = bosses
@@ -1091,17 +1558,77 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, suppressions
 		for _, b := range bosses {
 			shadow := isShadowName(b.PokemonName)
 			key := bossKey(b.PokemonName, shadow)
+			group := raidGroupKey(tier, shadow)
+			upstreamForm := upstreamFormToken(b)
+			// Never served. See raidBoss.Form.
+			b.Form = ""
+
+			// A card the schedule only believed in because an event page named it,
+			// where that window has now ended and upstream has published nothing
+			// since. Every test here hands authority back to upstream rather than
+			// keeping it: a group the feed governs, a roster upstream has revised,
+			// or a hold that has run past the cap all discard the record outright.
+			if rec, held := prevCards[group+"|"+key]; held &&
+				!authoritative[group] && rec.Fingerprint == prints[group] && !rec.Expired(now) {
+				if rec.Holds(now) {
+					stats.Dropped++
+					stats.EventCardsDropped++
+					nextCards[rec.key()] = rec // it goes on holding until something above changes
+					continue
+				}
+				nextCards[rec.key()] = rec
+			}
+
+			// The costume join comes FIRST, before the plain name match, so that a
+			// costumed card is never annotated as though it were the ordinary
+			// species. On a hit the card keeps upstream's CP and typing, which are
+			// the base species' and are right, and takes the page's name, sprite and
+			// shiny flag, which are the costume's and are what upstream got wrong.
+			if pageKey, dex, hit := costumeMatch(costumes, group, upstreamForm, b); hit {
+				a := active[pageKey]
+				record(group, key, b.PokemonName, a.window)
+				b.PokemonName = a.boss.Name
+				if a.boss.Image != "" {
+					b.ImageURL = a.boss.Image
+				}
+				b.CanBeShiny = a.boss.CanBeShiny
+				annotateBoss(&b, a.window)
+				stats.Annotated++
+				if a.window.Additive {
+					stats.FromEventPages++
+				}
+				// BOTH keys. The page key is what buildUpcoming's trim tests, so
+				// without it the up next strip goes on promising "full details
+				// arriving shortly" for a boss that now has a card. The upstream key
+				// stops the synthesis loop below building a second, plain card for
+				// the same species from some other window.
+				carded[pageKey] = true
+				carded[key] = true
+				costumed[costumeGroupDex{group: group, dex: dex}] = b.PokemonName
+				kept = append(kept, b)
+				continue
+			}
+			if upstreamForm != "" {
+				// Upstream says this card wears something and no live page names it.
+				// Counted only when upstream's own ART disagrees with its own form id,
+				// which is the narrow case worth a number: a decorated form on a plain
+				// sprite is upstream telling us a costume is live while giving us
+				// nothing to draw or call it. Serve it exactly as it arrived.
+				if _, spriteForm, ok := spriteIdentity(b.ImageURL); ok && spriteForm == "" && costumeDecorated(b, upstreamForm) {
+					stats.CostumeUnnamed++
+				}
+			}
 			if a, ok := active[key]; ok {
 				annotateBoss(&b, a.window)
 				stats.Annotated++
 				if a.window.Additive {
 					stats.FromEventPages++
 				}
+				record(group, key, b.PokemonName, a.window)
 				carded[key] = true
 				kept = append(kept, b)
 				continue
 			}
-			group := raidGroupKey(tier, shadow)
 			if authoritative[group] || suppressed[group] {
 				// The schedule knows what is running in this group right now, and
 				// this boss is not it.
@@ -1166,6 +1693,60 @@ func reconcileRaids(upstream json.RawMessage, windows []RaidWindow, suppressions
 		if a.window.Additive {
 			stats.FromEventPages++
 		}
+		if dex, form, ok := spriteIdentity(a.boss.Image); ok && form != "" {
+			costumed[costumeGroupDex{group: raidGroupKey(a.window.Tier, a.window.Shadow), dex: dex}] = rb.PokemonName
+		}
+	}
+
+	// A costumed boss and the plain species are one slot, not two, so once a costume
+	// card is on the grid the plain card for the same species leaves it.
+	//
+	// This has to be a post pass rather than part of the loop above. The plain card
+	// survives that loop through the "nothing is scheduled for this group" branch,
+	// which is the correct rule in general and cannot see that the card beside it has
+	// just claimed the same species; and the synthesis loop can add a plain card
+	// after the loop has already run. Both are only knowable once every card exists.
+	//
+	// It is deliberately narrow: same group, same dex, and never the costume card
+	// itself. A card whose sprite this cannot read is left alone, which is the safe
+	// direction for a rule that removes something.
+	if len(costumed) > 0 {
+		for tier, list := range out {
+			if !governedTiers[tier] {
+				continue
+			}
+			kept := make([]raidBoss, 0, len(list))
+			for _, b := range list {
+				dex, _, ok := spriteIdentity(b.ImageURL)
+				if ok {
+					group := raidGroupKey(tier, isShadowName(b.PokemonName))
+					if name, hit := costumed[costumeGroupDex{group: group, dex: dex}]; hit && name != b.PokemonName {
+						stats.Dropped++
+						stats.CostumeReplaced++
+						continue
+					}
+				}
+				kept = append(kept, b)
+			}
+			out[tier] = kept
+		}
+	}
+
+	// Upstream's form id is an INPUT, never part of what this app serves. Blanking it
+	// here rather than per branch catches the ungoverned tiers, which pass their
+	// cards through untouched, as well as every path above.
+	for tier, list := range out {
+		for i := range list {
+			list[i].Form = ""
+		}
+		out[tier] = list
+	}
+
+	// Carried out in a stable order so the persisted blob does not churn on every
+	// rebuild for no reason.
+	stats.EventCards = make([]RaidEventCard, 0, len(nextCards))
+	for _, k := range sortedMapKeys(nextCards) {
+		stats.EventCards = append(stats.EventCards, nextCards[k])
 	}
 
 	data, err := json.Marshal(out)
@@ -1198,7 +1779,27 @@ func synthesizeBoss(b WindowBoss, w RaidWindow, lookup speciesLookup, cpms raidC
 	}
 	st, ok := lookup(b.Name)
 	if !ok || len(st.Types) == 0 {
-		return raidBoss{}, false
+		// A costume label is not a species, so the lookup above can never answer it:
+		// "Charizard wearing Friede's goggles" and "Captain's Cap Pikachu" are what
+		// the page calls them, and no dataset carries either. Resolve the species the
+		// label is decorating and take ITS stat line and typing, which are the right
+		// ones, while the card goes on being called what the page called it.
+		//
+		// This is the whole of what used to send a costume boss to the pending set
+		// for the life of an event, retrying a fetch that could never contain it.
+		//
+		// NEVER for a Mega or a Primal. Those are the one case where the base species
+		// is not an approximation but a different answer: a Mega has its own typing
+		// and its own stat line, and newSpeciesLookup refuses to fall through to the
+		// base species for exactly that reason. A Mega with no data must still
+		// produce no card and wait for refreshMegas, which is what the pending set is
+		// for. Two tests say so in as many words.
+		if base, resolved := baseSpeciesForBoss(b); resolved && !isMegaName(b.Name) {
+			st, ok = lookup(base)
+		}
+		if !ok || len(st.Types) == 0 {
+			return raidBoss{}, false
+		}
 	}
 	name := b.Name
 	if w.Shadow && !isShadowName(name) {
@@ -1478,6 +2079,18 @@ func upcomingFrom(w RaidWindow, live bool) UpcomingRaid {
 	}
 }
 
+// sortedMapKeys is sortedKeys for the event card set. Two functions rather than
+// generics because this package is compiled for a service that has to build on the
+// VPS's toolchain, and the rest of the file is written the same way.
+func sortedMapKeys(m map[string]RaidEventCard) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func sortedKeys(m map[string]activeBoss) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -1490,21 +2103,64 @@ func sortedKeys(m map[string]activeBoss) []string {
 // nextRaidBoundary is the next instant at which the reconciliation could produce a
 // different answer. Storing it lets the periodic rebuild be a clock comparison until
 // a window actually opens or shuts, the same trick shinyBuiltFor plays with the day.
-func nextRaidBoundary(windows []RaidWindow, sups []RaidSuppression, now time.Time) time.Time {
+//
+// "A different answer" is more than a window opening or shutting, and it used to be
+// read as only that. preferRaidWindow ranks on zone reach FIRST, and reach is a
+// function of now that steps every hour as each whole hour zone crosses a window's
+// stated wall clock: which of two overlapping rotations labels a card changes at
+// instants no window boundary names. Measured on the 2026-09-01 corpus, six label
+// flips landed at instants this function had never heard of, and because
+// maybeRebuildRaids returns early while now is before raidsBuiltFor, the five minute
+// backstop did not catch them either. One card carried an event id, and a countdown,
+// belonging to a rotation that had already ended.
+//
+// So every zone crossing of every floating endpoint is a boundary too. That is 27
+// candidate instants per endpoint, which sounds like a lot and is not: they are
+// comparisons, not rebuilds, and the rebuild count over the cached corpus went from
+// 31 in 26 days to 669, about 26 a day.
+func nextRaidBoundary(windows []RaidWindow, sups []RaidSuppression, cards []RaidEventCard, now time.Time) time.Time {
 	var next time.Time
 	consider := func(t time.Time) {
 		if t.After(now) && (next.IsZero() || t.Before(next)) {
 			next = t
 		}
 	}
+	// considerReach adds the instants at which each zone's local clock crosses a
+	// stated wall clock reading. A zone at offset off reads t locally when the clock
+	// here says t-off, so those are the instants the count can change at.
+	//
+	// A "Z" endpoint arrives everywhere at once, so its only crossing is itself, and
+	// windowZoneReach reads it the same way.
+	considerReach := func(raw string) {
+		t, _, ok := ParseFeedTime(raw, time.UTC)
+		if !ok {
+			return
+		}
+		if strings.HasSuffix(raw, "Z") {
+			consider(t)
+			return
+		}
+		for off := raidZoneWest; off <= raidZoneEast; off++ {
+			consider(t.Add(-time.Duration(off) * time.Hour))
+		}
+	}
 	for _, w := range windows {
 		consider(w.StartsUTC)
 		consider(w.EndsUTC)
+		considerReach(w.RawStart)
+		considerReach(w.RawEnd)
 	}
 	// A note opening or lifting changes the answer with no window moving at all.
 	for _, sp := range sups {
 		consider(sp.StartsUTC)
 		consider(sp.EndsUTC)
+	}
+	// And a hold beginning. The window whose end this is may already have been pruned
+	// from the feed, in which case nothing above knows the instant any more, and the
+	// drop would wait for whatever woke the rebuild next.
+	for _, r := range cards {
+		consider(r.EndsUTC)
+		consider(r.EndsUTC.Add(eventCardDropMax))
 	}
 	return next
 }
@@ -1533,13 +2189,22 @@ func (s *Store) rebuildRaidsLockedAt(now time.Time) {
 	windows := parseRaidWindows(s.events)
 	pageWindows, suppressions := s.eventPageRaidsLocked()
 	windows = append(windows, pageWindows...)
-	served, upcoming, stats := reconcileRaids(s.raidsUpstream, windows, suppressions, now, newSpeciesLookup(s.pokemon, s.pokemonTypes, s.megaForms), raidCPMsFrom(s.cpMults))
+	served, upcoming, stats := reconcileRaids(raidReconcileInput{
+		Upstream:     s.raidsUpstream,
+		Windows:      windows,
+		Suppressions: suppressions,
+		Now:          now,
+		Lookup:       newSpeciesLookup(s.pokemon, s.pokemonTypes, s.megaForms),
+		CPMs:         raidCPMsFrom(s.cpMults),
+		EventCards:   s.raidsEventCards,
+	})
 	s.raids = served
 	s.raidSchedule = windows
 	s.raidSuppressions = suppressions
 	s.raidStats = stats
-	s.raidsBuiltFor = nextRaidBoundary(windows, suppressions, now)
+	s.raidsBuiltFor = nextRaidBoundary(windows, suppressions, s.raidsEventCards, now)
 	s.setRaidsPendingLocked(stats.PendingList, now)
+	s.setRaidsEventCardsLocked(stats.EventCards, now)
 	if len(upcoming) > 0 {
 		if data, err := json.Marshal(upcoming); err == nil {
 			s.raidsUpcoming = data
@@ -1570,6 +2235,12 @@ const raidBoundaryBackstop = 5 * time.Minute
 // raidBoundaryFloor stops a boundary that is already in the past from spinning the
 // loop. A rebuild that leaves raidsBuiltFor behind the clock is a bug, but it must
 // cost a wakeup a second rather than a whole core.
+//
+// Worth saying plainly, because this comment used to read as though the case could
+// not arise: raidsBuiltFor is only ever as good as the instants nextRaidBoundary
+// knows to consider, and for a long time it did not consider the zone reach
+// crossings at all. A boundary the builder cannot see is not a boundary behind the
+// clock; it is one that never gets scheduled, which no floor here can rescue.
 const raidBoundaryFloor = time.Second
 
 // watchRaidBoundaries rebuilds the served list at the instant a rotation opens or
@@ -1737,6 +2408,110 @@ func (s *Store) loadRaidsPending() {
 	}
 }
 
+// ── Event introduced cards ───────────────────────────────────────────────────
+
+// raidsEventCardsFile is where the hold set lives between restarts. It has to
+// survive one: the whole rule is "this card's only evidence has expired", and a
+// restart that forgot would put every such card straight back on the grid.
+const raidsEventCardsFile = "raids_event_cards.json"
+
+// setRaidsEventCardsLocked replaces the hold set in memory, dropping anything past
+// the cap on the way in. Caller must hold s.mu.
+//
+// Like setRaidsPendingLocked, it deliberately does not touch the disk: a rebuild is
+// a pure in-memory operation that several tests drive directly, and a write here
+// would scatter cache files through the package directory.
+func (s *Store) setRaidsEventCardsLocked(list []RaidEventCard, now time.Time) {
+	kept := make([]RaidEventCard, 0, len(list))
+	for _, r := range list {
+		if !r.Expired(now) {
+			kept = append(kept, r)
+		}
+	}
+	s.raidsEventCards = kept
+}
+
+// persistRaidsEventCards writes the hold set beside the other cache blobs. Must be
+// called with s.mu NOT held.
+func (s *Store) persistRaidsEventCards() {
+	if s.cacheDir == "" {
+		return
+	}
+	data, err := json.Marshal(s.RaidEventCards())
+	if err != nil {
+		return
+	}
+	os.WriteFile(filepath.Join(s.cacheDir, raidsEventCardsFile), data, 0644)
+}
+
+// RaidEventCards returns the current hold set, with anything past the cap already
+// dropped. Never nil.
+func (s *Store) RaidEventCards() []RaidEventCard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]RaidEventCard, 0, len(s.raidsEventCards))
+	now := time.Now()
+	for _, r := range s.raidsEventCards {
+		if !r.Expired(now) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// loadRaidsEventCards restores the hold set from disk. Best effort, like the pending
+// set, but it is loaded EARLIER: loadFromCache ends in a rebuild, and that rebuild is
+// the first thing a restart serves, so a set loaded after it would let every held
+// card back onto the grid until something else triggered another rebuild.
+func (s *Store) loadRaidsEventCards() {
+	data, err := os.ReadFile(filepath.Join(s.cacheDir, raidsEventCardsFile))
+	if err != nil {
+		return
+	}
+	var list []RaidEventCard
+	if err := json.Unmarshal(data, &list); err != nil {
+		log.Printf("pogodata: raids: event card cache unreadable: %v", err)
+		return
+	}
+	s.mu.Lock()
+	s.setRaidsEventCardsLocked(list, time.Now())
+	n := len(s.raidsEventCards)
+	s.mu.Unlock()
+	if n > 0 {
+		log.Printf("pogodata: raids: %d card(s) still held off the grid after their event ended", n)
+	}
+}
+
+// eventCardSummary names what is being held, for the admin scraper check. A count
+// alone says a tier is short; the names say what of, which is the difference between
+// reading it and having to go and look.
+func eventCardSummary(list []RaidEventCard, now time.Time) string {
+	const max = 3
+	parts := make([]string, 0, max)
+	n := 0
+	for _, r := range list {
+		if !r.Holds(now) {
+			continue
+		}
+		n++
+		if n > max {
+			continue
+		}
+		name := r.Species
+		if name == "" {
+			name = r.Boss
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s ended", name, r.Name))
+	}
+	if n == 0 {
+		return ""
+	}
+	if n > max {
+		parts = append(parts, fmt.Sprintf("and %d more", n-max))
+	}
+	return strings.Join(parts, "; ")
+}
+
 // Retry pacing. Five minutes is short enough that a boss upstream has just
 // published lands while the rotation still matters, and the doubling keeps a
 // rotation nobody is ever going to publish from being asked for every five
@@ -1745,6 +2520,30 @@ const (
 	raidPendingRetryMin = 5 * time.Minute
 	raidPendingRetryMax = time.Hour
 )
+
+// retryablePending keeps the rotations a refetch could actually resolve.
+//
+// A row this loop can never fix used to hold the whole loop open: the backoff is per
+// loop rather than per row, and "progress" is only measured as the set getting
+// smaller, so one permanently stuck row pushed the wait to the one hour cap and held
+// it there for the rest of the event. A Mega arriving mid event, which is the case
+// this loop exists for, then waited up to an hour for its first retry instead of
+// five minutes, while the fetches in between could not possibly help.
+//
+// "species unknown" is the shape that used to do it, and it is exactly the shape a
+// refetch cannot mend: raidboss.json is keyed by species, so it can never contain a
+// boss no dataset has heard of. Those rows stay in the set, stay on the admin screen
+// and stay named, they simply stop driving the loop.
+func retryablePending(list []RaidPending) []RaidPending {
+	out := make([]RaidPending, 0, len(list))
+	for _, p := range list {
+		if p.Reason == "species unknown" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
 
 // retryPendingRaids re-fetches what a pending rotation is waiting on, rather than
 // leaving it until the next scheduled refresh up to two and a half hours away.
@@ -1761,7 +2560,7 @@ func (s *Store) retryPendingRaids() {
 	for {
 		time.Sleep(wait)
 
-		pending := s.RaidsPending()
+		pending := retryablePending(s.RaidsPending())
 		if len(pending) == 0 {
 			wait = raidPendingRetryMin
 			continue
@@ -1780,7 +2579,7 @@ func (s *Store) retryPendingRaids() {
 			}
 		}
 
-		if len(s.RaidsPending()) < len(pending) {
+		if len(retryablePending(s.RaidsPending())) < len(pending) {
 			// Progress. Start over at the short interval, because a rotation
 			// changeover tends to bring several at once.
 			wait = raidPendingRetryMin
@@ -1836,11 +2635,15 @@ type RaidArchiveRow struct {
 	IsMega       bool
 	Source       string
 
-	// EventID and the window are empty and zero for a boss no rotation describes,
-	// which is every tier 1 and tier 3 entry: no feed anywhere carries timing for
-	// them. Those still identify a boss worth remembering, so they belong in the
+	// EventID and the window are empty and zero for a boss no rotation describes.
+	// Those still identify a boss worth remembering, so they belong in the
 	// dimension, but there is no window to key an appearance on and inventing one
 	// would put a row in the fact table that records nothing that happened.
+	//
+	// That used to read "which is every tier 1 and tier 3 entry", and it has not been
+	// true since the event page reader landed: no FEED entry carries timing for those
+	// tiers, but an event page window does, so a costumed Pikachu or an event's three
+	// star roster is warehoused with a real span like anything else.
 	EventID     string
 	WindowStart time.Time
 	WindowEnd   time.Time
@@ -1864,8 +2667,19 @@ func (s *Store) RaidArchiveRows() []RaidArchiveRow {
 	}
 
 	// Windows by event id AND boss, so the join below is a lookup rather than a scan
-	// per boss. A rotation can appear more than once at a changeover; the one ending
-	// last is the incoming one, which is the same tie-break reconcileRaids uses.
+	// per boss. A rotation can appear more than once at a changeover, and which of
+	// them labels the boss is decided by preferRaidWindow, the SAME rule the served
+	// card was labeled with.
+	//
+	// It used to be a local "ends last, earliest start breaks the tie", above a
+	// comment claiming that was what reconcileRaids does. It is not, and it is
+	// specifically the rule preferRaidWindow replaced: zone reach comes first there,
+	// after Mega Raichu X was labeled with the Saturday habitat window it also
+	// appears in while Mega Raichu Y kept its own Friday one. Two rules meant the
+	// archive could file an appearance under a rotation that had not opened, against
+	// a fact table keyed on (boss, window start), while the card said otherwise.
+	// Nothing in the production corpus triggered it, which is exactly why the comment
+	// was the dangerous half: it told the next reader the two already agreed.
 	//
 	// Keying on the event id alone was wrong, and quietly. eventPageRaidWindows emits
 	// the BARE event id for every group it builds, deliberately, so that the client
@@ -1876,15 +2690,16 @@ func (s *Store) RaidArchiveRows() []RaidArchiveRow {
 	// keyed on (boss, window start), so the appearance history was recorded on the
 	// wrong day for every day-scoped roster this reader has ever produced.
 	//
-	// Ties are settled on the earliest start, so the answer does not depend on the
-	// order the two window sources were concatenated in. mega-ascension's Friday day
-	// window and its whole-event window really do end at the same instant, and the
-	// whole-event one is the better answer for a boss no day window names.
+	// preferRaidWindow is a total order on every window that can be live at once, so
+	// the answer still does not depend on the order the two window sources were
+	// concatenated in, which is what the local rule was there to guarantee.
+	//
+	// The clock is read once, here, rather than per comparison: zone reach is a
+	// function of now, and a comparator whose answer moved between two comparisons
+	// inside one sort would stop being an order at all.
+	now := time.Now().UTC()
 	better := func(candidate, held RaidWindow) bool {
-		if !candidate.EndsUTC.Equal(held.EndsUTC) {
-			return candidate.EndsUTC.After(held.EndsUTC)
-		}
-		return candidate.StartsUTC.Before(held.StartsUTC)
+		return preferRaidWindow(candidate, held, now)
 	}
 	windows := make(map[string]RaidWindow, len(s.raidSchedule))
 	byEvent := make(map[string]RaidWindow, len(s.raidSchedule))
@@ -1969,6 +2784,7 @@ func (s *Store) notifyRaidsApplied() {
 	// The pending set is rebuilt alongside the served list, so the two are saved
 	// together. Both callers of this reach it with the lock released.
 	s.persistRaidsPending()
+	s.persistRaidsEventCards()
 
 	s.mu.RLock()
 	fn := s.raidsApplied
