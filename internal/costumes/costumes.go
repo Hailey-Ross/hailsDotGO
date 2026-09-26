@@ -157,11 +157,11 @@ func resolve(dex int, species, label string) (string, bool) {
 	if canonical, ok := l.Aliases[label]; ok {
 		label = canonical
 	}
-	if code, ok := l.Species[species][label]; ok && c.covers(code, dex) {
+	if code, ok := l.Species[species][label]; ok && c.covers(code, dex) && c.available(code) {
 		return code, true
 	}
 	for _, s := range l.Shared {
-		if s.Label == label && c.covers(s.Code, dex) {
+		if s.Label == label && c.covers(s.Code, dex) && c.available(s.Code) {
 			return s.Code, true
 		}
 	}
@@ -187,7 +187,7 @@ func LabelsForDex(dex int, species string) []string {
 	usedCodes := map[string]bool{}
 
 	for label, code := range l.Species[species] {
-		if !c.covers(code, dex) {
+		if !c.covers(code, dex) || !c.available(code) {
 			continue
 		}
 		out = append(out, label)
@@ -198,7 +198,7 @@ func LabelsForDex(dex int, species string) []string {
 	sort.Strings(out)
 
 	for _, s := range l.Shared {
-		if usedCodes[s.Code] || slices.Contains(out, s.Label) || !c.covers(s.Code, dex) {
+		if usedCodes[s.Code] || slices.Contains(out, s.Label) || !c.covers(s.Code, dex) || !c.available(s.Code) {
 			continue
 		}
 		out = append(out, s.Label)

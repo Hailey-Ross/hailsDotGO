@@ -38,10 +38,12 @@ type formLookup interface {
 	NameToDex() map[string]int
 }
 
-// nameSource suggests what a costume is called. Injected for the same reason.
+// nameSource suggests what a costume is called, and says whether the game has it yet. Injected
+// for the same reason.
 type nameSource interface {
-	// Name returns the human name for a (dex, species, code), "" when there is no page for it.
-	Name(dex int, species, code string) (string, error)
+	// Page returns what upstream says about a (dex, species, code). A zero Page with a nil error
+	// means there is no page for it, which is different from the source being unreachable.
+	Page(dex int, species, code string) (costumenames.Page, error)
 }
 
 // Discovered is one thing a pass decided about.
@@ -51,6 +53,11 @@ type Discovered struct {
 	Label     string `json:"label"` // the suggested name, when there is one
 	Why       string `json:"why"`
 	Candidate bool   `json:"candidate"`
+
+	// Upcoming means the art exists but the game does not have it yet, so it is shown and not
+	// recordable. ReleaseDate is "" when upstream has not said when.
+	Upcoming    bool   `json:"upcoming,omitempty"`
+	ReleaseDate string `json:"release_date,omitempty"`
 }
 
 // DiscoveryReport is what a pass changed. Only what it changed: a pass that finds nothing new
@@ -58,13 +65,20 @@ type Discovered struct {
 type DiscoveryReport struct {
 	Admitted   []Discovered
 	Candidates []Discovered
-	Scanned    int
-	Commit     string
-	Notes      []string // non-fatal problems, e.g. the masterfile or Dittobase being unreachable
+	// Released is what a re-check of waiting costumes concluded this pass: ones that went live,
+	// and ones held back because upstream renamed them.
+	Released []ReleaseNote
+	// Held is what this pass newly discovered is not in the game yet.
+	Held    []Discovered
+	Scanned int
+	Commit  string
+	Notes   []string // non-fatal problems, e.g. the masterfile or Dittobase being unreachable
 }
 
 // Changed reports whether this pass decided anything at all.
-func (r DiscoveryReport) Changed() bool { return len(r.Admitted)+len(r.Candidates) > 0 }
+func (r DiscoveryReport) Changed() bool {
+	return len(r.Admitted)+len(r.Candidates)+len(r.Released)+len(r.Held) > 0
+}
 
 // maxNameLookups bounds how many Dittobase pages one pass will fetch.
 //
@@ -128,10 +142,16 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 			fresh = append(fresh, code)
 		}
 	}
-	if len(fresh) == 0 {
+	sort.Strings(fresh)
+
+	// NOT an early return on "nothing new upstream". Discovering codes is only one of this pass's
+	// three jobs: it must also notice that a costume already here is not in the game yet, and
+	// re-ask about the ones that are waiting. Nothing new IS the steady state, so returning here
+	// silently disabled the entire releasing half, and it would have looked healthy forever,
+	// because a quiet pass and a skipped pass are indistinguishable from outside.
+	if len(fresh) == 0 && len(WaitingCodes()) == 0 && len(Unlabelled()) == 0 {
 		return rep, nil
 	}
-	sort.Strings(fresh)
 
 	var forms formLookup
 	if mf, err := loadMasterfile(); err != nil {
@@ -145,6 +165,22 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 	var ditto nameSource
 	var closeDitto func()
 	lookups := 0
+
+	// Fetched on first genuine need and shared by every loop below, so a pass that only has to
+	// re-check a release does not pay for a sitemap it will not use, and one that does pays once.
+	ensureDitto := func() nameSource {
+		if ditto != nil || closeDitto != nil {
+			return ditto
+		}
+		d, done, err := newNameSource(namesCache)
+		if err != nil {
+			rep.Notes = append(rep.Notes, "dittobase was unreachable this pass: "+err.Error())
+			closeDitto = func() {} // do not retry for the rest of the pass
+			return nil
+		}
+		ditto, closeDitto = d, done
+		return ditto
+	}
 
 	curated := labelledCodes()
 	dexToName := map[int]string{}
@@ -165,24 +201,31 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 			// forms never get one, so a real name is the corroboration that separates a costume
 			// from a Vivillon pattern.
 			if lookups < maxNameLookups {
-				if ditto == nil && closeDitto == nil {
-					d, done, err := newNameSource(namesCache)
-					if err != nil {
-						rep.Notes = append(rep.Notes, "dittobase was unreachable, so nothing could be corroborated this pass: "+err.Error())
-						closeDitto = func() {} // do not retry for the rest of the pass
-					} else {
-						ditto, closeDitto = d, done
-					}
-				}
-				if ditto != nil {
+				if ensureDitto() != nil {
 					lookups++
-					if name, ok := corroborate(ditto, code, dexes, dexToName); ok {
+					if page, ok := corroborate(ditto, code, dexes, dexToName); ok {
+						name := page.Name
 						if err := Admit(code, dexes, sha, prettyOf(code, dexes, forms), name,
 							SourceCorroborated, why+"; dittobase calls it "+strconv.Quote(name), ""); err != nil {
 							rep.Notes = append(rep.Notes, "admit "+code+": "+err.Error())
 							continue
 						}
+						// Mined art routinely lands before the event that ships it. A costume
+						// upstream does not yet call released is shown but held back, rather than
+						// being offered for trainers to record something they cannot have.
+						upcoming := !page.Released &&
+							(page.ReleaseDate == "" || page.ReleaseDate > costumeNow())
+						if upcoming {
+							if err := HoldForRelease(code, name, page.ReleaseDate); err != nil {
+								rep.Notes = append(rep.Notes, "hold "+code+": "+err.Error())
+							}
+						} else if page.HasReleased {
+							// Settled, so say so: otherwise the check below re-asks about this
+							// costume on every pass for as long as it goes unnamed.
+							_ = NoteReleased(code, page.ReleaseDate)
+						}
 						rep.Admitted = append(rep.Admitted, Discovered{Code: code, Dex: dexes, Label: name,
+							Upcoming: upcoming, ReleaseDate: page.ReleaseDate,
 							Why: why + "; dittobase calls it " + strconv.Quote(name)})
 						continue
 					}
@@ -217,8 +260,86 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 			rep.Candidates = append(rep.Candidates, Discovered{Code: code, Dex: dexes, Why: why, Candidate: true})
 		}
 	}
+	// Costumes already in the catalog but not yet named are the ones an admin is about to make
+	// recordable, so their release state matters now rather than later. There are only ever a
+	// handful, and each is asked about once: a hold, once written, is re-checked by the loop
+	// below instead.
+	//
+	// This exists because the first version only ever held back things it had just discovered,
+	// and the one genuinely unreleased costume on the site had shipped in the embedded catalog
+	// months earlier. It was invisible to exactly the mechanism meant to catch it.
+	justAdmitted := map[string]bool{}
+	for _, d := range rep.Admitted {
+		justAdmitted[d.Code] = true
+	}
+	for _, u := range Unlabelled() {
+		if len(u.Dex) == 0 || holdFor(u.Code) != nil || Dismissed(u.Code) || justAdmitted[u.Code] {
+			continue
+		}
+		species := dexToName[u.Dex[0]]
+		if species == "" || ensureDitto() == nil {
+			continue
+		}
+		// Shares the pass's budget rather than having its own. Two unbounded loops against the
+		// same host is the burst this limit exists to prevent, and the leftovers are picked up
+		// next pass anyway.
+		if lookups >= maxNameLookups {
+			break
+		}
+		lookups++
+		p, err := ditto.Page(u.Dex[0], species, u.Code)
+		if err != nil || !p.HasReleased {
+			continue // upstream has no opinion; the name cache stops this being re-asked often
+		}
+		if p.Released {
+			// Record the answer rather than dropping it, or every pass asks again about every
+			// costume awaiting a name, forever. This holds nothing back.
+			_ = NoteReleased(u.Code, p.ReleaseDate)
+			continue
+		}
+		name := p.Name
+		if costumenames.IsEcho(name, species, u.Code) {
+			name = "" // no real name to verify against later
+		}
+		if err := HoldForRelease(u.Code, name, p.ReleaseDate); err != nil {
+			rep.Notes = append(rep.Notes, "hold "+u.Code+": "+err.Error())
+			continue
+		}
+		rep.Held = append(rep.Held, Discovered{Code: u.Code, Dex: u.Dex, Label: name,
+			Upcoming: true, ReleaseDate: p.ReleaseDate,
+			Why: "upstream says this is not in the game yet"})
+	}
+
+	// Ask again about anything that is waiting on a release. Done here, inside the same pass, so
+	// it shares the one Dittobase session and the same politeness budget.
+	if len(WaitingCodes()) > 0 {
+		if ditto == nil && closeDitto == nil {
+			if d, done, err := newNameSource(namesCache); err == nil {
+				ditto, closeDitto = d, done
+			} else {
+				rep.Notes = append(rep.Notes, "could not re-check waiting costumes: "+err.Error())
+			}
+		}
+		if ditto != nil {
+			rep.Released = recheckWaiting(ditto, dexToName)
+		}
+	}
+
 	if closeDitto != nil {
 		closeDitto()
+	}
+
+	for _, h := range rep.Held {
+		log.Printf("costumes: %s is not in the game yet; it will be shown as coming soon%s",
+			h.Code, dateSuffix(h.ReleaseDate))
+	}
+	for _, n := range rep.Released {
+		if n.Blocked {
+			log.Printf("costumes: %s was NOT released: upstream now calls it %q, not %q",
+				n.Code, n.NameChanged, n.Label)
+		} else {
+			log.Printf("costumes: %s (%s) is in the game now and is recordable", n.Code, n.Label)
+		}
 	}
 
 	if rep.Changed() {
@@ -309,22 +430,54 @@ func classify(code string, dexes []int, forms formLookup, curated map[string]boo
 // Agreement from ANY species counts, because Dittobase names a shared code differently per species.
 // An echo of the code is not corroboration: it means Dittobase has no name either, which is true
 // both of a Vivillon pattern and of a genuinely new costume nobody has named yet.
-func corroborate(src nameSource, code string, dexes []int, dexToName map[int]string) (string, bool) {
+func corroborate(src nameSource, code string, dexes []int, dexToName map[int]string) (costumenames.Page, bool) {
 	for _, dex := range dexes {
 		species := dexToName[dex]
 		if species == "" {
 			continue
 		}
-		name, err := src.Name(dex, species, code)
-		if err != nil || name == "" {
+		p, err := src.Page(dex, species, code)
+		if err != nil || p.Name == "" {
 			continue
 		}
-		if costumenames.IsEcho(name, species, code) {
+		if costumenames.IsEcho(p.Name, species, code) {
 			continue
 		}
-		return name, true
+		return p, true
 	}
-	return "", false
+	return costumenames.Page{}, false
+}
+
+// recheckWaiting asks upstream again about every costume that is not in the game yet.
+//
+// This is the half that makes "coming soon" resolve itself. It re-reads the name as well as the
+// release state, because a costume renamed upstream after an admin labelled it must NOT go live
+// on its own: the label could now describe something else entirely.
+func recheckWaiting(src nameSource, dexToName map[int]string) []ReleaseNote {
+	var notes []ReleaseNote
+	for _, code := range WaitingCodes() {
+		_, c := view()
+		entry, ok := c.codes[code]
+		if !ok || len(entry.Dex) == 0 {
+			continue
+		}
+		species := dexToName[entry.Dex[0]]
+		if species == "" {
+			continue
+		}
+		p, err := src.Page(entry.Dex[0], species, code)
+		if err != nil {
+			continue // unreachable is not news; try again next pass
+		}
+		note, err := RecordCheck(code, p.Name, p.ReleaseDate, p.Released, "")
+		if err != nil {
+			continue
+		}
+		if note.Released || note.Blocked {
+			notes = append(notes, note)
+		}
+	}
+	return notes
 }
 
 func prettyOf(code string, dexes []int, forms formLookup) string {
@@ -369,4 +522,12 @@ func parseDriftMatch(m []string) (dex int, code string, female bool) {
 		return d, "f:" + m[2], female
 	}
 	return d, "", female
+}
+
+// dateSuffix reads as a fact either way: most costumes never get an announced day.
+func dateSuffix(d string) string {
+	if d == "" {
+		return " with no announced date"
+	}
+	return " until " + d
 }

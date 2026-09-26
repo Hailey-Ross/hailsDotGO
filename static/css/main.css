@@ -771,6 +771,15 @@ body > *:not(#particles-js):not(.shiny-modal):not(.sc-modal):not(.nav-sidebar):n
   border: 1px solid currentColor; border-radius: var(--r-pill);
   padding: 0.05rem 0.45rem; flex-shrink: 0;
 }
+/* A costume that exists but is not in the game yet: shown so a trainer knows it is coming,
+   and refused so nobody records something they cannot have. Dimmed rather than hidden, and
+   the default cursor says it is not a target before anyone clicks it. */
+.picker-option-unavailable {
+  opacity: 0.55; cursor: default;
+}
+.picker-option-unavailable:hover { background: transparent; }
+.picker-option-unavailable .picker-option-tag { color: var(--text-3); }
+
 .picker-selected {
   display: flex; align-items: center; gap: 0.75rem;
   margin-top: 0.6rem; padding: 0.55rem 0.7rem; width: 100%;

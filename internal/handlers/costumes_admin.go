@@ -27,6 +27,13 @@ type costumeSprite struct {
 	URL     string `json:"url"`
 }
 
+// upcomingCostume is a costume that exists and is named but is not in the game yet. Species and
+// Sprites are filled here rather than in the package, which knows dex numbers and not names.
+type upcomingCostume struct {
+	costumes.Upcoming
+	Sprites []costumeSprite `json:"sprites"`
+}
+
 // AdminCostumes lists the costumes nobody has named yet, with the art for each, so an admin can
 // see what they are naming. The code names are no help ("Gotour 2026 A"), and worse, they mislead:
 // c:MAY_2019_NOEVOLVE is a straw hat, not the May 2019 Detective Pikachu tie-in. Four labels were
@@ -80,14 +87,118 @@ func (h *Handlers) AdminCostumes(w http.ResponseWriter, r *http.Request) {
 		queue = append(queue, row)
 	}
 
+	// Upcoming rows carry the whole species strip, exactly as the backlog and the candidate queue
+	// do. A held costume is the one most likely to be renamed upstream, and checking whether a
+	// rename moved the artwork means looking at every species that wears it, not at whichever
+	// happens to be first in the list.
+	up := costumes.UpcomingCostumes()
+	upcoming := make([]upcomingCostume, 0, len(up))
+	for _, u := range up {
+		row := upcomingCostume{Upcoming: u}
+		for _, dex := range u.Dex {
+			name := names[dex]
+			if name != "" {
+				row.Species = append(row.Species, name)
+			}
+			if url, ok := costumes.SpriteURLFor(dex, u.Code); ok {
+				if name == "" {
+					name = fmt.Sprintf("dex %d", dex)
+				}
+				row.Sprites = append(row.Sprites, costumeSprite{Dex: dex, Species: name, URL: url})
+			}
+		}
+		upcoming = append(upcoming, row)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"ok":         true,
-		"costumes":   out,
+		"ok":       true,
+		"costumes": out,
+		// out, queue and upcoming are built with make, so they are lists even when empty. named
+		// returns nil when this panel has named nothing, which is the ordinary state of a fresh
+		// server rather than an edge case, so it goes through jsonList. Every list on this
+		// endpoint is a list, always.
 		"candidates": queue,
-		"named":      h.namedHere(names),
-		"counts":     map[string]int{"pending": len(out), "candidates": len(queue)},
+		"upcoming":   upcoming,
+		"named":      jsonList(h.namedHere(names)),
+		"counts": map[string]int{
+			"pending":    len(out),
+			"candidates": len(queue),
+			"upcoming":   len(upcoming),
+		},
 	})
+}
+
+// AdminReleaseCostume marks a costume as being in the game now, for when it is live before
+// upstream notices, or when upstream never says.
+//
+// It refuses a costume upstream has renamed since it was labelled. That is the one case where a
+// human pressing the button is not enough: the label may now describe a different costume, and
+// releasing it would put the wrong picture on everything recorded afterwards. Re-name it first.
+func (h *Handlers) AdminReleaseCostume(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&body); err != nil {
+		costumeErr(w, http.StatusBadRequest, "could not read the request")
+		return
+	}
+
+	by := ""
+	if u := h.currentUser(r); u != nil {
+		by = u.Username
+	}
+	note, err := costumes.RecordCheck(body.Code, "", "", false, by)
+	if err != nil {
+		costumeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if note.Blocked {
+		// The old wording said to name it again, which is the one thing that cannot be done: the
+		// label is already set, naming is add-only and un-naming refuses once a trainer has used
+		// it. What is actually needed is a human looking at the artwork, so say that instead and
+		// point at the route that records the answer.
+		costumeErr(w, http.StatusConflict, fmt.Sprintf(
+			"upstream now calls this %q, not %q. Look at the sprite: if it is still the costume "+
+				"we named, confirm the name and release it again; if the artwork has moved, the "+
+				"label is wrong and cannot be renamed",
+			note.NameChanged, note.Label))
+		return
+	}
+
+	log.Printf("costumes: %s released %s (%s) by hand", by, body.Code, note.Label)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// AdminConfirmCostumeName says our label still describes the artwork after upstream renamed the
+// costume, which is the only way out of the release block and the other half of that 409.
+//
+// It renames nothing. The label is untouched; what changes is the upstream name we compare
+// against next time, so the guard keeps protecting the NEXT rename instead of latching forever.
+func (h *Handlers) AdminConfirmCostumeName(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&body); err != nil {
+		costumeErr(w, http.StatusBadRequest, "could not read the request")
+		return
+	}
+
+	by := ""
+	if u := h.currentUser(r); u != nil {
+		by = u.Username
+	}
+	label, was, err := costumes.ConfirmName(body.Code, by)
+	if err != nil {
+		costumeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	log.Printf("costumes: %s confirmed %s is still %q after upstream renamed it from %q",
+		by, body.Code, label, was)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 // candidateCostume is a code the discovery job could not judge: it has shiny art, but nothing
@@ -162,14 +273,24 @@ func (h *Handlers) AdminDiscoverCostumes(w http.ResponseWriter, r *http.Request)
 	h.alertNewCostumes()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	json.NewEncoder(w).Encode(discoverCostumesResponse(rep))
+}
+
+// discoverCostumesResponse is the body of a discovery pass, split out from the handler because
+// the shape it has to get right belongs to the answer nobody looks at.
+//
+// Nothing new upstream is the normal, healthy result, and it is the one where a report that is
+// only ever appended to has all three lists still nil. So the response that ships every day is
+// exactly the one a hand-written sample payload never shows.
+func discoverCostumesResponse(rep costumes.DiscoveryReport) map[string]any {
+	return map[string]any{
 		"ok":         true,
-		"admitted":   rep.Admitted,
-		"candidates": rep.Candidates,
+		"admitted":   jsonList(rep.Admitted),
+		"candidates": jsonList(rep.Candidates),
 		"scanned":    rep.Scanned,
-		"notes":      rep.Notes,
+		"notes":      jsonList(rep.Notes),
 		"synced":     rep.Commit,
-	})
+	}
 }
 
 // namedCostume is one costume this panel named, with what it would cost to take the name back.

@@ -98,6 +98,16 @@ function stubDom() {
 // --------------------------------------------------------------------- the bundle
 // Bundle the REAL modules, so this cannot pass against a copy of the logic that has drifted from
 // what ships. costumes.ts imports catalog.json and labels.json, so the entries are the real ones.
+// A costume that exists upstream but is not in the game yet. The page injects these, and the
+// module reads them when it loads, so they have to be in place before the bundle is imported.
+const UPCOMING_CODE = Object.entries(
+  JSON.parse(readFileSync("internal/costumes/catalog.json", "utf8")).codes,
+).find(([, e]) => e.dex.includes(25))[0];
+const UPCOMING_LABEL = "Test Upcoming Cap";
+globalThis.COSTUME_UPCOMING = [
+  { code: UPCOMING_CODE, label: UPCOMING_LABEL, release_date: "2026-10-04" },
+];
+
 const dir = mkdtempSync(join(tmpdir(), "costume-picker-"));
 let mod;
 try {
@@ -226,8 +236,47 @@ if (resolved !== willow.sprite) {
   fail(`the typed official name resolved to ${JSON.stringify(resolved)}, want ${JSON.stringify(willow.sprite)}`);
 }
 
+// ------------------------------------------------------- the costume that has not shipped yet
+// It has to be SHOWN, or a trainer just sees a costume missing and reports it as a bug, which is
+// how this whole area keeps going wrong. And it has to be REFUSED, or they record an entry for
+// something that does not exist yet.
+const upcomingEntry = entries.find((e) => e.label === UPCOMING_LABEL);
+if (!upcomingEntry) {
+  fail("an upcoming costume should still be offered in the picker, grayed rather than hidden");
+} else {
+  if (!upcomingEntry.unavailable) fail("the upcoming row must be marked unavailable");
+  if (upcomingEntry.tag !== "2026-10-04") {
+    fail(`the upcoming row should be tagged with its date, got ${JSON.stringify(upcomingEntry.tag)}`);
+  }
+  if (!upcomingEntry.sprite) fail("the upcoming row needs its art: that is what makes it recognisable");
+}
+
+// And the resolver must NOT know it, or typing the name records it anyway.
+if (costumeShinyUrl(DEX, SPECIES, UPCOMING_LABEL) !== null) {
+  fail("an upcoming costume must not resolve, or a trainer can record it by typing its name");
+}
+
+// The rendered row is disabled, so neither mouse nor keyboard can take it. It reuses the picker
+// already focused above rather than building a second one.
+{
+  // Search for it by name, rather than relying on where it lands in a 100-row list.
+  picker.input.value = "Test Upcoming";
+  picker.input.dispatch("input");
+  const upcomingRow = rows().find((r) =>
+    (r.children.find((c) => c.className === "picker-option-name") ?? {}).textContent === UPCOMING_LABEL,
+  );
+  if (!upcomingRow) {
+    fail("the upcoming costume did not render in the dropdown");
+  } else if (!upcomingRow.disabled) {
+    fail("the upcoming row rendered enabled, so a trainer can click it");
+  } else if (!String(upcomingRow.className).includes("picker-option-unavailable")) {
+    fail("the upcoming row is not marked unavailable, so it will not render grayed");
+  }
+}
+
 console.log(
   `costume picker: focusing the field lists all ${entries.length} Pikachu costumes with sprites and no ` +
     `typing, "Professor Willow" finds "${WILLOW}" through its alias, choosing a row fills the field, ` +
-    `unknown text is kept as free text, and no <datalist> is left in the shiny page.`,
+    `unknown text is kept as free text, an unreleased costume is shown grayed, tagged with its date ` +
+    `and refused by both the picker and the resolver, and no <datalist> is left in the shiny page.`,
 );

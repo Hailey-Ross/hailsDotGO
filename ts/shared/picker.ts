@@ -18,6 +18,10 @@ export interface PickerEntry {
   // label it "Willow's Lab Coat", so a trainer searching the name they read in the event notes
   // finds nothing unless the alias matches too.
   aliases?: string[];
+  // Shown, findable, and refused. A costume whose art is mined before its event is real and is
+  // coming, but recording it would put an entry in a collection for something that does not exist
+  // yet. Hiding it instead would be worse: the trainer just sees a costume missing.
+  unavailable?: boolean;
 }
 
 export interface PickerOptions {
@@ -167,7 +171,11 @@ export function createPicker(opts: PickerOptions): Picker {
     } else {
       for (const e of matches) {
         const opt = document.createElement("button");
-        opt.className = "picker-option";
+        opt.className = e.unavailable ? "picker-option picker-option-unavailable" : "picker-option";
+        if (e.unavailable) {
+          opt.disabled = true;
+          opt.setAttribute("aria-disabled", "true");
+        }
         if (e.sprite) {
           opt.appendChild(spriteImg(e.sprite, e.label, "picker-option-sprite"));
         } else {
@@ -185,10 +193,12 @@ export function createPicker(opts: PickerOptions): Picker {
           tagEl.textContent = e.tag;
           opt.appendChild(tagEl);
         }
-        opt.addEventListener("mousedown", (ev) => {
-          ev.preventDefault();
-          select(e);
-        });
+        if (!e.unavailable) {
+          opt.addEventListener("mousedown", (ev) => {
+            ev.preventDefault();
+            select(e);
+          });
+        }
         dropdown.appendChild(opt);
       }
     }
@@ -218,7 +228,9 @@ export function createPicker(opts: PickerOptions): Picker {
     if (e.key === "Escape") dropdown.hidden = true;
     if (e.key === "Enter" && !dropdown.hidden) {
       const first = dropdown.querySelector<HTMLButtonElement>(".picker-option:not(.no-match)");
-      if (first) first.dispatchEvent(new MouseEvent("mousedown"));
+      // A disabled row must not be chosen by keyboard either, or the mouse is guarded and the
+      // keyboard is not.
+      if (first && !first.disabled) first.dispatchEvent(new MouseEvent("mousedown"));
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();

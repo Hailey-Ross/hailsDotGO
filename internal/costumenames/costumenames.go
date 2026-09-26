@@ -44,6 +44,17 @@ const (
 
 var (
 	locRe = regexp.MustCompile(`<loc>[^<]*/pokemon-go/pokedex/([^<]+)</loc>`)
+	// The page embeds its own data as JSON. Two fields matter beyond the name, and BOTH are read
+	// by anchoring on an identifier we already hold rather than by proximity:
+	//
+	//	{"slug":"charmander-goggles-2026",...,"isCostume":true,"releaseDate":"2026-09-16"}
+	//	"name":"Friede's Goggles Charmander","isReleased":true,"isShinyReleased":true
+	//
+	// Proximity would be wrong, not merely fragile: the same name appears five times on the page,
+	// and the nearest releaseDate to most of them belongs to a different costume entirely. A parse
+	// keyed on the slug either finds the right record or finds nothing.
+	releasedRe = regexp.MustCompile(`"isReleased":(true|false)`)
+	dateRe     = regexp.MustCompile(`"releaseDate":(?:"(\d{4}-\d{2}-\d{2})"|null)`)
 	// og:title is the clean name: unlike <title> it is not HTML-escaped, so "Cap's Hat" does
 	// not arrive as "Cap&#x27;s Hat".
 	ogTitleRe = regexp.MustCompile(`property="og:title"\s+content="([^"]*)"`)
@@ -165,34 +176,97 @@ func MatchSlug(slugs []string, species, code string) string {
 	return ""
 }
 
+// Page is what one Dittobase page says about a costume.
+//
+// Released and ReleaseDate are how a costume stops being "coming soon" without anyone watching
+// for it. Both are Dittobase's own editorial data (the page calls it GoPokemonManualData), so
+// they lag the game by a little and are a third party's judgement rather than the game's own
+// word. Treat them as good enough to turn something ON, never as a reason to turn it off.
+type Page struct {
+	Name        string // the costume's name, species stripped
+	Released    bool   // upstream says this is in the game
+	HasReleased bool   // the field was actually present, as opposed to defaulting to false
+	ReleaseDate string // "YYYY-MM-DD", or "" when upstream does not say
+}
+
 // Fetch reads the costume name off a page. og:title is "Visor Charizard (Pokémon GO)", so drop
 // the suffix and the trailing species and what remains is the label: "Visor".
 //
 // An empty name with a nil error means the page had no og:title we could read, which is a
 // different outcome from the page being unreachable and is reported differently.
 func (r *Resolver) Fetch(slug, species string) (string, error) {
+	p, err := r.FetchPage(slug, species)
+	return p.Name, err
+}
+
+// FetchPage is Fetch plus what the page says about release.
+func (r *Resolver) FetchPage(slug, species string) (Page, error) {
 	req, _ := http.NewRequest("GET", pageURL+slug, nil)
 	req.Header.Set("User-Agent", userAgent)
 	resp, err := r.client.Do(req)
 	if err != nil {
-		return "", err
+		return Page{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s -> %d", slug, resp.StatusCode)
+		return Page{}, fmt.Errorf("%s -> %d", slug, resp.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 512<<10))
+	// The embedded data sits well past the head, so the cap has to clear it. 2 MiB covers the
+	// pages seen so far with room to spare; a truncated read costs the release fields, not the
+	// name, because og:title is in the head.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
-		return "", err
+		return Page{}, err
 	}
 
 	m := ogTitleRe.FindSubmatch(body)
 	if m == nil {
-		return "", nil
+		return Page{}, nil
 	}
 	// The attribute is HTML-escaped even in og:title, so "Cap's Hat" arrives as "Cap&#x27;s Hat".
 	title := suffixRe.ReplaceAllString(html.UnescapeString(string(m[1])), "")
-	return strings.TrimSpace(StripSpecies(title, species)), nil
+
+	p := Page{Name: strings.TrimSpace(StripSpecies(title, species))}
+	parseRelease(&p, string(body), slug, title)
+	return p, nil
+}
+
+// parseRelease pulls the release fields out of the page's embedded JSON.
+//
+// The JSON arrives escaped inside a script payload, so quotes are unescaped first. Both lookups
+// are anchored: the date comes from the object carrying OUR slug, the flag from the object
+// carrying the page's own title. Anything else found nearby belongs to a different costume.
+func parseRelease(p *Page, body, slug, title string) {
+	doc := strings.ReplaceAll(body, `\"`, `"`)
+
+	// The slug appears several times, and the FIRST hit is a UI state object carrying things like
+	// "active":"overview" and "h":"44px". Only one of them is the catalog record with a date, so
+	// walk every occurrence and take the first that has one, still bounded by the end of its own
+	// object so a sibling's date can never be read.
+	key := `"slug":"` + slug + `"`
+	for at := 0; ; {
+		i := strings.Index(doc[at:], key)
+		if i < 0 {
+			break
+		}
+		i += at
+		at = i + len(key)
+
+		rec := doc[i:]
+		if end := strings.Index(rec, "}"); end >= 0 {
+			rec = rec[:end]
+		}
+		if m := dateRe.FindStringSubmatch(rec); m != nil && m[1] != "" {
+			p.ReleaseDate = m[1]
+			break
+		}
+	}
+
+	if i := strings.Index(doc, `"name":"`+title+`","isReleased":`); i >= 0 {
+		if m := releasedRe.FindStringSubmatch(doc[i:]); m != nil {
+			p.Released, p.HasReleased = m[1] == "true", true
+		}
+	}
 }
 
 // StripSpecies removes the trailing species from "Visor Charizard". Compared on a prefix so that

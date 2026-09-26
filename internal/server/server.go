@@ -522,6 +522,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			// The costume catalog, precomputed per species. Not user-specific, but it sits in
 			// the authenticated group beside the rest of the shiny collection because that is
 			// the only screen that asks for it, and the group baseline is limit enough.
+			//
+			// Carries an ETag and answers 304 as its two neighbors do, so the app can revalidate
+			// it every few minutes: a costume named today is invisible to trainers until it does.
 			r.Get("/costumes", h.MobileCostumes)
 			r.Put("/shinies/{id}", h.APIShiniesUpdate)
 			r.Delete("/shinies/{id}", h.APIShiniesDelete)
@@ -711,6 +714,8 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 				r.Delete("/costumes/name", h.RequireAdminAPI(h.AdminUnnameCostume))
 				r.Post("/costumes/admit", h.RequireAdminAPI(h.AdminAdmitCostume))
 				r.Post("/costumes/dismiss", h.RequireAdminAPI(h.AdminDismissCostume))
+				r.Post("/costumes/release", h.RequireAdminAPI(h.AdminReleaseCostume))
+				r.Post("/costumes/confirm-name", h.RequireAdminAPI(h.AdminConfirmCostumeName))
 				r.With(httprate.LimitByIP(5, time.Minute)).
 					Post("/check-costumes", h.RequireAdminAPI(h.AdminCheckCostumes))
 				r.With(httprate.LimitByIP(2, time.Minute)).
@@ -1009,6 +1014,11 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// demand for when an event has just dropped.
 		r.Post("/api/admin/costumes/admit", h.RequireAdmin(h.AdminAdmitCostume))
 		r.Post("/api/admin/costumes/dismiss", h.RequireAdmin(h.AdminDismissCostume))
+		// Says a costume held back for release is in the game now.
+		r.Post("/api/admin/costumes/release", h.RequireAdmin(h.AdminReleaseCostume))
+		// Says our label still fits after upstream renamed the costume, which is what unblocks
+		// the release above. It renames nothing; labels stay add-only.
+		r.Post("/api/admin/costumes/confirm-name", h.RequireAdmin(h.AdminConfirmCostumeName))
 		r.With(httprate.LimitByIP(2, time.Minute)).Post("/admin/discover-costumes", h.RequireAdmin(h.AdminDiscoverCostumes))
 
 		r.Get("/api/admin/sprite-locks", h.RequireAdmin(h.AdminGetSpriteLocks))

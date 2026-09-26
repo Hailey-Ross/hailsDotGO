@@ -32,15 +32,46 @@ type nameCache struct {
 	Misses map[string]string  `json:"misses"` // "code|dex" -> RFC3339 of the last look
 }
 
+// releaseTTL is how long a release answer is reused.
+//
+// Much shorter than a name, because a name is settled and a release is the thing being waited
+// for. Costumes waiting on a release are a handful at a time, so re-asking about them daily is
+// nothing, and the alternative is a costume going live a week late.
+const releaseTTL = 20 * time.Hour
+
 type dittoSource struct {
-	res   *costumenames.Resolver
+	// res is fetched on first genuine need, not up front. Codes that are neither admitted nor
+	// queued are re-judged on every pass, by design, so an eager fetch here would mean a sitemap
+	// request every hour forever even when every answer is already cached. Observed in production
+	// the first time this ran: the Spinda spot patterns reach the naming step on every pass and
+	// always will, because "ignored" is not a state worth persisting.
+	res     *costumenames.Resolver
+	resErr  error
+	fetched bool
+
 	cache nameCache
 	path  string
 	dirty bool
+
+	// waiting is the set of codes whose release state is being watched, so a cached name does not
+	// short-circuit the read that is the entire reason for asking.
+	waiting map[string]bool
 }
 
-// newDittobase opens the cache and, only if it has to, fetches the sitemap. The returned function
-// writes the cache back, and must be called when the pass is done.
+// resolver fetches the sitemap the first time something actually needs it, and remembers a failure
+// so one pass does not retry it per code.
+func (d *dittoSource) resolver() (*costumenames.Resolver, error) {
+	if d.fetched {
+		return d.res, d.resErr
+	}
+	d.fetched = true
+	d.res, d.resErr = costumenames.NewResolver(nil)
+	return d.res, d.resErr
+}
+
+// newDittobase opens the cache. It makes no network request: the sitemap is fetched only when a
+// lookup misses the cache. The returned function writes the cache back, and must be called when
+// the pass is done.
 func newDittobase(path string) (nameSource, func(), error) {
 	c := nameCache{Names: costumenames.Names{}, Misses: map[string]string{}}
 	if data, err := os.ReadFile(path); err == nil {
@@ -55,44 +86,61 @@ func newDittobase(path string) (nameSource, func(), error) {
 		}
 	}
 
-	res, err := costumenames.NewResolver(nil)
-	if err != nil {
-		return nil, nil, err
+	waiting := map[string]bool{}
+	for _, code := range WaitingCodes() {
+		waiting[code] = true
 	}
-	d := &dittoSource{res: res, cache: c, path: path}
+	d := &dittoSource{cache: c, path: path, waiting: waiting}
 	return d, d.save, nil
 }
 
-func (d *dittoSource) Name(dex int, species, code string) (string, error) {
-	if n := d.cache.Names.Get(code, dex); n != "" {
-		return n, nil
-	}
+// Page answers from cache when it can, and otherwise reads the page.
+//
+// The NAME is cached permanently; release state is not cached at all. Caching "not released yet"
+// would defeat the whole point of asking again, and the costumes this is asked about are the few
+// that are actually waiting.
+func (d *dittoSource) Page(dex int, species, code string) (costumenames.Page, error) {
 	key := code + "|" + strconv.Itoa(dex)
-	if at, ok := d.cache.Misses[key]; ok {
+	if n := d.cache.Names.Get(code, dex); n != "" {
+		// A cached name still needs the live release state when something is waiting on it, so
+		// only short-circuit when the caller is just naming things.
+		if !d.wantRelease(code) {
+			return costumenames.Page{Name: n}, nil
+		}
+	}
+	if at, ok := d.cache.Misses[key]; ok && !d.wantRelease(code) {
 		if t, err := time.Parse(time.RFC3339, at); err == nil && time.Since(t) < missTTL {
-			return "", nil
+			return costumenames.Page{}, nil
 		}
 	}
 
-	slug := d.res.Match(species, code)
+	res, err := d.resolver()
+	if err != nil {
+		return costumenames.Page{}, err
+	}
+	slug := res.Match(species, code)
 	if slug == "" {
 		d.miss(key)
-		return "", nil
+		return costumenames.Page{}, nil
 	}
-	name, err := d.res.Fetch(slug, species)
+	p, err := res.FetchPage(slug, species)
 	// Pace every request actually made, not just the ones that worked.
 	time.Sleep(costumenames.Delay)
 	if err != nil {
-		return "", err
+		return costumenames.Page{}, err
 	}
-	if name == "" {
+	if p.Name == "" {
 		d.miss(key)
-		return "", nil
+		return p, nil
 	}
-	d.cache.Names.Set(code, dex, name)
+	d.cache.Names.Set(code, dex, p.Name)
 	d.dirty = true
-	return name, nil
+	return p, nil
 }
+
+// wantRelease reports whether this code is one the caller is waiting on, in which case a cached
+// name is not enough and the page has to be read for its release state.
+func (d *dittoSource) wantRelease(code string) bool { return d.waiting[code] }
 
 func (d *dittoSource) miss(key string) {
 	d.cache.Misses[key] = time.Now().UTC().Format(time.RFC3339)

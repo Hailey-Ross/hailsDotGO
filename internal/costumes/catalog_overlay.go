@@ -46,7 +46,7 @@ const overlayVersion = 1
 // catalogOverlay is <COSTUMES_DIR>/catalog.json: codes the site may resolve that the embedded
 // catalog does not carry.
 type catalogOverlay struct {
-	Version int                      `json:"version"`
+	Version int                  `json:"version"`
 	Codes   map[string]*catEntry `json:"codes"`
 }
 
@@ -67,6 +67,7 @@ type catEntry struct {
 	Why          string `json:"why"`    // the same thing in words, shown to the admin
 	DiscoveredAt string `json:"discoveredAt"`
 	By           string `json:"by,omitempty"` // set only when an admin admitted it by hand
+
 }
 
 // Why a code was admitted. Recorded so an admin reading the review queue can tell a costume
@@ -95,6 +96,40 @@ type Candidate struct {
 	SpriteURL    string `json:"sprite_url,omitempty"` // filled on the way out, not stored
 }
 
+// Hold is a costume that exists and may be named, but is not in the game yet.
+//
+// Kept beside the discovery bookkeeping rather than on the catalog entry, because release is
+// orthogonal to provenance: a costume the embedded catalog has shipped with for months can be
+// just as unreleased as one found this morning. Tying this to runtime entries made the first
+// version unable to hold back the one real case there was.
+type Hold struct {
+	Code        string `json:"code"`
+	Released    bool   `json:"released,omitempty"`
+	ReleaseDate string `json:"release_date,omitempty"` // "YYYY-MM-DD", "" when upstream is silent
+	ReleasedBy  string `json:"released_by,omitempty"`  // set when an admin released it by hand
+	CheckedAt   string `json:"checked_at,omitempty"`
+	HeldAt      string `json:"held_at,omitempty"`
+	// VerifiedName is the upstream name this costume was labelled against. Before anything goes
+	// live the current name is compared to it: upstream renaming a costume after an admin named
+	// it means the label may now point at the wrong thing.
+	VerifiedName string `json:"verified_name,omitempty"`
+	NameChanged  string `json:"name_changed,omitempty"`
+	// NameOkBy is the admin who looked at the sprite after a rename and said our label still
+	// fits. Recorded because it is a human overriding a guard that exists to protect user data,
+	// and "who decided this" is the first question anyone asks afterwards.
+	NameOkBy string `json:"name_ok_by,omitempty"`
+}
+
+// Available reports whether a held costume may be recorded yet.
+func (h *Hold) Available(today string) bool {
+	if h == nil || h.Released {
+		return true
+	}
+	// A date that has arrived releases it before the next upstream check, so nothing waits on a
+	// job that has not run. The shiny dex learned this one the hard way.
+	return h.ReleaseDate != "" && h.ReleaseDate <= today
+}
+
 type dismissal struct {
 	By string `json:"by"`
 	At string `json:"at"`
@@ -111,6 +146,9 @@ type discoveryState struct {
 	// already proved the in-memory version wrong: a restart forgets, and a service that restarts
 	// on deploy would re-alert on every deploy.
 	Alerted map[string]string `json:"alerted"`
+
+	// Holds are the costumes that exist but are not in the game yet, keyed by code.
+	Holds map[string]*Hold `json:"holds,omitempty"`
 }
 
 // catView is the merged catalog every reader resolves against: the embedded floor plus whatever
@@ -118,11 +156,26 @@ type discoveryState struct {
 // can use it without the lock.
 type catView struct {
 	codes map[string]*entry
+	// waiting holds the entries that are not in the game yet, so availability can be judged when
+	// a lookup happens rather than when the overlay was last written. That matters: a release
+	// DATE passing must take effect on its own, and the shiny dex already learned this the hard
+	// way, where an announced day arriving did nothing until the next admin write.
+	waiting map[string]*Hold
 	// base maps "code|dex" to the asset base that dex's art lives at, for overlay-supplied art
 	// only. A miss means the embedded pin, which is the common case.
 	base map[string]string
 	// candidates are servable-but-not-resolvable: an admin may see the sprite, nothing else may.
 	candidates map[string]*Candidate
+}
+
+// costumeNow is the clock, as a seam so tests can stand on a given day.
+var costumeNow = func() string { return time.Now().UTC().Format("2006-01-02") }
+
+// available reports whether a costume may be RECORDED. Distinct from covers, which asks only
+// whether the art exists: an upcoming costume is shown to trainers and refused to them.
+func (c *catView) available(code string) bool {
+	e, waiting := c.waiting[code]
+	return !waiting || e.Available(costumeNow())
 }
 
 func (c *catView) covers(code string, dex int) bool {
@@ -142,7 +195,7 @@ func (c *catView) showable(code string, dex int) bool {
 
 func baseKey(code string, dex int) string { return code + "|" + fmt.Sprint(dex) }
 
-func catalogOverlayPath() string  { return filepath.Join(dir, "catalog.json") }
+func catalogOverlayPath() string   { return filepath.Join(dir, "catalog.json") }
 func discoveryOverlayPath() string { return filepath.Join(dir, "discovery.json") }
 
 // loadCatalogOverlayLocked reads both runtime files and prunes what the embedded catalog has
@@ -158,6 +211,7 @@ func loadCatalogOverlayLocked() {
 		Candidates: map[string]*Candidate{},
 		Dismissed:  map[string]dismissal{},
 		Alerted:    map[string]string{},
+		Holds:      map[string]*Hold{},
 	}
 
 	if data, err := os.ReadFile(catalogOverlayPath()); err == nil {
@@ -201,6 +255,9 @@ func loadCatalogOverlayLocked() {
 			if next.Alerted != nil {
 				disc.Alerted = next.Alerted
 			}
+			if next.Holds != nil {
+				disc.Holds = next.Holds
+			}
 		}
 	} else if !os.IsNotExist(err) {
 		log.Printf("costumes: read discovery state: %v", err)
@@ -235,6 +292,7 @@ func rebuildCatLocked() {
 	next := &catView{
 		codes:      make(map[string]*entry, len(cat.Codes)+len(ovCat.Codes)),
 		base:       map[string]string{},
+		waiting:    map[string]*Hold{},
 		candidates: make(map[string]*Candidate, len(disc.Candidates)),
 	}
 	for code, e := range cat.Codes {
@@ -274,6 +332,12 @@ func rebuildCatLocked() {
 	}
 	for code, c := range disc.Candidates {
 		next.candidates[code] = c
+	}
+	// Holds apply to whatever the merged catalog ended up with, embedded or not.
+	for code, h := range disc.Holds {
+		if _, ok := next.codes[code]; ok && !h.Released {
+			next.waiting[code] = h
+		}
 	}
 	effCat = next
 }
@@ -488,6 +552,40 @@ func overlayEntryFor(code string) *catEntry {
 	return ovCat.Codes[code]
 }
 
+// NoteReleased records that upstream says a costume is already in the game.
+//
+// It holds nothing back and changes nothing a trainer sees. It exists so the question is asked
+// once: without it, every pass re-asks about every costume awaiting a name, forever.
+func NoteReleased(code, releaseDate string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if _, ok := effCat.codes[code]; !ok {
+		return fmt.Errorf("%s has no shiny art", code)
+	}
+	if disc.Holds == nil {
+		disc.Holds = map[string]*Hold{}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	h, ok := disc.Holds[code]
+	if !ok {
+		h = &Hold{Code: code, HeldAt: now}
+		disc.Holds[code] = h
+	}
+	h.Released, h.CheckedAt = true, now
+	if releaseDate != "" {
+		h.ReleaseDate = releaseDate
+	}
+	return commitDiscoveryLocked()
+}
+
+// holdFor returns the release hold on a code, or nil when it is not being held back.
+func holdFor(code string) *Hold {
+	mu.RLock()
+	defer mu.RUnlock()
+	return disc.Holds[code]
+}
+
 // Dismissed reports whether a code has been ruled out by hand.
 func Dismissed(code string) bool {
 	mu.RLock()
@@ -621,5 +719,197 @@ func CatalogDelta() map[string]*entry {
 		}
 		out[code] = &entry{Pretty: oe.Pretty, Suggested: oe.Suggested, Dex: slices.Clone(oe.Dex)}
 	}
+	return out
+}
+
+// Upcoming is a costume that exists and is named but is not in the game yet.
+type Upcoming struct {
+	Code        string   `json:"code"`
+	Label       string   `json:"label"` // "" while nobody has named it
+	Dex         []int    `json:"dex"`
+	Species     []string `json:"species,omitempty"`      // filled by the caller that knows names
+	ReleaseDate string   `json:"release_date,omitempty"` // "" means upstream has not said
+	NameChanged string   `json:"name_changed,omitempty"` // upstream renamed it after we labelled it
+	CheckedAt   string   `json:"checked_at,omitempty"`
+	SpriteURL   string   `json:"sprite_url,omitempty"`
+}
+
+// UpcomingCostumes lists what is waiting to be released, for the admin panel and for the picker,
+// which shows them grayed rather than hiding them.
+func UpcomingCostumes() []Upcoming {
+	l, c := view()
+	today := costumeNow()
+
+	var out []Upcoming
+	for code, h := range c.waiting {
+		if h.Available(today) {
+			continue // its day has arrived; it is an ordinary costume now
+		}
+		entry, ok := c.codes[code]
+		if !ok {
+			continue
+		}
+		row := Upcoming{
+			Code:        code,
+			Label:       labelPointingAt(l, code),
+			Dex:         slices.Clone(entry.Dex),
+			ReleaseDate: h.ReleaseDate,
+			NameChanged: h.NameChanged,
+			CheckedAt:   h.CheckedAt,
+		}
+		if len(row.Dex) > 0 {
+			row.SpriteURL = SpritePath + assetFile(row.Dex[0], code)
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out
+}
+
+// labelPointingAt finds the label pointing at a code, or "" when nobody has named it.
+func labelPointingAt(l *labelSet, code string) string {
+	for _, byLabel := range l.Species {
+		for label, c := range byLabel {
+			if c == code {
+				return label
+			}
+		}
+	}
+	for _, s := range l.Shared {
+		if s.Code == code {
+			return s.Label
+		}
+	}
+	return ""
+}
+
+// HoldForRelease marks a costume as existing but not yet in the game, with whatever upstream said
+// about when it lands. It is shown to trainers and cannot be recorded until it releases.
+func HoldForRelease(code, verifiedName, releaseDate string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if _, ok := effCat.codes[code]; !ok {
+		return fmt.Errorf("%s has no shiny art, so there is nothing to hold back", code)
+	}
+	if disc.Holds == nil {
+		disc.Holds = map[string]*Hold{}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	h, ok := disc.Holds[code]
+	if !ok {
+		h = &Hold{Code: code, HeldAt: now}
+		disc.Holds[code] = h
+	}
+	h.Released = false
+	h.ReleaseDate, h.VerifiedName, h.CheckedAt = releaseDate, verifiedName, now
+	return commitDiscoveryLocked()
+}
+
+// ReleaseNote is what a re-check concluded about one waiting costume.
+type ReleaseNote struct {
+	Code        string
+	Label       string
+	Released    bool   // it went live in this pass
+	Blocked     bool   // upstream renamed it, so it was deliberately NOT released
+	NameChanged string // what upstream calls it now
+}
+
+// RecordCheck applies what upstream now says about a waiting costume.
+//
+// The name guard is the point of this function. Upstream renaming a costume after an admin
+// labelled it means the label may now describe something else, and releasing it then would put
+// the wrong picture on every entry recorded afterwards. A rename blocks the release and asks for
+// a human instead, which is the same bargain the rest of this package makes: automate the
+// judgement, never the naming.
+func RecordCheck(code, upstreamName, releaseDate string, released bool, by string) (ReleaseNote, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	h, ok := disc.Holds[code]
+	if !ok {
+		return ReleaseNote{}, fmt.Errorf("%s is not waiting on a release", code)
+	}
+	note := ReleaseNote{Code: code}
+	h.CheckedAt = time.Now().UTC().Format(time.RFC3339)
+	if releaseDate != "" {
+		h.ReleaseDate = releaseDate
+	}
+
+	// A rename only counts when we have something to compare against and upstream actually says
+	// something different. An upstream that has gone quiet must never look like a rename.
+	renamed := h.VerifiedName != "" && upstreamName != "" && upstreamName != h.VerifiedName
+	if renamed {
+		h.NameChanged = upstreamName
+		note.Blocked, note.NameChanged = true, upstreamName
+	} else if upstreamName != "" {
+		h.NameChanged = ""
+	}
+
+	if !renamed && by != "" {
+		// An admin saying so releases it whatever upstream thinks, which is the escape hatch for
+		// a costume that is live in the game before upstream notices.
+		h.Released, h.ReleasedBy = true, by
+		note.Released = true
+	} else if !renamed && released {
+		h.Released = true
+		note.Released = true
+	}
+
+	if err := commitDiscoveryLocked(); err != nil {
+		return note, err
+	}
+	// effective directly, NOT labels(): that takes a read lock and this function already holds
+	// the write one, which self-deadlocks the whole package on the first call.
+	note.Label = labelPointingAt(effective, code)
+	return note, nil
+}
+
+// ConfirmName accepts an upstream rename WITHOUT renaming anything of ours. It records that a
+// human looked at the artwork and decided our label still describes it, which clears the block
+// and lets the costume be released.
+//
+// It exists because the block had no exit. A renamed hold is by definition already labelled, so
+// Name refuses it (add-only), Unname refuses it the moment a trainer has recorded it, and release
+// refuses it too: three doors, all locked, and the guidance said "re-name it first", which is the
+// one thing this package can never do.
+//
+// The confusion is worth naming. Upstream renaming a costume usually means upstream changed its
+// mind about wording, not that the artwork moved. Our label stays, their new name becomes the one
+// we compare against next time, and the guard keeps working for the rename after this one. When
+// the artwork really HAS moved, this is the wrong button: the label is wrong, and a wrong label is
+// user data that has to be unnamed while unused or left alone and aliased.
+func ConfirmName(code, by string) (label, was string, err error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	h, ok := disc.Holds[code]
+	if !ok {
+		return "", "", fmt.Errorf("%s is not waiting on a release", code)
+	}
+	if h.NameChanged == "" {
+		return "", "", fmt.Errorf("%s has not been renamed upstream, so there is nothing to confirm", code)
+	}
+
+	was = h.VerifiedName
+	h.VerifiedName, h.NameChanged = h.NameChanged, ""
+	h.NameOkBy = by
+	h.CheckedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := commitDiscoveryLocked(); err != nil {
+		return "", was, err
+	}
+	// effective directly, for the reason RecordCheck gives: labels() takes the read lock this
+	// function already holds as a write lock.
+	return labelPointingAt(effective, code), was, nil
+}
+
+// WaitingCodes lists the codes a re-check should ask upstream about.
+func WaitingCodes() []string {
+	_, c := view()
+	out := make([]string, 0, len(c.waiting))
+	for code := range c.waiting {
+		out = append(out, code)
+	}
+	sort.Strings(out)
 	return out
 }

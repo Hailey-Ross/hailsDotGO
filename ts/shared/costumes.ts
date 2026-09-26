@@ -28,6 +28,12 @@ type Labels = {
 // step further down the pipe.
 declare const COSTUME_CATALOG: Record<string, { pretty: string; dex: number[] }> | null | undefined;
 const catalogDelta = typeof COSTUME_CATALOG !== "undefined" ? (COSTUME_CATALOG ?? {}) : {};
+
+// Costumes that exist but are not in the game yet. Injected the same way, and deliberately NOT
+// merged into the resolver: they must be shown and refused, so resolve() must keep missing them
+// while the picker still offers a grayed row.
+declare const COSTUME_UPCOMING: { code: string; label: string; release_date?: string }[] | null | undefined;
+const UPCOMING = typeof COSTUME_UPCOMING !== "undefined" ? (COSTUME_UPCOMING ?? []) : [];
 const CAT: Catalog = {
   ...(catalog as unknown as Catalog),
   codes: { ...(catalog as unknown as Catalog).codes, ...catalogDelta },
@@ -92,7 +98,7 @@ export function costumeAliasesFor(label: string): string[] {
 //
 // Each row carries its shiny sprite, because a costume is far easier to recognise than to name.
 export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[] {
-  return costumeLabelsForDex(dexId, pokemonName).map((label, i) => ({
+  const entries: PickerEntry[] = costumeLabelsForDex(dexId, pokemonName).map((label, i) => ({
     key: label,
     name: label,
     label,
@@ -101,6 +107,24 @@ export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[
     types: [],
     group: i,
   }));
+
+  // Then the ones that are coming: grayed, unselectable, and last, so they never sit between two
+  // costumes a trainer can actually choose.
+  for (const u of UPCOMING) {
+    const e = CAT.codes[u.code];
+    if (!e || !e.dex.includes(dexId)) continue;
+    entries.push({
+      key: "upcoming:" + u.code,
+      name: u.label,
+      label: u.label,
+      sprite: SPRITE_PATH + assetFile(dexId, u.code),
+      types: [],
+      tag: u.release_date ? u.release_date : "soon",
+      group: 1000,
+      unavailable: true,
+    });
+  }
+  return entries;
 }
 
 // pm25.cANNIVERSARY.s.icon.png -- the code carries its own prefix ("c:" or "f:").

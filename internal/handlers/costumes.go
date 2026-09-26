@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"pogo.hails.cc/internal/costumes"
@@ -71,8 +70,14 @@ func (h *Handlers) MobileCostumes(w http.ResponseWriter, r *http.Request) {
 		species[p.Name] = rows
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	// An ETag, like /shiny-dex and /pokedex next door, because the app refetches this on a timer
+	// and a costume named today is invisible to a trainer until it does. Without a validator the
+	// app had to choose between the full body every few minutes and a window measured in hours,
+	// and it chose hours. With one, an unchanged catalog costs a 304.
+	//
+	// The public variant, not writeJSONWithETagPrivate: this body is keyed by canonical species
+	// name and holds nothing about the caller, so every trainer gets the same bytes.
+	writeJSONWithETag(w, r, map[string]any{
 		// A prefix hint for logging and cache keys, not something to concatenate: "sprite" above
 		// is already complete.
 		"sprite_base": costumes.SpritePath,

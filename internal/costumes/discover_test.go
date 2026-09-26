@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"pogo.hails.cc/internal/costumenames"
 	"pogo.hails.cc/internal/masterfile"
 )
 
@@ -36,17 +37,25 @@ func (s stubForms) NameToDex() map[string]int {
 
 // stubNames is Dittobase, without the network.
 type stubNames struct {
-	names map[string]string // code -> what dittobase calls it
+	names map[string]string            // code -> what dittobase calls it
+	pages map[string]costumenames.Page // richer answers, for the release tests
 	hits  int
+	asked []string // which codes were looked up, so a test can name the ones that matter
 }
 
-func (s *stubNames) Name(dex int, species, code string) (string, error) {
+func (s *stubNames) Page(dex int, species, code string) (costumenames.Page, error) {
 	s.hits++
+	s.asked = append(s.asked, code)
+	if p, ok := s.pages[code]; ok {
+		return p, nil
+	}
 	n, ok := s.names[code]
 	if !ok {
-		return "", nil
+		return costumenames.Page{}, nil
 	}
-	return n, nil
+	// Released by default: the decision table above is about whether something IS a costume,
+	// not about when it ships. The release tests drive that path directly.
+	return costumenames.Page{Name: n, Released: true, HasReleased: true}, nil
 }
 
 // stubUpstream drives a whole pass from a list of filenames.
@@ -74,6 +83,24 @@ func stubUpstream(t *testing.T, files []string, forms formLookup, names map[stri
 	return rep, sn
 }
 
+// discoverWith drives a pass against a prepared name source.
+func discoverWith(t *testing.T, files []string, forms formLookup, sn *stubNames) DiscoveryReport {
+	t.Helper()
+	resetAssetCache(t)
+	realLoad, realNames := loadMasterfile, newNameSource
+	t.Cleanup(func() { loadMasterfile, newNameSource = realLoad, realNames })
+
+	fetchAssets = func() ([]string, string, error) { return files, testSHA, nil }
+	loadMasterfile = func() (formLookup, error) { return forms, nil }
+	newNameSource = func(string) (nameSource, func(), error) { return sn, func() {}, nil }
+
+	rep, err := Discover(false, "")
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	return rep
+}
+
 func shiny(dex int, code string) string {
 	p, name, _ := strings.Cut(code, ":")
 	return fmt.Sprintf("pm%d.%s%s.s.icon.png", dex, p, name)
@@ -87,14 +114,14 @@ func TestDiscoveryDecisionTable(t *testing.T) {
 	regional := masterfile.Form{Name: "Alola", Found: true, Battle: true}
 
 	cases := []struct {
-		name    string
-		code    string
-		dex     int
-		form    masterfile.Form
-		ditto   string
-		admit   bool
-		ask     bool // lands in the review queue
-		why     string
+		name  string
+		code  string
+		dex   int
+		form  masterfile.Form
+		ditto string
+		admit bool
+		ask   bool // lands in the review queue
+		why   string
 	}{
 		{"the costume that went missing", "f:TEST_GOGGLES_2026", 4, unflagged, "Friede's Goggles",
 			true, false, "unflagged, no battle override, and upstream gave it a real name"},
@@ -250,8 +277,13 @@ func TestDiscoveryIsIdempotent(t *testing.T) {
 	if second.Changed() {
 		t.Errorf("a second pass decided again: %+v", second)
 	}
-	if sn.hits != 0 {
-		t.Errorf("a second pass made %d dittobase lookups, want 0", sn.hits)
+	// It must not ask again about anything it already settled. It MAY ask about costumes still
+	// awaiting a name whose release state nobody has stated, which is the point of that check;
+	// in production those are answered from the name cache without touching the network.
+	for _, code := range sn.asked {
+		if code == "f:TEST_GOGGLES_2026" || code == "f:TEST_K_2026_A_01" {
+			t.Errorf("a second pass re-asked about %s, which it had already decided", code)
+		}
 	}
 }
 
@@ -306,5 +338,59 @@ func TestNameLookupsAreBounded(t *testing.T) {
 
 	if sn.hits > maxNameLookups {
 		t.Errorf("made %d lookups, want at most %d: a drop must not arrive as a burst", sn.hits, maxNameLookups)
+	}
+}
+
+// A costume whose art is mined before the event that ships it must arrive SHOWN but not
+// recordable, rather than arriving live and letting trainers record something they cannot have.
+func TestAnUnreleasedCostumeArrivesHeldBack(t *testing.T) {
+	onDay(t, "2026-09-20")
+	seedOverlay(t, nil, nil)
+
+	forms := stubForms{"TEST_SOON_2026": {Name: "Soon 2026", Found: true}}
+	sn := &stubNames{pages: map[string]costumenames.Page{
+		"f:TEST_SOON_2026": {Name: "Aurora Crown", Released: false, HasReleased: true, ReleaseDate: "2026-10-04"},
+	}}
+	rep := discoverWith(t, []string{shiny(25, "f:TEST_SOON_2026")}, forms, sn)
+
+	if len(rep.Admitted) != 1 || !rep.Admitted[0].Upcoming {
+		t.Fatalf("expected one upcoming admission, got %+v", rep.Admitted)
+	}
+	if rep.Admitted[0].ReleaseDate != "2026-10-04" {
+		t.Errorf("release date = %q, want 2026-10-04", rep.Admitted[0].ReleaseDate)
+	}
+	if !slices.ContainsFunc(UpcomingCostumes(), func(u Upcoming) bool { return u.Code == "f:TEST_SOON_2026" }) {
+		t.Error("it should be listed as coming soon")
+	}
+	// Named by an admin, it is still not recordable until its day.
+	if err := Name("f:TEST_SOON_2026", "Aurora Crown", "tester"); err != nil {
+		t.Fatalf("Name: %v", err)
+	}
+	if _, ok := SpriteURL(25, "Pikachu", "Aurora Crown"); ok {
+		t.Error("a named but unreleased costume must still refuse to resolve")
+	}
+
+	onDay(t, "2026-10-04")
+	if _, ok := SpriteURL(25, "Pikachu", "Aurora Crown"); !ok {
+		t.Error("it should become recordable on its day, with no further action")
+	}
+}
+
+// A costume upstream already calls released arrives ready to use, not held back.
+func TestAReleasedCostumeArrivesUsable(t *testing.T) {
+	onDay(t, "2026-09-20")
+	seedOverlay(t, nil, nil)
+
+	forms := stubForms{"TEST_LIVE_2026": {Name: "Live 2026", Found: true}}
+	sn := &stubNames{pages: map[string]costumenames.Page{
+		"f:TEST_LIVE_2026": {Name: "Nebula Visor", Released: true, HasReleased: true},
+	}}
+	rep := discoverWith(t, []string{shiny(25, "f:TEST_LIVE_2026")}, forms, sn)
+
+	if len(rep.Admitted) != 1 || rep.Admitted[0].Upcoming {
+		t.Fatalf("a released costume should not be held back: %+v", rep.Admitted)
+	}
+	if len(UpcomingCostumes()) != 0 {
+		t.Errorf("nothing should be waiting: %+v", UpcomingCostumes())
 	}
 }

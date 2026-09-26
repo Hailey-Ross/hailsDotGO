@@ -790,6 +790,20 @@
     </div>
   </div>
 
+  <!-- Costumes the game has not shipped yet. Mined art routinely lands before the event, so this
+       is the difference between a costume nobody can record and a costume nobody knew was coming. -->
+  <div class="admin-card" id="costume-upcoming-card" style="display:none">
+    <h2>Coming soon</h2>
+    <p class="admin-desc">
+      Costumes that exist upstream but are not in the game yet. Trainers can see them in the picker,
+      grayed out, and cannot record them. Each one releases itself: on its date if upstream gave one,
+      or when upstream says it has landed. <strong>Release</strong> is for when it is live in the game
+      before upstream notices. If upstream renames a costume after you named it, it is held back and
+      says so here, because the label might now describe a different costume.
+    </p>
+    <div id="costume-upcoming-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+  </div>
+
   <!-- Costumes the discovery job could not judge. Above the "Named here" card because this is the
        earlier question: not "what is it called" but "is it a costume at all". Before this existed a
        code upstream would not vouch for was invisible here, and Friede's Goggles sat unreachable
@@ -834,7 +848,7 @@
     </p>
     <p class="admin-desc">
       When a shiny is announced ahead of time, put the date in the release field. Trainers see it on
-      the greyed card straight away, and the shiny turns itself on when the day arrives, so nobody has
+      the grayed card straight away, and the shiny turns itself on when the day arrives, so nobody has
       to remember. If Niantic delays it, untick the shiny box: an explicit tick always beats the date.
     </p>
 
@@ -1439,6 +1453,8 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
   }
 
   // ── Names given here, and taking one back ───────────────────
+  var upcomingCard = document.getElementById('costume-upcoming-card');
+  var upcomingList = document.getElementById('costume-upcoming-list');
   var candidateCard = document.getElementById('costume-candidate-card');
   var candidateList = document.getElementById('costume-candidate-list');
   var namedCard = document.getElementById('costume-named-card');
@@ -1591,6 +1607,82 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     return wrap;
   }
 
+  function upcomingRow(c) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem;'
+      + 'border:1px solid var(--border);border-radius:6px;flex-wrap:wrap';
+
+    var img = document.createElement('img');
+    img.src = c.sprite_url;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;opacity:0.65';
+    wrap.appendChild(img);
+
+    var text = document.createElement('div');
+    text.style.cssText = 'min-width:0;flex:1';
+
+    var name = document.createElement('div');
+    name.textContent = c.label || c.code;
+    name.style.cssText = 'color:var(--text-1);font-weight:600';
+    text.appendChild(name);
+
+    var when = document.createElement('div');
+    // No date is the common case and has to read as a fact, not as a missing value: most
+    // costumes never get an announced day, they simply turn up.
+    when.textContent = c.release_date ? ('arrives ' + c.release_date) : 'no release date announced';
+    when.style.cssText = 'font-size:0.8rem;color:var(--text-2)';
+    text.appendChild(when);
+
+    if (c.name_changed) {
+      var warn = document.createElement('div');
+      warn.textContent = 'held back: upstream now calls this "' + c.name_changed
+        + '". Open the art. If it is still the costume we named, confirm the name.';
+      warn.style.cssText = 'font-size:0.8rem;color:#d29922';
+      text.appendChild(warn);
+    }
+    wrap.appendChild(text);
+
+    var err = document.createElement('div');
+    err.style.cssText = 'font-size:0.8rem;color:#f85149;flex-basis:100%';
+
+    // A renamed row gets the confirm button INSTEAD of Release, not as well as it. Release can
+    // only answer 409 in this state, and a button that is guaranteed to be refused teaches
+    // people to ignore the warning above it.
+    var act = document.createElement('button');
+    act.className = 'btn-secondary';
+    if (c.name_changed) {
+      act.textContent = 'Our name still fits';
+      act.title = 'Record that the artwork is unchanged, so this can be released. Renames nothing.';
+    } else {
+      act.textContent = 'Release now';
+      act.title = 'Say this is in the game, without waiting for its date';
+    }
+
+    act.addEventListener('click', function() {
+      act.disabled = true;
+      err.textContent = '';
+      var url = c.name_changed ? '/api/admin/costumes/confirm-name' : '/api/admin/costumes/release';
+      post(url, {code: c.code})
+        .then(function() { load(); })
+        .catch(function(e) { err.textContent = e.message; act.disabled = false; });
+    });
+
+    wrap.appendChild(act);
+    wrap.appendChild(err);
+    return wrap;
+  }
+
+  function renderUpcoming(list) {
+    upcomingList.textContent = '';
+    if (!list || !list.length) {
+      upcomingCard.style.display = 'none';
+      return;
+    }
+    list.forEach(function(c) { upcomingList.appendChild(upcomingRow(c)); });
+    upcomingCard.style.display = '';
+  }
+
   function renderCandidates(list) {
     candidateList.textContent = '';
     if (!list || !list.length) {
@@ -1628,6 +1720,7 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
         // reported as "could not load", which is exactly how this tab lied about being broken.
         try {
           render(costumes);
+          renderUpcoming(d.upcoming);
           renderCandidates(d.candidates);
           renderNamed(d.named);
         } catch (e) {

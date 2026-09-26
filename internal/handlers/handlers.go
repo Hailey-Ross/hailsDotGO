@@ -92,6 +92,11 @@ type PageData struct {
 	// untypeable in the picker. Usually "{}".
 	CostumeCatalog template.JS
 
+	// CostumeUpcoming is the costumes that exist but are not in the game yet. The picker shows
+	// them grayed and refuses them; they are kept out of CostumeCatalog's resolver data on
+	// purpose, so a trainer cannot record one by typing its name.
+	CostumeUpcoming template.JS
+
 	// CostumeReviewCount is how many costumes are waiting on an admin. Admins only; it drives the
 	// badge on the Admin nav item, copying the Reports badge next to it.
 	CostumeReviewCount int
@@ -313,6 +318,12 @@ func (h *Handlers) render(w http.ResponseWriter, r *http.Request, page string, d
 			pd.CostumeCatalog = template.JS(scriptSafeJSON(b))
 		} else {
 			log.Printf("costumes: marshal catalog delta for %s: %v", page, err)
+		}
+		pd.CostumeUpcoming = template.JS("null")
+		if b, err := json.Marshal(costumes.UpcomingCostumes()); err == nil {
+			pd.CostumeUpcoming = template.JS(scriptSafeJSON(b))
+		} else {
+			log.Printf("costumes: marshal upcoming for %s: %v", page, err)
 		}
 	}
 	// Cheap: two map reads under one lock, no query and no network, unlike the report counts above.
@@ -656,6 +667,21 @@ func writeJSON(w http.ResponseWriter, r *http.Request, data json.RawMessage) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+// jsonList is s with nil turned into an empty slice, so a JSON field that is a list is always a
+// list.
+//
+// Go marshals a nil slice as null, and a Go function that only ever appends returns nil for the
+// answer "nothing", which is usually the COMMON answer rather than the rare one. A client reading
+// that field then has to treat null and [] as the same thing at every call site, and the one place
+// it forgets is the happy path, where a test written against a sample payload showing [] passes
+// and every real response fails.
+func jsonList[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }
 
 // truncRunes cuts s to at most n characters, counting runes rather than bytes.

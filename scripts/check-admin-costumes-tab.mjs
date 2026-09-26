@@ -104,12 +104,41 @@ function payload() {
     },
   ];
 
+  const upcoming = [
+    {
+      code: "f:SOON_2026",
+      label: "Aurora Crown",
+      dex: [25],
+      species: ["Pikachu"],
+      release_date: "2026-10-04",
+      sprite_url: spriteURL(25, "f:SOON_2026"),
+    },
+    {
+      code: "f:SOMEDAY_2026",
+      label: "Nebula Visor",
+      dex: [25],
+      species: ["Pikachu"],
+      release_date: "",
+      sprite_url: spriteURL(25, "f:SOMEDAY_2026"),
+    },
+    {
+      code: "f:RENAMED_2026",
+      label: "Old Name",
+      dex: [25],
+      species: ["Pikachu"],
+      release_date: "",
+      name_changed: "Something Else",
+      sprite_url: spriteURL(25, "f:RENAMED_2026"),
+    },
+  ];
+
   return {
     ok: true,
     costumes,
     candidates,
+    upcoming,
     named,
-    counts: { pending: costumes.length, candidates: candidates.length },
+    counts: { pending: costumes.length, candidates: candidates.length, upcoming: upcoming.length },
   };
 }
 
@@ -155,6 +184,9 @@ function stubDom() {
   const candidateCard = el("div");
   const candidateList = el("div");
   candidateCard.style.display = "none";
+  const upcomingCard = el("div");
+  const upcomingList = el("div");
+  upcomingCard.style.display = "none";
   // A real recorded element, not a stub with a no-op listener: the "Fetch new costumes" handler
   // has to be drivable, because the answer it writes used to be destroyed by the refresh that
   // followed it and nothing noticed.
@@ -173,6 +205,8 @@ function stubDom() {
     "costume-named-list": namedList,
     "costume-candidate-card": candidateCard,
     "costume-candidate-list": candidateList,
+    "costume-upcoming-card": upcomingCard,
+    "costume-upcoming-list": upcomingList,
   };
 
   globalThis.document = {
@@ -183,7 +217,7 @@ function stubDom() {
   };
   globalThis.confirm = () => true;
   return { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList,
-    candidateCard, candidateList, handlers };
+    candidateCard, candidateList, upcomingCard, upcomingList, handlers };
 }
 
 // ---------------------------------------------------------------------- the run
@@ -199,7 +233,7 @@ const src = html.slice(start, end);
 
 const data = payload();
 const { made, list, status, btn, zoomOverlay, zoomContent, namedCard, namedList,
-  candidateCard, candidateList, handlers } = stubDom();
+  candidateCard, candidateList, upcomingCard, upcomingList, handlers } = stubDom();
 
 // What DriftCheck answers when upstream has nothing new. It is the case that used to be invisible:
 // the note was written, then wiped by the refresh a few hundred ms later, so a working check looked
@@ -473,8 +507,78 @@ if (!posted.some((u) => u === "/api/admin/costumes/dismiss")) {
   fail(`dismissing posted ${JSON.stringify(posted)}, want /api/admin/costumes/dismiss`);
 }
 
+// ------------------------------------------------------------------ coming soon
+// A costume whose art is mined before its event must be SHOWN rather than hidden, or an admin
+// re-decides it every pass and a trainer never learns it is coming.
+const upcomingRows = upcomingList.children.length;
+if (upcomingRows !== data.upcoming.length) {
+  fail(`the coming-soon card rendered ${upcomingRows} rows, want ${data.upcoming.length}`);
+}
+if (upcomingCard.style.display === "none") fail("the coming-soon card stayed hidden");
+
+const upcomingText = upcomingList.children.map((r) => JSON.stringify(r)).join(" ");
+// A date, when there is one.
+if (!upcomingText.includes("arrives 2026-10-04")) {
+  fail("a dated costume should say when it arrives");
+}
+// And no date has to read as a fact, not as a blank: most costumes never get an announced day.
+if (!upcomingText.includes("no release date announced")) {
+  fail("an undated costume should say so rather than leaving the line empty");
+}
+// The rename guard has to be visible, since it is the one case a human must resolve.
+if (!upcomingText.includes("Something Else")) {
+  fail("a costume upstream renamed should say so on its row");
+}
+
+// A renamed row gets a DIFFERENT button, not the same one. Release can only answer 409 while
+// upstream disagrees about the name, and a control that is guaranteed to be refused teaches
+// people to click past the warning next to it. The way out is confirming the name, which renames
+// nothing: it records that a human looked at the art and our label still describes it.
+const renamedCount = data.upcoming.filter((u) => u.name_changed).length;
+const buttonsNamed = (label) =>
+  upcomingList.children.flatMap((r) => r.children).filter((n) => n.tag === "button" && n._text === label);
+
+const releaseButtons = buttonsNamed("Release now");
+const confirmButtons = buttonsNamed("Our name still fits");
+if (releaseButtons.length !== data.upcoming.length - renamedCount) {
+  fail(`found ${releaseButtons.length} Release buttons, want one per waiting costume that is NOT renamed`);
+}
+if (confirmButtons.length !== renamedCount) {
+  fail(`found ${confirmButtons.length} confirm buttons, want one per costume upstream renamed`);
+}
+
+const renamedRow = upcomingList.children.find((r) =>
+  JSON.stringify(r).includes("Something Else"),
+);
+if (renamedRow && (renamedRow.children ?? []).some((n) => n._text === "Release now")) {
+  fail("the renamed row still offers Release, which can only ever be refused with a 409");
+}
+
+for (const [button, url, what] of [
+  [releaseButtons[0], "/api/admin/costumes/release", "releasing"],
+  [confirmButtons[0], "/api/admin/costumes/confirm-name", "confirming the name"],
+]) {
+  const click = handlers.find((h) => h.node === button && h.evt === "click");
+  if (!click) {
+    fail(`the ${what} button has no click handler`);
+    continue;
+  }
+  posted.length = 0;
+  try {
+    click.fn();
+  } catch (e) {
+    fail(`${what} threw: ${e}`);
+    continue;
+  }
+  await new Promise((r) => setTimeout(r, 50));
+  if (!posted.some((u) => u === url)) {
+    fail(`${what} posted ${JSON.stringify(posted)}, want ${url}`);
+  }
+}
+
 console.log(
-  `admin Costumes tab renders ${want} costumes with working name controls, ${candidateRows} ` +
+  `admin Costumes tab renders ${want} costumes with working name controls, ${upcomingRows} ` +
+    `coming soon (dated, undated and one renamed upstream, which offers confirm instead of Release), ${candidateRows} ` +
     `awaiting a verdict with two wired buttons and no name box, a one-click ` +
     `${JSON.stringify(approve ? approve._text : "")}, and clicking ${multi.code} ` +
     `zooms to ${bigs.length} sprite(s), one per species. Fetching upstream leaves its answer on ` +
