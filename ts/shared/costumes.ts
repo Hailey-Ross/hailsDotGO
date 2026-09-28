@@ -34,6 +34,10 @@ const catalogDelta = typeof COSTUME_CATALOG !== "undefined" ? (COSTUME_CATALOG ?
 // while the picker still offers a grayed row.
 declare const COSTUME_UPCOMING: { code: string; label: string; release_date?: string }[] | null | undefined;
 const UPCOMING = typeof COSTUME_UPCOMING !== "undefined" ? (COSTUME_UPCOMING ?? []) : [];
+// The held codes, which resolve() and costumeLabelsForDex() must skip the way the server's
+// available() does. A held costume can already be labeled and sit in the compiled catalog, and
+// without this it would be offered twice: once selectable, once grayed.
+const HELD = new Set(UPCOMING.map((u) => u.code));
 const CAT: Catalog = {
   ...(catalog as unknown as Catalog),
   codes: { ...(catalog as unknown as Catalog).codes, ...catalogDelta },
@@ -68,6 +72,12 @@ function covers(code: string, dexId: number): boolean {
   return CAT.codes[code]?.dex.includes(dexId) ?? false;
 }
 
+// recordable: covers, and not held for release. The browser twin of the server's covers plus
+// available.
+function recordable(code: string, dexId: number): boolean {
+  return covers(code, dexId) && !HELD.has(code);
+}
+
 // A curated override wins, else a shared costume the species is eligible for. Both tiers
 // require the code to have shiny art for this dex, so an unknown or stale label just misses.
 function resolve(dexId: number, pokemonName: string, costumeLabel: string): string | null {
@@ -75,9 +85,9 @@ function resolve(dexId: number, pokemonName: string, costumeLabel: string): stri
   const label = LAB.aliases[costumeLabel] ?? costumeLabel;
 
   const override = LAB.species[pokemonName]?.[label];
-  if (override && covers(override, dexId)) return override;
+  if (override && recordable(override, dexId)) return override;
 
-  const shared = LAB.shared.find((s) => s.label === label && covers(s.code, dexId));
+  const shared = LAB.shared.find((s) => s.label === label && recordable(s.code, dexId));
   return shared ? shared.code : null;
 }
 
@@ -96,7 +106,7 @@ export function costumeAliasesFor(label: string): string[] {
 // its exact label. A trainer reported the Willow costume as missing for that reason. These entries
 // drive a createPicker dropdown instead, which renders itself and so behaves the same everywhere.
 //
-// Each row carries its shiny sprite, because a costume is far easier to recognise than to name.
+// Each row carries its shiny sprite, because a costume is far easier to recognize than to name.
 export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[] {
   const entries: PickerEntry[] = costumeLabelsForDex(dexId, pokemonName).map((label, i) => ({
     key: label,
@@ -111,6 +121,9 @@ export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[
   // Then the ones that are coming: grayed, unselectable, and last, so they never sit between two
   // costumes a trainer can actually choose.
   for (const u of UPCOMING) {
+    // Unnamed ones are skipped: the picker is driven by names, so a row with none would be a blank
+    // line nobody can search for. The admin panel lists them for naming instead.
+    if (!u.label) continue;
     const e = CAT.codes[u.code];
     if (!e || !e.dex.includes(dexId)) continue;
     entries.push({
@@ -146,14 +159,14 @@ export function costumeLabelsForDex(dexId: number, pokemonName: string): string[
   const usedCodes = new Set<string>();
 
   for (const [label, code] of Object.entries(LAB.species[pokemonName] ?? {})) {
-    if (!covers(code, dexId)) continue;
+    if (!recordable(code, dexId)) continue;
     labels.push(label);
     usedCodes.add(code);
   }
   labels.sort();
 
   for (const s of LAB.shared) {
-    if (usedCodes.has(s.code) || labels.includes(s.label) || !covers(s.code, dexId)) continue;
+    if (usedCodes.has(s.code) || labels.includes(s.label) || !recordable(s.code, dexId)) continue;
     labels.push(s.label);
   }
   return labels;

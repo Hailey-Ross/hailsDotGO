@@ -104,8 +104,15 @@ const UPCOMING_CODE = Object.entries(
   JSON.parse(readFileSync("internal/costumes/catalog.json", "utf8")).codes,
 ).find(([, e]) => e.dex.includes(25))[0];
 const UPCOMING_LABEL = "Test Upcoming Cap";
+// A held costume that is ALREADY labeled and compiled in, which is the case a label-driven list
+// gets wrong: it has to show once, grayed, and not also as an ordinary selectable row.
+const HELD_LABEL = "Witch Hat";
+const HELD_CODE = JSON.parse(readFileSync("internal/costumes/labels.json", "utf8")).species.Pikachu[HELD_LABEL];
 globalThis.COSTUME_UPCOMING = [
   { code: UPCOMING_CODE, label: UPCOMING_LABEL, release_date: "2026-10-04" },
+  { code: HELD_CODE, label: HELD_LABEL, release_date: "2026-10-05" },
+  // Nobody has named this one yet: the picker must not render a blank row for it.
+  { code: UPCOMING_CODE, label: "" },
 ];
 
 const dir = mkdtempSync(join(tmpdir(), "costume-picker-"));
@@ -254,6 +261,18 @@ if (!upcomingEntry) {
 // And the resolver must NOT know it, or typing the name records it anyway.
 if (costumeShinyUrl(DEX, SPECIES, UPCOMING_LABEL) !== null) {
   fail("an upcoming costume must not resolve, or a trainer can record it by typing its name");
+}
+
+// The labeled one is held too: one grayed row, no selectable twin, and no resolution.
+{
+  const held = entries.filter((e) => e.label === HELD_LABEL);
+  if (held.length !== 1 || !held[0].unavailable) {
+    fail(`a held costume that is already labeled should appear once, grayed; got ${held.length} row(s)`);
+  }
+  if (costumeShinyUrl(DEX, SPECIES, HELD_LABEL) !== null) {
+    fail("a held costume that is already labeled must not resolve while it is held");
+  }
+  if (entries.some((e) => !e.label)) fail("an unnamed held costume rendered as a blank picker row");
 }
 
 // The rendered row is disabled, so neither mouse nor keyboard can take it. It reuses the picker

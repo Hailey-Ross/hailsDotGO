@@ -53,6 +53,9 @@ function payload() {
     }));
 
   // Force both branches of the name rendering, so a costume with no upstream name is covered too.
+  // Both need a row of their own, and once the backlog is nearly named the catalog may leave only
+  // one, so pad it with a synthetic copy rather than let the fixture depend on the naming backlog.
+  if (costumes.length === 1) costumes.push({ ...costumes[0], code: costumes[0].code + "_CHECK", suggested: "" });
   if (costumes.length && !costumes.some((c) => !c.suggested)) costumes[0].suggested = "";
   if (costumes.length && !costumes.some((c) => c.suggested)) costumes[0].suggested = "Test Hat";
 

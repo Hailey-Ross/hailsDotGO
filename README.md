@@ -81,7 +81,7 @@ Beyond that:
 - Catches logged with no signal: an add is queued on the phone and delivered when service returns, deduplicated by token so a retry can never double log
 - The IV calculator, a DPS calculator and the PvP IV ranker, with the battle math running on the phone rather than being fetched
 - Events with detail pages, and a bell that sets up to five reminders per event, resolved in your own timezone by the server
-- Push notifications for the raid lifecycle and for event reminders
+- Push notifications for the raid lifecycle, event reminders and report activity (a tap opens the report), with staff alerts on their own Admin alerts channel
 - The trainer directory, profiles, social, reports, sign up, password reset and the full admin panel as native screens; the store, translator workspace, credits and privacy stay web views on purpose
 - Twelve theme colors, any color off a wheel, or the hue Android took from your wallpaper, in light, dark or system at three contrast levels, plus a bottom bar you choose the seats of yourself
 - An update notice on launch when a newer build is out, linking straight to the tester list

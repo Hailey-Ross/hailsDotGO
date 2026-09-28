@@ -5,6 +5,7 @@ import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
 import { fetchSpeciesData } from "./shared/pokedex";
 import { createPicker, pokemonEntries } from "./shared/picker";
 import type { PickerEntry } from "./shared/picker";
+import { speciesInsideLabel } from "./shared/counters";
 import type { GameData, PokemonStat, FastMove, ChargedMove } from "./shared/types";
 
 declare const JSC: Record<string, string>;
@@ -272,7 +273,10 @@ function targetEntries(data: GameData, all: PickerEntry[]): PickerEntry[] {
     for (const boss of bosses) {
       if (!boss.types?.length || seen.has(boss.pokemon_name)) continue;
       seen.add(boss.pokemon_name);
-      const base = pokemonByName(data, boss.pokemon_name);
+      // A costumed boss is named like "Charizard wearing Friede's goggles", which no species
+      // matches exactly, so the sprite fallback looks for the species inside the label.
+      const inside = speciesInsideLabel(data, boss.pokemon_name);
+      const base = pokemonByName(data, boss.pokemon_name) ?? (inside ? pokemonByName(data, inside) : undefined);
       out.push({
         key: `raid:${boss.pokemon_name}`,
         name: boss.pokemon_name,
