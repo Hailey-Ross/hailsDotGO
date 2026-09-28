@@ -86,8 +86,11 @@ func TestCommittedAssetLinksFile(t *testing.T) {
 	}
 
 	s := statements[0]
-	if len(s.Relation) != 1 || s.Relation[0] != "delegate_permission/common.handle_all_urls" {
-		t.Errorf("relation = %v", s.Relation)
+	// handle_all_urls verifies the App Links; get_login_creds lets password managers
+	// offer credentials saved on pogo.hails.app inside the app.
+	wantRel := []string{"delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"}
+	if len(s.Relation) != len(wantRel) || s.Relation[0] != wantRel[0] || s.Relation[1] != wantRel[1] {
+		t.Errorf("relation = %v, want %v", s.Relation, wantRel)
 	}
 	if s.Target.Namespace != "android_app" {
 		t.Errorf("namespace = %q, want android_app", s.Target.Namespace)
