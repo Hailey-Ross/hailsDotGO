@@ -197,7 +197,9 @@
     { "label": "Holiday Decorations", "code": "f:WINTER_2025" },
     { "label": "Friede's Goggles", "code": "f:GOGGLES_2026" },
     { "label": "Yellow Cap", "code": "f:SPRING_2026_B" },
-    { "label": "Blue Cap", "code": "f:SPRING_2026_A" }
+    { "label": "Blue Cap", "code": "f:SPRING_2026_A" },
+    { "label": "Astronaut", "code": "f:GLASS_HELMET_2026" },
+    { "label": "Cape", "code": "f:WILDAREA_2026_01" }
   ],
 
   "aliases": {
