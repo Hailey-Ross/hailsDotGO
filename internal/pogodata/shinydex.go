@@ -260,7 +260,8 @@ type shinyFlags struct {
 func (s *Store) effectiveFlags(dex int, base BaselineSpecies, upstreamShiny bool) shinyFlags {
 	out := shinyFlags{
 		InGo:          base.InGo,
-		ShinyReleased: base.ShinyReleased || upstreamShiny,
+		// An event page showing the shiny is additive in the same way upstream is. eventshinies.go.
+		ShinyReleased: base.ShinyReleased || upstreamShiny || s.shinyObservedReached(dex),
 	}
 	if ov, ok := s.shinyOverrides[shinyOverrideKey{Dex: dex}]; ok {
 		out.ReleaseDate = ov.ReleaseDate
@@ -303,6 +304,8 @@ func (s *Store) rebuildShinyLocked() {
 	// Remembered so RefreshShinyDates can tell whether a release date has crossed midnight since
 	// the blobs were last built, without re-resolving 1025 species every hour.
 	s.shinyBuiltFor = today()
+	// Before anything calls effectiveFlags, which reads it.
+	s.rebuildShinyObservedDaysLocked()
 	// Before the early return below: a missing baseline stops species resolution, but the regional
 	// overlays are independent of it and must still be served.
 	s.rebuildRegionalShinyLocked()
@@ -511,7 +514,7 @@ func (s *Store) ShinyEffectiveDefaults(dex int) (inGo, shinyReleased, ok bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	shiny := base.ShinyReleased || s.upstreamShinyDex[dex]
+	shiny := base.ShinyReleased || s.upstreamShinyDex[dex] || s.shinyObservedReached(dex)
 	inGo = base.InGo || shiny
 	return inGo, shiny, true
 }

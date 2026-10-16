@@ -612,6 +612,12 @@ type Store struct {
 	regionalOverrides  []RegionalShinyOverride
 	shinyOverrides     map[shinyOverrideKey]ShinyOverride
 	upstreamShinyDex   map[int]bool // dex numbers PoGoAPI vouches for, derived on every rebuild
+	// shinyObserved is every shiny an event page has shown, persisted so it outlives the page.
+	// See eventshinies.go.
+	shinyObserved map[int]shinyObservation
+	// shinyObservedDays is shinyObserved carried forward along evolution lines, dex to the day it
+	// applies. Derived on every shiny rebuild; the only thing effectiveFlags reads.
+	shinyObservedDays map[int]string
 	// shinyBuiltFor is the UTC day the blobs above were resolved for, so RefreshShinyDates can
 	// notice a release date crossing midnight without redoing the work every hour.
 	shinyBuiltFor    string
@@ -751,6 +757,13 @@ func (s *Store) loadFromCache() {
 	// leaves an event's bosses off the grid until the next boundary or refresh
 	// happens to come round. This used to be the other way about.
 	s.loadEventDetailsFromDisk()
+	// The persisted sightings first, then whatever the cached pages add to them. The shinies key
+	// above has already rebuilt the dex once without them, so rebuild again if any exist.
+	s.loadShinyObservedLocked()
+	if len(s.shinyObserved) > 0 {
+		s.rebuildShinyLocked()
+	}
+	s.observeEventShiniesLocked()
 	// Only now. The keys above load in a fixed order with raids first, so a
 	// rebuild triggered from inside applyResult would reconcile against an events
 	// blob that had not been read yet and drop nothing.

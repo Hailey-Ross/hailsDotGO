@@ -358,6 +358,9 @@ func (s *Store) refreshEventDetails(feed json.RawMessage) {
 	changed := fetched > 0 || evicted > 0
 	if changed {
 		s.rebuildRaidsLocked()
+		// And of shiny releases. Read before the page can be evicted on a later pass, which is
+		// why the sightings are persisted rather than derived. See eventshinies.go.
+		s.observeEventShiniesLocked()
 	}
 	s.mu.Unlock()
 	if err == nil {
