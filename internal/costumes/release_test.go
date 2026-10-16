@@ -283,11 +283,22 @@ func TestAQuietPassNoticesAnUnreleasedCostumeAwaitingAName(t *testing.T) {
 	seedOverlay(t, nil, nil)
 
 	forms := stubForms{}
-	unnamed := Unlabelled()
-	if len(unnamed) == 0 {
-		t.Skip("nothing is awaiting a name")
+	// The pass can only ask about a species the stub masterfile can name, so pick the first
+	// unnamed costume on one of those. Taking unnamed[0] broke the day a Sinistea code sorted first.
+	known := map[int]bool{}
+	for _, dex := range forms.NameToDex() {
+		known[dex] = true
 	}
-	target := unnamed[0]
+	var target Unnamed
+	for _, u := range Unlabelled() {
+		if known[u.Dex[0]] {
+			target = u
+			break
+		}
+	}
+	if target.Code == "" {
+		t.Skip("nothing the stub masterfile knows is awaiting a name")
+	}
 
 	sn := &stubNames{pages: map[string]costumenames.Page{
 		target.Code: {Name: "Some Real Name", Released: false, HasReleased: true},

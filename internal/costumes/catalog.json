@@ -1,6 +1,6 @@
 {
-  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@d4432a333e123bfe8f44153f51bf58aa8d34d5b1/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
-  "sourceCommit": "d4432a333e123bfe8f44153f51bf58aa8d34d5b1",
+  "assetBase": "https://cdn.jsdelivr.net/gh/PokeMiners/pogo_assets@c2a686eb08ace6e890d8fe3d2134c76988db87b5/Images/Pokemon%20-%20256x256/Addressable%20Assets/",
+  "sourceCommit": "c2a686eb08ace6e890d8fe3d2134c76988db87b5",
   "codes": {
     "c:ANNIVERSARY": {
       "pretty": "Anniversary",
@@ -808,6 +808,13 @@
         25
       ]
     },
+    "f:A_HALLOWEEN_2026_01": {
+      "pretty": "A Halloween 2026 01",
+      "dex": [
+        854,
+        855
+      ]
+    },
     "f:BB_2026": {
       "pretty": "Bb 2026",
       "dex": [
@@ -947,6 +954,12 @@
         25
       ],
       "female": [
+        25
+      ]
+    },
+    "f:GLASS_HELMET_2026": {
+      "pretty": "Glass Helmet 2026",
+      "dex": [
         25
       ]
     },
@@ -1234,6 +1247,16 @@
         25
       ]
     },
+    "f:HALLOWEEN_2026": {
+      "pretty": "Halloween 2026",
+      "suggested": "Pikachu Halloween 2026",
+      "dex": [
+        25
+      ],
+      "female": [
+        25
+      ]
+    },
     "f:HORIZONS": {
       "pretty": "Horizons",
       "suggested": "Cap's Hat",
@@ -1290,6 +1313,13 @@
       "suggested": "PokémonXP",
       "dex": [
         25
+      ]
+    },
+    "f:P_HALLOWEEN_2026_01": {
+      "pretty": "P Halloween 2026 01",
+      "dex": [
+        854,
+        855
       ]
     },
     "f:ROCK_STAR": {
@@ -1487,6 +1517,12 @@
       "suggested": "Wilderness Cape",
       "dex": [
         760
+      ]
+    },
+    "f:WILDAREA_2026_01": {
+      "pretty": "Wildarea 2026 01",
+      "dex": [
+        68
       ]
     },
     "f:WINTER_2020": {
