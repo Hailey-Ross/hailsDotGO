@@ -201,7 +201,8 @@
     { "label": "Astronaut", "code": "f:GLASS_HELMET_2026" },
     { "label": "Cape", "code": "f:WILDAREA_2026_01" },
     { "label": "Halloween 2026", "code": "f:HALLOWEEN_2026" },
-    { "label": "Halloween 2026", "code": "f:P_HALLOWEEN_2026_01" }
+    { "label": "Halloween 2026", "code": "f:P_HALLOWEEN_2026_01" },
+    { "label": "Halloween 2026", "code": "f:HALLOWEEN_2026_01" }
   ],
 
   "aliases": {
