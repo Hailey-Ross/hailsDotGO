@@ -1,4 +1,5 @@
 # hailsDotGO
+![Website](https://img.shields.io/website?url=https%3A%2F%2Fhails.app%2F&style=plastic&label=pogo.hails.app)
 
 A fan-made Pokémon GO companion web app built in Go.
 
