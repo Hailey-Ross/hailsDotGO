@@ -23,8 +23,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "esbuild";
 
-const shinyUrl = (id) =>
-  `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`;
+// Sprites go through our own proxy (ts/shared/gamedata.ts pokeSpriteShiny), never PokeAPI directly.
+const shinyUrl = (id) => `/api/pokemon-sprite/shiny/${id}.png`;
 
 const CAUGHT_REGION = "viv_elegant"; // an arbitrary pattern, set on the caught Scatterbug
 

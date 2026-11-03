@@ -30,8 +30,8 @@ import { build } from "esbuild";
 
 const REGION_COLUMN_MAX = 16; // user_shinies.region is VARCHAR(16)
 
-const shinyUrl = (id) =>
-  `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`;
+// Sprites go through our own proxy (ts/shared/gamedata.ts pokeSpriteShiny), never PokeAPI directly.
+const shinyUrl = (id) => `/api/pokemon-sprite/shiny/${id}.png`;
 
 // The spec, written out here independently of ts/shared/regionalForms.ts, so this check cannot
 // agree with the code by simply reading the code's own answer back.
