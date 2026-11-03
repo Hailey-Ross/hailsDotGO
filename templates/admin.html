@@ -1302,14 +1302,27 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
 
     // The sprites are natively 256x256, so the thumbnail is throwing most of the image away. Click
     // it to see the costume properly, on every species that has it.
-    var img = document.createElement('img');
-    img.src = c.sprite_url;
-    img.alt = '';
-    img.loading = 'lazy';
-    img.title = 'View larger';
-    img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;cursor:zoom-in';
-    img.addEventListener('click', function() { openZoom(c); });
-    wrap.appendChild(img);
+    //
+    // A costume upstream announced before anyone mined its art has nothing to show, so say that
+    // instead of rendering a broken image.
+    if (c.art_pending) {
+      var noArt = document.createElement('div');
+      noArt.textContent = 'no art yet';
+      noArt.title = 'Trainers can already record it; they see the plain shiny until the art is mined';
+      noArt.style.cssText = 'width:56px;height:56px;flex:none;display:flex;align-items:center;'
+        + 'justify-content:center;text-align:center;font-size:0.7rem;color:var(--text-2);'
+        + 'border:1px dashed var(--border);border-radius:6px';
+      wrap.appendChild(noArt);
+    } else {
+      var img = document.createElement('img');
+      img.src = c.sprite_url;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.title = 'View larger';
+      img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;cursor:zoom-in';
+      img.addEventListener('click', function() { openZoom(c); });
+      wrap.appendChild(img);
+    }
 
     var text = document.createElement('div');
     text.style.cssText = 'min-width:0;flex:1';
@@ -1321,6 +1334,9 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     if (c.suggested) {
       name.textContent = c.suggested;
       name.style.cssText = 'color:var(--text-1);font-weight:600';
+    } else if (c.art_pending) {
+      name.textContent = 'no upstream name and no art yet; name it from the event notes';
+      name.style.cssText = 'color:var(--text-2);font-style:italic';
     } else {
       name.textContent = 'no upstream name; name it from the sprite';
       name.style.cssText = 'color:var(--text-2);font-style:italic';
@@ -1612,11 +1628,17 @@ const SUPERADMIN    = {{.Data.SuperadminUser}};
     wrap.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.5rem;'
       + 'border:1px solid var(--border);border-radius:6px;flex-wrap:wrap';
 
-    var img = document.createElement('img');
-    img.src = c.sprite_url;
-    img.alt = '';
-    img.loading = 'lazy';
-    img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;opacity:0.65';
+    // An upcoming costume can also be one nobody has mined art for yet; sprite_url is "" then.
+    var img = document.createElement(c.sprite_url ? 'img' : 'div');
+    if (c.sprite_url) {
+      img.src = c.sprite_url;
+      img.alt = '';
+      img.loading = 'lazy';
+    } else {
+      img.textContent = 'no art yet';
+    }
+    img.style.cssText = 'width:56px;height:56px;object-fit:contain;flex:none;opacity:0.65;'
+      + 'display:flex;align-items:center;justify-content:center;text-align:center;font-size:0.7rem';
     wrap.appendChild(img);
 
     var text = document.createElement('div');

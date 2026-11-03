@@ -171,6 +171,66 @@ func (d *Data) CostumeName(proto string) string {
 	return ""
 }
 
+// CostumeForm is one flagged costume form on one species, with its code as the asset tree would
+// spell it (bare, without the "f:" prefix).
+type CostumeForm struct {
+	Dex  int
+	Code string
+	Name string
+}
+
+// CostumeForms lists every form upstream flags a costume, which is how a costume the game has
+// announced is found before anyone has mined its art.
+//
+// The code is the proto minus the species prefix. That prefix is read off the species' own NORMAL
+// form rather than built from its name (Mr. Mime, Farfetch'd), and the name is only the fallback
+// for species with no NORMAL form at all (Sinistea's are PHONY and ANTIQUE). A proto neither
+// prefix fits is skipped rather than guessed at: a wrong code is a costume nobody can ever match.
+func (d *Data) CostumeForms() []CostumeForm {
+	var out []CostumeForm
+	for dexStr, pk := range d.Pokemon {
+		dex, err := strconv.Atoi(dexStr)
+		if err != nil {
+			continue
+		}
+		var prefixes []string
+		for _, f := range pk.Forms {
+			if p, ok := strings.CutSuffix(f.Proto, "_NORMAL"); ok {
+				prefixes = append(prefixes, p+"_")
+			}
+		}
+		prefixes = append(prefixes, protoName(pk.Name)+"_")
+		for _, f := range pk.Forms {
+			if !f.IsCostume {
+				continue
+			}
+			for _, p := range prefixes {
+				if code, ok := strings.CutPrefix(f.Proto, p); ok && code != "" {
+					out = append(out, CostumeForm{Dex: dex, Code: code, Name: f.Name})
+					break
+				}
+			}
+		}
+	}
+	return out
+}
+
+// protoName spells a species name the way the game's protos do: "Mr. Mime" is MR_MIME.
+func protoName(name string) string {
+	var b strings.Builder
+	under := false
+	for _, r := range strings.ToUpper(name) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			under = false
+		} else if !under && b.Len() > 0 {
+			b.WriteByte('_')
+			under = true
+		}
+	}
+	return strings.TrimSuffix(b.String(), "_")
+}
+
 // NameToDex maps english species name to dex number.
 func (d *Data) NameToDex() map[string]int {
 	out := make(map[string]int, len(d.Pokemon))

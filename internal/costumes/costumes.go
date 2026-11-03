@@ -13,6 +13,11 @@
 // Resolution requires a catalog hit, so a label whose code has no art upstream is simply
 // inert. That is what makes a pre-release costume safe to record without a "pending" flag,
 // and it is what stops a mistyped code from silently emitting a URL that 404s.
+//
+// The one exception is a costume upstream has flagged before anyone has mined its art (see
+// AdmitWithoutArt). It is in the catalog, so it resolves and can be recorded, but hasArt refuses
+// it, so no sprite URL is built for it until the art exists. Resolution asks covers; anything that
+// builds a URL asks hasArt.
 package costumes
 
 import (
@@ -42,6 +47,11 @@ type entry struct {
 	Pretty    string `json:"pretty"`
 	Suggested string `json:"suggested"`
 	Dex       []int  `json:"dex"`
+	// NoArt is the species in Dex whose art nobody has mined yet. They resolve, so a trainer can
+	// record the costume the day it is in the game, but no sprite is ever built for them: callers
+	// fall back to the plain shiny until the discovery job finds the art. Only the runtime overlay
+	// ever sets this; the generated catalog holds art by definition.
+	NoArt []int `json:"noArt,omitempty"`
 }
 
 // Unnamed is a costume the game has that nobody has given a label yet, and which is therefore
@@ -51,7 +61,9 @@ type Unnamed struct {
 	Pretty    string `json:"pretty"`    // the masterfile's machine name
 	Suggested string `json:"suggested"` // what Dittobase calls it, if it knows
 	Dex       []int  `json:"dex"`
-	SpriteURL string `json:"sprite_url"` // shiny art for the first eligible species
+	SpriteURL string `json:"sprite_url"` // shiny art for the first eligible species, "" when none has art yet
+	// ArtPending is true when no species has art yet, so there is no sprite to judge it by.
+	ArtPending bool `json:"art_pending,omitempty"`
 
 	// Set only for a costume the site found by itself, which is the difference between an admin
 	// confirming a name and an admin inventing one. The tab turns Pending plus Suggested into a
@@ -169,13 +181,27 @@ func resolve(dex int, species, label string) (string, bool) {
 }
 
 // SpriteURL returns the app-local URL of the shiny costume sprite, or false if the costume
-// does not resolve (callers fall back to the plain shiny).
+// does not resolve or has no art yet (callers fall back to the plain shiny either way).
 func SpriteURL(dex int, species, label string) (string, bool) {
 	code, ok := resolve(dex, species, label)
 	if !ok {
 		return "", false
 	}
+	if _, c := view(); !c.hasArt(code, dex) {
+		return "", false
+	}
 	return SpritePath + assetFile(dex, code), true
+}
+
+// ArtPending reports whether a label is a costume this species can be recorded in that has no art
+// yet, so a picker can offer it with the plain shiny instead of dropping it.
+func ArtPending(dex int, species, label string) bool {
+	code, ok := resolve(dex, species, label)
+	if !ok {
+		return false
+	}
+	_, c := view()
+	return !c.hasArt(code, dex)
 }
 
 // LabelsForDex lists the costume labels to offer for a species: its curated overrides, then
@@ -236,7 +262,7 @@ func AliasesFor(label string) []string {
 // uses it to show a costume on every species that has it, because a costume is named from the whole
 // set, not from whichever species happens to be first.
 func SpriteURLFor(dex int, code string) (string, bool) {
-	if !covers(code, dex) {
+	if _, c := view(); !c.hasArt(code, dex) {
 		return "", false
 	}
 	return SpritePath + assetFile(dex, code), true
@@ -347,10 +373,11 @@ func Unlabelled() []Unnamed {
 			Pretty:    e.Pretty,
 			Suggested: e.Suggested,
 			Dex:       e.Dex,
-			// The sprite is guaranteed servable: AllowedFile gates on catalog membership and this
-			// code is in the catalog, so the review tab can never render a broken image.
-			SpriteURL: SpritePath + assetFile(e.Dex[0], code),
+			// Guaranteed servable when set: firstSprite asks hasArt, the same test AllowedFile
+			// gates on, so the review tab can never render a broken image.
+			SpriteURL: firstSprite(c, code, e.Dex),
 		}
+		row.ArtPending = row.SpriteURL == ""
 		// Provenance, for the codes that have any. Read under the same lock the view came from.
 		if oe := overlayEntryFor(code); oe != nil {
 			row.Pending, row.Source, row.Why, row.DiscoveredAt = true, oe.Source, oe.Why, oe.DiscoveredAt
@@ -586,7 +613,13 @@ func CatalogDex() map[string][]int {
 	_, c := view()
 	out := make(map[string][]int, len(c.codes))
 	for code, e := range c.codes {
-		out[code] = slices.Clone(e.Dex)
+		// Art only. A species admitted without art counted here would make its art, once mined,
+		// look like something we already have, and the drift check would never ask for the
+		// `make costumes` that folds it into the embedded catalog.
+		dex := slices.DeleteFunc(slices.Clone(e.Dex), func(d int) bool { return slices.Contains(e.NoArt, d) })
+		if len(dex) > 0 {
+			out[code] = dex
+		}
 	}
 	return out
 }

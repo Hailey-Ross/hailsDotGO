@@ -7,12 +7,19 @@
 //
 // Both files are also go:embed'ed by internal/costumes, so the two resolvers cannot drift.
 // Resolution requires a catalog hit, so a label whose art does not exist upstream is simply
-// inert: a costume can be recorded before its release without any "pending" bookkeeping.
+// inert: a costume can be recorded before its release without any "pending" bookkeeping. The one
+// exception is a costume upstream flagged before its art was mined (noArt below): it resolves,
+// but never builds a sprite URL.
 import catalog from "../../internal/costumes/catalog.json";
 import labelData from "../../internal/costumes/labels.json";
 import type { PickerEntry } from "./picker";
+import { pokeSpriteShiny } from "./gamedata";
 
-type Catalog = { assetBase: string; codes: Record<string, { pretty: string; dex: number[] }> };
+// noArt is the species that can wear a costume nobody has mined art for yet. They resolve, so a
+// trainer can record the costume, but no sprite URL is ever built for them. Only the runtime
+// overlay sets it, so it only ever arrives through COSTUME_CATALOG.
+type CatEntry = { pretty: string; dex: number[]; noArt?: number[] };
+type Catalog = { assetBase: string; codes: Record<string, CatEntry> };
 type Labels = {
   species: Record<string, Record<string, string>>;
   shared: { label: string; code: string }[];
@@ -26,7 +33,7 @@ type Labels = {
 // compiled-in copy is missing as COSTUME_CATALOG. Without this a discovered costume would resolve
 // on public profiles and in the app but stay untypeable in the picker, which is the same bug one
 // step further down the pipe.
-declare const COSTUME_CATALOG: Record<string, { pretty: string; dex: number[] }> | null | undefined;
+declare const COSTUME_CATALOG: Record<string, CatEntry> | null | undefined;
 const catalogDelta = typeof COSTUME_CATALOG !== "undefined" ? (COSTUME_CATALOG ?? {}) : {};
 
 // Costumes that exist but are not in the game yet. Injected the same way, and deliberately NOT
@@ -67,9 +74,15 @@ export const TINY_POKEMON = new Set<number>([
   742, 743,  // Cutiefly, Ribombee
 ]);
 
-// covers: does this code have shiny art for this species?
+// covers: can this species wear this costume? Not the same as having art: see hasArt.
 function covers(code: string, dexId: number): boolean {
   return CAT.codes[code]?.dex.includes(dexId) ?? false;
+}
+
+// hasArt: is there a shiny sprite for this pair? The browser twin of the server's hasArt; every
+// sprite URL built here must ask it, or a costume announced before its art is mined renders a 404.
+function hasArt(code: string, dexId: number): boolean {
+  return covers(code, dexId) && !(CAT.codes[code]?.noArt ?? []).includes(dexId);
 }
 
 // recordable: covers, and not held for release. The browser twin of the server's covers plus
@@ -108,15 +121,21 @@ export function costumeAliasesFor(label: string): string[] {
 //
 // Each row carries its shiny sprite, because a costume is far easier to recognize than to name.
 export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[] {
-  const entries: PickerEntry[] = costumeLabelsForDex(dexId, pokemonName).map((label, i) => ({
-    key: label,
-    name: label,
-    label,
-    sprite: costumeShinyUrl(dexId, pokemonName, label),
-    aliases: costumeAliasesFor(label),
-    types: [],
-    group: i,
-  }));
+  const entries: PickerEntry[] = costumeLabelsForDex(dexId, pokemonName).map((label, i) => {
+    const sprite = costumeShinyUrl(dexId, pokemonName, label);
+    return {
+      key: label,
+      name: label,
+      label,
+      // A costume with no art yet is still offered, with the plain shiny and a tag saying why, so
+      // a trainer who has it can record it now and see the art arrive later on its own.
+      sprite: sprite ?? pokeSpriteShiny(dexId),
+      tag: sprite ? undefined : "no art yet",
+      aliases: costumeAliasesFor(label),
+      types: [],
+      group: i,
+    };
+  });
 
   // Then the ones that are coming: grayed, unselectable, and last, so they never sit between two
   // costumes a trainer can actually choose.
@@ -124,13 +143,12 @@ export function costumeEntries(dexId: number, pokemonName: string): PickerEntry[
     // Unnamed ones are skipped: the picker is driven by names, so a row with none would be a blank
     // line nobody can search for. The admin panel lists them for naming instead.
     if (!u.label) continue;
-    const e = CAT.codes[u.code];
-    if (!e || !e.dex.includes(dexId)) continue;
+    if (!covers(u.code, dexId)) continue;
     entries.push({
       key: "upcoming:" + u.code,
       name: u.label,
       label: u.label,
-      sprite: SPRITE_PATH + assetFile(dexId, u.code),
+      sprite: hasArt(u.code, dexId) ? SPRITE_PATH + assetFile(dexId, u.code) : pokeSpriteShiny(dexId),
       types: [],
       tag: u.release_date ? u.release_date : "soon",
       group: 1000,
@@ -148,7 +166,7 @@ function assetFile(dexId: number, code: string): string {
 
 export function costumeShinyUrl(dexId: number, pokemonName: string, costumeLabel: string): string | null {
   const code = resolve(dexId, pokemonName, costumeLabel);
-  return code ? SPRITE_PATH + assetFile(dexId, code) : null;
+  return code && hasArt(code, dexId) ? SPRITE_PATH + assetFile(dexId, code) : null;
 }
 
 // Costume labels to offer for a species: its curated overrides, then any shared costume it is

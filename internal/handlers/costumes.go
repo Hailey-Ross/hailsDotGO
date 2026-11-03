@@ -20,6 +20,9 @@ type mobileCostume struct {
 	Label   string   `json:"label"`
 	Sprite  string   `json:"sprite"`
 	Aliases []string `json:"aliases"`
+	// ArtPending marks a costume the game has announced before anyone mined its art. Sprite is then
+	// the species' plain shiny, so an app that does not know this field still draws a real image.
+	ArtPending bool `json:"art_pending,omitempty"`
 }
 
 // MobileCostumes serves the costume picker's contents precomputed per species, so the app needs no
@@ -52,17 +55,23 @@ func (h *Handlers) MobileCostumes(w http.ResponseWriter, r *http.Request) {
 		}
 		rows := make([]mobileCostume, 0, len(labelList))
 		for _, label := range labelList {
-			// LabelsForDex only offers labels that resolve, so this cannot miss; gating on it
-			// anyway means a row we emit is always one the sprite proxy will actually serve.
+			// LabelsForDex only offers labels that resolve, so a miss here means the costume has no
+			// art yet. Offer it with the plain shiny rather than dropping it: a trainer can have it
+			// in the game before anyone has mined the sprite. Anything else that misses is skipped,
+			// so a row we emit is always an image that will actually load.
+			pending := false
 			sprite, ok := costumes.SpriteURL(p.ID, p.Name, label)
 			if !ok {
-				continue
+				if !costumes.ArtPending(p.ID, p.Name, label) {
+					continue
+				}
+				sprite, pending = pokemonSpriteURL(p.ID, "shiny"), true
 			}
 			aliases := costumes.AliasesFor(label)
 			if aliases == nil {
 				aliases = []string{} // never null: the app treats this field as always present
 			}
-			rows = append(rows, mobileCostume{Label: label, Sprite: sprite, Aliases: aliases})
+			rows = append(rows, mobileCostume{Label: label, Sprite: sprite, Aliases: aliases, ArtPending: pending})
 		}
 		if len(rows) == 0 {
 			continue

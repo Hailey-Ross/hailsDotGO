@@ -16,6 +16,7 @@ package costumes
 import (
 	"log"
 	"net/http"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -69,15 +70,17 @@ type DiscoveryReport struct {
 	// and ones held back because upstream renamed them.
 	Released []ReleaseNote
 	// Held is what this pass newly discovered is not in the game yet.
-	Held    []Discovered
-	Scanned int
-	Commit  string
-	Notes   []string // non-fatal problems, e.g. the masterfile or Dittobase being unreachable
+	Held []Discovered
+	// ArtArrived is costumes admitted without art whose art has now been mined.
+	ArtArrived []Discovered
+	Scanned    int
+	Commit     string
+	Notes      []string // non-fatal problems, e.g. the masterfile or Dittobase being unreachable
 }
 
 // Changed reports whether this pass decided anything at all.
 func (r DiscoveryReport) Changed() bool {
-	return len(r.Admitted)+len(r.Candidates)+len(r.Released)+len(r.Held) > 0
+	return len(r.Admitted)+len(r.Candidates)+len(r.Released)+len(r.Held)+len(r.ArtArrived) > 0
 }
 
 // maxNameLookups bounds how many Dittobase pages one pass will fetch.
@@ -99,7 +102,72 @@ var (
 	newNameSource = func(cachePath string) (nameSource, func(), error) {
 		return newDittobase(cachePath)
 	}
+	costumeClock = time.Now
 )
+
+// anyArtRe is driftRe without the shiny requirement: any mined art at all, regular or shiny, male
+// or female. Same capture groups.
+var anyArtRe = regexp.MustCompile(`^pm(\d+)(?:\.f([A-Za-z0-9_]+))?(?:\.c([A-Za-z0-9_]+))?(\.g2)?(?:\.s)?\.icon\.png$`)
+
+// noArtScanEvery is how often the masterfile is read for costumes nobody has mined art for. Not
+// every pass: an hourly pass with nothing else to do would otherwise download the whole masterfile
+// every hour to learn nothing.
+const noArtScanEvery = 6 * time.Hour
+
+// lastNoArtScan is in memory on purpose: a restart rescanning once costs one download, and the scan
+// is idempotent, because AdmitWithoutArt ignores what the catalog already has.
+var lastNoArtScan time.Time
+
+// admitWithoutArt admits every costume upstream flags that has no art at all in the asset tree.
+//
+// "No art at all" is the whole safety argument, so it is checked against every file, not only the
+// shiny ones. A costume whose regular art exists but whose shiny does not is a costume whose shiny
+// is not in the game, and offering it would let a trainer record a shiny that cannot exist. A
+// costume with no art of any kind has simply not been mined yet. Measured against live upstream on
+// 2026-10-27, the rule picks out exactly the Halloween 2026 Zubat line and nothing else.
+//
+// Only .f codes: a .c costume lives in a game-wide enum that does not say which species wear it.
+func admitWithoutArt(files []string, forms formLookup) []Discovered {
+	cf, ok := forms.(interface {
+		CostumeForms() []masterfile.CostumeForm
+	})
+	if !ok {
+		return nil
+	}
+	mined := map[string]bool{} // "dex|f:CODE" with art of any kind
+	for _, f := range files {
+		if m := anyArtRe.FindStringSubmatch(f); m != nil && m[3] == "" && m[2] != "" {
+			mined[m[1]+"|f:"+m[2]] = true
+		}
+	}
+
+	_, c := view()
+	byCode := map[string][]int{}
+	pretty := map[string]string{}
+	for _, f := range cf.CostumeForms() {
+		code := "f:" + f.Code
+		if mined[strconv.Itoa(f.Dex)+"|"+code] || c.covers(code, f.Dex) || Dismissed(code) {
+			continue
+		}
+		byCode[code] = append(byCode[code], f.Dex)
+		if pretty[code] == "" {
+			pretty[code] = f.Name
+		}
+	}
+
+	var out []Discovered
+	for code, dexes := range byCode {
+		sort.Ints(dexes)
+		why := "upstream flags this a costume, and nobody has mined its art yet"
+		if err := AdmitWithoutArt(code, dexes, pretty[code], why); err != nil {
+			log.Printf("costumes: admit %s without art: %v", code, err)
+			continue
+		}
+		out = append(out, Discovered{Code: code, Dex: dexes, Why: why})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out
+}
 
 // Discover scans the upstream asset tree and acts on what it finds.
 //
@@ -134,6 +202,26 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 		}
 	}
 
+	// Art for a costume admitted before it was mined. KnownCode already knows these codes, so the
+	// scan below skips them, and without this they would stay art-less until a deploy.
+	for code, missing := range ArtMissing() {
+		var arrived []int
+		for _, d := range upstream[code] {
+			if slices.Contains(missing, d) {
+				arrived = append(arrived, d)
+			}
+		}
+		if len(arrived) == 0 {
+			continue
+		}
+		sort.Ints(arrived)
+		if err := Admit(code, arrived, sha, "", "", SourceNoArt, "", ""); err != nil {
+			rep.Notes = append(rep.Notes, "art for "+code+": "+err.Error())
+			continue
+		}
+		rep.ArtArrived = append(rep.ArtArrived, Discovered{Code: code, Dex: arrived, Why: "its art has been mined"})
+	}
+
 	// Only codes nothing here has an opinion on yet. Everything else was judged on an earlier
 	// pass, by a deploy, or by an admin, and re-judging it would re-alert forever.
 	var fresh []string
@@ -149,7 +237,11 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 	// re-ask about the ones that are waiting. Nothing new IS the steady state, so returning here
 	// silently disabled the entire releasing half, and it would have looked healthy forever,
 	// because a quiet pass and a skipped pass are indistinguishable from outside.
-	if len(fresh) == 0 && len(WaitingCodes()) == 0 && len(Unlabelled()) == 0 {
+	//
+	// The art-less scan is the one job that cannot be triggered by anything here: a costume upstream
+	// announced has, by definition, left no trace in the asset tree. So it runs on a clock instead.
+	scanNoArt := force || costumeClock().Sub(lastNoArtScan) >= noArtScanEvery
+	if len(fresh) == 0 && len(WaitingCodes()) == 0 && len(Unlabelled()) == 0 && !scanNoArt {
 		return rep, nil
 	}
 
@@ -158,6 +250,11 @@ func Discover(force bool, namesCache string) (DiscoveryReport, error) {
 		rep.Notes = append(rep.Notes, "the masterfile was unreachable, so unflagged codes could not be judged: "+err.Error())
 	} else {
 		forms = mf
+	}
+
+	if scanNoArt && forms != nil {
+		lastNoArtScan = costumeClock()
+		rep.Admitted = append(rep.Admitted, admitWithoutArt(files, forms)...)
 	}
 
 	// Dittobase is only consulted for codes that reach the corroboration step, and only then is

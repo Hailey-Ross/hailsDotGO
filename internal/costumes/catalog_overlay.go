@@ -68,16 +68,24 @@ type catEntry struct {
 	DiscoveredAt string `json:"discoveredAt"`
 	By           string `json:"by,omitempty"` // set only when an admin admitted it by hand
 
+	// NoArt is the species in Dex that upstream has announced but nobody has mined art for yet.
+	// AssetBase is "" while every species is in it.
+	NoArt []int `json:"noArt,omitempty"`
+	// DexBase pins a species whose art arrived at a later commit than AssetBase, keyed by dex.
+	// Without it a species that gains art a week after its siblings would be served off the older
+	// commit, where that file does not exist.
+	DexBase map[string]string `json:"dexBase,omitempty"`
 }
 
 // Why a code was admitted. Recorded so an admin reading the review queue can tell a costume
 // upstream vouched for from one the site worked out for itself.
 const (
-	SourceCostumePrefix = "costume-prefix" // a c: code, unambiguous from the asset tree alone
-	SourceMasterfile    = "masterfile"     // upstream flags the form a costume
-	SourceCurated       = "curated"        // a label in labels.json already vouches for it
-	SourceCorroborated  = "corroborated"   // unflagged, but shaped like a costume and named upstream
-	SourceAdmin         = "admin"          // an admin looked at the sprite and said so
+	SourceCostumePrefix = "costume-prefix"    // a c: code, unambiguous from the asset tree alone
+	SourceMasterfile    = "masterfile"        // upstream flags the form a costume
+	SourceCurated       = "curated"           // a label in labels.json already vouches for it
+	SourceCorroborated  = "corroborated"      // unflagged, but shaped like a costume and named upstream
+	SourceAdmin         = "admin"             // an admin looked at the sprite and said so
+	SourceNoArt         = "masterfile-no-art" // upstream flags it a costume; nobody has mined its art yet
 )
 
 // Candidate is a code with shiny art that could NOT be judged automatically. It is not in the
@@ -178,15 +186,23 @@ func (c *catView) available(code string) bool {
 	return !waiting || e.Available(costumeNow())
 }
 
+// covers reports whether a species can wear a costume, which is what resolution asks. It does NOT
+// mean there is art: see hasArt.
 func (c *catView) covers(code string, dex int) bool {
 	e, ok := c.codes[code]
 	return ok && slices.Contains(e.Dex, dex)
 }
 
-// showable reports whether a sprite may be proxied for this pair: resolvable codes, plus
+// hasArt reports whether a sprite exists for this pair. Everything that builds a sprite URL must ask
+// this rather than covers, or a costume announced before its art is mined renders as a 404.
+func (c *catView) hasArt(code string, dex int) bool {
+	return c.covers(code, dex) && !slices.Contains(c.codes[code].NoArt, dex)
+}
+
+// showable reports whether a sprite may be proxied for this pair: codes with art, plus
 // candidates, which an admin has to look at to judge.
 func (c *catView) showable(code string, dex int) bool {
-	if c.covers(code, dex) {
+	if c.hasArt(code, dex) {
 		return true
 	}
 	cand, ok := c.candidates[code]
@@ -235,6 +251,7 @@ func loadCatalogOverlayLocked() {
 			continue
 		}
 		e.Dex = slices.DeleteFunc(e.Dex, func(d int) bool { return slices.Contains(emb.Dex, d) })
+		e.NoArt = slices.DeleteFunc(e.NoArt, func(d int) bool { return slices.Contains(emb.Dex, d) })
 		if len(e.Dex) == 0 {
 			delete(ovCat.Codes, code)
 			log.Printf("costumes: %s is in the embedded catalog now (overlay entry dropped)", code)
@@ -304,9 +321,13 @@ func rebuildCatLocked() {
 		}
 		emb, ok := next.codes[code]
 		if !ok {
-			next.codes[code] = &entry{Pretty: oe.Pretty, Suggested: oe.Suggested, Dex: slices.Clone(oe.Dex)}
+			next.codes[code] = &entry{Pretty: oe.Pretty, Suggested: oe.Suggested, Dex: slices.Clone(oe.Dex),
+				NoArt: slices.Clone(oe.NoArt)}
 		} else {
-			merged := &entry{Pretty: emb.Pretty, Suggested: emb.Suggested, Dex: slices.Clone(emb.Dex)}
+			// The embedded catalog only ever holds art, so the overlay's art-less species are
+			// exactly the ones it does not cover.
+			merged := &entry{Pretty: emb.Pretty, Suggested: emb.Suggested, Dex: slices.Clone(emb.Dex),
+				NoArt: slices.DeleteFunc(slices.Clone(oe.NoArt), func(d int) bool { return slices.Contains(emb.Dex, d) })}
 			if merged.Pretty == "" {
 				merged.Pretty = oe.Pretty
 			}
@@ -327,7 +348,14 @@ func rebuildCatLocked() {
 			if emb != nil && slices.Contains(emb.Dex, d) {
 				continue
 			}
-			next.base[baseKey(code, d)] = oe.AssetBase
+			if slices.Contains(oe.NoArt, d) {
+				continue // no art, so no base; hasArt keeps every URL builder away from it
+			}
+			b := oe.AssetBase
+			if db := oe.DexBase[fmt.Sprint(d)]; db != "" {
+				b = db
+			}
+			next.base[baseKey(code, d)] = b
 		}
 	}
 	for code, c := range disc.Candidates {
@@ -426,11 +454,29 @@ func Admit(code string, dex []int, sha, pretty, suggested, source, why, by strin
 	}
 	if existing, ok := ovCat.Codes[code]; ok {
 		for _, d := range add {
+			// A species admitted without art and a brand new species are the same job here: both
+			// now have art, at THIS commit.
+			if slices.Contains(existing.Dex, d) && !slices.Contains(existing.NoArt, d) {
+				continue // already has art; keep the pin it was served from
+			}
 			if !slices.Contains(existing.Dex, d) {
 				existing.Dex = append(existing.Dex, d)
 			}
+			existing.NoArt = slices.DeleteFunc(existing.NoArt, func(x int) bool { return x == d })
+			switch {
+			case existing.AssetBase == "":
+				existing.AssetBase, existing.SourceCommit = AssetBaseFor(sha), sha
+			case existing.SourceCommit != sha:
+				if existing.DexBase == nil {
+					existing.DexBase = map[string]string{}
+				}
+				existing.DexBase[fmt.Sprint(d)] = AssetBaseFor(sha)
+			}
 		}
 		sort.Ints(existing.Dex)
+		if len(existing.NoArt) == 0 {
+			existing.NoArt = nil
+		}
 	} else {
 		ovCat.Codes[code] = &catEntry{
 			AssetBase:    AssetBaseFor(sha),
@@ -451,6 +497,72 @@ func Admit(code string, dex []int, sha, pretty, suggested, source, why, by strin
 		return err
 	}
 	return commitDiscoveryLocked()
+}
+
+// AdmitWithoutArt adds a costume upstream has flagged but nobody has mined art for yet, so trainers
+// can record it the day it is in the game rather than the day the art turns up.
+//
+// It bends this package's oldest rule, that resolution requires art, and only that far: the code
+// resolves, so it can be named and offered, but hasArt refuses it, so no sprite URL is ever built
+// and the proxy will not fetch it. Entries recorded against it show the plain shiny until Admit is
+// called with a commit that has the art, at which point they switch over by themselves, because the
+// label never changes and only the art behind it does.
+//
+// Only upstream's own isCostume flag may call this. With no art there is no sprite for an admin to
+// check a name against, so the corroboration a sprite normally gives is exactly what is missing.
+func AdmitWithoutArt(code string, dex []int, pretty, why string) error {
+	if code == "" || len(dex) == 0 {
+		return fmt.Errorf("costumes: admit %q without art: needs a code and at least one species", code)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	add := slices.Clone(dex)
+	if emb, ok := cat.Codes[code]; ok {
+		add = slices.DeleteFunc(add, func(d int) bool { return slices.Contains(emb.Dex, d) })
+	}
+	if existing, ok := ovCat.Codes[code]; ok {
+		add = slices.DeleteFunc(add, func(d int) bool { return slices.Contains(existing.Dex, d) })
+	}
+	if len(add) == 0 {
+		return nil
+	}
+	sort.Ints(add)
+
+	if ovCat.Codes == nil {
+		ovCat.Codes = map[string]*catEntry{}
+	}
+	if existing, ok := ovCat.Codes[code]; ok {
+		existing.Dex = append(existing.Dex, add...)
+		existing.NoArt = append(existing.NoArt, add...)
+		sort.Ints(existing.Dex)
+		sort.Ints(existing.NoArt)
+	} else {
+		ovCat.Codes[code] = &catEntry{
+			Pretty:       pretty,
+			Dex:          add,
+			NoArt:        slices.Clone(add),
+			Source:       SourceNoArt,
+			Why:          why,
+			DiscoveredAt: time.Now().UTC().Format(time.RFC3339),
+		}
+	}
+	return commitCatalogLocked()
+}
+
+// ArtMissing lists, by code, the species that resolve but have no art yet, so the discovery job
+// can ask the asset tree about exactly those.
+func ArtMissing() map[string][]int {
+	mu.RLock()
+	defer mu.RUnlock()
+	out := map[string][]int{}
+	for code, e := range ovCat.Codes {
+		if len(e.NoArt) > 0 {
+			out[code] = slices.Clone(e.NoArt)
+		}
+	}
+	return out
 }
 
 // AddCandidate records a code that could not be judged, so an admin can look at the sprite. It is
@@ -717,7 +829,8 @@ func CatalogDelta() map[string]*entry {
 			// The browser already has this one compiled in; only send what it is missing.
 			continue
 		}
-		out[code] = &entry{Pretty: oe.Pretty, Suggested: oe.Suggested, Dex: slices.Clone(oe.Dex)}
+		out[code] = &entry{Pretty: oe.Pretty, Suggested: oe.Suggested, Dex: slices.Clone(oe.Dex),
+			NoArt: slices.Clone(oe.NoArt)}
 	}
 	return out
 }
@@ -757,13 +870,21 @@ func UpcomingCostumes() []Upcoming {
 			NameChanged: h.NameChanged,
 			CheckedAt:   h.CheckedAt,
 		}
-		if len(row.Dex) > 0 {
-			row.SpriteURL = SpritePath + assetFile(row.Dex[0], code)
-		}
+		row.SpriteURL = firstSprite(c, code, row.Dex)
 		out = append(out, row)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
 	return out
+}
+
+// firstSprite is the sprite for the first species that has art, or "" when none has yet.
+func firstSprite(c *catView, code string, dex []int) string {
+	for _, d := range dex {
+		if c.hasArt(code, d) {
+			return SpritePath + assetFile(d, code)
+		}
+	}
+	return ""
 }
 
 // labelPointingAt finds the label pointing at a code, or "" when nobody has named it.
