@@ -77,8 +77,8 @@
   "credits.tab.api":       "API",
   "credits.tab.changelog": "Historique",
 
-  "credits.about.what_title":  "Qu'est-ce que hailsDotGO ?",
-  "credits.about.what_body":   "hailsDotGO est une boîte à outils non officielle pour les joueurs de Pokémon GO : compteurs de raid, calculs DPS, classements IVs PvP, un Pokédex chromatique complet, un suivi de collection personnel, un Annuaire des Dresseurs et un Chercheur de Raids en direct.",
+  "credits.about.what_title":  "Qu'est-ce que FlexDex ?",
+  "credits.about.what_body":   "FlexDex est une boîte à outils non officielle pour les joueurs de Pokémon GO : compteurs de raid, calculs DPS, classements IVs PvP, un Pokédex chromatique complet, un suivi de collection personnel, un Annuaire des Dresseurs et un Chercheur de Raids en direct.",
   "credits.about.disclaimer":  "Le site n'est pas affilié à Niantic, The Pokémon Company ou Nintendo.",
   "credits.about.sources_title": "Sources de données",
   "credits.about.source_pogoapi":    "Statistiques Pokémon, mouvements, efficacité des types, disponibilité chromatique, multiplicateurs de PC",

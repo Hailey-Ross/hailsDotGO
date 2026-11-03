@@ -77,8 +77,8 @@
   "credits.tab.api":       "API",
   "credits.tab.changelog": "Änderungsprotokoll",
 
-  "credits.about.what_title":  "Was ist hailsDotGO?",
-  "credits.about.what_body":   "hailsDotGO ist ein inoffizielles Toolkit für Pokémon GO-Spieler: Raid-Konter, DPS-Berechnungen, PvP-IV-Rankings, ein vollständiges Shiny-Pokédex, ein persönlicher Sammlungs-Tracker, ein Trainer-Verzeichnis und ein Live-Raid-Finder zur Koordinierung von Remote-Raids.",
+  "credits.about.what_title":  "Was ist FlexDex?",
+  "credits.about.what_body":   "FlexDex ist ein inoffizielles Toolkit für Pokémon GO-Spieler: Raid-Konter, DPS-Berechnungen, PvP-IV-Rankings, ein vollständiges Shiny-Pokédex, ein persönlicher Sammlungs-Tracker, ein Trainer-Verzeichnis und ein Live-Raid-Finder zur Koordinierung von Remote-Raids.",
   "credits.about.disclaimer":  "Die Seite ist nicht mit Niantic, The Pokémon Company oder Nintendo verbunden.",
   "credits.about.sources_title": "Datenquellen",
   "credits.about.source_pogoapi":    "Pokémon-Statistiken, Attacken, Typeffektivität, Shiny-Verfügbarkeit, WP-Multiplikatoren",

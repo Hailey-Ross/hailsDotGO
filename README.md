@@ -1,6 +1,8 @@
-# hailsDotGO
+# FlexDex
 
 A fan-made Pokémon GO companion web app built in Go.
+
+The site is called FlexDex, the same name as its Android app. The repository, Go binary, systemd service and server paths keep the original **hailsDotGO** name.
 
 - Live raid bosses and Max Battles with counter recommendations
 - DPS calculator, moveset comparison, and PvP IV ranker (GL / UL / ML)
@@ -16,7 +18,7 @@ A fan-made Pokémon GO companion web app built in Go.
 - Supporter store with optional donation perks (PayPal)
 - Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates. Pokémon names are accepted in any of those languages wherever the site asks for one, and stored under their English name so a collection entered in one language still lines up with everything else
 - Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
-- **FlexDex**, an Android companion app on the same account and the same database, which scans a Pokémon straight off your screen while you play and carries almost the whole site as native screens
+- **FlexDex for Android**, a companion app on the same account and the same database, which scans a Pokémon straight off your screen while you play and carries almost the whole site as native screens
 
 ---
 
@@ -62,7 +64,7 @@ For how to build from a tagged release and how to upgrade an existing install to
 
 **FlexDex is coming soon to an Android device near you.**
 
-FlexDex is the Android companion app for hailsDotGO. It signs in to the same account, reads the same data, and writes to the same database as the website, so a shiny logged on your phone is on your profile before you put it down. It is now a near complete native client rather than a scanner with a browser attached.
+The FlexDex Android app is the companion to the website. It signs in to the same account, reads the same data, and writes to the same database as the website, so a shiny logged on your phone is on your profile before you put it down. It is now a near complete native client rather than a scanner with a browser attached.
 
 **▶ [Watch a tour of build 67](https://assets.hails.cc/flexdex/preview-build-67.mp4)**  
 <sub>Older: [tour of build 32](https://youtube.com/shorts/N03vO9PLuy8) (outdated, kept for reference)</sub>

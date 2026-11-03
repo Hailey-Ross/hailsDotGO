@@ -103,8 +103,8 @@
   "credits.tab.api":       "API",
   "credits.tab.changelog": "Changelog",
 
-  "credits.about.what_title":  "What is hailsDotGO?",
-  "credits.about.what_body":   "hailsDotGO is a fan-made toolkit for Pokémon GO players: raid counters, DPS calculations, PvP IV rankings, a full shiny Pokémon dex, a personal shiny collection tracker, a Trainer Directory, and a live Raid Finder for coordinating remote raids with other players.",
+  "credits.about.what_title":  "What is FlexDex?",
+  "credits.about.what_body":   "FlexDex is a fan-made toolkit for Pokémon GO players: raid counters, DPS calculations, PvP IV rankings, a full shiny Pokémon dex, a personal shiny collection tracker, a Trainer Directory, and a live Raid Finder for coordinating remote raids with other players.",
   "credits.about.disclaimer":  "The site is not affiliated with Niantic, The Pokémon Company, or Nintendo.",
   "credits.about.sources_title": "Data Sources",
   "credits.about.source_pogoapi":    "Pokémon stats, moves, type effectiveness, shiny availability, CP multipliers",
@@ -704,7 +704,7 @@
   "admin.pages.disabled":         "Disabled (maintenance)",
 
   "home.translate.title":           "Help Translate",
-  "home.translate.desc":            "Join the translator team and help bring hailsDotGO to your language.",
+  "home.translate.desc":            "Join the translator team and help bring FlexDex to your language.",
   "home.translate.workspace_title": "Translation Workspace",
   "home.translate.workspace_desc":  "Submit locale suggestions, review pending changes, and manage community translations.",
 
@@ -751,7 +751,7 @@
   "translate.locale.hidden":      "Hidden from the public until an admin enables it",
 
   "translate.landing.title":          "Join the Translator Program",
-  "translate.landing.desc":           "Help make hailsDotGO accessible in your language. Translators get access to the translation workspace to suggest locale changes, which are reviewed and published by admins.",
+  "translate.landing.desc":           "Help make FlexDex accessible in your language. Translators get access to the translation workspace to suggest locale changes, which are reviewed and published by admins.",
   "translate.landing.cta_login":      "Log in to apply",
   "translate.landing.cta_register":   "Create an account",
 

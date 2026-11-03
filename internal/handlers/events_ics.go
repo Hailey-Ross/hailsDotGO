@@ -73,7 +73,7 @@ func (h *Handlers) EventsICS(w http.ResponseWriter, r *http.Request) {
 	var b strings.Builder
 	writeICSLine(&b, "BEGIN:VCALENDAR")
 	writeICSLine(&b, "VERSION:2.0")
-	writeICSLine(&b, "PRODID:-//hailsDotGO//Events//EN")
+	writeICSLine(&b, "PRODID:-//FlexDex//Events//EN")
 	writeICSLine(&b, "CALSCALE:GREGORIAN")
 	writeICSLine(&b, "METHOD:PUBLISH")
 	writeICSLine(&b, "X-WR-CALNAME:Pokémon GO Events")
@@ -150,7 +150,7 @@ func (h *Handlers) EventICS(w http.ResponseWriter, r *http.Request) {
 	var b strings.Builder
 	writeICSLine(&b, "BEGIN:VCALENDAR")
 	writeICSLine(&b, "VERSION:2.0")
-	writeICSLine(&b, "PRODID:-//hailsDotGO//Events//EN")
+	writeICSLine(&b, "PRODID:-//FlexDex//Events//EN")
 	writeICSLine(&b, "CALSCALE:GREGORIAN")
 	writeICSLine(&b, "METHOD:PUBLISH")
 	if !writeVEVENT(&b, *found, stamp) {

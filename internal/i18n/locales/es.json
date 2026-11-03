@@ -77,8 +77,8 @@
   "credits.tab.api":       "API",
   "credits.tab.changelog": "Historial",
 
-  "credits.about.what_title":  "¿Qué es hailsDotGO?",
-  "credits.about.what_body":   "hailsDotGO es una caja de herramientas de fans para jugadores de Pokémon GO: contadores de incursiones, cálculos de DPS, clasificaciones de IVs en PvP, una pokédex shiny completa, un rastreador personal de colección, un Directorio de Entrenadores y un Buscador de Incursiones en vivo para coordinar incursiones remotas.",
+  "credits.about.what_title":  "¿Qué es FlexDex?",
+  "credits.about.what_body":   "FlexDex es una caja de herramientas de fans para jugadores de Pokémon GO: contadores de incursiones, cálculos de DPS, clasificaciones de IVs en PvP, una pokédex shiny completa, un rastreador personal de colección, un Directorio de Entrenadores y un Buscador de Incursiones en vivo para coordinar incursiones remotas.",
   "credits.about.disclaimer":  "El sitio no está afiliado a Niantic, The Pokémon Company ni Nintendo.",
   "credits.about.sources_title": "Fuentes de Datos",
   "credits.about.source_pogoapi":    "Estadísticas de Pokémon, movimientos, efectividad de tipos, disponibilidad shiny, multiplicadores de CP",
