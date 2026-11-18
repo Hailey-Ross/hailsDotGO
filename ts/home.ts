@@ -56,6 +56,28 @@ function greet(): void {
 }
 
 /* ---------- Raid bosses by tier ---------- */
+// A tier row wider than its card scrolls sideways. It marks which edges hide more bosses (for the
+// fade), and over a row a mouse wheel scrolls it sideways until the row ends, then the page scrolls.
+function scrollRow(row: HTMLElement): void {
+  const mark = () => {
+    const max = row.scrollWidth - row.clientWidth;
+    row.classList.toggle('more-left', row.scrollLeft > 2);
+    row.classList.toggle('more-right', row.scrollLeft < max - 2);
+  };
+  row.addEventListener('scroll', mark, { passive: true });
+  new ResizeObserver(mark).observe(row);
+  row.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.ctrlKey) return;   // trackpad sideways swipes and zoom work as usual
+    const max = row.scrollWidth - row.clientWidth;
+    if (max <= 0) return;
+    const atEnd = e.deltaY > 0 ? row.scrollLeft >= max - 1 : row.scrollLeft <= 0;
+    if (atEnd) return;                                                    // let the page scroll on
+    e.preventDefault();
+    row.scrollBy({ left: e.deltaY, behavior: 'auto' });
+  }, { passive: false });
+  mark();
+}
+
 async function raids(): Promise<void> {
   const box = $('fk-raids-now');
   if (!box) return;
@@ -67,6 +89,7 @@ async function raids(): Promise<void> {
       data[t].map(b => '<a class="fk-boss" href="/raids#boss=' + encodeURIComponent(b.pokemon_name) + '">' + sticker(b.pokemon_name, b.image_url, b.types || [], !!b.can_be_shiny) + '<span>' + esc(b.pokemon_name) + '</span></a>').join('') +
       '</div></div>').join('') || '<p class="fk-meta">' + esc(I.raidsNone) + '</p>';
     trimStickers(box);
+    box.querySelectorAll<HTMLElement>('.fk-tier-row').forEach(scrollRow);
   } catch {
     box.innerHTML = '<p class="fk-meta">' + esc(I.raidsNone) + '</p>';
   }

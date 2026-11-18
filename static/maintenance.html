@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="/static/app/icons/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/app/icons/favicon-32.png">
   <title>FlexDex: Updating</title>
   <script>
   // Light or dark from the visitor's saved Field Kit setting (same key as the site), else the system,
@@ -128,7 +130,7 @@
   <main>
     <section class="card" aria-live="polite">
       <div class="logo-wrap">
-        <img class="logo" src="/static/app/icons/logo.svg" alt="FlexDex">
+        <img class="logo" id="logo" src="/static/app/icons/logo.svg" alt="FlexDex">
         <span class="stamp">Back soon</span>
       </div>
       <h1>Repacking the field kit</h1>
@@ -143,6 +145,9 @@
 
 <script>
   (function () {
+    // The logo is served by the app, which may be mid-restart: hide it rather than show a broken image.
+    var logo = document.getElementById('logo');
+    if (logo) { logo.addEventListener('error', function () { logo.style.visibility = 'hidden'; }); if (logo.complete && !logo.naturalWidth) logo.style.visibility = 'hidden'; }
     var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     // A few stars for the night sky.

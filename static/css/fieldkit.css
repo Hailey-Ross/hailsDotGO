@@ -421,15 +421,14 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
   color: #fff; font-family: var(--font-display); font-weight: 750; font-size: calc(var(--s) * 0.3); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transform: rotate(var(--tilt, 0deg)); }
 /* With real art the sticker is a light paper face tinted by the type, ringed in the type colors,
    and the sprite is drawn large with a thin white die-cut edge, so dark Pokemon never sink into it. */
-/* With real art the sticker face is a mid-tone of the type color: light enough for dark Pokemon,
-   dark enough for white and pale ones, ringed in the type colors. No glow behind the art; the sprite
-   gets a thin white die-cut edge and a soft shadow so it reads on any face. */
-.fk-sticker:has(img) { background: radial-gradient(circle at 50% 36%, color-mix(in oklab, var(--t1) 42%, #b9bec4) 0, color-mix(in oklab, var(--t1) 55%, #6c737b) 100%);
-  box-shadow: inset 0 0 0 calc(var(--s) * 0.05) color-mix(in oklab, var(--t1) 70%, var(--t2)), 0 2px 7px rgba(0, 0, 0, 0.2); }
+/* With real art there is no backdrop at all: the Pokemon is drawn on its own, larger, with a soft
+   shadow under it (owner's choice after the circle, tinted and gray faces all read poorly). Stickers
+   without art (the initials fallback) keep their circle. */
+.fk-sticker:has(img) { background: none; box-shadow: none; border-color: transparent; transform: none; }
 .fk-sticker img { position: relative; z-index: 1; }
-.fk-sticker img { width: 112%; height: 112%; max-width: none; object-fit: contain; image-rendering: auto;
-  filter: drop-shadow(0 0 0.8px #fff) drop-shadow(0 0 0.8px #fff) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35)); }
-.fk-sticker img.trimmed { width: 90%; height: 90%; }
+.fk-sticker img { width: 135%; height: 135%; max-width: none; object-fit: contain; image-rendering: auto;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45)); }
+.fk-sticker img.trimmed { width: 118%; height: 118%; }
 /* Shiny badge: a small circle with a star bigger than it, outlined in the card color and shadowed so
    it reads on any background. Scales with the sticker, capped on the big field page stickers. */
 .fk-sticker .fk-spark { position: absolute; z-index: 2; top: -4px; right: -4px; width: clamp(15px, calc(var(--s) * 0.3), 23px); height: clamp(15px, calc(var(--s) * 0.3), 23px); border-radius: 50%;
@@ -1024,6 +1023,18 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 .fk-tier .fk-label { width: 52px; flex: none; }
 .fk-tier-row { display: flex; gap: 12px; overflow-x: auto; padding: 10px 8px 6px 4px; scrollbar-width: none; min-width: 0; overscroll-behavior-x: contain; }
 .fk-tier-row::-webkit-scrollbar { display: none; }
+/* Rows that run past the card: snap to whole bosses, fade the edge that hides more, and for mouse
+   users show a thin scrollbar (touch screens just swipe). */
+.fk-tier-row { scroll-snap-type: x proximity; scroll-padding-inline: 4px; }
+.fk-tier-row > .fk-boss { scroll-snap-align: start; }
+.fk-tier-row.more-right { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+.fk-tier-row.more-left { -webkit-mask-image: linear-gradient(90deg, transparent, #000 36px); mask-image: linear-gradient(90deg, transparent, #000 36px); }
+.fk-tier-row.more-left.more-right { -webkit-mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .fk-tier-row:is(.more-left, .more-right) { scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; padding-bottom: 8px; }
+  .fk-tier-row:is(.more-left, .more-right)::-webkit-scrollbar { display: block; height: 6px; }
+  .fk-tier-row:is(.more-left, .more-right)::-webkit-scrollbar-thumb { background: var(--line-hi); border-radius: 99px; }
+}
 .fk-boss { display: flex; flex-direction: column; align-items: center; gap: 7px; width: 84px; flex: none; font-size: 11.5px; font-weight: 600; color: var(--fg-2); text-align: center; line-height: 1.2; }
 .fk-boss > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .fk-boss .fk-sticker { --s: 64px; transition: transform 0.35s var(--spring); }

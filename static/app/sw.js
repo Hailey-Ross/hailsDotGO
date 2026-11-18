@@ -4,11 +4,13 @@
 // a page cannot load. It never caches pages or API data: everything a trainer sees stays live
 // (raids, events, their own data), and nothing signed in is ever stored on the device.
 // Served from /sw.js so its scope is the whole site. Bump VERSION when the cached files change.
-const VERSION = 'flexdex-shell-1';
+const VERSION = 'flexdex-shell-3';
 const OFFLINE = '/static/app/offline.html';
 const PRECACHE = [
   OFFLINE,
   '/static/app/icons/logo.svg',
+  '/static/app/icons/favicon.svg',
+  '/static/app/icons/favicon-32.png',
   '/static/app/icons/icon-192.png',
   '/static/fonts/figtree-latin.woff2',
   '/static/fonts/bricolage-grotesque-latin.woff2',

@@ -161,7 +161,8 @@ func (h *Handlers) langEnabled(code string) bool {
 func computeAssetVersion() string {
 	hasher := sha256.New()
 	count := 0
-	for _, dir := range []string{"static/css", "static/js"} {
+	// The app icons are included so a new favicon also changes the ?v= stamp on its links.
+	for _, dir := range []string{"static/css", "static/js", "static/app/icons"} {
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info == nil || info.IsDir() {
 				return nil
