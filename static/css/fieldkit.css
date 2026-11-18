@@ -570,9 +570,16 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 
 /* Trainer profile (concept "Trainer card"): a big round avatar, the name in the display face, and
    the rest of the profile as field cards in two columns on wide screens. */
-:root[data-page="fieldkit"] .trainer-profile-page { display: grid; gap: 16px; align-items: start; }
-@media (min-width: 900px) { :root[data-page="fieldkit"] .trainer-profile-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-:root[data-page="fieldkit"] .trainer-profile-page > :first-child, :root[data-page="fieldkit"] .trainer-profile-card { grid-column: 1 / -1; }
+:root[data-page="fieldkit"] .trainer-profile-page { display: grid; gap: 16px; align-items: start; max-width: none; }
+/* Wide screens: the cards flow down two independent columns, so a short card (the badges) never
+   leaves a row-height hole beside a tall one (followers). The profile card spans both on top. */
+@media (min-width: 900px) {
+  :root[data-page="fieldkit"] .trainer-profile-page { display: block; columns: 2; column-gap: 16px; }
+  :root[data-page="fieldkit"] .trainer-profile-page { padding-top: 14px; }
+  :root[data-page="fieldkit"] .trainer-profile-page > * { break-inside: avoid; display: block; width: 100%; margin: 0 0 22px !important; }
+  :root[data-page="fieldkit"] .trainer-profile-page > [style*="display:none"], :root[data-page="fieldkit"] .trainer-profile-page > [hidden] { display: none; }
+  }
+:root[data-page="fieldkit"] .trainer-profile-card { grid-column: 1 / -1; }
 :root[data-page="fieldkit"] .trainer-profile-card { margin-top: 14px; padding: 20px; }
 :root[data-page="fieldkit"] .trainer-profile-hero { align-items: center; gap: 18px; }
 :root[data-page="fieldkit"] .trainer-profile-sprite-group { width: 96px; height: 96px; }
@@ -793,10 +800,30 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 .fk-raids .upnext-cal-day.is-empty { background: transparent; border: 1px dashed var(--line-hi); }
 .fk-raids .upnext-cal-day.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .fk-raids .upnext-cal-head span, .fk-raids .upnext-cal-date { font-family: var(--font-mono); color: var(--fg-3); }
+/* Up next: when the calendar itself is narrow (the boss pane shares the screen, or a tablet), seven
+   columns squeeze long boss names into tall towers. Below 900 px of its own width it becomes the
+   list phones already get: only days with something on, one row per day, date on the left. */
+.fk-raids .raid-upnext { container-type: inline-size; }
+@container (max-width: 900px) {
+  .fk-raids .upnext-cal-head { display: none; }
+  .fk-raids .upnext-cal-grid { grid-template-columns: 1fr; gap: 8px; }
+  .fk-raids .upnext-cal-day.is-empty, .fk-raids .upnext-cal-day.is-past { display: none; }
+  .fk-raids .upnext-cal-day { min-height: 0; display: grid; grid-template-columns: 76px minmax(0, 1fr); column-gap: 14px; row-gap: 0; padding: 10px 14px; align-items: start; }
+  .fk-raids .upnext-cal-date { grid-column: 1; grid-row: 1 / span 20; flex-direction: column; gap: 2px; padding-top: 4px; font-size: 13px; color: var(--fg); }
+  .fk-raids .upnext-cal-weekday { display: inline; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+  .fk-raids .upnext-cal-day.is-today .upnext-cal-date { color: var(--accent); }
+  .fk-raids .upnext-cal-item { grid-column: 2; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 0; }
+  .fk-raids .upnext-cal-item + .upnext-cal-item { border-top: 1px solid var(--line); padding-top: 8px; }
+  .fk-raids .upnext-cal-tier { flex: 0 0 64px; font-size: 10px; }
+  .fk-raids .upnext-cal-mons { flex: none; gap: 4px; }
+  .fk-raids .upnext-cal-mons img { width: 30px; height: 30px; }
+  .fk-raids .upnext-cal-names { flex: 1 1 180px; min-width: 0; font-size: 13.5px; line-height: 1.35; }
+  .fk-raids .upnext-cal-until { flex: none; margin-left: auto; font-size: 12px; color: var(--fg-3); white-space: nowrap; }
+}
 /* Inside the field page the counter and box sections are part of the page, not cards of their own. */
 :root[data-page="fieldkit"] .fk-species :is(.counter-results, .box-vs-boss) { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; border-radius: 0; animation: none; }
 .fk-species .box-vs-boss-loading .loading-state { box-shadow: none; }
-.fk-species .box-vs-boss a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font-weight: 700; margin-top: 4px; }
+:root[data-page="fieldkit"] .fk-species .box-vs-boss p > a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font-weight: 700; margin-top: 4px; }
 .fk-species .box-vs-boss .empty-state { padding: 0 0 6px; }
 
 /* Events: the week ahead as day tiles, a filter switch, event index cards. */
@@ -1088,3 +1115,10 @@ img.fk-prof-av, .fk-av.fk-prof-av { width: 76px; height: 76px; flex: none; borde
 :root[data-page="fieldkit"] .fk-split > [data-tab]:not([data-tab=""]) { position: relative; }
 :root[data-page="fieldkit"] .fk-split > [data-tab]:not([data-tab=""])::before { content: attr(data-tab); position: absolute; top: -13px; left: 18px; height: 24px; padding: 0 11px; display: flex; align-items: center; z-index: 1;
   border-radius: 9px; background: var(--surface); border: 1px solid var(--line); font: 400 10.5px var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+/* Trainer profile: back button label centered; feedback rows keep the flag beside the name, the date
+   on the right, and room for the moderator delete icon pinned in the corner. */
+:root[data-page="fieldkit"] a.fk-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; line-height: 1; }
+:root[data-page="fieldkit"] .feedback-card-header { justify-content: flex-start; align-items: center; }
+:root[data-page="fieldkit"] .feedback-card-header .feedback-date { margin-left: auto; }
+:root[data-page="fieldkit"] .feedback-card:has(.feedback-mod-delete) .feedback-card-header { padding-right: 28px; }
+:root[data-page="fieldkit"] .feedback-mod-delete { top: 12px; right: 12px; }

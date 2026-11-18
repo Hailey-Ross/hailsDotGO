@@ -215,7 +215,9 @@ document.addEventListener('click', e => {
   const t = e.target as Element;
   const inbox = t.closest('[data-inbox]') as HTMLElement | null;
   if (inbox && !(e as MouseEvent).ctrlKey && !(e as MouseEvent).metaKey) { e.preventDefault(); openSheet('inbox'); fillInbox(); return; }
-  const opener = t.closest('[data-sheet]') as HTMLElement | null;
+  // Only the opener buttons: the open sheet itself carries data-sheet too, and matching it would
+  // cancel every link and button inside the sheet.
+  const opener = t.closest('button[data-sheet]') as HTMLElement | null;
   if (opener) { e.preventDefault(); openSheet(opener.dataset.sheet || ''); return; }
   if (t.closest('[data-close-sheet]')) closeSheet();
 });
