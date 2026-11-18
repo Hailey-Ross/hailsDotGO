@@ -37,7 +37,7 @@ const CACHE_MS = 15 * 60_000;
 export async function fetchLiveWeather(): Promise<LiveWeather | null> {
   try {
     const c = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
-    if (c && Date.now() - c.at < CACHE_MS) return c.w;
+    if (c && c.w && Date.now() - c.at < CACHE_MS) return c.w;
   } catch { /* no cache */ }
   try {
     const r = await fetch('/api/weather', { credentials: 'same-origin' });
@@ -46,7 +46,8 @@ export async function fetchLiveWeather(): Promise<LiveWeather | null> {
     const w: LiveWeather | null = j && j.pogo_weather
       ? { name: String(j.pogo_weather), kind: kindFromGame(String(j.pogo_weather)), boosts: (j.boosted_types || []).map(String) }
       : null;
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), w })); } catch { /* not cached */ }
+    // Only a real answer is remembered: a miss (no location yet, or the service down) retries on the next page.
+    if (w) try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), w })); } catch { /* not cached */ }
     return w;
   } catch {
     return null;

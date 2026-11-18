@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -82,11 +83,11 @@ func geocode(city, region, country string) (float64, float64, error) {
 	}
 	geoCacheMu.Unlock()
 
+	// Search by the city name alone: Open-Meteo's name search returns nothing for "Denver, USA" (it
+	// only understands some country spellings after a comma), which left every trainer whose country
+	// is saved as "USA" without weather. The region and country pick among the candidates instead.
 	query := city
-	if country != "" {
-		query += ", " + country
-	}
-	u := "https://geocoding-api.open-meteo.com/v1/search?name=" + neturl.QueryEscape(query) + "&count=1&language=en&format=json"
+	u := "https://geocoding-api.open-meteo.com/v1/search?name=" + neturl.QueryEscape(query) + "&count=10&language=en&format=json"
 
 	resp, err := omClient.Get(u)
 	if err != nil {
@@ -103,21 +104,66 @@ func geocode(city, region, country string) (float64, float64, error) {
 	}
 
 	var result struct {
-		Results []struct {
-			Latitude  float64 `json:"latitude"`
-			Longitude float64 `json:"longitude"`
-		} `json:"results"`
+		Results []geoPlace `json:"results"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil || len(result.Results) == 0 {
 		return 0, 0, fmt.Errorf("geocode: no results for %q", query)
 	}
 
-	ll := latLon{Lat: result.Results[0].Latitude, Lon: result.Results[0].Longitude}
+	best := pickPlace(result.Results, region, country)
+	ll := latLon{Lat: best.Latitude, Lon: best.Longitude}
 	geoCacheMu.Lock()
 	geoCache[key] = ll
 	geoCacheMu.Unlock()
 
 	return ll.Lat, ll.Lon, nil
+}
+
+// geoPlace is one Open-Meteo geocoding candidate.
+type geoPlace struct {
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	Admin1      string  `json:"admin1"` // state, province or region
+}
+
+// countryAliases maps how trainers type a country to its ISO code, for the common short forms that
+// do not match the country's English name.
+var countryAliases = map[string]string{
+	"usa": "US", "us": "US", "u.s.": "US", "u.s.a.": "US", "united states of america": "US", "america": "US",
+	"uk": "GB", "u.k.": "GB", "england": "GB", "scotland": "GB", "wales": "GB", "great britain": "GB", "britain": "GB",
+	"uae": "AE", "south korea": "KR", "korea": "KR",
+}
+
+func countryMatches(p geoPlace, country string) bool {
+	c := strings.ToLower(strings.TrimSpace(country))
+	if c == "" {
+		return false
+	}
+	if code, ok := countryAliases[c]; ok {
+		return strings.EqualFold(p.CountryCode, code)
+	}
+	return strings.EqualFold(p.Country, c) || strings.EqualFold(p.CountryCode, c)
+}
+
+// pickPlace chooses among same-named places: the one in the saved region and country, else the
+// one in the saved country, else the most prominent (Open-Meteo lists by population).
+func pickPlace(places []geoPlace, region, country string) geoPlace {
+	r := strings.TrimSpace(region)
+	if r != "" {
+		for _, p := range places {
+			if strings.EqualFold(p.Admin1, r) && (country == "" || countryMatches(p, country)) {
+				return p
+			}
+		}
+	}
+	for _, p := range places {
+		if countryMatches(p, country) {
+			return p
+		}
+	}
+	return places[0]
 }
 
 func fetchOpenMeteo(lat, lon float64) string {

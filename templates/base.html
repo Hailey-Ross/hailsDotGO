@@ -153,6 +153,7 @@
 </main>
 
 <footer class="page-disclaimer">
+  {{if eq .Path "/"}}<p>{{T "footer.tools_by"}} <a href="https://links.hails.cc">hails.cc</a></p>{{end}}
   <p>{{T "footer.not_affiliated"}}</p>
   <p><a href="/privacy">Privacy</a></p>
 </footer>
@@ -229,6 +230,13 @@
     </form>
     {{end}}
   </div>
+  <form class="fk-set" method="POST" action="/lang">
+    <b>{{T "appearance.language"}}</b>
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    <div class="fk-seg" role="group" aria-label="{{T "appearance.language"}}">
+      {{range .Langs}}<button name="code" value="{{.}}" aria-pressed="{{if eq $.Lang .}}true{{else}}false{{end}}">{{upper .}}</button>{{end}}
+    </div>
+  </form>
 </template>
 
 {{if .User}}<template id="fk-tpl-inbox">

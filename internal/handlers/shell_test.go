@@ -68,15 +68,15 @@ func TestShellRenders(t *testing.T) {
 		}
 		home.Funcs(template.FuncMap{"T": i18n.TFunc("en")})
 		for _, pd := range []PageData{
-			{Maintenance: all, Lang: "en", Path: "/", Data: homeData{DexTotal: 898}},
-			{User: &auth.User{Username: "u"}, Maintenance: all, Lang: "en", Path: "/", Data: homeData{DexTotal: 898, DexHave: 12, Name: "Trainer Red"}},
+			{Maintenance: all, Lang: "en", Path: "/", Data: homeData{}},
+			{User: &auth.User{Username: "u"}, Maintenance: all, Lang: "en", Path: "/", Data: homeData{Name: "Trainer Red"}},
 		} {
 			var buf bytes.Buffer
 			if err := home.ExecuteTemplate(&buf, "base", pd); err != nil {
 				t.Fatalf("execute: %v", err)
 			}
 			out := buf.String()
-			for _, w := range []string{`data-page="fieldkit"`, `id="fk-hero"`, `data-total="898"`, `/static/js/home.js`} {
+			for _, w := range []string{`data-page="fieldkit"`, `id="fk-hero"`, `id="fk-dex-total"`, `/static/js/home.js`} {
 				if !strings.Contains(out, w) {
 					t.Errorf("missing %q", w)
 				}

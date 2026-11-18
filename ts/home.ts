@@ -4,9 +4,11 @@
 import { sticker, trimStickers } from './shared/sticker';
 import { hourNow } from './shared/theme';
 import { fetchLiveWeather } from './shared/weatherfx';
+import { loadGameData } from './shared/gamedata';
+import { dexProgress } from './shared/dexprogress';
 
 interface HomeI18n {
-  greetLate: string; greetMorning: string; greetAfternoon: string; greetEvening: string; todaySuffix: string;
+  greetLate: string; greetMorning: string; greetAfternoon: string; greetEvening: string; todaySuffix: string; todayLate: string; todayMorning: string; todayEvening: string;
   mega: string; tier: string; raidsNone: string;
   trailToday: string; trailHere: string; trailHereSub: string; trailBoosted: string;
   cdNone: string; cdToday: string; cdDays: string; cdTo: string; shinyAvailable: string;
@@ -45,10 +47,12 @@ const when = (s: string | null) => (s ? new Date(s) : null);
 function greet(): void {
   const hr = hourNow(), now = new Date();
   const g = hr < 5 ? I.greetLate : hr < 12 ? I.greetMorning : hr < 18 ? I.greetAfternoon : I.greetEvening;
+  // The line under the greeting follows the same part of the day (todaySuffix is the afternoon one).
+  const line = hr < 5 ? I.todayLate : hr < 12 ? I.todayMorning : hr < 18 ? I.todaySuffix : I.todayEvening;
   const h1 = $('fk-hello');
   if (h1) h1.textContent = W.HOME_ME ? g + ', ' + W.HOME_ME : g;
   const sub = $('fk-today');
-  if (sub) sub.textContent = fmt(now, { weekday: 'long', month: 'long', day: 'numeric' }) + '. ' + I.todaySuffix;
+  if (sub) sub.textContent = fmt(now, { weekday: 'long', month: 'long', day: 'numeric' }) + '. ' + line;
 }
 
 /* ---------- Raid bosses by tier ---------- */
@@ -150,10 +154,23 @@ async function events(): Promise<void> {
 }
 
 /* ---------- Shiny dex ring ---------- */
-function dexRing(): void {
+// Counted exactly like the Dex page's ring (shared/dexprogress.ts): released cards, regional forms
+// included, against the trainer's own log. Visitors see the total only.
+async function dexRing(): Promise<void> {
   const svgEl = document.getElementById('fk-dex-ring');
   if (!svgEl) return;
-  const have = Number(svgEl.dataset.have) || 0, total = Number(svgEl.dataset.total) || 0;
+  let have = 0, total = 0;
+  try {
+    const [data, mine] = await Promise.all([
+      loadGameData(),
+      W.HOME_ME ? fetch('/api/shinies', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : [])).catch(() => []) : Promise.resolve([]),
+    ]);
+    ({ have, total } = dexProgress(data, mine || []));
+  } catch { return; }
+  const totalEl = document.getElementById('fk-dex-total');
+  if (totalEl) totalEl.textContent = total.toLocaleString(lang);
+  const countEl = document.getElementById('fk-dex-count');
+  if (countEl) countEl.textContent = (reduce.matches || !have ? have : 0).toLocaleString(lang);
   const segs = 30, on = total ? Math.round(have / total * segs) : 0, R = 42, gap = 4;
   let svg = '';
   for (let i = 0; i < segs; i++) {
@@ -175,6 +192,8 @@ function dexRing(): void {
 }
 
 greet();
+// Keep the greeting and its line current if the page stays open across a change in the day.
+window.setInterval(greet, 60_000);
 dexRing();
 raids();
 events();

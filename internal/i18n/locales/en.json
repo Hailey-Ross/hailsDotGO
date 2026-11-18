@@ -20,6 +20,7 @@
   "nav.group.account":   "Account",
 
   "footer.fan_made":       "Fan-made tool",
+  "footer.tools_by": "Pokémon GO tools by",
   "footer.not_affiliated": "Not affiliated with Niantic or The Pokémon Company",
   "footer.credits":        "Credits & Info",
 
@@ -44,6 +45,9 @@
   "home.greet.morning":    "Good morning",
   "home.greet.afternoon":  "Good afternoon",
   "home.greet.evening":    "Good evening",
+  "home.today_late": "Night owls make the rarest finds.",
+  "home.today_morning": "A fresh morning for a walk.",
+  "home.today_evening": "A calm evening for one more raid.",
   "home.today_suffix":     "A good day to explore.",
   "home.tab.raids":        "Out right now",
   "home.tab.trail":        "The trail ahead",

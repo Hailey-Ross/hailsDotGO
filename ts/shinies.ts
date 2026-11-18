@@ -9,6 +9,7 @@ import type { GameData, ShinyPokemon, ShinyDexEntry } from "./shared/types";
 import { sticker, trimStickers } from "./shared/sticker";
 import { stampSVG } from "./shared/stamp";
 import { feedback } from "./shared/feel";
+import { dexProgress } from "./shared/dexprogress";
 
 const SPARK_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>';
 const escHTML = (t: string) => t.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
@@ -1547,9 +1548,8 @@ async function init() {
   function renderRing() {
     const svgEl = document.getElementById("sc-ring");
     if (!svgEl) return;
-    const released = allCards.filter((c) => c.released);
-    const have = released.filter((c) => cardCaught(c.species.name, c.region, caughtCardKeys)).length;
-    const total = released.length;
+    // Shared with the Home ring, so the two always show the same numbers.
+    const { have, total } = dexProgress(gameData, userShinies || []);
     const segs = 30, on = total ? Math.round((have / total) * segs) : 0, R = 42, gap = 4;
     let out = "";
     for (let i = 0; i < segs; i++) {

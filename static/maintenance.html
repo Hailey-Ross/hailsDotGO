@@ -2,75 +2,195 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>FlexDex: Updating</title>
   <script>
-  // Light or dark from the visitor's saved Field Kit setting (same key as the site), else the system.
+  // Light or dark from the visitor's saved Field Kit setting (same key as the site), else the system,
+  // and the part of the day for the sky.
   (function () {
-    var m = "system", r = document.documentElement;
+    var m = "system", r = document.documentElement, h = new Date().getHours();
     try { var s = JSON.parse(localStorage.getItem("flexdex-fieldkit") || "null"); if (s && s.mode) m = s.mode; } catch (e) {}
-    var h = new Date().getHours();
-    var dark = m === "dark" ? true : m === "light" ? false : m === "sun" ? (h < 5 || h >= 21) : (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+    var phase = h < 5 || h >= 21 ? "night" : h < 8 ? "dawn" : h < 17 ? "day" : "dusk";
+    var dark = m === "dark" ? true : m === "light" ? false : m === "sun" ? phase === "night" : (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
     r.setAttribute("data-mode", dark ? "dark" : "light");
+    r.setAttribute("data-phase", dark && phase === "day" ? "dusk" : phase);
   })();
   </script>
   <style>
-    /* Self-contained on purpose: this page is shown while the app is down, so it cannot lean on
-       the app's stylesheets. Same Field Kit look: a field card on a calm background. */
+    /* Self-contained on purpose: this page is shown while the app is down, so it cannot lean on the
+       app's stylesheets or scripts. The Field Kit look: a living landscape banner, a trail across it,
+       and a field card. */
     @font-face { font-family: 'Figtree'; font-weight: 300 900; font-display: swap; src: url(/static/fonts/figtree-latin.woff2) format('woff2'); }
     @font-face { font-family: 'Bricolage Grotesque'; font-weight: 200 800; font-display: swap; src: url(/static/fonts/bricolage-grotesque-latin.woff2) format('woff2'); }
+    @font-face { font-family: 'JetBrains Mono'; font-weight: 400 700; font-display: swap; src: url(/static/fonts/jetbrains-mono-latin.woff2) format('woff2'); }
     :root {
-      --bg: #f3f6f2; --surface: #fdfefc; --line: rgba(30, 50, 40, 0.13); --line-hi: rgba(30, 50, 40, 0.24);
-      --fg: #1f2a24; --fg-2: #46564c; --fg-3: #66766b; --accent: #2f8a52; --accent-soft: rgba(47, 138, 82, 0.13);
-      --shadow: 0 1px 0 rgba(30, 50, 40, 0.05), 0 14px 28px -22px rgba(20, 40, 30, 0.45);
+      --surface: rgba(253, 254, 252, 0.9); --line: rgba(30, 50, 40, 0.13); --fg: #1f2a24; --fg-2: #46564c; --fg-3: #66766b;
+      --accent: #2f8a52; --gold: #e0a419;
+      --sky1: #bfe2f3; --sky2: #eef8f2; --sun: #ffd25e; --far: #cfe4d6; --hill1: #a9d2b4; --hill2: #7fb991; --hill3: #5d9c72; --tree: #4f8a62;
+      --shadow: 0 1px 0 rgba(30, 50, 40, 0.05), 0 22px 40px -26px rgba(20, 40, 30, 0.55);
       color-scheme: light;
     }
+    :root[data-phase="dawn"] { --sky1: #f6c7c9; --sky2: #fbe8d2; --sun: #ff9f6b; --far: #e2d6d6; }
+    :root[data-phase="dusk"] { --sky1: #d9c6f5; --sky2: #f8d6dc; --sun: #ff8a4c; --far: #ddd6e8; --hill1: #b9c3d6; --hill2: #8e9cb8; --hill3: #6f7d9c; --tree: #6a7896; }
+    :root[data-phase="night"] { --sky1: #121a33; --sky2: #26304f; --sun: #f1efe2; --far: #2a3550; --hill1: #24324a; --hill2: #1b273b; --hill3: #141e2e; --tree: #101827; }
     :root[data-mode="dark"] {
-      --bg: #161c19; --surface: #1d2521; --line: rgba(220, 240, 228, 0.1); --line-hi: rgba(220, 240, 228, 0.2);
-      --fg: #ecf2ee; --fg-2: #c0ccc4; --fg-3: #95a49a; --accent: #7fd39a; --accent-soft: rgba(127, 211, 154, 0.16);
-      --shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 14px 28px -20px rgba(0, 0, 0, 0.7);
+      --surface: rgba(29, 37, 33, 0.9); --line: rgba(220, 240, 228, 0.12); --fg: #ecf2ee; --fg-2: #c0ccc4; --fg-3: #95a49a;
+      --accent: #7fd39a; --gold: #f2c14e; --shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 22px 40px -22px rgba(0, 0, 0, 0.8);
       color-scheme: dark;
     }
+    :root[data-mode="dark"]:not([data-phase="night"]) { --hill1: #2c3d33; --hill2: #23332a; --hill3: #1b2922; --tree: #15211b; --far: #34413b; }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
-    body { display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--fg);
-      font-family: 'Figtree', 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.5;
-      background-image:
-        radial-gradient(circle at 20% 15%, var(--accent-soft), transparent 40%),
-        repeating-radial-gradient(circle at 70% 80%, transparent 0 46px, var(--line) 46px 47px, transparent 47px 92px); }
-    .card { position: relative; width: min(100%, 440px); padding: 30px 26px 26px; border-radius: 24px; background: var(--surface); border: 1px solid var(--line);
-      box-shadow: var(--shadow); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; animation: settle 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-    .card::before { content: "Field kit"; position: absolute; top: -13px; left: 18px; height: 24px; padding: 0 11px; display: flex; align-items: center; border-radius: 9px;
-      background: var(--surface); border: 1px solid var(--line); font: 500 10.5px ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
-    @keyframes settle { from { opacity: 0; transform: translateY(14px) rotate(-1.2deg) scale(0.98); } }
-    .logo { width: 76px; height: 76px; border-radius: 22px; display: block; box-shadow: 0 0 0 1.5px rgba(255, 200, 90, 0.32), 0 8px 18px -8px rgba(255, 170, 60, 0.6); }
-    h1 { margin: 4px 0 0; font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; font-weight: 750; font-size: 28px; letter-spacing: -0.02em; }
-    p { margin: 0; color: var(--fg-2); }
-    .dots { display: inline-flex; gap: 6px; align-items: center; height: 18px; margin-top: 4px; }
-    .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: hop 1s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
-    .dots i:nth-child(2) { animation-delay: 0.15s; } .dots i:nth-child(3) { animation-delay: 0.3s; }
-    @keyframes hop { 0%, 60%, 100% { transform: none; opacity: 0.5; } 30% { transform: translateY(-7px); opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { .card, .dots i { animation: none; } }
+    body { min-height: 100%; overflow: hidden; background: linear-gradient(var(--sky1), var(--sky2) 70%); color: var(--fg);
+      font-family: 'Figtree', 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
+
+    /* ---------- The scene ---------- */
+    .scene { position: fixed; inset: 0; pointer-events: none; }
+    .orb { position: absolute; top: 12%; right: 14%; width: clamp(54px, 9vw, 96px); aspect-ratio: 1; border-radius: 50%; background: var(--sun);
+      box-shadow: 0 0 0 14px color-mix(in oklab, var(--sun) 22%, transparent), 0 0 80px 30px color-mix(in oklab, var(--sun) 35%, transparent);
+      animation: rise 2.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    :root[data-phase="night"] .orb { box-shadow: inset -14px -6px 0 0 color-mix(in oklab, var(--sun) 55%, var(--sky1)), 0 0 60px 10px rgba(241, 239, 226, 0.18); }
+    @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
+    .stars { position: absolute; inset: 0 0 45% 0; opacity: 0; }
+    :root[data-phase="night"] .stars { opacity: 1; }
+    .stars i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: twinkle 3s ease-in-out infinite; }
+    @keyframes twinkle { 50% { opacity: 0.25; } }
+    .cloud { position: absolute; height: 26px; border-radius: 26px; background: rgba(255, 255, 255, 0.85); filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.06)); animation: drift linear infinite; }
+    .cloud::before, .cloud::after { content: ""; position: absolute; bottom: 8px; border-radius: 50%; background: inherit; }
+    .cloud::before { left: 18%; width: 46%; aspect-ratio: 1; }
+    .cloud::after { left: 46%; width: 34%; aspect-ratio: 1; }
+    :root[data-phase="night"] .cloud, :root[data-mode="dark"] .cloud { background: rgba(200, 210, 230, 0.16); }
+    @keyframes drift { from { transform: translateX(-30vw); } to { transform: translateX(130vw); } }
+    .land { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 58vh; min-height: 300px; }
+    .land .far { fill: var(--far); } .land .h1 { fill: var(--hill1); } .land .h2 { fill: var(--hill2); } .land .h3 { fill: var(--hill3); } .land .tr { fill: var(--tree); }
+    .trail { fill: none; stroke: color-mix(in oklab, var(--fg) 30%, transparent); stroke-width: 3; stroke-dasharray: 2 11; stroke-linecap: round; }
+    :root[data-mode="dark"] .trail { stroke: rgba(236, 242, 238, 0.35); }
+    .walker { offset-path: path("M -40 520 C 180 470 300 560 520 500 S 860 420 1060 480 S 1400 560 1640 470"); offset-rotate: 0deg; animation: walk 22s linear infinite; }
+    @keyframes walk { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+    .walker circle.ping { animation: ping 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+    @keyframes ping { from { transform: scale(0.6); opacity: 0.8; } to { transform: scale(2.4); opacity: 0; } }
+
+    /* ---------- The card ---------- */
+    main { position: relative; z-index: 1; min-height: 100%; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+    .card { position: relative; width: min(100%, 470px); padding: 30px 28px 24px; border-radius: 26px; background: var(--surface); border: 1px solid var(--line);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--shadow);
+      display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; animation: settle 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    .card::before { content: "Field kit"; position: absolute; top: -13px; left: 20px; height: 24px; padding: 0 11px; display: flex; align-items: center; border-radius: 9px;
+      background: var(--surface); border: 1px solid var(--line); font: 500 10.5px 'JetBrains Mono', ui-monospace, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+    @keyframes settle { from { opacity: 0; transform: translateY(18px) rotate(-1.5deg) scale(0.97); } }
+    .logo-wrap { position: relative; }
+    .logo { width: 78px; height: 78px; border-radius: 22px; display: block; box-shadow: 0 0 0 1.5px rgba(255, 200, 90, 0.35), 0 10px 22px -8px rgba(255, 170, 60, 0.65); animation: bob 3.2s ease-in-out infinite; }
+    @keyframes bob { 50% { transform: translateY(-5px) rotate(-2deg); } }
+    .stamp { position: absolute; right: -54px; top: -10px; transform: rotate(12deg); padding: 4px 9px; border: 2px solid var(--accent); border-radius: 8px; color: var(--accent);
+      font: 700 11px 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.1em; text-transform: uppercase; background: var(--surface); animation: thump 0.6s 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    @keyframes thump { from { opacity: 0; transform: rotate(12deg) scale(1.8); } }
+    h1 { margin: 2px 0 0; font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; font-weight: 750; font-size: clamp(26px, 6vw, 32px); letter-spacing: -0.02em; line-height: 1.1; }
+    .lead { margin: 0; color: var(--fg-2); max-width: 40ch; text-wrap: balance; }
+    .status { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border-radius: 16px; background: color-mix(in oklab, var(--fg) 6%, transparent); text-align: left; }
+    .ring { width: 34px; height: 34px; flex: none; transform: rotate(-90deg); }
+    .ring circle { fill: none; stroke-width: 4; }
+    .ring .bg { stroke: color-mix(in oklab, var(--fg) 12%, transparent); }
+    .ring .fg { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 88; stroke-dashoffset: 88; }
+    .status b { display: block; font-size: 14px; }
+    .status small { display: block; color: var(--fg-3); font: 500 12px 'JetBrains Mono', ui-monospace, monospace; }
+    .tip { min-height: 44px; margin: 0; color: var(--fg-2); font-size: 13.5px; transition: opacity 0.4s; }
+    .tip b { color: var(--gold); font-weight: 700; }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .logo, .stamp, .orb, .cloud, .stars i, .walker, .walker circle.ping { animation: none !important; }
+      .walker { offset-distance: 38%; }
+    }
   </style>
 </head>
 <body>
-  <main class="card">
-    <img class="logo" src="/static/app/icons/logo.svg" alt="FlexDex">
-    <h1>Updating&hellip;</h1>
-    <p>FlexDex is down for a quick update.<br>This page comes back on its own in a moment.</p>
-    <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="scene" aria-hidden="true">
+    <div class="stars" id="stars"></div>
+    <div class="orb"></div>
+    <div class="cloud" style="top:14%;width:120px;animation-duration:70s;animation-delay:-20s"></div>
+    <div class="cloud" style="top:24%;width:84px;animation-duration:95s;animation-delay:-60s"></div>
+    <div class="cloud" style="top:9%;width:150px;animation-duration:120s;animation-delay:-5s"></div>
+    <svg class="land" viewBox="0 0 1600 600" preserveAspectRatio="xMidYMax slice">
+      <path class="far" d="M0 300 C 200 250 380 290 560 260 S 920 220 1120 262 S 1440 300 1600 250 L1600 600 L0 600 Z"/>
+      <path class="h1" d="M0 380 C 240 330 420 400 700 360 S 1180 310 1600 370 L1600 600 L0 600 Z"/>
+      <g class="tr">
+        <path d="M150 362 l14 -44 l14 44 z"/><path d="M178 368 l10 -32 l10 32 z"/><path d="M640 366 l15 -48 l15 48 z"/><path d="M668 370 l11 -34 l11 34 z"/>
+        <path d="M1040 330 l14 -46 l14 46 z"/><path d="M1068 336 l10 -32 l10 32 z"/><path d="M1380 356 l15 -48 l15 48 z"/><path d="M1410 360 l11 -34 l11 34 z"/>
+      </g>
+      <path class="h2" d="M0 470 C 220 420 420 500 660 450 S 1160 400 1600 460 L1600 600 L0 600 Z"/>
+      <path class="trail" d="M -40 520 C 180 470 300 560 520 500 S 860 420 1060 480 S 1400 560 1640 470"/>
+      <g class="walker">
+        <circle class="ping" r="9" fill="var(--gold)" opacity="0.5"/>
+        <circle r="7" fill="var(--gold)" stroke="#fff" stroke-width="2.5"/>
+      </g>
+      <path class="h3" d="M0 560 C 260 530 520 590 820 550 S 1300 520 1600 560 L1600 600 L0 600 Z"/>
+    </svg>
+  </div>
+
+  <main>
+    <section class="card" aria-live="polite">
+      <div class="logo-wrap">
+        <img class="logo" src="/static/app/icons/logo.svg" alt="FlexDex">
+        <span class="stamp">Back soon</span>
+      </div>
+      <h1>Repacking the field kit</h1>
+      <p class="lead">FlexDex is getting an update. Stay right here: this page reloads on its own the moment it is back.</p>
+      <div class="status">
+        <svg class="ring" viewBox="0 0 34 34" aria-hidden="true"><circle class="bg" cx="17" cy="17" r="14"/><circle class="fg" id="ring" cx="17" cy="17" r="14"/></svg>
+        <div><b id="state">Updating now</b><small id="next">Checking again in 5s</small></div>
+      </div>
+      <p class="tip" id="tip"></p>
+    </section>
   </main>
+
 <script>
-  // Reload as soon as the app answers again.
   (function () {
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // A few stars for the night sky.
+    var st = document.getElementById('stars'), html = '';
+    for (var i = 0; i < 46; i++) html += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;top:' + (Math.random() * 100).toFixed(1) + '%;animation-delay:' + (Math.random() * 3).toFixed(2) + 's"></i>';
+    st.innerHTML = html;
+
+    // Tips while you wait.
+    var tips = [
+      '<b>Tip:</b> tap a raid boss to see its best counters and when it leaves.',
+      '<b>Tip:</b> press / anywhere on FlexDex to search Pokémon, events and trainers.',
+      '<b>Tip:</b> log a shiny from its raid page and watch the stamp land in your dex.',
+      '<b>Tip:</b> pick from 28 themes, or mix your own, on the Appearance page.',
+      '<b>Tip:</b> add FlexDex to your home screen to open it like an app.',
+      '<b>Tip:</b> set your city in Settings to see the weather boost in the top bar.'
+    ];
+    var tipEl = document.getElementById('tip'), t = Math.floor(Math.random() * tips.length);
+    function showTip() {
+      tipEl.style.opacity = 0;
+      setTimeout(function () { tipEl.innerHTML = tips[t % tips.length]; tipEl.style.opacity = 1; t++; }, reduce ? 0 : 400);
+    }
+    showTip();
+    setInterval(showTip, 7000);
+
+    // Check every 5 seconds; reload as soon as the app answers again.
+    var PERIOD = 5, left = PERIOD, tries = 0;
+    var ring = document.getElementById('ring'), next = document.getElementById('next'), state = document.getElementById('state');
+    function draw() {
+      ring.style.strokeDashoffset = String(88 * (left / PERIOD));
+      next.textContent = left > 0 ? 'Checking again in ' + left + 's' : 'Checking now';
+    }
     function check() {
+      tries++;
       fetch('/api/data', { cache: 'no-store' })
         .then(function (res) {
-          if (res.ok && (res.headers.get('content-type') || '').indexOf('application/json') !== -1) window.location.reload();
+          if (res.ok && (res.headers.get('content-type') || '').indexOf('application/json') !== -1) {
+            state.textContent = 'Back! Reloading';
+            window.location.reload();
+          } else state.textContent = tries > 6 ? 'Taking a little longer' : 'Updating now';
         })
-        .catch(function () {});
+        .catch(function () { state.textContent = tries > 6 ? 'Taking a little longer' : 'Updating now'; });
     }
-    setInterval(check, 5000);
+    draw();
+    setInterval(function () {
+      left--;
+      if (left <= 0) { draw(); check(); left = PERIOD; }
+      draw();
+    }, 1000);
   })();
 </script>
 </body>

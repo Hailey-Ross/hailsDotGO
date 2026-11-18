@@ -363,36 +363,19 @@ func scriptSafeJSON(b []byte) string {
 	return scriptJSONEscaper.Replace(string(b))
 }
 
-// homeData feeds the launcher: the greeting name and the shiny dex ring.
+// homeData feeds the launcher's greeting. The shiny dex ring is counted in the browser by the same
+// code as the Dex page (ts/shared/dexprogress.ts), so the two always agree.
 type homeData struct {
-	DexTotal int    // species whose shiny is out in the game
-	DexHave  int    // of those, how many the signed-in trainer has logged (0 for visitors)
-	Name     string // the greeting's name: the in-game trainer name, else the username; empty for visitors
+	Name string // the greeting's name: the in-game trainer name, else the username; empty for visitors
 }
 
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	var d homeData
-	released := map[int]bool{}
-	for _, s := range h.store.ShinyDexCards() {
-		if s.ShinyReleased {
-			released[s.ID] = true
-		}
-	}
-	d.DexTotal = len(released)
 	if u := h.currentUser(r); u != nil {
 		d.Name = u.Username
 		var tn string
 		if h.db.QueryRow(`SELECT trainer_name FROM users WHERE id = ?`, u.ID).Scan(&tn) == nil && strings.TrimSpace(tn) != "" {
 			d.Name = strings.TrimSpace(tn)
-		}
-		if rows, err := h.db.Query(`SELECT DISTINCT pokemon_id FROM user_shinies WHERE user_id = ?`, u.ID); err == nil {
-			for rows.Next() {
-				var id int
-				if rows.Scan(&id) == nil && released[id] {
-					d.DexHave++
-				}
-			}
-			rows.Close()
 		}
 	}
 	h.render(w, r, "home", d)

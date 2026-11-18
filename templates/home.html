@@ -39,9 +39,9 @@
       {{if .Maintenance.ShiniesEnabled}}
       <article class="fk-card fk-settle" style="--i:5" data-tab="{{T "home.tab.dex"}}" aria-labelledby="fk-w-dex">
         <a class="fk-dexrow" href="{{if .User}}/shinies{{else}}/login?next=/shinies{{end}}">
-          <svg class="fk-ring" id="fk-dex-ring" viewBox="0 0 100 100" aria-hidden="true" data-have="{{.Data.DexHave}}" data-total="{{.Data.DexTotal}}"></svg>
+          <svg class="fk-ring" id="fk-dex-ring" viewBox="0 0 100 100" aria-hidden="true"></svg>
           <div><h2 id="fk-w-dex">{{T "home.dex.heading"}}</h2>
-            <div class="fk-big"><span id="fk-dex-count">{{.Data.DexHave}}</span><small> / {{.Data.DexTotal}}</small></div>
+            <div class="fk-big"><span id="fk-dex-count">0</span><small> / <span id="fk-dex-total">&hellip;</span></small></div>
             <div class="fk-meta">{{if .User}}{{T "home.dex.yours"}}{{else}}{{T "home.dex.signin"}}{{end}}</div></div>
         </a>
       </article>
@@ -70,7 +70,7 @@
 <script>
 window.HOME_I18N = {
   greetLate: {{T "home.greet.late"}}, greetMorning: {{T "home.greet.morning"}}, greetAfternoon: {{T "home.greet.afternoon"}}, greetEvening: {{T "home.greet.evening"}},
-  todaySuffix: {{T "home.today_suffix"}},
+  todaySuffix: {{T "home.today_suffix"}}, todayLate: {{T "home.today_late"}}, todayMorning: {{T "home.today_morning"}}, todayEvening: {{T "home.today_evening"}},
   mega: {{T "home.raids.mega"}}, tier: {{T "home.raids.tier"}}, raidsNone: {{T "home.raids.none"}},
   trailToday: {{T "home.trail.today"}}, trailHere: {{T "home.trail.here"}}, trailHereSub: {{T "home.trail.here_sub"}}, trailBoosted: {{T "home.trail.boosted"}},
   cdNone: {{T "home.cd.none"}}, cdToday: {{T "home.cd.today"}}, cdDays: {{T "home.cd.days"}}, cdTo: {{T "home.cd.to"}}, shinyAvailable: {{T "home.shiny_available"}},

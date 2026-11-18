@@ -177,7 +177,8 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     modal = document.createElement('div');
     // sc-modal is the shiny checklist's modal, already styled globally, and main.css exempts it
     // from the body blur rule -- which matters because this is appended to <body>.
-    modal.className = 'sc-modal';
+    // Compact: the detail is a picture, a name and a few facts, so the sheet fits its content.
+    modal.className = 'sc-modal sc-modal-compact';
     modal.addEventListener('click', (e) => { if (e.target === modal) closeDetail(); });
     document.body.appendChild(modal);
     document.addEventListener('keydown', (e) => {
@@ -354,8 +355,10 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
   fetch('/api/shinies/of/' + encodeURIComponent(TRAINER_CTX.username))
     .then((r) => r.ok ? r.json() as Promise<ShinyItem[]> : Promise.resolve([] as ShinyItem[]))
     .then((all) => {
-      const LIMIT = 6;
+      // The most recent catches (the API sends newest first): two full rows of four.
+      const LIMIT = 8;
       renderItems(all.slice(0, LIMIT));
+      container.classList.add('is-preview');
       if (all.length > LIMIT) {
         const btn = document.createElement('button');
         btn.className = 'btn-secondary';
@@ -370,6 +373,7 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
             || (a.region || '').localeCompare(b.region || '')
             || (a.costume || '').localeCompare(b.costume || ''));
           renderItems(byDex);
+          container.classList.remove('is-preview');
           btn.remove();
         });
         container.appendChild(btn);

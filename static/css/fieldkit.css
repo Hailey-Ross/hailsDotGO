@@ -421,15 +421,15 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
   color: #fff; font-family: var(--font-display); font-weight: 750; font-size: calc(var(--s) * 0.3); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transform: rotate(var(--tilt, 0deg)); }
 /* With real art the sticker is a light paper face tinted by the type, ringed in the type colors,
    and the sprite is drawn large with a thin white die-cut edge, so dark Pokemon never sink into it. */
-.fk-sticker:has(img) { background: radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--t1) 10%, white) 0 48%, color-mix(in oklab, var(--t1) 34%, white) 100%);
-  box-shadow: inset 0 0 0 calc(var(--s) * 0.05) color-mix(in oklab, var(--t1) 70%, var(--t2)), 0 2px 7px rgba(0, 0, 0, 0.2), 0 0 18px -3px color-mix(in oklab, var(--t1) 60%, transparent); }
-/* A soft glow in the type color right behind the art, so the sprite lifts off its sticker. */
-.fk-sticker:has(img)::before { content: ""; position: absolute; inset: 10%; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, color-mix(in oklab, var(--t1) 55%, white) 0, color-mix(in oklab, var(--t2) 30%, transparent) 45%, transparent 70%); }
+/* With real art the sticker face is a mid-tone of the type color: light enough for dark Pokemon,
+   dark enough for white and pale ones, ringed in the type colors. No glow behind the art; the sprite
+   gets a thin white die-cut edge and a soft shadow so it reads on any face. */
+.fk-sticker:has(img) { background: radial-gradient(circle at 50% 36%, color-mix(in oklab, var(--t1) 42%, #b9bec4) 0, color-mix(in oklab, var(--t1) 55%, #6c737b) 100%);
+  box-shadow: inset 0 0 0 calc(var(--s) * 0.05) color-mix(in oklab, var(--t1) 70%, var(--t2)), 0 2px 7px rgba(0, 0, 0, 0.2); }
 .fk-sticker img { position: relative; z-index: 1; }
 .fk-sticker img { width: 112%; height: 112%; max-width: none; object-fit: contain; image-rendering: auto;
-  filter: drop-shadow(0 0 0.6px #fff) drop-shadow(0 0 0.6px #fff) drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.3)); }
-.fk-sticker img.trimmed { width: 84%; height: 84%; }
+  filter: drop-shadow(0 0 0.8px #fff) drop-shadow(0 0 0.8px #fff) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35)); }
+.fk-sticker img.trimmed { width: 90%; height: 90%; }
 /* Shiny badge: a small circle with a star bigger than it, outlined in the card color and shadowed so
    it reads on any background. Scales with the sticker, capped on the big field page stickers. */
 .fk-sticker .fk-spark { position: absolute; z-index: 2; top: -4px; right: -4px; width: clamp(15px, calc(var(--s) * 0.3), 23px); height: clamp(15px, calc(var(--s) * 0.3), 23px); border-radius: 50%;
@@ -552,12 +552,13 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 :root[data-page="fieldkit"] .trainer-card:hover { transform: none; border-color: var(--line-hi); background: var(--surface); }
 :root[data-page="fieldkit"] .trainer-card:active { transform: scale(0.98); }
 :root[data-page="fieldkit"] .trainer-card-header { gap: 14px; }
-:root[data-page="fieldkit"] .trainer-sprite-group { width: 64px; height: 64px; }
+:root[data-page="fieldkit"] .trainer-sprite-group { width: 78px; height: 78px; }
 :root[data-page="fieldkit"] .trainer-sprite-group .trainer-avatar-sprite, :root[data-page="fieldkit"] .trainer-sprite-group .trainer-avatar-sm {
-  left: 0; right: auto; top: 0; bottom: auto; transform: none; width: 56px; height: 56px; border-radius: 50%; box-sizing: border-box;
+  left: 0; right: auto; top: 0; bottom: auto; transform: none; width: 74px; height: 74px; border-radius: 50%; box-sizing: border-box;
   background: radial-gradient(circle at 34% 30%, color-mix(in oklab, var(--accent) 22%, white), color-mix(in oklab, var(--accent) 45%, var(--surface-2)) 70%);
   border: 3px solid var(--surface); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16); object-fit: cover; object-position: center 20%; }
-:root[data-page="fieldkit"] .trainer-fav-sprite { width: 40px; height: 40px; left: auto; right: -4px; bottom: -4px; z-index: 2; object-fit: contain; }
+/* The favorite Pokemon rides at the avatar's lower right, back at (and a little past) its pre-facelift size. */
+:root[data-page="fieldkit"] .trainer-fav-sprite { width: 64px; height: 64px; left: auto; right: -16px; bottom: -14px; z-index: 2; object-fit: contain; }
 :root[data-page="fieldkit"] .trainer-card-name { font-weight: 700; font-size: 15.5px; color: var(--fg); }
 :root[data-page="fieldkit"] .trainer-card-pronouns { color: var(--fg-2); font-size: 13px; }
 :root[data-page="fieldkit"] .trainer-card-code { font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.06em; color: var(--fg); background: var(--surface-2); border-radius: 12px; padding: 6px 12px; margin: 0; text-align: left; }
@@ -581,10 +582,11 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
   }
 :root[data-page="fieldkit"] .trainer-profile-card { grid-column: 1 / -1; }
 :root[data-page="fieldkit"] .trainer-profile-card { margin-top: 14px; padding: 20px; }
-:root[data-page="fieldkit"] .trainer-profile-hero { align-items: center; gap: 18px; }
+:root[data-page="fieldkit"] .trainer-profile-hero { align-items: center; justify-content: center; gap: 18px; }
+:root[data-page="fieldkit"] .trainer-profile-hero > .trainer-profile-meta { flex: 0 1 auto; min-width: 0; }
 :root[data-page="fieldkit"] .trainer-profile-sprite-group { width: 96px; height: 96px; }
 :root[data-page="fieldkit"] .trainer-profile-sprite-group :is(.trainer-avatar-sprite, .trainer-avatar-sm) { width: 92px !important; height: 92px !important; }
-:root[data-page="fieldkit"] .trainer-profile-sprite-group .trainer-fav-sprite { width: 54px !important; height: 54px !important; left: auto !important; right: -8px !important; bottom: -6px !important; }
+:root[data-page="fieldkit"] .trainer-profile-sprite-group .trainer-fav-sprite { width: 84px !important; height: 84px !important; left: auto !important; right: -22px !important; bottom: -18px !important; }
 :root[data-page="fieldkit"] .trainer-profile-name { font-family: var(--font-display); font-weight: 750; font-size: clamp(26px, 5vw, 36px); letter-spacing: -0.02em; color: var(--fg); }
 :root[data-page="fieldkit"] .trainer-profile-detail { color: var(--fg-2); }
 :root[data-page="fieldkit"] .trainer-profile-page .admin-card { padding: 18px; }
@@ -847,13 +849,13 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 .fk-ev .nm { font-weight: 700; font-size: 16px; line-height: 1.3; }
 .fk-ev .when { font-size: 13px; color: var(--fg-2); }
 .fk-ev .fk-timebar { margin-top: 0; }
-.fk-ev .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.fk-ev .foot { display: flex; justify-content: flex-start; align-items: baseline; gap: 6px; }
 .fk-ev .left { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; }
 .fk-ev.live .left { color: var(--accent); }
 .fk-empty { padding: 24px 8px; text-align: center; color: var(--fg-3); grid-column: 1 / -1; }
 .fk-event-img { width: 100%; border-radius: var(--r-md); display: block; aspect-ratio: 16 / 7; object-fit: cover; background: var(--surface-2); }
 .fk-event .fk-note-tile .v { font-family: var(--font-body); font-weight: 700; }
-.fk-event .fk-note-tile .v.fk-left { font-family: var(--font-mono); font-weight: 600; }
+.fk-event .fk-note-tile .v.fk-left { font-family: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 .fk-event .event-detail-html { color: var(--fg); font-size: 14px; }
 .fk-event .event-detail-html :is(h2, h3, h4) { font-family: var(--font-display); color: var(--fg); }
 .fk-event .event-detail-html a { color: var(--accent); }
@@ -1122,3 +1124,55 @@ img.fk-prof-av, .fk-av.fk-prof-av { width: 76px; height: 76px; flex: none; borde
 :root[data-page="fieldkit"] .feedback-card-header .feedback-date { margin-left: auto; }
 :root[data-page="fieldkit"] .feedback-card:has(.feedback-mod-delete) .feedback-card-header { padding-right: 28px; }
 :root[data-page="fieldkit"] .feedback-mod-delete { top: 12px; right: 12px; }
+/* Inline pickers (the Settings avatar and similar): just the field, no card around it, with the
+   clear button inside the field on the right. */
+:root[data-page="fieldkit"] .pokemon-picker.picker-inline { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-page="fieldkit"] .pokemon-picker.picker-inline::before { content: none; }
+:root[data-page="fieldkit"] .picker-inline .picker-search-row { position: relative; }
+:root[data-page="fieldkit"] .picker-inline .picker-search-row .search-input { padding-right: 40px; }
+:root[data-page="fieldkit"] .picker-inline .picker-clear-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; color: var(--fg-3); }
+:root[data-page="fieldkit"] .picker-inline .picker-clear-btn:hover { background: var(--surface-2); color: var(--fg); }
+/* The avatar preview sits in a round bubble, centered beside the field. */
+:root[data-page="fieldkit"] .avatar-select-wrap { align-items: center; gap: 14px; }
+:root[data-page="fieldkit"] :is(#avatar-preview-img, #avatar-preview-default) { width: 72px; height: 72px; flex: none; border-radius: 50%; background: var(--surface-2); border: 3px solid var(--surface); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); object-fit: contain; object-position: center 30%; box-sizing: border-box; }
+:root[data-page="fieldkit"] .picker-inline .picker-search-row { width: 100%; }
+:root[data-page="fieldkit"] .picker-inline .picker-search-row .search-input { width: 100%; max-width: none; flex: 1; }
+:root[data-page="fieldkit"] .avatar-select-wrap > .pokemon-picker { flex: 1; min-width: 0; }
+/* Settings: short values do not need full-width fields. Profile and location fields sit two to a
+   row (name and pronouns, friend code and level, avatar and favorite Pokemon), one column on phones.
+   Fields align to the top of their row, so a tall neighbor never opens a gap. */
+@media (min-width: 720px) {
+  :root[data-page="fieldkit"] .settings-form .settings-section:has(> .settings-field) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; align-items: start; }
+  :root[data-page="fieldkit"] .settings-form .settings-section:has(> .settings-field) > :not(.settings-field) { grid-column: 1 / -1; }
+  :root[data-page="fieldkit"] .settings-form .settings-section > .settings-field { display: flex; flex-direction: column; min-width: 0; }
+}
+/* Trainer avatars everywhere: the circle is a backdrop painted behind the sprite (with its ring), not
+   a crop, so heads, hats and raised arms are never cut off. The drop shadow follows circle and sprite. */
+:root[data-page="fieldkit"] img:is(.trainer-avatar-sprite, .fk-prof-av, .fk-res-av, #avatar-preview-img) {
+  border-radius: 0 !important; border: 0 !important; box-shadow: none !important; object-fit: contain !important; object-position: center !important;
+  background: radial-gradient(circle closest-side, color-mix(in oklab, var(--accent) 22%, white) 0, color-mix(in oklab, var(--accent) 45%, var(--surface-2)) 82%, var(--surface) 84% 96%, transparent 97%) !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2)); overflow: visible; }
+/* The profile's shiny preview is always two full rows of four, whatever the card's width. */
+:root[data-page="fieldkit"] #trainer-shiny-container.is-preview .trainer-shiny-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+:root[data-page="fieldkit"] .trainer-card-header { gap: 26px; }
+:root[data-page="fieldkit"] .trainer-profile-hero { gap: 34px; }
+/* The trainer profile's shiny detail: a short sheet sized to its content, not a full-height panel. */
+:root[data-page="fieldkit"] .sc-modal.sc-modal-compact { align-items: center; }
+:root[data-page="fieldkit"] .sc-modal.sc-modal-compact .sc-modal-inner { height: auto; max-height: 100%; padding: 46px 22px 22px; }
+/* Directory cards: the old "View profile" link was stretched over the whole card, so a real tap went
+   to the profile page and the trainer sheet never opened. It stays for keyboards and screen readers
+   (focusable, readable) but no longer covers the card; the sheet has its own "Full profile" button. */
+:root[data-page="fieldkit"] .trainer-card a.trainer-profile-link { position: absolute !important; inset: auto !important; width: 1px !important; height: 1px !important; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; padding: 0 !important; margin: -1px; border: 0; }
+:root[data-page="fieldkit"] .trainer-card a.trainer-profile-link:focus-visible { width: auto !important; height: auto !important; clip: auto; clip-path: none; inset: auto 12px 12px auto !important; padding: 6px 12px !important; margin: 0; border-radius: 99px; background: var(--accent); color: var(--accent-ink); z-index: 3; }
+/* Weather chip: on narrow screens a long name ends in an ellipsis instead of being cut mid-word. */
+.fk-wchip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* My Box add form: a comfortable width instead of full-bleed fields, and room between the intro,
+   the labels and the hints. */
+:root[data-page="fieldkit"] .box-add-body { max-width: 760px; display: flex; flex-direction: column; gap: 14px; padding-top: 6px; }
+:root[data-page="fieldkit"] .box-add-body > .subscribe-desc { margin: 0 0 2px; color: var(--fg-2); }
+:root[data-page="fieldkit"] .box-add-body .box-field { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+:root[data-page="fieldkit"] .box-add-body .box-label { margin: 0; font-weight: 600; font-size: 13px; color: var(--fg-2); }
+:root[data-page="fieldkit"] .iv-box-count { margin: 14px 0 10px; color: var(--fg-3); font-size: 13px; }
+/* Events calendar link and the translator application's country: short fields, not full width. */
+:root[data-page="fieldkit"] #sub-url { max-width: 640px; }
+:root[data-page="fieldkit"] #ta-country { max-width: 360px; }
