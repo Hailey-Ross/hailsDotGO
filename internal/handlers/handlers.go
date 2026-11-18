@@ -62,6 +62,9 @@ type PageMaintenance struct {
 	RaidFinderEnabled       bool
 	ShiniesEnabled          bool
 	TranslatorAppsEnabled   bool
+	// TradesEnabled turns on Trade Assist and Messaging. Off by default, so the feature
+	// can be built and deployed dark until the owner switches it on.
+	TradesEnabled           bool
 }
 
 // PageData is the root template data passed to every page.
@@ -187,6 +190,16 @@ func computeAssetVersion() string {
 var tmplFuncs = template.FuncMap{
 	"divf":  func(a, b int) float64 { return float64(a) / float64(b) },
 	"upper": strings.ToUpper,
+	// maskCode hides a friend code behind stars, keeping its spaces so the mask is exactly as wide
+	// as the code in the monospace font. The page shows the real code on hover or tap (fk-secret).
+	"maskCode": func(code string) string {
+		return strings.Map(func(r rune) rune {
+			if r == ' ' {
+				return r
+			}
+			return '*'
+		}, code)
+	},
 	"T":     func(key string) string { return key }, // replaced per-request via Clone+Funcs
 	// initial is the first letter of a name, uppercased, for avatar badges. It works on runes,
 	// so a name starting with a multi-byte letter is never cut in half.
@@ -208,6 +221,7 @@ func (h *Handlers) loadTemplates() {
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
 		"forgot_password", "reset_password", "verify_email", "privacy", "appearance",
+		"admin_trades", "messages",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(
@@ -518,13 +532,14 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 		RaidFinderEnabled:       true,
 		ShiniesEnabled:          true,
 		TranslatorAppsEnabled:   true,
+		TradesEnabled:           false,
 	}
 	rows, err := h.db.Query(`SELECT setting_key, setting_value FROM site_settings
 		WHERE setting_key IN (
 			'page_raids_enabled','page_dps_enabled','page_pvp_enabled','page_events_enabled',
 			'page_iv_enabled','page_trainers_enabled','section_trainer_directory_enabled',
 			'section_raid_finder_enabled','page_shinies_enabled',
-			'section_translator_apps_enabled'
+			'section_translator_apps_enabled','section_trades_enabled'
 		)`)
 	if err != nil {
 		return m
@@ -557,6 +572,8 @@ func (h *Handlers) maintenanceSettings() PageMaintenance {
 			m.ShiniesEnabled = enabled
 		case "section_translator_apps_enabled":
 			m.TranslatorAppsEnabled = enabled
+		case "section_trades_enabled":
+			m.TradesEnabled = enabled
 		}
 	}
 	return m

@@ -101,11 +101,114 @@ CREATE TABLE IF NOT EXISTS user_shinies (
   method     VARCHAR(32)  NOT NULL DEFAULT '',
   caught_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   evolved_at DATETIME     NULL DEFAULT NULL,
+  -- Willing to Trade (section 56). trade_reason: '', 'duplicate', 'not_for_me', 'event_spare'.
+  for_trade    TINYINT(1)  NOT NULL DEFAULT 0,
+  trade_reason VARCHAR(16) NOT NULL DEFAULT '',
   PRIMARY KEY (id),
   KEY idx_user_shiny (user_id, pokemon_id),
+  KEY idx_us_trade (for_trade, user_id),
   CONSTRAINT fk_shiny_user FOREIGN KEY (user_id)
     REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Trade Assist and Messaging (section 56). Plan: .claude/trade-assist-build-plan-11-18-26.md
+
+-- A connect request between two trainers who are not friends. expires_at is 15 days
+-- after the request, then reset to 15 days after it is accepted.
+CREATE TABLE IF NOT EXISTS trade_contacts (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  from_user   INT UNSIGNED NOT NULL,
+  to_user     INT UNSIGNED NOT NULL,
+  state       ENUM('pending','accepted','declined','expired') NOT NULL DEFAULT 'pending',
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  answered_at DATETIME     NULL DEFAULT NULL,
+  expires_at  DATETIME     NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tc_pair (from_user, to_user),
+  KEY idx_tc_to (to_user, state),
+  KEY idx_tc_exp (state, expires_at),
+  CONSTRAINT fk_tc_from FOREIGN KEY (from_user) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_tc_to   FOREIGN KEY (to_user)   REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One conversation between two trainers about one trade. a_user opened it. The user
+-- columns are SET NULL and the names are snapshots, so staff keep a purged account's
+-- conversations for the full year of retention. hidden_at hides a thread from both
+-- trainers (idle or closed) while staff can still read it.
+CREATE TABLE IF NOT EXISTS trade_threads (
+  id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  a_user           INT UNSIGNED NULL,
+  b_user           INT UNSIGNED NULL,
+  a_name           VARCHAR(64)  NOT NULL,
+  b_name           VARCHAR(64)  NOT NULL,
+  state            ENUM('open','agreed','completed','unconfirmed','declined','cancelled') NOT NULL DEFAULT 'open',
+  a_offer_shiny_id INT UNSIGNED NULL,
+  b_offer_shiny_id INT UNSIGNED NULL,
+  a_offer_label    VARCHAR(96)  NOT NULL DEFAULT '',
+  b_offer_label    VARCHAR(96)  NOT NULL DEFAULT '',
+  a_confirm        ENUM('none','done','denied') NOT NULL DEFAULT 'none',
+  b_confirm        ENUM('none','done','denied') NOT NULL DEFAULT 'none',
+  a_shares_list    TINYINT(1)   NOT NULL DEFAULT 0,
+  b_shares_list    TINYINT(1)   NOT NULL DEFAULT 0,
+  a_last_read_at   DATETIME     NULL DEFAULT NULL,
+  b_last_read_at   DATETIME     NULL DEFAULT NULL,
+  last_message_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  hidden_at        DATETIME     NULL DEFAULT NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_tt_a (a_user, hidden_at, last_message_at),
+  KEY idx_tt_b (b_user, hidden_at, last_message_at),
+  KEY idx_tt_idle (state, last_message_at),
+  KEY idx_tt_hidden (hidden_at),
+  CONSTRAINT fk_tt_a       FOREIGN KEY (a_user) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_tt_b       FOREIGN KEY (b_user) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_tt_a_offer FOREIGN KEY (a_offer_shiny_id) REFERENCES user_shinies (id) ON DELETE SET NULL,
+  CONSTRAINT fk_tt_b_offer FOREIGN KEY (b_offer_shiny_id) REFERENCES user_shinies (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Preset messages only: preset_key is from the Go allowlist, params are typed values
+-- the server validated. from_user NULL with a sys_ key is a server message.
+CREATE TABLE IF NOT EXISTS trade_messages (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  thread_id  INT UNSIGNED    NOT NULL,
+  from_user  INT UNSIGNED    NULL,
+  preset_key VARCHAR(48)     NOT NULL,
+  params     JSON            NULL,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_tm_thread (thread_id, id),
+  KEY idx_tm_from (from_user, created_at),
+  CONSTRAINT fk_tm_thread FOREIGN KEY (thread_id) REFERENCES trade_threads (id) ON DELETE CASCADE,
+  CONSTRAINT fk_tm_from   FOREIGN KEY (from_user) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A pause on new trade requests: automatic (reason auto_rapid_<level>, set by the
+-- rapidity watch in internal/handlers/trades.go) or set by staff (reason staff, set_by
+-- the staff member).
+CREATE TABLE IF NOT EXISTS trade_cooldowns (
+  user_id    INT UNSIGNED NOT NULL,
+  until_at   DATETIME     NOT NULL,
+  reason     VARCHAR(32)  NOT NULL,
+  set_by     INT UNSIGNED NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_tcd_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- "Possibly traded, unverified": the trainer denied (or never answered) a trade the
+-- other trainer confirmed. Staff only. cleared_by is the staff member who cleared it.
+CREATE TABLE IF NOT EXISTS trade_unverified (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    INT UNSIGNED NOT NULL,
+  thread_id  INT UNSIGNED NOT NULL,
+  kind       ENUM('denied','silent') NOT NULL,
+  cleared_by INT UNSIGNED NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_tu_user (user_id, created_at),
+  CONSTRAINT fk_tu_user   FOREIGN KEY (user_id)   REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_tu_thread FOREIGN KEY (thread_id) REFERENCES trade_threads (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Migration 33 (2026-06-23): drop unique constraint to allow true duplicate shiny entries
 -- ALTER TABLE user_shinies ADD INDEX idx_user_shiny (user_id, pokemon_id);
@@ -659,6 +762,7 @@ CREATE TABLE IF NOT EXISTS bug_reports (
   created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   last_activity_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  trade_thread_id  INT UNSIGNED NULL DEFAULT NULL,
   PRIMARY KEY (id),
   KEY idx_br_status (status),
   KEY idx_br_reporter (reporter_id),
@@ -666,10 +770,12 @@ CREATE TABLE IF NOT EXISTS bug_reports (
   KEY idx_br_priority (priority),
   KEY idx_br_type (type, status),
   KEY idx_br_reported (reported_user_id),
+  KEY idx_br_trade (trade_thread_id),
   UNIQUE KEY uk_br_anon_token (anon_token),
   CONSTRAINT fk_br_reporter FOREIGN KEY (reporter_id) REFERENCES users (id) ON DELETE SET NULL,
   CONSTRAINT fk_br_assignee FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
-  CONSTRAINT fk_br_reported FOREIGN KEY (reported_user_id) REFERENCES users (id) ON DELETE SET NULL
+  CONSTRAINT fk_br_reported FOREIGN KEY (reported_user_id) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_br_trade FOREIGN KEY (trade_thread_id) REFERENCES trade_threads (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Canned responses (macros) for staff replies.
@@ -859,7 +965,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (52, 'Raid boss history, as a star schema (2026-08-31)'),
   (53, 'Marking an account for deletion instead of removing it (2026-08-31)'),
   (54, 'Making a queued write safe to retry (2026-09-06)'),
-  (55, 'Turning Japanese on (2026-09-19)');
+  (55, 'Turning Japanese on (2026-09-19)'),
+  (56, 'Trade Assist and Messaging (2026-11-18)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';

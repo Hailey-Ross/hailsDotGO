@@ -1,0 +1,68 @@
+{{define "title"}}Trades (staff){{end}}
+
+{{define "pagekind"}}fieldkit{{end}}
+
+{{define "content"}}
+<section class="fk-page fk-admin-trades">
+{{with .Data}}
+<div class="page-header">
+  <h1>Trades</h1>
+  <p class="page-header-sub">Staff only. Nothing on this page is ever shown to players. <a href="/admin">Back to admin</a></p>
+</div>
+
+{{if .Message}}<p class="fk-meta" role="status" style="padding:10px 12px;border-radius:12px;background:var(--surface-2);{{if .MessageOK}}color:var(--good){{else}}color:var(--bad, #e06c6c){{end}}">{{.Message}}</p>{{end}}
+
+{{if .Thread}}{{with .Thread}}
+<section class="fk-card" style="padding:16px;border-radius:18px;background:var(--surface);border:1px solid var(--line);margin-bottom:16px">
+  <h2 style="margin:0 0 6px">Conversation #{{.ID}}</h2>
+  <p class="fk-meta">@{{.A}} and @{{.B}}. State: <b>{{.State}}</b>{{if .Hidden}} (hidden from both trainers){{end}}. Started {{.Created.Format "2006-01-02 15:04"}} UTC, last message {{.Last.Format "2006-01-02 15:04"}} UTC.</p>
+  <p class="fk-meta">@{{.A}} gives: <b>{{if .AOffer}}{{.AOffer}}{{else}}nothing yet{{end}}</b> (confirm: {{.AConfirm}}). @{{.B}} gives: <b>{{if .BOffer}}{{.BOffer}}{{else}}nothing yet{{end}}</b> (confirm: {{.BConfirm}}).</p>
+  {{if .Reports}}<p class="fk-meta">Player reports about this conversation: {{range .Reports}}#{{.}} {{end}}</p>{{end}}
+  <ol style="display:flex;flex-direction:column;gap:8px;padding-left:1.25rem;margin-top:12px">
+    {{range .Messages}}<li><span class="fk-meta">{{.At.Format "2006-01-02 15:04"}} UTC, <b>{{.From}}</b>:</span> {{.Text}} <span class="fk-meta" style="font-family:var(--font-mono);font-size:11px">({{.Key}})</span></li>{{end}}
+  </ol>
+  <p><a href="/admin/trades">All trade tools</a></p>
+</section>
+{{end}}{{else}}
+
+<section style="margin-bottom:18px">
+  <h2>Flagged: possibly padding their collection</h2>
+  <p class="fk-meta">{{.FlagCount}} or more uncleared "possibly traded, unverified" records within {{.FlagWindow}} days. Clear records below once looked into.</p>
+  {{if .Flagged}}<ul>{{range .Flagged}}<li><a href="/trainer/{{.Username}}">@{{.Username}}</a>: {{.Count}} records, latest {{.Last.Format "2006-01-02"}}</li>{{end}}</ul>{{else}}<p class="fk-meta">Nobody is flagged.</p>{{end}}
+</section>
+
+<section style="margin-bottom:18px">
+  <h2>Possible spam or griefers</h2>
+  <p class="fk-meta">Trainers whose trade requests came fast enough, often enough, for the system to alert staff. For monitoring.</p>
+  {{if .Spam}}<ul>{{range .Spam}}<li><a href="/trainer/{{.Username}}">@{{.Username}}</a></li>{{end}}</ul>{{else}}<p class="fk-meta">Nobody right now.</p>{{end}}
+</section>
+
+<section style="margin-bottom:18px">
+  <h2>Cooldowns</h2>
+  <p class="fk-meta">A trainer in a cooldown cannot send new trade requests. Staff cannot be put in one.</p>
+  {{if .Cooldowns}}<ul>{{range .Cooldowns}}<li><a href="/trainer/{{.Username}}">@{{.Username}}</a> {{if .Automatic}}(automatic, running now){{else}}until {{.Until.Format "2006-01-02 15:04"}} UTC (set by @{{.SetBy}}){{end}}
+    <form method="POST" action="/admin/trades/cooldown/clear" style="display:inline">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}"><input type="hidden" name="user_id" value="{{.UserID}}">
+      <button type="submit" class="fk-btn small ghost">Clear</button>
+    </form></li>{{end}}</ul>{{else}}<p class="fk-meta">No cooldowns are running.</p>{{end}}
+  <form method="POST" action="/admin/trades/cooldown" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+    <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+    <input class="auth-input" name="username" placeholder="username" required style="max-width:200px">
+    <input class="auth-input" name="hours" type="number" min="1" max="720" value="24" required style="max-width:100px"> hours
+    <button type="submit" class="fk-btn small">Start a cooldown</button>
+  </form>
+</section>
+
+<section style="margin-bottom:18px">
+  <h2>Unverified records (last {{.FlagWindow}} days)</h2>
+  <p class="fk-meta">"Denied": said a trade did not happen after the partner confirmed it. "Silent": never answered a trade the partner confirmed.</p>
+  {{if .Records}}<ul>{{range .Records}}<li>@{{.Username}}, {{.Kind}}, {{.At.Format "2006-01-02"}}, <a href="/admin/trades/threads/{{.ThreadID}}">conversation #{{.ThreadID}}</a>
+    <form method="POST" action="/admin/trades/records/clear" style="display:inline">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}"><input type="hidden" name="id" value="{{.ID}}">
+      <button type="submit" class="fk-btn small ghost">Clear</button>
+    </form></li>{{end}}</ul>{{else}}<p class="fk-meta">No records.</p>{{end}}
+</section>
+{{end}}
+{{end}}
+</section>
+{{end}}

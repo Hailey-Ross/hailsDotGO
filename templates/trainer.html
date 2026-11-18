@@ -71,7 +71,7 @@
              still handing its Pokemon GO friend code to any logged-in visitor. The owner
              still sees their own code on their own profile. */}}
         {{if and $.User .Data.Trainer.TrainerCode (or .Data.Trainer.ProfilePublic .Data.IsOwnProfile)}}
-        <div class="trainer-card-code" style="margin-top:0.6rem;display:inline-block">{{.Data.Trainer.TrainerCodeFormatted}}</div>
+        <div class="fk-code-row"><button type="button" class="trainer-card-code fk-secret"><span class="fk-secret-mask" aria-hidden="true">{{maskCode .Data.Trainer.TrainerCodeFormatted}}</span><span class="fk-secret-val">{{.Data.Trainer.TrainerCodeFormatted}}</span></button><button type="button" class="fk-btn small ghost" data-copy="{{.Data.Trainer.TrainerCodeFormatted}}" data-copied="{{T "trainers.sheet.copied"}}">{{T "trainers.sheet.copy"}}</button></div>
         {{end}}
       </div>
     </div>
@@ -235,6 +235,14 @@ const TRAINER_CTX = {
   loggedIn: {{if .User}}true{{else}}false{{end}},
   isOwnProfile: {{if .Data.IsOwnProfile}}true{{else}}false{{end}},
   csrfToken: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+  tradesOn: document.querySelector('meta[name="trades-on"]')?.content === '1',
+  tradeFilter:      {{T "trainer.js.trade_filter"}},
+  tradeFilterAll:   {{T "trainer.js.trade_filter_all"}},
+  tradeWant:        {{T "trainer.js.trade_want"}},
+  tradeAskConnect:  {{T "trainer.js.trade_ask_connect"}},
+  tradeAsked:       {{T "trainer.js.trade_asked"}},
+  tradeNone:        {{T "trainer.js.trade_none"}},
+  tradeTag:         {{T "shinies.js.trade_tag"}},
   shinyShowAll:      {{T "trainer.shiny_show_all"}},
   shinyDetails:      {{T "trainer.shiny_details"}},
   shinyEdit:         {{T "trainer.shiny_edit"}},

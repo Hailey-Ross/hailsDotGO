@@ -29,12 +29,28 @@
     // Pages not restyled for the Field Kit yet are drawn for dark only.
     if (r.getAttribute("data-page") === "legacy") dark = true;
     r.setAttribute("data-boot", dark ? "dark" : "light");
+    // Paint the trainer's own theme colors now, from the set theme.ts cached on the last page
+    // (key TOKENS_KEY there), so a non-default theme never flashes the default green first.
+    // Only when it still matches: same light/dark, same time of day, same kind of page.
+    try {
+      var t = JSON.parse(localStorage.getItem("flexdex-fieldkit-tokens") || "null");
+      var hr = new Date(), hh = hr.getHours() + hr.getMinutes() / 60;
+      var ph = hh < 5 || hh >= 21 ? "night" : hh < 8 ? "dawn" : hh < 17 ? "day" : "dusk";
+      if (t && t.v && t.dark === dark && t.phase === ph && t.legacy === (r.getAttribute("data-page") === "legacy")) {
+        for (var k in t.v) r.style.setProperty("--" + k, t.v[k]);
+        r.style.setProperty("color-scheme", dark ? "dark" : "light");
+        r.setAttribute("data-ink", dark ? "dark" : "light");
+        r.setAttribute("data-phase", ph);
+      }
+    } catch (e) {}
   })();
   </script>
   <link rel="preload" href="/static/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/main.css?v={{.AssetVersion}}">
   <link rel="stylesheet" href="/static/css/fieldkit.css?v={{.AssetVersion}}">
   <meta name="csrf-token" content="{{.CSRFToken}}">
+  {{/* Trade Assist is open to this trainer: switched on in admin, or staff (plan 0.3). Pages read it. */}}
+  <meta name="trades-on" content="{{if .User}}{{if or .Maintenance.TradesEnabled .User.IsMod}}1{{end}}{{end}}">
 </head>
 <body class="fk" data-route="{{if eq .Path "/"}}home{{else}}page{{end}}">
 
@@ -48,6 +64,7 @@
   {{if .User}}<span class="fk-wchip" id="fk-wchip" data-boosts="{{T "nav.weather_boosts"}}" hidden></span>{{end}}
   <span class="fk-spacer"></span>
   <button type="button" class="fk-icon-btn" id="fk-open-search" aria-label="{{T "search.open"}}" aria-haspopup="dialog" aria-keyshortcuts="/"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
+  {{if .User}}{{if or .Maintenance.TradesEnabled .User.IsMod}}<a class="fk-icon-btn fk-msg-btn" href="/messages" aria-label="{{T "nav.messaging"}}"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span class="fk-count" data-trade-badge hidden></span></a>{{end}}{{end}}
   {{if .User}}<a class="fk-icon-btn" href="/notifications" id="nav-notif-btn" data-inbox aria-label="{{T "nav.notifications"}}" aria-haspopup="dialog"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg><span class="fk-count" id="nav-notif-badge" style="display:none"></span></a>{{end}}
   <button type="button" class="fk-icon-btn{{if .User}} fk-me{{end}}" data-sheet="account" aria-label="{{T "nav.account"}}" aria-haspopup="dialog">{{if .User}}<span class="fk-av" aria-hidden="true">{{initial .User.Username}}</span>{{else}}<svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>{{end}}</button>
 </header>
@@ -71,6 +88,7 @@
   <span class="fk-group wide" aria-hidden="true">{{T "nav.group.you"}}</span>
   {{if .Maintenance.IVEnabled}}<a class="fk-item wide" href="/box"{{if pathActive .Path "/box"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg><span>{{T "nav.mybox"}}</span></a>{{end}}
   <a class="fk-item wide" href="/social/{{.User.Username}}"{{if pathActive .Path "/social"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-friends"/></svg><span>{{T "nav.friends"}}</span></a>
+  {{if or .Maintenance.TradesEnabled .User.IsMod}}<a class="fk-item wide" href="/messages"{{if pathActive .Path "/messages"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span>{{T "nav.messaging"}}</span><b class="fk-count" data-trade-badge hidden></b></a>{{end}}
   {{if gt .ReportCount 0}}<a class="fk-item wide" href="/reports"{{if pathActive .Path "/reports"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-inbox"/></svg><span>{{T "nav.reports"}}</span>{{if gt .ReportUnread 0}}<b class="fk-count">{{.ReportUnread}}</b>{{end}}</a>{{end}}
   {{if or .User.IsMod .User.IsTranslator}}
   <span class="fk-group wide" aria-hidden="true">{{T "nav.group.staff"}}</span>
@@ -255,6 +273,9 @@
 <template id="fk-tpl-more">
   <div><span class="fk-label">{{T "nav.more_label"}}</span><h2 class="fk-sheet-title">{{T "nav.more"}}</h2></div>
   <div class="fk-kit">
+    {{/* Tiles are sorted A to Z by label at load (ts/shell.ts); Install shows only while the browser offers installing. */}}
+    <button type="button" class="fk-tool" data-install hidden><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></span>{{T "app.install_short"}}</button>
+    {{if .User}}{{if or .Maintenance.TradesEnabled .User.IsMod}}<a class="fk-tool" href="/messages"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><b class="fk-count" data-trade-badge hidden></b></span>{{T "nav.messaging"}}</a>{{end}}{{end}}
     {{if or .Maintenance.DPSEnabled (or .Maintenance.IVEnabled .Maintenance.PVPEnabled)}}<a class="fk-tool" href="{{if .Maintenance.DPSEnabled}}/dps{{else if .Maintenance.IVEnabled}}/iv{{else}}/pvp{{end}}"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-calc"/></svg></span>{{T "nav.calc"}}</a>{{end}}
     {{if .Maintenance.TrainersEnabled}}<a class="fk-tool" href="/trainers"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-trainers"/></svg></span>{{T "nav.trainers"}}</a>{{end}}
     {{if .Maintenance.RaidFinderEnabled}}<a class="fk-tool" href="/raidfinder"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg></span>{{T "nav.raidfinder"}}</a>{{end}}
@@ -271,7 +292,6 @@
     <a class="fk-tool" href="/credits"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg></span>{{T "footer.credits"}}</a>
     {{if .User}}{{if .User.IsMod}}<a class="fk-tool" href="/admin"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<b class="fk-count">{{.CostumeReviewCount}}</b>{{end}}</span>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}{{end}}
     {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}<a class="fk-tool" href="/translate"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span>{{T "nav.translate"}}</a>{{end}}
-    <button type="button" class="fk-tool" data-install hidden><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></span>{{T "app.install_short"}}</button>
     <a class="fk-tool" href="https://github.com/Hailey-Ross/hailsDotGO/wiki" target="_blank" rel="noopener"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg></span>{{T "nav.wiki"}}</a>
   </div>
 </template>
@@ -315,6 +335,7 @@
   <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/></symbol>
   <symbol id="i-box" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="13" rx="2.5"/><path d="M3.5 11h17M9.5 14.5h5M6 7l2-3.5h8L18 7"/></symbol>
   <symbol id="i-friends" viewBox="0 0 24 24"><circle cx="8.5" cy="9" r="3"/><circle cx="16" cy="9.5" r="2.5"/><path d="M3 19c.6-3 2.8-4.7 5.5-4.7S13.4 16 14 19M14.5 14.6c2.6-.4 5.6.9 6.5 4.4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4.5 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/></symbol>
   <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13.5 6.5 5h11l2.5 8.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13.5h4.5l1.5 2.5h4l1.5-2.5H20"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5 19 6v6c0 4.2-3 7.2-7 8.5-4-1.3-7-4.3-7-8.5V6z"/><path d="M12 8v5M12 16h0"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.7 3.5 5.5 3.5 8.5s-1 5.8-3.5 8.5c-2.5-2.7-3.5-5.5-3.5-8.5s1-5.8 3.5-8.5z"/></symbol>

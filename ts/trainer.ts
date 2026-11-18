@@ -96,6 +96,9 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     event_tag: string; method: string; sprite_url: string; dex: number;
     caught_at: string;
     evolved_at: string | null;
+    // Willing to Trade: present only while Trade Assist is open to the viewer.
+    for_trade?: boolean;
+    trade_reason?: string;
   };
 
   const REGION_LABELS: Record<string, string> = {
@@ -262,6 +265,46 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
     if (item.evolved_at) rows.appendChild(detailRow(TRAINER_CTX.evolved, '⬆'));
     inner.appendChild(rows);
 
+    // Someone else's shiny offered for trade: ask for it. Not friends or connected yet: the
+    // button turns into "Ask to connect" (the server says which, with code not_allowed).
+    if (TRAINER_CTX.tradesOn && TRAINER_CTX.loggedIn && !TRAINER_CTX.isOwnProfile && item.for_trade && item.id) {
+      const want = document.createElement('button');
+      want.type = 'button';
+      want.className = 'fk-btn small';
+      want.style.marginTop = '0.75rem';
+      want.textContent = TRAINER_CTX.tradeWant;
+      const note = document.createElement('p');
+      note.className = 'fk-meta';
+      note.style.marginTop = '0.5rem';
+      // One handler, two modes: "want" opens a conversation; on not_allowed it becomes "connect".
+      let mode: 'want' | 'connect' | 'done' = 'want';
+      want.addEventListener('click', async () => {
+        if (mode === 'done') return;
+        want.disabled = true;
+        note.textContent = '';
+        if (mode === 'connect') {
+          const c = await trainerFetch('/api/trades/contacts', 'POST', { username: TRAINER_CTX.username });
+          const cj = await c.json().catch(() => ({} as { error?: string }));
+          if (c.ok) { mode = 'done'; want.textContent = TRAINER_CTX.tradeAsked; return; }
+          note.textContent = cj.error || '';
+          want.disabled = false;
+          return;
+        }
+        const r = await trainerFetch('/api/trades/threads', 'POST', { username: TRAINER_CTX.username, shiny_id: item.id });
+        const j = await r.json().catch(() => ({} as { id?: number; code?: string; error?: string }));
+        if (r.ok && j.id) { location.href = '/messages?thread=' + j.id; return; }
+        if (j.code === 'not_allowed') {
+          mode = 'connect';
+          want.textContent = TRAINER_CTX.tradeAskConnect;
+        } else {
+          note.textContent = j.error || '';
+        }
+        want.disabled = false;
+      });
+      inner.appendChild(want);
+      inner.appendChild(note);
+    }
+
     // Your own entry, so offer the way to change it. The id is only present on your own profile.
     if (TRAINER_CTX.isOwnProfile && item.id) {
       const edit = document.createElement('a');
@@ -296,6 +339,13 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
       cell.style.cursor = 'zoom-in';
       cell.title = TRAINER_CTX.shinyDetails;
       cell.addEventListener('click', () => openDetail(item));
+      if (item.for_trade) {
+        cell.classList.add('is-for-trade');
+        const tag = document.createElement('span');
+        tag.className = 'sc-trade-tag';
+        tag.textContent = TRAINER_CTX.tradeTag;
+        cell.appendChild(tag);
+      }
 
       const img = document.createElement('img');
       const { src, fallback, dexId } = spriteFor(item);
@@ -355,13 +405,43 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
   fetch('/api/shinies/of/' + encodeURIComponent(TRAINER_CTX.username))
     .then((r) => r.ok ? r.json() as Promise<ShinyItem[]> : Promise.resolve([] as ShinyItem[]))
     .then((all) => {
+      // "For trade" filter: only when something is offered, and only while Trade Assist is open.
+      const forTrade = all.filter((s) => s.for_trade);
+      if (TRAINER_CTX.tradesOn && forTrade.length) {
+        const seg = document.createElement('div');
+        seg.className = 'fk-seg trainer-trade-filter';
+        const mk = (label: string, pressed: boolean, on: () => void) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = label;
+          b.setAttribute('aria-pressed', String(pressed));
+          b.addEventListener('click', () => {
+            seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+            b.setAttribute('aria-pressed', 'true');
+            on();
+          });
+          seg.appendChild(b);
+        };
+        mk(TRAINER_CTX.tradeFilterAll, true, () => firstView());
+        mk(TRAINER_CTX.tradeFilter + ' (' + forTrade.length + ')', false, () => {
+          renderItems(forTrade);
+          container.classList.remove('is-preview');
+          container.parentElement?.querySelector('.trainer-show-all')?.remove();
+        });
+        container.before(seg);
+      }
+      firstView();
+
+      // The normal first view: the latest catches, with "Show all" to expand to dex order.
+      function firstView(): void {
+      container.parentElement?.querySelector('.trainer-show-all')?.remove();
       // The most recent catches (the API sends newest first): two full rows of four.
       const LIMIT = 8;
       renderItems(all.slice(0, LIMIT));
       container.classList.add('is-preview');
       if (all.length > LIMIT) {
         const btn = document.createElement('button');
-        btn.className = 'btn-secondary';
+        btn.className = 'btn-secondary trainer-show-all';
         btn.style.cssText = 'margin-top:0.75rem;font-size:0.82rem';
         btn.textContent = TRAINER_CTX.shinyShowAll.replace('{n}', String(all.length));
         btn.addEventListener('click', () => {
@@ -377,6 +457,7 @@ function trainerFetch(path: string, method: string, body?: unknown): Promise<Res
           btn.remove();
         });
         container.appendChild(btn);
+      }
       }
     })
     .catch(() => { container.textContent = ''; });

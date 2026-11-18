@@ -4,6 +4,7 @@
 import { openSheet } from './shared/fk';
 import { sticker, trimStickers } from './shared/sticker';
 import { feedback } from './shared/feel';
+import { secretCode } from './shared/secret';
 
 const T = (window as unknown as { TR_SHEET: Record<string, string> }).TR_SHEET || {};
 
@@ -19,7 +20,7 @@ function openTrainer(card: HTMLElement): void {
   const link = card.querySelector<HTMLAnchorElement>('a.trainer-profile-link');
   const avatar = card.querySelector<HTMLImageElement>('img.trainer-avatar-sprite');
   const fav = card.querySelector<HTMLImageElement>('img.trainer-fav-sprite');
-  const code = card.querySelector('.trainer-card-code')?.textContent?.trim() || '';
+  const code = card.querySelector('.trainer-card-code .fk-secret-val')?.textContent?.trim() || '';
   const pronouns = card.querySelector('.trainer-card-pronouns')?.textContent?.trim() || '';
 
   const page = el('article', 'fk-species fk-trainer-sheet');
@@ -44,7 +45,7 @@ function openTrainer(card: HTMLElement): void {
   if (code) {
     page.appendChild(el('div', 'fk-sub', T.code || 'Friend code'));
     const row = el('div', 'fk-code');
-    row.appendChild(el('span', undefined, code));
+    row.appendChild(secretCode(code));
     const copy = el('button', 'fk-btn small ghost', T.copy || 'Copy');
     copy.type = 'button';
     copy.addEventListener('click', () => {

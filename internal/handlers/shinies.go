@@ -27,6 +27,9 @@ type shinyRecord struct {
 	Method    string     `json:"method"`
 	CaughtAt  time.Time  `json:"caught_at"`
 	EvolvedAt *time.Time `json:"evolved_at"`
+	// Willing to Trade (Trade Assist). The owner's own list always carries both.
+	ForTrade    bool   `json:"for_trade"`
+	TradeReason string `json:"trade_reason"`
 }
 
 func (h *Handlers) ShiniesPage(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +44,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
+		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at, for_trade, trade_reason
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC, id DESC`,
 		u.ID,
 	)
@@ -54,7 +57,7 @@ func (h *Handlers) APIShiniesGet(w http.ResponseWriter, r *http.Request) {
 	out := []shinyRecord{}
 	for rows.Next() {
 		var s shinyRecord
-		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt, &s.ForTrade, &s.TradeReason); err != nil {
 			continue
 		}
 		out = append(out, s)
@@ -362,6 +365,36 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if locked, err := h.shinyLockedInTrade(id); err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	} else if locked {
+		writeJSONErrorCode(w, h.t(r, "trade.err.trade_confirming"), "trade_confirming", http.StatusConflict)
+		return
+	}
+
+	// What the entry was before the edit, for Trade Assist: if it is offered in a trade and the
+	// edit changes what is offered, the trade has to be re-verified. Read only for the caller's
+	// own row; for anyone else's the UPDATE below changes nothing anyway.
+	var oldPokemon, oldForm, oldRegion, oldCostume, oldEvent string
+	owned := h.db.QueryRow(`SELECT pokemon_id, form, region, costume, event_tag FROM user_shinies WHERE id = ? AND user_id = ?`,
+		id, u.ID).Scan(&oldPokemon, &oldForm, &oldRegion, &oldCostume, &oldEvent) == nil
+
+	// Trades first, then the edit: if this fails the entry is unchanged, so no agreed trade can
+	// end up moving something other than what was agreed (Phase 5 review).
+	// trade_modified counts the pending trades this edit changed: the client tells the trainer the
+	// shiny is in a pending trade and has to be re-verified with their trade partner, who gets a
+	// "Trade modified" request to review.
+	modified := 0
+	if owned && (body.Form != oldForm || body.Region != oldRegion || body.Costume != oldCostume || body.EventTag != oldEvent) {
+		name := h.normalizeStoredSpecies(oldPokemon)
+		modified, err = h.tradeOfferModified(id, tradeOfferLabel(name, body.Form, body.Region, body.Costume, body.EventTag), time.Now())
+		if err != nil {
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// An omitted date leaves the stored one alone, so a client that does not send the field (or a
 	// row whose date was never set) is untouched.
 	if hasCaughtAt {
@@ -382,7 +415,7 @@ func (h *Handlers) APIShiniesUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"ok":true}`))
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "trade_modified": modified})
 }
 
 func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
@@ -396,6 +429,27 @@ func (h *Handlers) APIShiniesDelete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSONError(w, h.t(r, "error.invalid_id"), http.StatusBadRequest)
 		return
+	}
+
+	// A shiny offered in an open trade comes out of it first, with a note to both trainers. Only
+	// for the caller's own row: tradeOfferRemoved is not scoped to a user.
+	var owned bool
+	if err := h.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM user_shinies WHERE id = ? AND user_id = ?)`, id, u.ID).Scan(&owned); err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+	if owned {
+		if locked, err := h.shinyLockedInTrade(id); err != nil {
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+			return
+		} else if locked {
+			writeJSONErrorCode(w, h.t(r, "trade.err.trade_confirming"), "trade_confirming", http.StatusConflict)
+			return
+		}
+		if err := h.tradeOfferRemoved(id, time.Now()); err != nil {
+			writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	result, err := h.db.Exec(
@@ -479,10 +533,25 @@ func (h *Handlers) APIShiniesEvolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if locked, err := h.shinyLockedInTrade(id); err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	} else if locked {
+		writeJSONErrorCode(w, h.t(r, "trade.err.trade_confirming"), "trade_confirming", http.StatusConflict)
+		return
+	}
+
+	// Evolving removes the Willing to Trade mark (owner decision): the trainer offered the
+	// Pokemon it was, so it also comes out of any open trade that offered it.
+	if err := h.tradeOfferRemoved(id, time.Now()); err != nil {
+		writeJSONError(w, h.t(r, "error.db"), http.StatusInternalServerError)
+		return
+	}
+
 	res, err := h.db.Exec(
 		// UTC_TIMESTAMP, not NOW: caught_at is written in UTC from Go, and the two dates on one row
 		// should not be on different clocks.
-		`UPDATE user_shinies SET pokemon_id = ?, region = ?, evolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ?`,
+		`UPDATE user_shinies SET pokemon_id = ?, region = ?, evolved_at = UTC_TIMESTAMP(), for_trade = 0, trade_reason = '' WHERE id = ? AND user_id = ?`,
 		body.Into, body.Region, id, u.ID,
 	)
 	if err != nil {
@@ -518,6 +587,10 @@ type publicShinyRecord struct {
 	SpriteURL string     `json:"sprite_url"`
 	CaughtAt  time.Time  `json:"caught_at"`
 	EvolvedAt *time.Time `json:"evolved_at"`
+	// Willing to Trade. On another trainer's collection these are only filled in while Trade
+	// Assist is on (shiniesOfUser), and that list is empty for private profiles anyway.
+	ForTrade    bool   `json:"for_trade,omitempty"`
+	TradeReason string `json:"trade_reason,omitempty"`
 }
 
 // MobileShiniesOfUser is APIShiniesOfUser with absolute sprite URLs.
@@ -564,8 +637,11 @@ func (h *Handlers) shiniesOfUser(w http.ResponseWriter, r *http.Request, absolut
 	caller := h.currentUser(r)
 	isOwner := caller != nil && int(caller.ID) == userID
 
+	// Only for signed in viewers who can trade: a visitor has no use for ids (Phase 10 review).
+	showTrade := caller != nil && h.tradesOn(caller)
+
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
+		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at, for_trade, trade_reason
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC, id DESC`, userID,
 	)
 	if err != nil {
@@ -578,11 +654,21 @@ func (h *Handlers) shiniesOfUser(w http.ResponseWriter, r *http.Request, absolut
 	for rows.Next() {
 		var s publicShinyRecord
 		var id uint64
-		if err := rows.Scan(&id, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
+		var forTrade bool
+		var tradeReason string
+		if err := rows.Scan(&id, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt, &forTrade, &tradeReason); err != nil {
 			continue
 		}
 		if isOwner {
 			s.ID = id
+		}
+		if showTrade {
+			s.ForTrade, s.TradeReason = forTrade, tradeReason
+			// A shiny offered for trade carries its id, so a viewer can ask for it ("Want this").
+			// Only these: every other entry's id stays private to its owner.
+			if forTrade {
+				s.ID = id
+			}
 		}
 		// Fold the stored species to English FIRST, so the row the client gets
 		// back carries the join key the shiny dex card is built on, not only a
@@ -612,7 +698,7 @@ func (h *Handlers) MobileShiniesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(`
-		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at
+		SELECT id, pokemon_id, form, region, costume, event_tag, method, caught_at, evolved_at, for_trade, trade_reason
 		FROM user_shinies WHERE user_id = ? ORDER BY caught_at DESC, id DESC`, u.ID,
 	)
 	if err != nil {
@@ -624,7 +710,7 @@ func (h *Handlers) MobileShiniesGet(w http.ResponseWriter, r *http.Request) {
 	out := []publicShinyRecord{}
 	for rows.Next() {
 		var s publicShinyRecord
-		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PokemonID, &s.Form, &s.Region, &s.Costume, &s.EventTag, &s.Method, &s.CaughtAt, &s.EvolvedAt, &s.ForTrade, &s.TradeReason); err != nil {
 			continue
 		}
 		// Fold the stored species to English FIRST, so the row the client gets

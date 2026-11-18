@@ -314,6 +314,13 @@ func (h *Handlers) APIGetBugReport(w http.ResponseWriter, r *http.Request) {
 
 	messages := h.loadBugMessages(reportID, u.ID, isStaff)
 
+	// The Trade Assist conversation a player report points at, for staff only: the admin view
+	// links to its read only page.
+	var tradeThread sql.NullInt64
+	if isStaff {
+		h.db.QueryRow(`SELECT trade_thread_id FROM bug_reports WHERE id = ?`, reportID).Scan(&tradeThread)
+	}
+
 	// Mark this report as seen for the caller.
 	h.db.Exec(`UPDATE bug_report_participants SET last_seen_at = NOW() WHERE report_id = ? AND user_id = ?`, reportID, u.ID)
 
@@ -323,6 +330,7 @@ func (h *Handlers) APIGetBugReport(w http.ResponseWriter, r *http.Request) {
 		"type":              reportType,
 		"reason":            reason,
 		"reported_username": reportedName,
+		"trade_thread_id":   tradeThread.Int64,
 		"subject":           subject,
 		"status":            status,
 		"priority":          priority,

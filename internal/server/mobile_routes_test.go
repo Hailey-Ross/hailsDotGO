@@ -90,6 +90,19 @@ func TestMobileAliasesAreRegistered(t *testing.T) {
 		// Swapping this back to h.APIShiniesOfUser blanks the shiny grid on every
 		// trainer profile in every installed build.
 		`r.Get("/shinies/of/{username}", h.MobileShiniesOfUser)`,
+		// Willing to Trade. Without it the app cannot mark a shiny for trade.
+		`.Post("/shinies/{id}/trade", h.APIShiniesTrade)`,
+		// Trade Assist connect requests: the app's port of Willing to Trade needs all three.
+		`r.Get("/trades/contacts", h.APITradeContactsList)`,
+		`.Post("/trades/contacts", h.APITradeContactCreate)`,
+		`.Post("/trades/contacts/{id}/{answer:accept|decline}", h.APITradeContactAnswer)`,
+		`r.Get("/trades/notices", h.APITradeNotices)`,
+		`r.Get("/trades/threads", h.APITradeThreadsList)`,
+		`r.Get("/trades/threads/{id}", h.APITradeThreadGet)`,
+		`r.Get("/trades/threads/{id}/list", h.MobileTradeThreadList)`,
+		`.Post("/trades/threads", h.APITradeThreadCreate)`,
+		`.Post("/trades/threads/{id}/messages", h.APITradeMessage)`,
+		`.Post("/trades/threads/{id}/confirm", h.APITradeConfirm)`,
 		// Bare on purpose, like APIAwardGrant: RequireAuth answers a 303 on the
 		// web path, and this handler makes its own 401. See the guard test below.
 		`r.Get("/users/search", h.APIUsersSearch)`,

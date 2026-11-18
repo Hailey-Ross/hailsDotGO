@@ -11,6 +11,8 @@
 // the key and the `mode` values in sync with it.
 
 export const SETTINGS_KEY = 'flexdex-fieldkit';
+/** The last painted token set, read by the boot script in base.html (same key there). */
+export const TOKENS_KEY = 'flexdex-fieldkit-tokens';
 
 export type Mode = 'system' | 'light' | 'dark' | 'sun';
 export type Phase = 'day' | 'dawn' | 'dusk' | 'night';
@@ -254,6 +256,13 @@ export function applyTheme(): void {
   root.dataset.ink = L.dark ? 'dark' : 'light';
   root.dataset.phase = sp;
   root.removeAttribute('data-boot');
+  // The boot script in base.html paints this cached set before the first frame of the next page,
+  // so a non-default theme never flashes the stylesheet's default (Trailhead) colors first.
+  try {
+    localStorage.setItem(TOKENS_KEY, JSON.stringify({
+      v, dark: L.dark, phase: sp, legacy: root.getAttribute('data-page') === 'legacy',
+    }));
+  } catch { /* not cached: the next page paints the defaults for a moment */ }
   document.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: { habitat: h, dark: L.dark, phase: L.phase, scenePhase: sp } }));
 }
 

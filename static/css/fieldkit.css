@@ -394,8 +394,15 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 .fk-page :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 
 /* Motion: cards settle like stickers being placed. */
-.fk-settle { animation: fk-settle 0.7s var(--spring) both; animation-delay: calc(var(--i, 0) * 70ms); }
-@keyframes fk-settle { from { opacity: 0; transform: translateY(14px) rotate(var(--tilt-in, -1.2deg)) scale(0.98); } }
+/* Cards bounce in when a page opens: rise, overshoot a touch, settle. A quick cascade (capped, so a
+   long page still lands within about a second). */
+.fk-settle { animation: fk-settle 0.62s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(min(var(--i, 0), 12) * 45ms); }
+@keyframes fk-settle {
+  0% { opacity: 0; transform: translateY(22px) rotate(var(--tilt-in, -1.2deg)) scale(0.94); }
+  55% { opacity: 1; transform: translateY(-5px) rotate(0.3deg) scale(1.015); }
+  78% { transform: translateY(1.5px) scale(0.997); }
+  100% { opacity: 1; transform: none; }
+}
 
 /* Field cards: index cards with a tab label sticking up. */
 .fk-card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 18px; min-width: 0; }
@@ -897,7 +904,7 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
   border: 2px dashed var(--line-hi); background: var(--surface-2); filter: grayscale(0.55) opacity(0.8); transition: filter 0.3s, transform 0.35s var(--spring); }
 .fk-dex .shiny-tag:hover .shiny-img { filter: none; }
 .fk-dex .shiny-tag.sc-caught .shiny-img, .fk-dex .sc-entry-card .shiny-img { border: 3px solid var(--surface); filter: drop-shadow(0 0 0.6px #fff) drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25));
-  background: radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--accent) 10%, white) 0 48%, color-mix(in oklab, var(--accent) 30%, white) 100%);
+  background: radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--accent) 8%, var(--surface-2)) 0 48%, color-mix(in oklab, var(--accent) 22%, var(--surface-2)) 100%);
   box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--accent) 55%, transparent), 0 2px 7px rgba(0, 0, 0, 0.18), 0 0 16px -4px color-mix(in oklab, var(--accent) 60%, transparent); transform: rotate(-3deg); }
 .fk-dex .shiny-tag:nth-child(even).sc-caught .shiny-img { transform: rotate(3deg); }
 .fk-dex .shiny-tag .shiny-img.sprite-sm-poke { padding: 10px; }
@@ -971,7 +978,9 @@ body:not([data-route="home"]) .fk-weather { opacity: 0.35; }
 @keyframes fk-stick { 0% { transform: translateY(-30px) rotate(-22deg) scale(1.2); opacity: 0; } 60% { opacity: 1; } 100% { transform: rotate(-5deg); } }
 .fk-sp-top h2 { font-family: var(--font-display); font-weight: 750; font-size: 26px; letter-spacing: -0.02em; line-height: 1.1; }
 .fk-sp-top .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-.fk-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
+/* The note tiles grid (species page CP notes, event page). Only lists of note tiles: the bell inbox
+   shares the .fk-notes class and must stay a single column. */
+.fk-notes:has(> .fk-note-tile) { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
 .fk-note-tile { padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); min-width: 0; }
 .fk-note-tile .v { font-family: var(--font-mono); font-size: 18px; font-weight: 600; line-height: 1.15; }
 .fk-note-tile .k { font-size: 11.5px; color: var(--fg-3); }
@@ -1187,3 +1196,158 @@ img.fk-prof-av, .fk-av.fk-prof-av { width: 76px; height: 76px; flex: none; borde
 /* Events calendar link and the translator application's country: short fields, not full width. */
 :root[data-page="fieldkit"] #sub-url { max-width: 640px; }
 :root[data-page="fieldkit"] #ta-country { max-width: 360px; }
+/* Page changes (concept parity): the browser keeps the status bar and the navigation steady across
+   the page load and glides the highlight pill from the old tab to the new one with the same spring
+   as the concept; only the page content swaps. Chrome, Edge and Safari; others load as before. */
+@view-transition { navigation: auto; }
+:root[data-page="fieldkit"] .fk-status { view-transition-name: fk-status; }
+:root[data-page="fieldkit"] .fk-dock { view-transition-name: fk-dock; }
+:root[data-page="fieldkit"] .fk-hop { view-transition-name: fk-hop; }
+::view-transition-group(fk-hop) { animation-duration: 0.55s; animation-timing-function: var(--spring, cubic-bezier(0.34, 1.56, 0.64, 1)); }
+::view-transition-old(fk-hop) { animation: none; opacity: 0; }
+::view-transition-new(fk-hop) { animation: fk-hop-vt 0.55s var(--ease, ease) both; }
+@keyframes fk-hop-vt { 45% { scale: 1.08 0.9; } }
+::view-transition-group(fk-status), ::view-transition-group(fk-dock) { animation-duration: 0.2s; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+/* Page changes, part 2: no double exposure. The old page fades out quickly and the new page's
+   content bounces in by itself (the status bar and navigation stay put, the pill glides). */
+::view-transition-old(root) { animation: fk-vt-out 0.12s ease-in both; }
+::view-transition-new(root) { animation: none; }
+@keyframes fk-vt-out { to { opacity: 0; } }
+/* Everything on the page bounces in, not only the cards that carry .fk-settle: the page header and
+   every card type, cascading in page order (the first ten siblings get their own step). */
+:root[data-page="fieldkit"] main.container :is(.page-header, .fk-head, .admin-card, .attacker-card, .auth-card, .boss-card, .calc-form, .cl-entry, .counter-results, .credits-card, .event-card, .events-section, .iv-form, .raid-filter-bar, .raid-lock-card, .raid-post-card, .raid-post-form-card, .raid-posts-empty, .raid-upnext, .raid-wait-card, .reports-list, .reports-thread, .result-card, .settings-section, .stat-card, .store-card, .store-perk-row, .subscribe-panel, .tier-section, .tool-card, .trainer-card, .trainers-empty, .um-card, .um-mini-card, .weather-banner, .fk-card):not(.fk-settle) {
+  animation: fk-settle 0.62s cubic-bezier(0.22, 1, 0.36, 1) both; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(2) { animation-delay: 45ms; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(3) { animation-delay: 90ms; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(4) { animation-delay: 135ms; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(5) { animation-delay: 180ms; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(6) { animation-delay: 225ms; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(7) { animation-delay: 270ms; }
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .trainer-card, .um-card, .event-card, .store-card, .boss-card, .tool-card):not(.fk-settle):nth-child(n+8) { animation-delay: 315ms; }
+/* Nested cards ride with their parent instead of bouncing again inside it. */
+:root[data-page="fieldkit"] main.container :is(.fk-card, .admin-card, .settings-section, .fk-settle) :is(.fk-card, .admin-card, .settings-section, .result-card, .stat-card, .um-mini-card, .store-perk-row, .cl-entry):not(.fk-settle) { animation: none; }
+/* Events: keep room for the event list while it loads, so the calendar panel below is not shoved down. */
+:root[data-page="fieldkit"] #events-app:has(> .loading-state, > :empty) { min-height: 60vh; }
+:root[data-page="fieldkit"] #events-app { min-height: 40vh; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-page="fieldkit"] main.container * { animation: none !important; }
+}
+/* Loading placeholders only show when loading actually takes a while, so a quick load never
+   flashes a "Loading..." card that is yanked away a moment later. */
+:root[data-page="fieldkit"] main.container .loading-state { animation: fk-late-in 0.25s ease 0.35s both; }
+@keyframes fk-late-in { from { opacity: 0; } }
+/* Events: the calendar panel bounces in after the event list, so the list never shoves it down. */
+:root[data-page="fieldkit"] main.container .subscribe-panel { animation-delay: 0.45s !important; }
+/* The Dex grid: the first cards (what is on screen) bounce in with a quick cascade; the rest appear
+   without animation, because bouncing a thousand cards at once is too much for slower phones. */
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(-n+40) { animation: fk-settle 0.62s cubic-bezier(0.22, 1, 0.36, 1) both; }
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(n+1):nth-child(-n+6) { animation-delay: 0ms; }
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(n+7):nth-child(-n+12) { animation-delay: 40ms; }
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(n+13):nth-child(-n+18) { animation-delay: 80ms; }
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(n+19):nth-child(-n+24) { animation-delay: 120ms; }
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(n+25):nth-child(-n+30) { animation-delay: 160ms; }
+:root[data-page="fieldkit"] .shiny-grid > .shiny-tag:nth-child(n+31):nth-child(-n+40) { animation-delay: 200ms; }
+/* Friend codes: the box fits the code instead of stretching across the card (directory cards,
+   profile, trainer sheet), with Copy right beside it. */
+:root[data-page="fieldkit"] .trainer-card-code { width: fit-content; max-width: 100%; align-self: flex-start; white-space: nowrap; }
+.fk-code-row { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+/* Copy matches the code box exactly: same height, same row, no taller button minimum. */
+:root[data-page="fieldkit"] .fk-code-row :is(.trainer-card-code, .fk-btn) { box-sizing: border-box; height: 34px; min-height: 0; margin: 0; display: inline-flex; align-items: center; align-self: center; }
+:root[data-page="fieldkit"] .fk-code-row .fk-btn { padding: 0 14px; border-radius: 12px; font-size: 13px; }
+.fk-code-row .trainer-card-code { margin: 0; }
+.fk-code { width: fit-content; max-width: 100%; justify-content: flex-start; gap: 14px; }
+/* The trainer sheet is sized to its content on wide screens instead of running the full height. */
+@media (min-width: 760px) {
+  .fk-sheet[data-sheet="trainer"] { bottom: auto; max-height: calc(100% - env(safe-area-inset-top, 0px) - 32px); }
+}
+
+/* Hidden friend codes (ts/shared/secret.ts): stars until hovered (mouse) or tapped (phones), so a
+   screen recording or someone looking over a shoulder does not catch the code. The mask has the
+   same characters and spaces as the code, so nothing shifts when it swaps. */
+.fk-secret { cursor: pointer; border: 0; margin: 0; font: inherit; letter-spacing: inherit; color: inherit; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+.fk-code .fk-secret, .trainer-code.fk-secret { background: none; padding: 0; }
+.fk-secret .fk-secret-val { display: none; }
+.fk-secret.is-shown .fk-secret-val { display: inline; }
+.fk-secret.is-shown .fk-secret-mask { display: none; }
+@media (hover: hover) {
+  .fk-secret:hover .fk-secret-val { display: inline; }
+  .fk-secret:hover .fk-secret-mask { display: none; }
+}
+
+/* ---------- Trade Assist (plan Phase 10) ---------- */
+/* Messaging lives in the strap on wide screens, so the status bar button is for phones only (C5). */
+@media (min-width: 760px) { .fk-msg-btn { display: none; } }
+.fk-count[hidden] { display: none; }
+.fk-tile { position: relative; }
+.fk-tile > .fk-count { position: absolute; top: -4px; right: -6px; box-shadow: 0 0 0 2px var(--surface); }
+
+/* "For trade" tags: album and profile cards, entry card pill. */
+.sc-trade-tag { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font: 700 9.5px var(--font-mono); letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: color-mix(in oklab, var(--gold) 22%, var(--surface)); color: var(--gold); white-space: nowrap; }
+.fk-dex .shiny-tag:has(.sc-trade-tag) { padding-bottom: 24px; }
+.trainer-shiny-item { position: relative; }
+.trainer-shiny-item.is-for-trade { padding-bottom: 22px; }
+:root[data-page="fieldkit"] .fk-dex .sc-pill--trade { background: color-mix(in oklab, var(--gold) 22%, var(--surface)); color: var(--gold); font-weight: 700; }
+
+/* Entry editor: the Willing to Trade switch, reason and private note. */
+.sc-trade-wrap { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
+.sc-trade-switch { display: flex; align-items: center; gap: 10px; font-weight: 700; cursor: pointer; }
+.sc-trade-note { margin: 0; font-size: 12.5px; color: var(--fg-2); }
+
+/* Dex select mode. */
+.sc-trade-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.fk-dex .shiny-tag.sc-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.trainer-trade-filter { margin-bottom: 10px; }
+/* The profile page is not inside .fk-page, so its filter buttons need the reset .fk-page gives. */
+.trainer-trade-filter button { font: inherit; font-size: 13px; color: var(--fg-2); background: none; border: 0; cursor: pointer; }
+.trainer-trade-filter button[aria-pressed="true"] { background: var(--surface); color: var(--fg); }
+
+/* Messaging page. */
+.fk-msg { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.fk-msg-tabs .fk-count { margin-left: 6px; }
+.fk-msg-body { display: flex; flex-direction: column; gap: 12px; }
+.fk-msg-empty { color: var(--fg-2); padding: 28px 4px; }
+.fk-msg-toast { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--fg); }
+.fk-msg-toast.bad { box-shadow: inset 3px 0 0 #e06c6c; }
+.fk-msg-list { display: flex; flex-direction: column; gap: 8px; }
+.fk-msg-row { display: flex; flex-direction: column; align-items: stretch; gap: 4px; text-align: left; padding: 12px 14px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--fg); font: inherit; cursor: pointer; }
+.fk-msg-row.static { cursor: default; }
+.fk-msg-row.unread { box-shadow: inset 3px 0 0 var(--accent); }
+.fk-msg-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fk-msg-row-top .fk-meta { margin-left: auto; }
+.fk-msg-row-deal { font-size: 13px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fk-msg-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fk-msg-state { font: 600 10.5px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px;
+  background: var(--surface-2); color: var(--fg-2); }
+.fk-msg-state.s-agreed, .fk-msg-state.s-completed { background: var(--accent-soft); color: var(--accent); }
+.fk-msg-state.s-unconfirmed { color: var(--gold); }
+.fk-msg-thead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fk-msg-who { display: flex; align-items: center; gap: 8px; flex: 1 1 160px; min-width: 0; }
+.fk-msg-thead .fk-msg-acts { margin-left: auto; }
+.fk-msg-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fk-msg-note { margin: 0; color: var(--fg-2); }
+.fk-msg-deal, .fk-msg-review, .fk-msg-confirm { display: flex; flex-direction: column; gap: 12px; }
+.fk-msg-offers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fk-msg-offer { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); min-width: 0; }
+.fk-msg-offer b { overflow-wrap: anywhere; }
+.fk-msg-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fk-msg-review { box-shadow: inset 3px 0 0 var(--gold); }
+.fk-msg-log { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; padding: 4px 2px; }
+.fk-msg-bubble { max-width: 82%; padding: 10px 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+.fk-msg-bubble.me { align-self: flex-end; background: var(--accent-soft); border-color: transparent; border-bottom-right-radius: 6px; }
+.fk-msg-bubble.them { align-self: flex-start; border-bottom-left-radius: 6px; }
+.fk-msg-bubble.system { align-self: center; max-width: 92%; background: none; border: 0; text-align: center; color: var(--fg-2); font-size: 13px; }
+.fk-msg-bubble time { font-size: 11px; }
+.fk-msg-compose { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px dashed var(--line-hi); }
+.fk-msg-group { font-size: 12px; font-weight: 700; color: var(--fg-2); }
+.fk-msg-pick { display: flex; flex-direction: column; gap: 12px; }
+.fk-msg-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.fk-msg-pick-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border-radius: 14px; background: var(--surface-2);
+  color: var(--fg); font: inherit; font-size: 13px; text-align: center; cursor: pointer; border: 1px solid transparent; }
+.fk-msg-pick-item:hover { border-color: var(--accent); }
+.fk-msg-pick-item img { width: 64px; height: 64px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+@media (max-width: 420px) { .fk-msg-offers { grid-template-columns: 1fr; } .fk-msg-bubble { max-width: 92%; } }

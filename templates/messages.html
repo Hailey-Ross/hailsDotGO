@@ -1,0 +1,132 @@
+{{define "title"}}{{T "trade.ui.title"}}{{end}}
+
+{{define "pagekind"}}fieldkit{{end}}
+
+{{define "content"}}
+<section class="fk-page fk-messages">
+<div class="page-header fk-msg-head">
+  <h1>{{T "trade.ui.title"}}</h1>
+  <p class="page-header-sub">{{T "trade.ui.sub"}}</p>
+</div>
+
+<div class="fk-msg" id="fk-msg">
+  <div class="fk-seg fk-msg-tabs" id="fk-msg-tabs">
+    <button type="button" data-tab="active">{{T "trade.ui.tab_active"}}<b class="fk-count" data-count="active" hidden></b></button>
+    <button type="button" data-tab="requests">{{T "trade.ui.tab_requests"}}<b class="fk-count" data-count="requests" hidden></b></button>
+    <button type="button" data-tab="closed">{{T "trade.ui.tab_closed"}}</button>
+  </div>
+  <div id="fk-msg-body" class="fk-msg-body"><div class="fk-dots" aria-hidden="true"><i></i><i></i><i></i></div></div>
+</div>
+</section>
+{{end}}
+
+{{define "scripts"}}
+<script>
+const TRT = {
+  me:              {{.User.Username}},
+  tabActive:       {{T "trade.ui.tab_active"}},
+  emptyActive:     {{T "trade.ui.empty_active"}},
+  emptyClosed:     {{T "trade.ui.empty_closed"}},
+  emptyRequests:   {{T "trade.ui.empty_requests"}},
+  incoming:        {{T "trade.ui.incoming"}},
+  outgoing:        {{T "trade.ui.outgoing"}},
+  connected:       {{T "trade.ui.connected"}},
+  accept:          {{T "trade.ui.accept"}},
+  decline:         {{T "trade.ui.decline"}},
+  waiting:         {{T "trade.ui.waiting"}},
+  notAvailable:    {{T "trade.ui.not_available"}},
+  daysLeft:        {{T "trade.ui.days_left"}},
+  startTrade:      {{T "trade.ui.start_trade"}},
+  back:            {{T "trade.ui.back"}},
+  youGive:         {{T "trade.ui.you_give"}},
+  youGet:          {{T "trade.ui.you_get"}},
+  nothingYet:      {{T "trade.ui.nothing_yet"}},
+  offerMine:       {{T "trade.ui.offer_mine"}},
+  pickTheirs:      {{T "trade.ui.pick_theirs"}},
+  shareList:       {{T "trade.ui.share_list"}},
+  stopShare:       {{T "trade.ui.stop_share"}},
+  agree:           {{T "trade.ui.agree"}},
+  reviewTitle:     {{T "trade.ui.review_title"}},
+  reviewOk:        {{T "trade.ui.review_ok"}},
+  reviewNo:        {{T "trade.ui.review_no"}},
+  confirmTitle:    {{T "trade.ui.confirm_title"}},
+  confirmYes:      {{T "trade.ui.confirm_yes"}},
+  confirmNo:       {{T "trade.ui.confirm_no"}},
+  waitingPartner:  {{T "trade.ui.waiting_partner"}},
+  report:          {{T "trade.ui.report"}},
+  block:           {{T "trade.ui.block"}},
+  blockConfirm:    {{T "trade.ui.block_confirm"}},
+  say:             {{T "trade.ui.say"}},
+  groupPlan:       {{T "trade.ui.group_plan"}},
+  groupDeal:       {{T "trade.ui.group_deal"}},
+  groupClose:      {{T "trade.ui.group_close"}},
+  pickTitleMine:   {{T "trade.ui.pick_title_mine"}},
+  pickTitleTheirs: {{T "trade.ui.pick_title_theirs"}},
+  pickEmptyMine:   {{T "trade.ui.pick_empty_mine"}},
+  pickEmptyTheirs: {{T "trade.ui.pick_empty_theirs"}},
+  you:             {{T "trade.ui.you"}},
+  unavailable:     {{T "trade.ui.unavailable_partner"}},
+  error:           {{T "trade.ui.error"}},
+  pickTime:        {{T "trade.ui.pick_time"}},
+  state: {
+    open:        {{T "trade.ui.state_open"}},
+    agreed:      {{T "trade.ui.state_agreed"}},
+    completed:   {{T "trade.ui.state_completed"}},
+    unconfirmed: {{T "trade.ui.state_unconfirmed"}},
+    declined:    {{T "trade.ui.state_declined"}},
+    cancelled:   {{T "trade.ui.state_cancelled"}},
+  },
+  when: {
+    today:        {{T "trade.when.today"}},
+    this_evening: {{T "trade.when.this_evening"}},
+    tomorrow:     {{T "trade.when.tomorrow"}},
+    this_weekend: {{T "trade.when.this_weekend"}},
+  },
+  btn: {
+    when:              {{T "trade.btn.when"}},
+    when_ok:           {{T "trade.btn.when_ok"}},
+    when_other:        {{T "trade.btn.when_other"}},
+    friend_code:       {{T "trade.btn.friend_code"}},
+    need_good_friends: {{T "trade.btn.need_good_friends"}},
+    need_stardust:     {{T "trade.btn.need_stardust"}},
+    ready:             {{T "trade.btn.ready"}},
+    none_fit:          {{T "trade.btn.none_fit"}},
+    decline:           {{T "trade.btn.decline"}},
+    cancel:            {{T "trade.btn.cancel"}},
+    thanks_done:       {{T "trade.btn.thanks_done"}},
+  },
+  preset: {
+    req_trade_for:      {{T "trade.preset.req_trade_for"}},
+    req_trade_open:     {{T "trade.preset.req_trade_open"}},
+    offer_mine:         {{T "trade.preset.offer_mine"}},
+    ask_other:          {{T "trade.preset.ask_other"}},
+    share_list:         {{T "trade.preset.share_list"}},
+    stop_share_list:    {{T "trade.preset.stop_share_list"}},
+    none_fit:           {{T "trade.preset.none_fit"}},
+    agree:              {{T "trade.preset.agree"}},
+    when:               {{T "trade.preset.when"}},
+    when_ok:            {{T "trade.preset.when_ok"}},
+    when_other:         {{T "trade.preset.when_other"}},
+    friend_code:        {{T "trade.preset.friend_code"}},
+    need_good_friends:  {{T "trade.preset.need_good_friends"}},
+    need_stardust:      {{T "trade.preset.need_stardust"}},
+    ready:              {{T "trade.preset.ready"}},
+    thanks_done:        {{T "trade.preset.thanks_done"}},
+    cancel:             {{T "trade.preset.cancel"}},
+    decline:            {{T "trade.preset.decline"}},
+    sys_offer_removed:  {{T "trade.preset.sys_offer_removed"}},
+    sys_offer_modified: {{T "trade.preset.sys_offer_modified"}},
+    sys_agreed:         {{T "trade.preset.sys_agreed"}},
+    sys_completed:      {{T "trade.preset.sys_completed"}},
+    sys_unconfirmed:    {{T "trade.preset.sys_unconfirmed"}},
+    sys_closed_block:   {{T "trade.preset.sys_closed_block"}},
+    sys_confirmed:      {{T "trade.preset.sys_confirmed"}},
+    sys_reminder:       {{T "trade.preset.sys_reminder"}},
+    sys_confirmed_me:      {{T "trade.preset.sys_confirmed_me"}},
+    sys_reminder_me:       {{T "trade.preset.sys_reminder_me"}},
+    sys_offer_modified_me: {{T "trade.preset.sys_offer_modified_me"}},
+  },
+};
+</script>
+<script src="/static/js/trades.js?v={{.AssetVersion}}"></script>
+{{end}}

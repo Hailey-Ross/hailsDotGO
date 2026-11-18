@@ -34,6 +34,7 @@
       <button class="admin-nav-link {{if not .User.IsAdmin}}active{{end}}" data-tab="users">{{T "admin.tab.users"}}</button>
       <button class="admin-nav-link" data-tab="bugreports">Bug Reports</button>
       <button class="admin-nav-link" data-tab="playerreports">Player Reports</button>
+      <a class="admin-nav-link" href="/admin/trades">Trades</a>
     </div>
 
     <div class="admin-nav-group">
@@ -631,6 +632,17 @@
                    {{if .Data.Maintenance.TranslatorAppsEnabled}}checked{{end}}>
             <span class="admin-toggle-text">
               {{if .Data.Maintenance.TranslatorAppsEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
+            </span>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.9rem">{{T "admin.pages.trades"}}</span>
+          <label class="admin-toggle-label" style="margin:0">
+            <input type="checkbox" name="section_trades_enabled" value="1"
+                   {{if .Data.Maintenance.TradesEnabled}}checked{{end}}>
+            <span class="admin-toggle-text">
+              {{if .Data.Maintenance.TradesEnabled}}{{T "admin.pages.enabled"}}{{else}}{{T "admin.pages.disabled"}}{{end}}
             </span>
           </label>
         </div>
@@ -4895,6 +4907,14 @@ function prOpen(id) {
         link.href = '/trainer/' + encodeURIComponent(d.reported_username);
         link.target = '_blank';
         reportedEl.appendChild(link);
+      }
+      // Trade Assist: the conversation this report is about, read only for staff.
+      if (d.trade_thread_id) {
+        reportedEl.appendChild(document.createTextNode(' · '));
+        const tl = brEl('a', null, 'Trade conversation #' + d.trade_thread_id);
+        tl.href = '/admin/trades/threads/' + encodeURIComponent(d.trade_thread_id);
+        tl.target = '_blank';
+        reportedEl.appendChild(tl);
       }
       const reasonEl = document.getElementById('pr-reason');
       if (d.reason) {

@@ -285,6 +285,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// account marks the row rather than removing it; this is the only thing in the app
 	// that actually removes one. See user_deletion.go.
 	h.StartUserPurge()
+	h.StartTradeSweep()
 
 	// Event reminders are pinned to a start time the feed can move under them, so
 	// they are re-resolved every time a new feed lands rather than only at
@@ -558,6 +559,22 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			r.Put("/shinies/{id}", h.APIShiniesUpdate)
 			r.Delete("/shinies/{id}", h.APIShiniesDelete)
 			r.Post("/shinies/{id}/evolve", h.APIShiniesEvolve)
+			// Willing to Trade (Trade Assist). Its own route: the PUT above rewrites every field.
+			r.With(httprate.LimitByIP(30, time.Minute)).Post("/shinies/{id}/trade", h.APIShiniesTrade)
+			// Trade Assist connect requests, the same handlers as the web routes (moved up from plan
+			// Phase 12 on 2026-11-18 so the app can start its port).
+			r.Get("/trades/contacts", h.APITradeContactsList)
+			r.With(httprate.LimitByIP(20, time.Minute)).Post("/trades/contacts", h.APITradeContactCreate)
+			r.With(httprate.LimitByIP(30, time.Minute)).Post("/trades/contacts/{id}/{answer:accept|decline}", h.APITradeContactAnswer)
+			// Trade conversations, the same handlers as the web routes.
+			r.Get("/trades/notices", h.APITradeNotices)
+			r.Get("/trades/threads", h.APITradeThreadsList)
+			r.Get("/trades/threads/{id}", h.APITradeThreadGet)
+			// Mobile variant: absolute sprite URLs, as for /shinies/of/{username}.
+			r.Get("/trades/threads/{id}/list", h.MobileTradeThreadList)
+			r.With(httprate.LimitByIP(20, time.Minute)).Post("/trades/threads", h.APITradeThreadCreate)
+			r.With(httprate.LimitByIP(60, time.Minute)).Post("/trades/threads/{id}/messages", h.APITradeMessage)
+			r.With(httprate.LimitByIP(20, time.Minute)).Post("/trades/threads/{id}/confirm", h.APITradeConfirm)
 
 			r.Get("/raid/state", h.MobileRaidState)
 			// Past rotations. Aliases of the web reads; same handlers, same shapes.
@@ -842,6 +859,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/social/{username}", h.SocialPage)
 		r.Get("/friends", h.RequireAuth(h.FriendsRedirect))
 		r.Get("/notifications", h.RequireAuth(h.NotificationsPage))
+		r.Get("/messages", h.RequireAuth(h.MessagesPage))
 		r.Get("/raidfinder", h.RaidFinderPage)
 
 		r.Get("/store", h.StorePage)
@@ -856,6 +874,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Post("/settings", h.RequireAuth(h.SettingsUpdate))
 		r.Get("/shinies", h.RequireAuth(h.ShiniesPage))
 		r.Get("/admin", h.RequireMod(h.AdminPage))
+		// Trade Assist staff tools (internal/handlers/trades_staff.go): moderators and up.
+		r.Get("/admin/trades", h.RequireMod(h.AdminTradesPage))
+		r.Get("/admin/trades/threads/{id}", h.RequireMod(h.AdminTradeThread))
+		r.With(httprate.LimitByIP(30, time.Minute)).Post("/admin/trades/cooldown", h.RequireMod(h.AdminTradeCooldownStart))
+		r.With(httprate.LimitByIP(30, time.Minute)).Post("/admin/trades/cooldown/clear", h.RequireMod(h.AdminTradeCooldownClear))
+		r.With(httprate.LimitByIP(30, time.Minute)).Post("/admin/trades/records/clear", h.RequireMod(h.AdminTradeRecordClear))
 		r.Post("/admin/settings", h.RequireAdmin(h.AdminUpdateSettings))
 		r.Post("/admin/pages", h.RequireAdmin(h.AdminUpdatePageSettings))
 		r.Post("/admin/mobile-build", h.RequireAdmin(h.AdminUpdateMobileBuild))
@@ -944,6 +968,21 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		// Notifications: active raids from friends
 		r.Get("/api/notifications", h.RequireAuthAPI(h.APIGetNotifications))
+		// Trade Assist connect requests (internal/handlers/trades_contacts.go). Each handler answers
+		// 404 while the feature is switched off, except for staff. The daily and waiting limits and
+		// the rapidity cooldown are per trainer inside the handler; these are per address ceilings.
+		r.Get("/api/trades/contacts", h.RequireAuthAPI(h.APITradeContactsList))
+		r.With(httprate.LimitByIP(20, time.Minute)).Post("/api/trades/contacts", h.RequireAuthAPI(h.APITradeContactCreate))
+		r.With(httprate.LimitByIP(30, time.Minute)).Post("/api/trades/contacts/{id}/{answer:accept|decline}", h.RequireAuthAPI(h.APITradeContactAnswer))
+		// Trade conversations (internal/handlers/trades_threads.go). Per trainer limits and the
+		// per conversation message rate live in the handlers.
+		r.Get("/api/trades/notices", h.RequireAuthAPI(h.APITradeNotices))
+		r.Get("/api/trades/threads", h.RequireAuthAPI(h.APITradeThreadsList))
+		r.Get("/api/trades/threads/{id}", h.RequireAuthAPI(h.APITradeThreadGet))
+		r.Get("/api/trades/threads/{id}/list", h.RequireAuthAPI(h.APITradeThreadList))
+		r.With(httprate.LimitByIP(20, time.Minute)).Post("/api/trades/threads", h.RequireAuthAPI(h.APITradeThreadCreate))
+		r.With(httprate.LimitByIP(60, time.Minute)).Post("/api/trades/threads/{id}/messages", h.RequireAuthAPI(h.APITradeMessage))
+		r.With(httprate.LimitByIP(20, time.Minute)).Post("/api/trades/threads/{id}/confirm", h.RequireAuthAPI(h.APITradeConfirm))
 
 		// Feedback: public read, auth write, mod/author delete
 		r.Get("/api/feedback/{username}", h.APIGetFeedback)
@@ -1111,6 +1150,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Put("/api/shinies/{id}", h.RequireAuth(h.APIShiniesUpdate))
 		r.Delete("/api/shinies/{id}", h.RequireAuth(h.APIShiniesDelete))
 		r.Post("/api/shinies/{id}/evolve", h.RequireAuth(h.APIShiniesEvolve))
+		r.With(httprate.LimitByIP(30, time.Minute)).Post("/api/shinies/{id}/trade", h.RequireAuth(h.APIShiniesTrade))
 	})
 
 	return r

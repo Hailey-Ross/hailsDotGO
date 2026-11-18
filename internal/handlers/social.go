@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -170,6 +172,16 @@ func (h *Handlers) APIBlock(w http.ResponseWriter, r *http.Request) {
 		h.db.Exec(`DELETE FROM user_follows WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)`,
 			u.ID, targetID, targetID, u.ID)
 		h.db.Exec(`INSERT IGNORE INTO user_blocks (user_id, blocked_id) VALUES (?, ?)`, u.ID, targetID)
+		// A block also ends any Trade Assist connect request or connection between the two, so an
+		// unblock does not quietly bring one back, and the blocked trainer's request stops holding
+		// one of their waiting slots (Phase 4 review).
+		if err := h.endTradeContacts(u.ID, targetID, time.Now()); err != nil {
+			log.Printf("social: end trade contacts on block: %v", err)
+		}
+		// And every open or agreed trade conversation between them (plan 9.1).
+		if err := h.endTradeThreads(u.ID, targetID, time.Now()); err != nil {
+			log.Printf("social: end trade conversations on block: %v", err)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"ok":true}`))
 	case http.MethodDelete:

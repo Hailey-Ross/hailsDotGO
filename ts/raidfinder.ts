@@ -8,6 +8,7 @@ import type { Picker, PickerEntry } from './shared/picker';
 import { loadGameData, pokeSprite, pokeName } from './shared/gamedata';
 import type { GameData } from './shared/types';
 import { sticker, trimStickers } from './shared/sticker';
+import { secretCode } from './shared/secret';
 
 // Boss art for the field kit stickers, from the public raid feed (loaded once; names without art,
 // such as custom lobbies for a boss no longer out, fall back to the sticker's initials).
@@ -843,8 +844,12 @@ function renderMemberLobby(st: RaidState): void {
   hostRow.className = 'raid-host-code-row';
   hostRow.innerHTML = esc(RF2.addHost) + ' <strong>' + esc(lb.host.trainer_name || lb.host.username) + '</strong>' +
     memberBadges(lb.host) + reportFlagHTML(lb.host.username) + ' ' + esc(RF2.addHost2) + '&nbsp;' +
-    '<span class="trainer-code">' + esc(fmtCode(lb.host.trainer_code || '')) + '</span>&nbsp;';
-  if (lb.host.trainer_code) hostRow.appendChild(copyButton(lb.host.trainer_code));
+    '';
+  if (lb.host.trainer_code) {
+    hostRow.appendChild(secretCode(fmtCode(lb.host.trainer_code), 'trainer-code'));
+    hostRow.appendChild(document.createTextNode(' '));
+    hostRow.appendChild(copyButton(lb.host.trainer_code));
+  }
   card.appendChild(hostRow);
 
   // My confirm flow
@@ -934,10 +939,13 @@ function buildMemberList(lb: Lobby, isHost: boolean): HTMLElement {
 
     // Host sees confirmed members' trainer details for in-game invites.
     if (isHost && m.state === 'confirmed' && m.trainer_code) {
-      const code = document.createElement('span');
-      code.className = 'trainer-code';
-      code.textContent = (m.trainer_name ? m.trainer_name + ' · ' : '') + fmtCode(m.trainer_code);
-      row.appendChild(code);
+      if (m.trainer_name) {
+        const who = document.createElement('span');
+        who.className = 'trainer-code-name';
+        who.textContent = m.trainer_name + ' · ';
+        row.appendChild(who);
+      }
+      row.appendChild(secretCode(fmtCode(m.trainer_code), 'trainer-code'));
       row.appendChild(copyButton(m.trainer_code));
     }
 

@@ -62,7 +62,7 @@ func TestPageSettingNamesMatchTheMaintenanceResponse(t *testing.T) {
 	// has to be a deliberate change to both.
 	maintenance := []string{
 		"raids", "dps", "pvp", "events", "iv",
-		"trainers", "trainer_directory", "raid_finder", "shinies", "translator_apps",
+		"trainers", "trainer_directory", "raid_finder", "shinies", "translator_apps", "trades",
 	}
 	if len(pageSettingKeys) != len(maintenance) {
 		t.Errorf("pageSettingKeys has %d entries, the maintenance response has %d", len(pageSettingKeys), len(maintenance))

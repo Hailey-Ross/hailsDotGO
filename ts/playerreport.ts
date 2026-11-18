@@ -21,9 +21,12 @@ declare const ME_USERNAME: string | undefined;
     (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 
   let target = '';
+  // The Trade Assist conversation a report is about, when it is opened from one (Messaging).
+  let targetThread = 0;
 
-  function openModal(username: string): void {
+  function openModal(username: string, threadId = 0): void {
     target = username;
+    targetThread = threadId;
     if (sub) sub.textContent = PR_I18N.subtitle.replace('{user}', '@' + username);
     if (form) form.style.display = '';
     if (successEl) (successEl as HTMLElement).style.display = 'none';
@@ -46,7 +49,7 @@ declare const ME_USERNAME: string | undefined;
     const username = el.getAttribute('data-report-user') || '';
     if (!username || username === ME_USERNAME) return;
     e.preventDefault();
-    openModal(username);
+    openModal(username, Number(el.getAttribute('data-report-thread')) || 0);
   });
 
   closeBtn?.addEventListener('click', closeModal);
@@ -76,7 +79,7 @@ declare const ME_USERNAME: string | undefined;
       const res = await fetch('/api/player-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: JSON.stringify({ username: target, reason, details }),
+        body: JSON.stringify(targetThread ? { username: target, reason, details, trade_thread_id: targetThread } : { username: target, reason, details }),
       });
       const data = await res.json().catch(() => ({} as { ok?: boolean; error?: string }));
       if (res.ok && data.ok) {

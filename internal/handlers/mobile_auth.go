@@ -240,6 +240,7 @@ func (h *Handlers) MobileMaintenance(w http.ResponseWriter, r *http.Request) {
 		"raid_finder":       m.RaidFinderEnabled,
 		"shinies":           m.ShiniesEnabled,
 		"translator_apps":   m.TranslatorAppsEnabled,
+		"trades":            m.TradesEnabled,
 		"store":             h.storeEnabled(),
 	})
 }

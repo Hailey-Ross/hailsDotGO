@@ -105,14 +105,19 @@ async function pollNotifications(): Promise<void> {
     const res = await fetch('/api/notifications', {
       headers: { 'X-CSRF-Token': CSRF_TOKEN_NOTIF },
     });
-    if (!res.ok) return;
-    notifs = await res.json();
-  } catch (_) {
-    return;
-  }
+    if (res.ok) notifs = await res.json();
+  } catch (_) { /* raid lobbies unavailable this time; trade notices still count */ }
+  if (!Array.isArray(notifs)) notifs = [];
+
+  // Trade Assist notices add their unread count (server side read state; 404 while switched off).
+  let tradeUnread = 0;
+  try {
+    const t = await fetch('/api/trades/notices', { credentials: 'same-origin' });
+    if (t.ok) tradeUnread = ((await t.json()).unread?.total as number) || 0;
+  } catch (_) { /* none */ }
 
   const seen = getSeenSet();
-  updateBadge(notifs.filter(n => !seen.has(n.lobby_id)).length);
+  updateBadge(notifs.filter(n => !seen.has(n.lobby_id)).length + tradeUnread);
 
   for (const n of notifs) {
     if (!seen.has(n.lobby_id)) {

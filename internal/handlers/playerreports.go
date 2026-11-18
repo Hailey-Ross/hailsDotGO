@@ -75,6 +75,9 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Reason   string `json:"reason"`
 		Details  string `json:"details"`
+		// TradeThreadID optionally points the report at a Trade Assist conversation. Accepted
+		// only when it is between the reporter and the reported trainer.
+		TradeThreadID uint64 `json:"trade_thread_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, "invalid json", http.StatusBadRequest)
@@ -102,6 +105,18 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "you cannot report yourself", http.StatusBadRequest)
 		return
 	}
+	var thread any // NULL unless a conversation between the two was named
+	if body.TradeThreadID != 0 {
+		var ok bool
+		h.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM trade_threads WHERE id = ?
+			AND ((a_user = ? AND b_user = ?) OR (a_user = ? AND b_user = ?)))`,
+			body.TradeThreadID, u.ID, reportedID, reportedID, u.ID).Scan(&ok)
+		if !ok {
+			writeJSONError(w, "invalid conversation", http.StatusBadRequest)
+			return
+		}
+		thread = body.TradeThreadID
+	}
 
 	// Dedupe: reuse an existing open/pending report from this reporter on this user.
 	var existingID uint
@@ -109,6 +124,10 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 		`SELECT id FROM bug_reports WHERE type = 'player' AND reporter_id = ? AND reported_user_id = ? AND status IN ('open','pending') LIMIT 1`,
 		u.ID, reportedID,
 	).Scan(&existingID); err == nil && existingID > 0 {
+		// A conversation named now is added to the open report if it had none.
+		if thread != nil {
+			h.db.Exec(`UPDATE bug_reports SET trade_thread_id = ? WHERE id = ? AND trade_thread_id IS NULL`, thread, existingID)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"ok": true, "id": existingID, "duplicate": true})
 		return
@@ -124,8 +143,8 @@ func (h *Handlers) CreatePlayerReport(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	res, err := tx.Exec(
-		`INSERT INTO bug_reports (type, reporter_id, reported_user_id, subject, reason) VALUES ('player', ?, ?, ?, ?)`,
-		u.ID, reportedID, subject, body.Reason,
+		`INSERT INTO bug_reports (type, reporter_id, reported_user_id, subject, reason, trade_thread_id) VALUES ('player', ?, ?, ?, ?, ?)`,
+		u.ID, reportedID, subject, body.Reason, thread,
 	)
 	if err != nil {
 		writeJSONError(w, "could not file report", http.StatusInternalServerError)

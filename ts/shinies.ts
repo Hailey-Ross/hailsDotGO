@@ -19,6 +19,8 @@ declare const SH: Record<string, string>;
 declare const SITE_LANG: string;
 
 const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
+// Trade Assist is open to this trainer (switched on, or staff): base.html sets the meta.
+const TRADES_ON = (document.querySelector('meta[name="trades-on"]') as HTMLMetaElement | null)?.content === '1';
 
 let cryVolume = 0.3;
 
@@ -32,6 +34,9 @@ interface UserShiny {
   method: string;
   caught_at: string;
   evolved_at: string | null;
+  // Willing to Trade (Trade Assist). Always sent for the trainer's own list.
+  for_trade?: boolean;
+  trade_reason?: string;
 }
 
 const EVENT_OPTIONS: { value: string; label: string }[] = [
@@ -350,6 +355,21 @@ function longReleaseDate(iso: string): string {
   });
 }
 
+// Mark or unmark one entry Willing to Trade. Its own endpoint: the PUT never touches the mark.
+async function apiTrade(id: number, forTrade: boolean, reason: string): Promise<{ ok: boolean; for_trade?: boolean; trade_reason?: string; profile_private?: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/shinies/${id}/trade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
+      body: JSON.stringify({ for_trade: forTrade, reason: forTrade ? reason : "" }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return { ok: res.ok, ...j };
+  } catch {
+    return { ok: false };
+  }
+}
+
 async function apiRemove(id: number): Promise<boolean> {
   const res = await fetch(`/api/shinies/${id}`, {
     method: "DELETE",
@@ -518,7 +538,11 @@ async function init() {
     return m;
   }
 
+  // Card keys ("<species>:<region>") with at least one entry marked Willing to Trade.
+  let tradeKeys: Set<string> = new Set();
+
   function rebuildState(shinies: UserShiny[]) {
+    tradeKeys = new Set(shinies.filter((s) => s.for_trade).map((s) => `${s.pokemon_id}:${cardRegion(s.pokemon_id, s.region)}`));
     evolvedShinies = shinies.filter((s) => !!s.evolved_at);
     caughtIndex    = buildCaughtIndex(shinies);
     caughtCardKeys = buildCaughtCardKeys(shinies);
@@ -993,6 +1017,12 @@ async function init() {
         badge.className = "sc-badge";
         badge.textContent = "✓";
         card.appendChild(badge);
+        if (TRADES_ON && tradeKeys.has(`${c.species.name}:${c.region}`)) {
+          const tag = document.createElement("span");
+          tag.className = "sc-trade-tag";
+          tag.textContent = SH.tradeTag;
+          card.appendChild(tag);
+        }
       }
 
       const count = countMap.get(`${c.species.name}:${c.region}`) ?? 0;
@@ -1233,6 +1263,7 @@ async function init() {
         meta.style.display = when ? "" : "none";
 
         const pills: { text: string; kind: string }[] = [];
+        if (TRADES_ON && rec.for_trade) pills.push({ text: SH.tradeTag, kind: "trade" });
         if (rec.form === "shadow")   pills.push({ text: JSC.formShadow,   kind: "shadow" });
         if (rec.form === "purified") pills.push({ text: JSC.formPurified, kind: "purified" });
         if (rec.costume)             pills.push({ text: rec.costume,      kind: "costume" });
@@ -1265,7 +1296,8 @@ async function init() {
 
       const handle: EntryCard = { rec, el: card, refreshSprite, refreshText };
       entryCards.set(rec.id, handle);
-      card.addEventListener("click", () => openEditModal(handle));
+      if (tradeSelected.has(rec.id)) card.classList.add("sc-selected");
+      card.addEventListener("click", () => (tradeSelecting ? toggleTradeSelect(handle) : openEditModal(handle)));
       grid.appendChild(card);
     }
 
@@ -1373,6 +1405,59 @@ async function init() {
     caughtInput.max = todayInputValue();
     field(SH.caught, caughtInput);
 
+    // Willing to Trade: its own switch and reason, saved on change through its own endpoint.
+    if (TRADES_ON) {
+      const wrap = document.createElement("div");
+      wrap.className = "sc-field-wrap sc-trade-wrap";
+      const sw = document.createElement("label");
+      sw.className = "sc-trade-switch";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "fk-switch";
+      box.checked = !!rec.for_trade;
+      sw.appendChild(box);
+      sw.appendChild(document.createTextNode(" " + SH.tradeLabel));
+      wrap.appendChild(sw);
+      const reasonSel = makeSelect([
+        { value: "", label: SH.tradeReasonNone },
+        { value: "duplicate", label: SH.tradeReasonDuplicate },
+        { value: "not_for_me", label: SH.tradeReasonNotForMe },
+        { value: "event_spare", label: SH.tradeReasonEventSpare },
+      ], rec.trade_reason || "");
+      reasonSel.disabled = !box.checked;
+      reasonSel.setAttribute("aria-label", SH.tradeLabel);
+      wrap.appendChild(reasonSel);
+      const note = document.createElement("p");
+      note.className = "sc-trade-note";
+      note.hidden = true;
+      note.textContent = SH.tradePrivate;
+      wrap.appendChild(note);
+      editFields.appendChild(wrap);
+      const saveTrade = async () => {
+        const r = await apiTrade(rec.id, box.checked, reasonSel.value);
+        if (gen !== editGeneration) return;
+        if (!r.ok) {
+          box.checked = !!rec.for_trade;
+          reasonSel.value = rec.trade_reason || "";
+          reasonSel.disabled = !box.checked;
+          statusEl.textContent = r.error || JSC.error;
+          return;
+        }
+        rec.for_trade = !!r.for_trade;
+        rec.trade_reason = r.trade_reason || "";
+        reasonSel.value = rec.trade_reason;
+        reasonSel.disabled = !rec.for_trade;
+        note.hidden = !(rec.for_trade && r.profile_private);
+        rebuildState(userShinies);
+        card.refreshText();
+        statusEl.textContent = SH.saved;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);
+      };
+      box.addEventListener("change", () => { reasonSel.disabled = !box.checked; saveTrade(); });
+      reasonSel.addEventListener("change", saveTrade);
+    }
+
     // What the modal was showing when it opened. saveUpdate sends the date only when this
     // changes, so editing a costume or a method can never rewrite the catch date as a side
     // effect. Reseeded on every open, and unreachable from any earlier open's listeners.
@@ -1421,9 +1506,17 @@ async function init() {
         refreshHeadSprite();
         card.refreshText();
         card.refreshSprite();
-        statusEl.textContent = SH.saved;
+        // An edit of a shiny offered in a pending trade: the partner has to re-verify it.
+        // Nothing else reads this body. Guarded, so an answer without JSON (or a test double
+        // without json()) reads as "no trade changed" instead of breaking the save.
+        const answer: { trade_modified?: number } = typeof res.json === "function"
+          ? await res.json().catch(() => ({}))
+          : {};
+        if (gen !== editGeneration) return;
+        const inTrade = (answer.trade_modified ?? 0) > 0;
+        statusEl.textContent = inTrade ? SH.tradeModified : SH.saved;
         clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => { statusEl.textContent = ""; }, 1500);
+        saveTimer = setTimeout(() => { statusEl.textContent = ""; }, inTrade ? 7000 : 1500);
       } else {
         console.error("shiny update failed:", res.status, rec.pokemon_id);
         formSel.value = rec.form;
@@ -1519,7 +1612,83 @@ async function init() {
       return;
     }
 
+    if (TRADES_ON) {
+      // A selection only ever counts entries on this list (Phase 10 review).
+      const onScreen = new Set(entries.map((s) => s.id));
+      for (const id of Array.from(tradeSelected)) if (!onScreen.has(id)) tradeSelected.delete(id);
+      contentEl.appendChild(tradeSelectBar(() => renderCaughtList(evolvedOnly)));
+    }
     renderEntryCards(entries);
+  }
+
+  // Select mode: tap entries, then mark or unmark them all for trade.
+  let tradeSelecting = false;
+  const tradeSelected = new Set<number>();
+  let tradeBarRefresh: () => void = () => {};
+
+  function toggleTradeSelect(card: EntryCard) {
+    if (tradeSelected.has(card.rec.id)) tradeSelected.delete(card.rec.id);
+    else tradeSelected.add(card.rec.id);
+    card.el.classList.toggle("sc-selected", tradeSelected.has(card.rec.id));
+    tradeBarRefresh();
+  }
+
+  function tradeSelectBar(rerender: () => void): HTMLElement {
+    const bar = document.createElement("div");
+    bar.className = "sc-trade-bar";
+    const draw = () => {
+      bar.textContent = "";
+      const btn = (text: string, cls: string, on: () => void, disabled = false) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = cls;
+        b.textContent = text;
+        b.disabled = disabled;
+        b.addEventListener("click", on);
+        bar.appendChild(b);
+      };
+      if (!tradeSelecting) {
+        btn(SH.tradeSelect, "fk-btn small ghost", () => { tradeSelecting = true; draw(); });
+        return;
+      }
+      const n = tradeSelected.size;
+      // One at a time; the server allows 30 a minute, so a big batch stops at the first refusal
+      // and says how many were not saved instead of quietly losing them (Phase 10 review).
+      const apply = async (mark: boolean) => {
+        let failed = 0;
+        for (const id of Array.from(tradeSelected)) {
+          const rec = userShinies.find((s) => s.id === id);
+          if (!rec) continue;
+          if (failed) { failed++; continue; }
+          const r = await apiTrade(id, mark, rec.trade_reason || "");
+          if (r.ok) { rec.for_trade = !!r.for_trade; rec.trade_reason = r.trade_reason || ""; tradeSelected.delete(id); }
+          else failed++;
+        }
+        rebuildState(userShinies);
+        if (failed) {
+          rerender();
+          const note = document.createElement("p");
+          note.className = "sc-trade-note";
+          note.setAttribute("role", "status");
+          note.textContent = SH.tradePartial.replace("{n}", String(failed));
+          contentEl.prepend(note);
+          return;
+        }
+        tradeSelected.clear();
+        tradeSelecting = false;
+        rerender();
+      };
+      btn(SH.tradeMarkN.replace("{n}", String(n)), "fk-btn small", () => apply(true), n === 0);
+      btn(SH.tradeUnmarkN.replace("{n}", String(n)), "fk-btn small ghost", () => apply(false), n === 0);
+      btn(SH.tradeSelectDone, "fk-btn small ghost", () => {
+        tradeSelecting = false;
+        tradeSelected.clear();
+        rerender();
+      });
+    };
+    tradeBarRefresh = draw;
+    draw();
+    return bar;
   }
 
   let activeTab = "all";

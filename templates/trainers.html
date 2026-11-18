@@ -61,7 +61,7 @@
           {{if or .RaidXP .StaffBadge .Tags .SuperDonator}}<div class="trainer-tags">{{if .SuperDonator}}<span class="donator-badge">{{T "trainers.donator_badge"}}</span>{{end}}{{if or .RaidXP .StaffBadge}}<span class="rank-badge rank-{{.RaidRankClass}}">{{.RaidRank}}</span>{{end}}{{range .Tags}}<span class="user-tag" style="background:{{.Color}}">{{.Name}}</span>{{end}}</div>{{end}}
         </div>
       </div>
-      {{if and .ProfilePublic $.User .TrainerCode}}<div class="trainer-card-code">{{.TrainerCodeFormatted}}</div>{{end}}
+      {{if and .ProfilePublic $.User .TrainerCode}}<div class="fk-code-row"><button type="button" class="trainer-card-code fk-secret"><span class="fk-secret-mask" aria-hidden="true">{{maskCode .TrainerCodeFormatted}}</span><span class="fk-secret-val">{{.TrainerCodeFormatted}}</span></button><button type="button" class="fk-btn small ghost" data-copy="{{.TrainerCodeFormatted}}" data-copied="{{T "trainers.sheet.copied"}}">{{T "trainers.sheet.copy"}}</button></div>{{end}}
       <a href="/trainer/{{.Username}}" class="trainer-profile-link">{{T "trainers.view_profile"}}</a>
     </div>
     {{end}}

@@ -121,14 +121,40 @@ function revealCurrent(): void {
     scroller.scrollTop = Math.max(0, top - (scroller.clientHeight - cur.offsetHeight) / 2);
   }
 }
+// Each page is a real page load, so a hop started on the tap is cut off when the next page arrives.
+// The tap remembers which item was lit; the new page starts the pill there and springs it over.
+const HOP_FROM = 'fk-hop-from';
+const itemKey = (el: HTMLElement | null) => (el ? el.getAttribute('href') || 'slot:' + (el.dataset.slot || '') : '');
+const itemByKey = (key: string) => (dock ? Array.from(dock.querySelectorAll<HTMLElement>('.fk-item')).find(el => itemKey(el) === key) || null : null);
+let hopping = false;
 revealCurrent();
-placeHop(currentItem(), false);
+// Browsers with cross-page view transitions (Chrome, Edge, Safari) glide the pill between pages
+// themselves, exactly like the concept: see @view-transition in fieldkit.css. Only the others need
+// the remembered start position below.
+const crossPageGlide = 'PageRevealEvent' in window;
+(function arrive() {
+  if (crossPageGlide) { placeHop(currentItem(), false); return; }
+  let from = '';
+  try { from = sessionStorage.getItem(HOP_FROM) || ''; sessionStorage.removeItem(HOP_FROM); } catch { /* no storage */ }
+  const cur = currentItem(), prev = from ? itemByKey(from) : null;
+  if (!prev || !cur || prev === cur || !prev.offsetParent || reduceMotion.matches) { placeHop(cur, false); return; }
+  placeHop(prev, false);
+  hopping = true;
+  requestAnimationFrame(() => requestAnimationFrame(() => { placeHop(cur, true); setTimeout(() => { hopping = false; }, 600); }));
+})();
 window.addEventListener('resize', () => { revealCurrent(); placeHop(currentItem(), false); });
-document.fonts?.ready.then(() => placeHop(currentItem(), false));
-// Slide the pill toward the item you tapped while the next page loads.
+document.fonts?.ready.then(() => { if (!hopping) placeHop(currentItem(), false); });
+// Slide the pill toward the item you tapped while the next page loads, and remember where it was.
 dock?.addEventListener('click', e => {
   const a = (e.target as Element).closest('a.fk-item') as HTMLElement | null;
-  if (a && !e.defaultPrevented && !(e as MouseEvent).ctrlKey && !(e as MouseEvent).metaKey) { placeHop(a, true); feedback('hop'); }
+  if (a && !e.defaultPrevented && !(e as MouseEvent).ctrlKey && !(e as MouseEvent).metaKey) {
+    feedback('hop');
+    // With cross-page glides the pill must stay put until the browser snapshots this page.
+    if (crossPageGlide) return;
+    // Without cross-page glides (Firefox) the new page springs the pill over from here, in one hop;
+    // moving it on this page too made it hop twice.
+    try { const was = currentItem(); if (was && was !== a) sessionStorage.setItem(HOP_FROM, itemKey(was)); } catch { /* no storage */ }
+  }
 });
 
 /* ---------- Sheets ---------- */
@@ -184,31 +210,49 @@ interface LobbyNote { lobby_id: number; boss_name: string; boss_tier: number; st
 const NOTE_SEEN = 'notif_seen_lobbies', NOTE_DISMISSED = 'notif_dismissed';
 const readSet = (k: string): Set<number> => { try { return new Set(JSON.parse(localStorage.getItem(k) || '[]')); } catch { return new Set(); } };
 
+// Trade Assist notices (/api/trades/notices): text already in the trainer's language, read state on
+// the server. 404 while Trade Assist is switched off, which simply shows none.
+interface TradeNote { kind: string; text: string; thread_id?: number; contact_id?: number; at: string; unread: boolean; }
+interface TradeNotices { unread: { total: number }; items: TradeNote[]; }
+async function fetchTradeNotices(): Promise<TradeNotices | null> {
+  try {
+    const r = await fetch('/api/trades/notices', { credentials: 'same-origin' });
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
 async function fillInbox(): Promise<void> {
   const box = body?.querySelector<HTMLElement>('.fk-notes');
   if (!box) return;
   let notes: LobbyNote[] = [];
+  const tradesP = fetchTradeNotices();
   try {
     const r = await fetch('/api/notifications', { credentials: 'same-origin' });
     if (r.ok) notes = await r.json();
   } catch { /* shows the empty state */ }
+  const trades = await tradesP;
   if (!Array.isArray(notes)) notes = [];
   const seen = readSet(NOTE_SEEN), dismissed = readSet(NOTE_DISMISSED);
   const visible = notes.filter(n => !dismissed.has(n.lobby_id));
   const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
   const state = (st: string) => box.dataset['state' + st.charAt(0).toUpperCase() + st.slice(1)] || st;
-  box.innerHTML = visible.map(n =>
+  const tradeHTML = (trades?.items || []).map(t =>
+    '<a class="fk-notif' + (t.unread ? ' unread' : '') + '" href="/messages' + (t.thread_id ? '?thread=' + t.thread_id : '?tab=requests') + '">' +
+    '<span class="ic"><svg class="ic" aria-hidden="true"><use href="#i-inbox"/></svg></span><span><b>' + esc(t.text) + '</b></span></a>').join('');
+  box.innerHTML = tradeHTML + visible.map(n =>
     '<a class="fk-notif' + (seen.has(n.lobby_id) ? '' : ' unread') + '" href="/raidfinder"><span class="ic"><svg class="ic" aria-hidden="true"><use href="#i-raids"/></svg></span>' +
     '<span><b>' + esc(n.boss_name) + (n.boss_tier ? ' (T' + n.boss_tier + ')' : '') + '</b><span>' + esc(n.host_trainer_name || n.host_username) + ', ' + esc(state(n.state)) + '</span></span></a>').join('')
-    || '<p class="fk-meta">' + esc(box.dataset.empty || '') + '</p>';
+    || (tradeHTML ? '' : '<p class="fk-meta">' + esc(box.dataset.empty || '') + '</p>');
   // Seen now: the badge drops on the next poll.
   try {
     const all = readSet(NOTE_SEEN);
     notes.forEach(n => all.add(n.lobby_id));
     localStorage.setItem(NOTE_SEEN, JSON.stringify(Array.from(all).slice(-200)));
   } catch { /* not saved */ }
+  // Raid lobbies are seen now; trade notices stay until their conversation is opened.
   const badge = $('#nav-notif-badge');
-  if (badge) badge.style.display = 'none';
+  const left = trades?.unread?.total || 0;
+  if (badge) { badge.textContent = String(left); badge.style.display = left > 0 ? '' : 'none'; }
 }
 
 document.addEventListener('click', e => {
@@ -382,3 +426,63 @@ function themeTabs(): void {
 }
 themeTabs();
 document.addEventListener(THEME_EVENT, themeTabs);
+
+// The new page's pill must be in place in the very first frame the browser captures for the glide.
+window.addEventListener('pagereveal', () => placeHop(currentItem(), false));
+
+/* ---------- Hidden friend codes (.fk-secret, ts/shared/secret.ts) ---------- */
+// Hover shows the code on devices with a mouse (CSS); a tap or click toggles it, which is how
+// phones see it. Clicking a code never opens the trainer card around it: it is a button.
+document.addEventListener('click', e => {
+  const s = (e.target as Element).closest('.fk-secret') as HTMLElement | null;
+  if (!s) return;
+  s.classList.toggle('is-shown');
+});
+
+/* ---------- More sheet: A to Z (owner, 2026-11-18) ---------- */
+// The tiles are sorted by their label in the page's language once, in the template, so every
+// opening of the sheet (a fresh clone) is already in order whatever the language.
+(function sortMoreSheet(): void {
+  const kit = (document.getElementById('fk-tpl-more') as HTMLTemplateElement | null)?.content.querySelector('.fk-kit');
+  if (!kit) return;
+  const label = (el: Element) => (el.textContent || '').replace(/\d+/g, '').trim();
+  const lang = document.documentElement.lang || undefined;
+  Array.from(kit.children)
+    .sort((x, y) => label(x).localeCompare(label(y), lang, { sensitivity: 'base' }))
+    .forEach(el => kit.appendChild(el));
+})();
+
+/* ---------- Messaging badge ([data-trade-badge]) ---------- */
+// Unread trade conversations plus connect requests waiting on the trainer, from /api/trades/notices
+// (server side read state). Refreshed on load, on returning to the tab, and every minute.
+const tradesOn = (document.querySelector('meta[name="trades-on"]') as HTMLMetaElement | null)?.content === '1';
+async function refreshTradeBadges(): Promise<void> {
+  const badges = document.querySelectorAll<HTMLElement>('[data-trade-badge]');
+  if (!tradesOn || !badges.length) return;
+  try {
+    const r = await fetch('/api/trades/notices', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const n = ((await r.json()).unread?.total as number) || 0;
+    badges.forEach(b => { b.textContent = String(n); b.hidden = n <= 0; });
+  } catch { /* keep the last count */ }
+}
+if (tradesOn) {
+  refreshTradeBadges();
+  window.setInterval(() => { if (document.visibilityState === 'visible') refreshTradeBadges(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshTradeBadges(); });
+  // The More sheet is cloned from a template when it opens, so its badge is filled then.
+  document.addEventListener('click', e => { if ((e.target as Element).closest('[data-sheet="more"]')) window.setTimeout(refreshTradeBadges, 0); });
+}
+
+/* ---------- Copy buttons ([data-copy]): friend codes and the like ---------- */
+document.addEventListener('click', e => {
+  const b = (e.target as Element).closest('[data-copy]') as HTMLElement | null;
+  if (!b) return;
+  const text = (b.dataset.copy || '').replace(/\s+/g, '');
+  const label = b.textContent;
+  navigator.clipboard?.writeText(text).then(() => {
+    feedback('tap');
+    b.textContent = b.dataset.copied || label;
+    window.setTimeout(() => { b.textContent = label; }, 1600);
+  }).catch(() => { /* clipboard blocked: nothing to do */ });
+});

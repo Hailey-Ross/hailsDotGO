@@ -6,6 +6,14 @@ declare const TRAINER_CTX: {
   loggedIn: boolean;
   isOwnProfile: boolean;
   csrfToken: string;
+  tradesOn: boolean;
+  tradeFilter: string;
+  tradeFilterAll: string;
+  tradeWant: string;
+  tradeAskConnect: string;
+  tradeAsked: string;
+  tradeNone: string;
+  tradeTag: string;
   shinyShowAll: string;
   shinyDetails: string;
   shinyEdit: string;

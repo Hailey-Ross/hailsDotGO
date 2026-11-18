@@ -48,6 +48,7 @@ var BaselineVersions = map[string]int{
 	"v0.1.8a": 47, // no schema change: mobile costume and player report endpoints, and the counters ranking fix
 	"v0.1.8b": 52, // widens translator_applications.languages so a 14 language application fits (48); event reminder subscriptions (49) and several reminders per event (50); provenance on a boxed Pokemon (51); raid boss history as a star schema (52)
 	"v0.1.8c": 55, // marking an account for deletion instead of removing it (53); a client token that makes a queued write safe to retry (54); Japanese in the locales table (55)
+	"v0.1.9a": 56, // Trade Assist and Messaging: for_trade marks on user_shinies, the trade tables, and a conversation link on player reports (56)
 }
 
 // headerRe matches a section header line like "-- 39. Bug report system (2026-06-28)".

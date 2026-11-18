@@ -47,6 +47,7 @@ var pageSettingKeys = map[string]string{
 	"raid_finder":       "section_raid_finder_enabled",
 	"shinies":           "page_shinies_enabled",
 	"translator_apps":   "section_translator_apps_enabled",
+	"trades":            "section_trades_enabled",
 }
 
 // siteSettingKeys is the same idea for the two toggles on the Settings tab.
@@ -140,6 +141,7 @@ func (h *Handlers) MobileAdminContext(w http.ResponseWriter, r *http.Request) {
 			"raid_finder":       m.RaidFinderEnabled,
 			"shinies":           m.ShiniesEnabled,
 			"translator_apps":   m.TranslatorAppsEnabled,
+			"trades":            m.TradesEnabled,
 		},
 		Viewer: mobileAdminViewer{
 			IsMod:        u.IsMod(),
