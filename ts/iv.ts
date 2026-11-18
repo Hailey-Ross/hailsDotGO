@@ -199,10 +199,12 @@ function renderCandidates(
 
 function buildManualTab(data: GameData): HTMLElement {
   const panel = document.createElement("div");
-  panel.className = "iv-manual-panel";
+  panel.className = "iv-manual-panel fk-split";
+  const CC = (window as unknown as { CALC_CARDS?: Record<string, string> }).CALC_CARDS || {};
 
   const wrap = document.createElement("div");
   wrap.className = "iv-form";
+  wrap.dataset.tab = CC.yours || "";
   panel.appendChild(wrap);
 
   const pickerLabel = document.createElement("label");
@@ -347,7 +349,9 @@ function buildManualTab(data: GameData): HTMLElement {
   wrap.appendChild(calcBtn);
 
   const resultsContainer = document.createElement("div");
-  resultsContainer.className = "iv-results-container";
+  resultsContainer.className = "iv-results-container fk-result-card";
+  resultsContainer.dataset.tab = CC.ivs || "";
+  resultsContainer.dataset.empty = CC.empty || "";
   panel.appendChild(resultsContainer);
 
   calcBtn.addEventListener("click", async () => {
@@ -546,10 +550,12 @@ function buildOCRTab(): HTMLElement {
     return container;
   }
   const wrap = document.createElement("div");
-  wrap.className = "iv-ocr";
+  wrap.className = "iv-ocr fk-split";
+  const CC = (window as unknown as { CALC_CARDS?: Record<string, string> }).CALC_CARDS || {};
 
   const controlsCard = document.createElement("div");
   controlsCard.className = "iv-form";
+  controlsCard.dataset.tab = CC.yours || "";
   wrap.appendChild(controlsCard);
 
   const fileLabel = document.createElement("label");
@@ -571,7 +577,9 @@ function buildOCRTab(): HTMLElement {
   controlsCard.appendChild(extractedContainer);
 
   const resultsContainer = document.createElement("div");
-  resultsContainer.className = "iv-results-container";
+  resultsContainer.className = "iv-results-container fk-result-card";
+  resultsContainer.dataset.tab = CC.ivs || "";
+  resultsContainer.dataset.empty = CC.empty || "";
   wrap.appendChild(resultsContainer);
 
   let lastPoke = { pokemon_name: "", form: "", pokemon_id: 0 };

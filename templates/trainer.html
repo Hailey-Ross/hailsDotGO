@@ -1,5 +1,7 @@
 {{define "title"}}{{if and .Data.Trainer.ProfilePublic .Data.Trainer.TrainerName}}{{.Data.Trainer.TrainerName}}{{else}}{{.Data.Trainer.Username}}{{end}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header">
   <a href="/trainers" class="btn-secondary" style="margin-bottom:0.75rem;display:inline-block">&larr; {{T "trainers.title"}}</a>
@@ -8,7 +10,7 @@
 <div class="trainer-profile-page">
 
   <!-- ── Profile card ──────────────────────────────────────────── -->
-  <div class="trainer-profile-card admin-card">
+  <div class="trainer-profile-card admin-card fk-card" data-tab="{{T "trainer.tab_card"}}">
     <div class="trainer-profile-hero">
 
       <!-- Avatar + fav sprite -->

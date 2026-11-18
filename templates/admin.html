@@ -1,5 +1,7 @@
 ﻿{{define "title"}}{{T "admin.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header">
   <h1>{{if .User.IsAdmin}}{{T "admin.heading_admin"}}{{else}}{{T "admin.heading_mod"}}{{end}}</h1>
@@ -234,7 +236,7 @@
       <button type="button" id="br-manage-macros-btn" class="btn-secondary" style="font-size:0.8rem">Canned responses</button>
     </div>
 
-    <div id="br-labels-manager" style="display:none;margin-bottom:1.25rem;padding:1rem;border:1px solid var(--border);border-radius:var(--r-sm)">
+    <div id="br-labels-manager" style="display:none;margin-bottom:1.25rem;padding:1rem;border:1px solid var(--border);border-radius:var(--old-r-sm)">
       <h3 style="font-size:0.9rem;margin-bottom:0.6rem">Labels</h3>
       <div id="br-labels-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.85rem"></div>
       {{if .User.IsAdmin}}
@@ -250,7 +252,7 @@
       {{end}}
     </div>
 
-    <div id="br-macros-manager" style="display:none;margin-bottom:1.25rem;padding:1rem;border:1px solid var(--border);border-radius:var(--r-sm)">
+    <div id="br-macros-manager" style="display:none;margin-bottom:1.25rem;padding:1rem;border:1px solid var(--border);border-radius:var(--old-r-sm)">
       <h3 style="font-size:0.9rem;margin-bottom:0.6rem">Canned responses</h3>
       <div id="br-macros-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.85rem"></div>
       {{if .User.IsAdmin}}
@@ -1128,6 +1130,13 @@ const IS_ADMIN      = {{if .User.IsAdmin}}true{{else}}false{{end}};
 const IS_SUPERADMIN = {{if .User.IsSuperAdmin}}true{{else}}false{{end}};
 const ME_ID         = {{.User.ID}};
 const SUPERADMIN    = {{.Data.SuperadminUser}};
+const ME_USERNAME_ADMIN = {{.User.Username}};
+const ME_ROLE_ADMIN     = {{.User.Role}};
+// Mirrors staffRank in internal/handlers/admin.go: Super Admin 3, Admin 2, Moderator 1, others 0.
+function staffRankOf(username, role) {
+  if (SUPERADMIN && username === SUPERADMIN) return 3;
+  return role === 'admin' ? 2 : role === 'moderator' ? 1 : 0;
+}
 
 // ── Tab switching ──────────────────────────────────────────────
 (function() {
@@ -2019,7 +2028,10 @@ function renderUserDetail(u) {
   const translatorBadge = u.translator ? `<span class="um-status-badge um-status-api">${STRINGS.translator}</span>` : '';
   const pendingBadge= u.pending_role ? `<span class="um-status-badge um-status-pending">${STRINGS.pending} ${esc(cap(u.pending_role))}</span>` : '';
 
-  const roleSelect = IS_ADMIN && !isSuperAdmin ? `
+  // The server only lets staff change the role of someone strictly below them (mayActOn), so the
+  // picker only appears where it would work: an Admin sees it on Moderators and below, not on
+  // another Admin.
+  const roleSelect = IS_ADMIN && staffRankOf(ME_USERNAME_ADMIN, ME_ROLE_ADMIN) > staffRankOf(u.username, u.role) ? `
     <select class="um-role-select move-select" data-uid="${u.id}" onchange="changeRole(${u.id}, this)">
       <option value="user"      ${u.role==='user'      ? 'selected':''}>` + STRINGS.roleUser + `</option>
       <option value="tester"    ${u.role==='tester'    ? 'selected':''}>` + STRINGS.roleTester + `</option>
@@ -2552,7 +2564,7 @@ function syncInviteConstraints() {
     uses.disabled = true;
     msg.textContent = STRINGS.inviteStaffNote;
     msg.style.display = 'block';
-    msg.style.color = 'var(--gold)';
+    msg.style.color = 'var(--old-gold)';
   } else if (multiUse && role.value !== 'user') {
     role.value = 'user';
     msg.textContent = STRINGS.inviteMultiuseNote;
@@ -3035,7 +3047,7 @@ async function loadAdminAwards() {
         <strong style="color:${esc(a.color)}">${esc(a.name)}</strong>
         <span style="color:var(--text-2)">${esc(a.description)}</span>
         ${IS_ADMIN ? `
-        <select style="font-size:0.78rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text)" onchange="updateAwardMinRank(${a.id}, +this.value)">
+        <select style="font-size:0.78rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--old-surface);color:var(--text)" onchange="updateAwardMinRank(${a.id}, +this.value)">
           ${AWARD_RANK_LABELS.map((l,i) => `<option value="${i}"${a.min_grant_rank===i?' selected':''}>${l}</option>`).join('')}
         </select>
         <span style="margin-left:auto;display:flex;gap:0.4rem">
@@ -3268,7 +3280,7 @@ function renderTagRequests() {
     const statusColor = r.status === 'approved' ? 'var(--green)'
                       : r.status === 'rejected'  ? '#fc8181'
                       : r.status === 'revision'  ? '#f97316'
-                      : 'var(--gold)';
+                      : 'var(--old-gold)';
     const statusLabel = r.status === 'revision' ? STRINGS.statusAwaiting
                       : r.status === 'approved' ? STRINGS.statusApproved
                       : r.status === 'rejected' ? STRINGS.statusRejected
@@ -3403,7 +3415,7 @@ function renderTranslations() {
     return `${header}<div class="um-card" id="tl-row-${t.id}" style="margin-bottom:0.5rem">
       <div class="um-header">
         <div class="um-meta" style="min-width:0">
-          <span style="font-family:monospace;font-size:0.78rem;color:var(--gold)">${esc(t.key)}</span>
+          <span style="font-family:monospace;font-size:0.78rem;color:var(--old-gold)">${esc(t.key)}</span>
           <span style="font-size:0.82rem;color:var(--text-2)">${STRINGS.tlEnglish} ${esc(t.en)}</span>
           <span style="font-size:0.84rem"><span style="color:#fc8181">${STRINGS.tlOld}</span> ${esc(t.old_text) || '&mdash;'}</span>
           <span style="font-size:0.84rem"><span style="color:var(--green)">${STRINGS.tlNew}</span> ${esc(t.new_text)}</span>
@@ -3595,7 +3607,7 @@ async function loadTranslatorApps() {
 }
 
 function taStatusLabel(status) {
-  if (status === 'pending')   return `<span style="color:var(--gold)">${STRINGS.taStatusPending}</span>`;
+  if (status === 'pending')   return `<span style="color:var(--old-gold)">${STRINGS.taStatusPending}</span>`;
   if (status === 'reviewing') return `<span style="color:var(--blue)">${STRINGS.taStatusReviewing}</span>`;
   if (status === 'accepted')  return `<span style="color:var(--green)">${STRINGS.taStatusAccepted}</span>`;
   if (status === 'rejected')  return `<span style="color:#fc8181">${STRINGS.taStatusRejected}</span>`;

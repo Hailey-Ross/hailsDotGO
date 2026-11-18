@@ -1,5 +1,7 @@
 {{define "title"}}{{T "trainers.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header trainers-page-header">
   <div>
@@ -113,6 +115,11 @@
 
 {{define "scripts"}}
 <script>
+window.TR_SHEET = { kicker: {{T "trainers.sheet.kicker"}}, code: {{T "trainers.sheet.code"}}, copy: {{T "trainers.sheet.copy"}}, copied: {{T "trainers.sheet.copied"}},
+  favorite: {{T "trainers.sheet.favorite"}}, raid: {{T "trainers.sheet.raid"}}, full: {{T "trainers.sheet.full"}}, raidHref: "{{if .Maintenance.RaidFinderEnabled}}/raidfinder{{end}}" };
+</script>
+<script src="/static/js/trainers.js?v={{.AssetVersion}}" defer></script>
+<script>
 const RF = {
   trainerS: {{T "raidfinder.trainer_s"}},
   trainerP: {{T "raidfinder.trainer_p"}},
@@ -142,13 +149,8 @@ const RF = {
     });
   }
 
-  // Cards navigate to the trainer's profile page; inner links and buttons keep their own behavior.
-  cards.forEach(function(card) {
-    card.addEventListener('click', function(e) {
-      if (e.target.closest('a, button')) return;
-      window.location.href = '/trainer/' + encodeURIComponent(card.dataset.username);
-    });
-  });
+  // Tapping a card opens the trainer sheet (static/js/trainers.js); its "Full profile" button and the
+  // card's own link still go to the profile page.
 
   // ── Grant Award modal ─────────────────────────────────────────
   var USER_GRANT_RANK = {{.Data.UserGrantRank}};

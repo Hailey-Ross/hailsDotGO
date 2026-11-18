@@ -31,7 +31,10 @@ declare const BUG_I18N: { errSubject: string; errDetails: string; failed: string
   }
   (window as unknown as { openBugModal: () => void }).openBugModal = openModal;
 
-  document.getElementById('nav-bug-btn')?.addEventListener('click', openModal);
+  // Delegated: the button lives in the account menu sheet, which is copied in when it opens.
+  document.addEventListener('click', (e) => {
+    if ((e.target as Element | null)?.closest?.('#nav-bug-btn')) openModal();
+  });
   closeBtn?.addEventListener('click', closeModal);
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeModal();

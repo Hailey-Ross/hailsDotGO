@@ -26,7 +26,7 @@ func TestTemplatesParse(t *testing.T) {
 		"home", "raids", "dps", "pvp", "events", "iv", "box", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
-		"forgot_password", "reset_password", "verify_email",
+		"forgot_password", "reset_password", "verify_email", "privacy", "appearance",
 	}
 	for _, page := range pages {
 		if _, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(

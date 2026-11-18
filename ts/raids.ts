@@ -1,5 +1,5 @@
-import { loadGameData, reloadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName } from "./shared/gamedata";
-import { calcCounters, renderCounterTable, calcSinglePokemon, speciesInsideLabel, DEFAULT_CONFIG } from "./shared/counters";
+import { loadGameData, reloadGameData, pokeSprite, cpForLevel, cpmFromCP, pokeName, pokemonByName } from "./shared/gamedata";
+import { calcCounters, renderCounterTable, calcSinglePokemon, speciesInsideLabel, bossStats, DEFAULT_CONFIG } from "./shared/counters";
 import { renderBoxVsBoss, renderBoxPlaceholder } from "./shared/boxcounters";
 import type { PokemonConfig, PokemonForm } from "./shared/counters";
 import { typeBadge, TYPE_COLORS } from "./shared/typecolors";
@@ -7,6 +7,9 @@ import { fetchSpeciesData } from "./shared/pokedex";
 import type { GameData, RaidBoss, PokemonStat, UpcomingRaid } from "./shared/types";
 import { parseLocal, dateFmt, monthDayFmt, weekdayFmt, startOfWeek, dayKey, relTime } from "./shared/time";
 import { loadWeatherBanner } from "./shared/weather";
+import { sticker, trimStickers } from "./shared/sticker";
+import { speciesPage, animateSpecies } from "./shared/species";
+import { openSheet } from "./shared/fk";
 
 declare const JSC: Record<string, string>;
 declare const RD: Record<string, string>;
@@ -89,72 +92,122 @@ function tickRaidWindows(): void {
   app.querySelectorAll<HTMLElement>(".raid-window").forEach(paintWindowPill);
 }
 
+const escHTML = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
+// dexOf finds the National Dex number for a boss: its own stat line, or for a Mega (whose stats
+// come from their own dataset, without a number) the species inside its name.
+function dexOf(data: GameData, boss: RaidBoss): number {
+  const st = bossStats(data, boss);
+  if (st && st.pokemon_id) return st.pokemon_id;
+  const sp = speciesInsideLabel(data, boss.pokemon_name);
+  return (sp && pokemonByName(data, sp)?.pokemon_id) || 0;
+}
+
+// A boss as a specimen card: an index card tabbed with its catalog number, the Pokemon as a
+// sticker, its name and types, and its top CP. Tapping it opens the species field page.
 function createBossCard(boss: RaidBoss, data: GameData): HTMLElement {
-  const card = document.createElement("div");
-  card.className = "boss-card";
-
-  if (boss.image_url) {
-    const bg = document.createElement("div");
-    bg.className = "boss-bg";
-    bg.style.backgroundImage = `url('${boss.image_url}')`;
-    card.appendChild(bg);
-  }
-
-  const inner = document.createElement("div");
-  inner.className = "boss-card-inner";
-
-  if (boss.image_url) {
-    const img = document.createElement("img");
-    img.src = boss.image_url;
-    img.alt = boss.pokemon_name;
-    img.className = "boss-img";
-    img.loading = "lazy"; img.decoding = "async";
-    inner.appendChild(img);
-  }
-
-  if (boss.types?.length) {
-    const typeRow = document.createElement("div");
-    typeRow.className = "boss-types";
-    boss.types.forEach((t) => typeRow.appendChild(typeBadge(t)));
-    inner.appendChild(typeRow);
-  }
-
-  const name = document.createElement("span");
-  name.className = "boss-name";
-  name.textContent = pokeName(data, boss.pokemon_name);
-  inner.appendChild(name);
-
-  if (boss.cp) {
-    const cp = document.createElement("span");
-    cp.className = "boss-cp";
-    cp.textContent = boss.cp_max && boss.cp_max > boss.cp
-      ? `${boss.cp.toLocaleString()}-${boss.cp_max.toLocaleString()} CP`
-      : `${boss.cp.toLocaleString()} CP`;
-    inner.appendChild(cp);
-
-    if (boss.cp_boosted_min) {
-      const boosted = document.createElement("span");
-      boosted.className = "boss-cp boss-cp-boosted";
-      boosted.textContent = boss.cp_boosted_max && boss.cp_boosted_max > boss.cp_boosted_min
-        ? `⛅ ${boss.cp_boosted_min.toLocaleString()}-${boss.cp_boosted_max.toLocaleString()} CP`
-        : `⛅ ${boss.cp_boosted_min.toLocaleString()} CP`;
-      inner.appendChild(boosted);
-    }
-  }
-
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "fk-card fk-specimen";
+  card.dataset.boss = boss.pokemon_name;
+  const dex = dexOf(data, boss);
+  if (dex) card.dataset.tab = RD.catalogNo.replace("{n}", String(dex).padStart(4, "0"));
+  const types = boss.types ?? [];
+  card.style.setProperty("--t1", TYPE_COLORS[types[0]] ?? "#9099A1");
+  card.innerHTML = sticker(boss.pokemon_name, boss.image_url, types, !!boss.can_be_shiny) +
+    '<span class="info"><span class="nm">' + escHTML(pokeName(data, boss.pokemon_name)) + '</span><span class="row">' +
+    types.map((t) => '<span class="fk-chip" style="--tc:' + (TYPE_COLORS[t] ?? "#888") + '"><i></i>' + escHTML(t) + "</span>").join("") + "</span></span>" +
+    (boss.cp ? '<span class="cp">' + escHTML(RD.maxCp) + "<b>" + (boss.cp_max || boss.cp).toLocaleString() + "</b></span>" : "");
   const pill = windowPill(boss.starts_at, boss.ends_at);
-  if (pill) inner.appendChild(pill);
-
-  card.appendChild(inner);
-
-  if (boss.can_be_shiny) {
-    const badge = document.createElement("div");
-    badge.className = "shiny-badge";
-    badge.textContent = RD.shinyBadge;
-    card.appendChild(badge);
-  }
-
+  if (pill) card.querySelector(".info")!.appendChild(pill);
+  trimStickers(card);
   return card;
+}
+
+// The species field page for a boss: in the side pane on wide screens, in the sheet otherwise.
+const paneQuery = window.matchMedia("(min-width: 1020px)");
+let paneSeq = 0;
+
+function openSpecies(boss: RaidBoss, data: GameData, tierName: string, card: HTMLElement | null, inPane: boolean): void {
+  const seq = ++paneSeq;
+  const st = bossStats(data, boss);
+  const dex = dexOf(data, boss);
+  const types = boss.types ?? [];
+  const species = speciesInsideLabel(data, boss.pokemon_name) ?? st?.pokemon_name ?? boss.pokemon_name;
+
+  // Flavor text, genus and the legendary badge, fetched for the real species: a costume
+  // label slugs to something PokeAPI has never heard of.
+  const about = document.createElement("div");
+  about.className = "fk-about";
+  const badgeEl = document.createElement("span");
+  badgeEl.hidden = true;
+  const genusEl = document.createElement("span");
+  genusEl.className = "poke-genus";
+  const flavorP = document.createElement("p");
+  flavorP.className = "poke-flavor";
+  flavorP.hidden = true;
+  about.append(badgeEl, genusEl, flavorP);
+  fetchSpeciesData(species).then((d) => {
+    if (d.flavor) { flavorP.textContent = d.flavor; flavorP.hidden = false; }
+    if (d.genus) genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus);
+    if (d.isLegendary || d.isMythical) {
+      badgeEl.textContent = d.isMythical ? JSC.mythical : JSC.legendary;
+      badgeEl.className = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
+      badgeEl.hidden = false;
+    }
+  });
+
+  // The trainer's own Pokemon first: what to bring, out of what they own. The top counters
+  // below it are the reference for what is possible. The placeholder holds its place while
+  // the box loads.
+  const placeholder = renderBoxPlaceholder();
+  const table = renderCounterTable(data, boss, calcCounters(data, boss));
+  renderBoxVsBoss(data, boss).then((section) => {
+    if (seq === paneSeq) placeholder.replaceWith(section); else placeholder.remove();
+  });
+
+  const notes: { k: string; v: number }[] = [];
+  if (boss.cp) notes.push({ k: RD.minCp, v: boss.cp });
+  if (boss.cp_max) notes.push({ k: RD.maxCp, v: boss.cp_max });
+  if (boss.cp_boosted_max || boss.cp_boosted_min) notes.push({ k: RD.boosted, v: boss.cp_boosted_max || boss.cp_boosted_min || 0 });
+
+  const until = parseLocal(boss.ends_at);
+  // Logging writes the plain species; a regional or shadow boss would need its form, so those
+  // log from the Dex instead.
+  const plain = !!st && (boss.pokemon_name === st.pokemon_name || boss.pokemon_name === "Mega " + species);
+  const page = speciesPage({
+    name: pokeName(data, boss.pokemon_name),
+    kicker: (dex ? RD.catalogNo.replace("{n}", String(dex).padStart(4, "0")) + ", " : "") + RD.raidKind.replace("{tier}", tierName),
+    types, image: boss.image_url, shiny: !!boss.can_be_shiny, notes,
+    stats: st ? [st.base_attack, st.base_defense, st.base_stamina] : undefined,
+    where: { label: RD.raidKind.replace("{tier}", tierName), detail: until ? RD.windowUntil.replace("{date}", dateFmt.format(until)) : "" },
+    log: RAIDS_CTX.loggedIn && plain ? async () => {
+      try {
+        const r = await fetch("/api/shinies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? "" },
+          body: JSON.stringify({ pokemon_id: species, method: "raid" }),
+        });
+        return r.ok;
+      } catch { return false; }
+    } : undefined,
+    links: [{ label: RD.openDex, href: "/shinies" }, { label: RD.compareCalc, href: "/dps" }],
+    sections: [about, placeholder, table],
+  }, {
+    shinyAvailable: RD.shinyAvailable, noShiny: RD.noShiny, baseStats: RD.baseStats, whereToFind: RD.whereToFind,
+    logShiny: RD.logShiny, logged: RD.logged, stampHeader: RD.stampHeader, stampWord: RD.stampWord, logFailed: RD.logFailed,
+  });
+
+  const pane = document.getElementById("fk-pane");
+  if (inPane && pane && paneQuery.matches) {
+    pane.replaceChildren(page);
+    pane.scrollTop = 0;
+    app.querySelectorAll(".fk-specimen[aria-current]").forEach((c) => c.removeAttribute("aria-current"));
+    card?.setAttribute("aria-current", "true");
+  } else {
+    openSheet(page);
+  }
+  animateSpecies(page);
 }
 
 function buildRaidsView(data: GameData): HTMLElement {
@@ -222,13 +275,6 @@ function buildRaidsView(data: GameData): HTMLElement {
   }
 
   wrap.appendChild(filterBar);
-
-  const counterPanel = document.createElement("div");
-  counterPanel.style.display = "none";
-  let activeCard: HTMLElement | null = null;
-  // Bumped every time a panel is opened, so a box lookup that returns after the
-  // trainer has moved on does not append its answer to a different boss.
-  let panelSeq = 0;
 
   const allBosses = tiers.flatMap(([tier, bosses]) =>
     bosses.map((boss) => ({ boss, tier }))
@@ -514,11 +560,6 @@ function buildRaidsView(data: GameData): HTMLElement {
       ? cpForLevel(currentPoke, 15, 15, 15, DEFAULT_CONFIG.cpm)
       : 0;
 
-    // Clear boss counter panel if open
-    if (activeCard) { activeCard.classList.remove("active"); activeCard = null; }
-    counterPanel.style.display = "none";
-    counterPanel.innerHTML = "";
-
     buildConfigPanel(name);
     renderResults();
     resultsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -623,69 +664,7 @@ function buildRaidsView(data: GameData): HTMLElement {
       const card = createBossCard(boss, data);
       card.style.cursor = "pointer";
 
-      card.addEventListener("click", () => {
-        if (activeCard === card) {
-          card.classList.remove("active");
-          activeCard = null;
-          counterPanel.style.display = "none";
-          counterPanel.innerHTML = "";
-          return;
-        }
-
-        if (activeCard) activeCard.classList.remove("active");
-        activeCard = card;
-        card.classList.add("active");
-
-        counterPanel.innerHTML = "";
-        counterPanel.style.display = "";
-
-        const flavorP = document.createElement("p");
-        flavorP.className = "poke-flavor";
-        flavorP.style.display = "none";
-        counterPanel.appendChild(flavorP);
-
-        const genusEl = document.createElement("span");
-        genusEl.className = "poke-genus";
-        counterPanel.appendChild(genusEl);
-
-        const badgeEl = document.createElement("span");
-        badgeEl.style.display = "none";
-        counterPanel.appendChild(badgeEl);
-
-        // The species panel is keyed on a real species: a costume label slugs to
-        // something PokeAPI has never heard of, 404s, and the flavor text, genus
-        // and legendary badge all vanish with no error shown.
-        fetchSpeciesData(speciesInsideLabel(data, boss.pokemon_name) ?? boss.pokemon_name).then(d => {
-          if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
-          if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
-          if (d.isLegendary || d.isMythical) {
-            badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
-            badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
-            badgeEl.style.display = "";
-          }
-        });
-
-        // The trainer's own Pokemon comes FIRST, above the generic list. It is
-        // the answer they actually came for: what to bring, out of what they
-        // own. The top counters below it are the reference for what is possible.
-        //
-        // The placeholder is appended now so the box section keeps its place in
-        // the order while it loads, rather than appearing under the table and
-        // shoving it down when it arrives.
-        const panelToken = ++panelSeq;
-        const placeholder = renderBoxPlaceholder();
-        counterPanel.appendChild(placeholder);
-
-        counterPanel.appendChild(renderCounterTable(data, boss, calcCounters(data, boss)));
-        renderBoxVsBoss(data, boss).then((section) => {
-          if (panelToken === panelSeq && counterPanel.style.display !== "none") {
-            placeholder.replaceWith(section);
-          } else {
-            placeholder.remove();
-          }
-        });
-        counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      card.addEventListener("click", () => openSpecies(boss, data, tierLabel(tier), card, true));
 
       const key = `${tier}::${boss.pokemon_name}`;
       cardMeta.set(key, { el: card, types: boss.types ?? [] });
@@ -697,7 +676,6 @@ function buildRaidsView(data: GameData): HTMLElement {
     wrap.appendChild(section);
   }
 
-  wrap.appendChild(counterPanel);
 
   function updateVisibility() {
     for (const [tier, section] of tierSections) {
@@ -730,13 +708,6 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
   heading.className = "section-heading";
   heading.textContent = RD.maxBattles;
   wrap.appendChild(heading);
-
-  const counterPanel = document.createElement("div");
-  counterPanel.style.display = "none";
-  let activeCard: HTMLElement | null = null;
-  // Bumped every time a panel is opened, so a box lookup that returns after the
-  // trainer has moved on does not append its answer to a different boss.
-  let panelSeq = 0;
 
   const tiers = Object.entries(data.maxBattles!).filter(([, b]) => b.length).sort(([a], [b]) => Number(b) - Number(a));
   let activeTier = tiers.length ? tiers[0][0] : "";
@@ -774,69 +745,7 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
       const card = createBossCard(boss, data);
       card.style.cursor = "pointer";
 
-      card.addEventListener("click", () => {
-        if (activeCard === card) {
-          card.classList.remove("active");
-          activeCard = null;
-          counterPanel.style.display = "none";
-          counterPanel.innerHTML = "";
-          return;
-        }
-
-        if (activeCard) activeCard.classList.remove("active");
-        activeCard = card;
-        card.classList.add("active");
-
-        counterPanel.innerHTML = "";
-        counterPanel.style.display = "";
-
-        const flavorP = document.createElement("p");
-        flavorP.className = "poke-flavor";
-        flavorP.style.display = "none";
-        counterPanel.appendChild(flavorP);
-
-        const genusEl = document.createElement("span");
-        genusEl.className = "poke-genus";
-        counterPanel.appendChild(genusEl);
-
-        const badgeEl = document.createElement("span");
-        badgeEl.style.display = "none";
-        counterPanel.appendChild(badgeEl);
-
-        // The species panel is keyed on a real species: a costume label slugs to
-        // something PokeAPI has never heard of, 404s, and the flavor text, genus
-        // and legendary badge all vanish with no error shown.
-        fetchSpeciesData(speciesInsideLabel(data, boss.pokemon_name) ?? boss.pokemon_name).then(d => {
-          if (d.flavor) { flavorP.textContent = d.flavor; flavorP.style.display = ""; }
-          if (d.genus)  { genusEl.textContent = JSC.theGenus.replace("{genus}", d.genus); }
-          if (d.isLegendary || d.isMythical) {
-            badgeEl.textContent  = d.isMythical ? JSC.mythical : JSC.legendary;
-            badgeEl.className    = `poke-legend-badge ${d.isMythical ? "poke-badge-mythical" : "poke-badge-legendary"}`;
-            badgeEl.style.display = "";
-          }
-        });
-
-        // The trainer's own Pokemon comes FIRST, above the generic list. It is
-        // the answer they actually came for: what to bring, out of what they
-        // own. The top counters below it are the reference for what is possible.
-        //
-        // The placeholder is appended now so the box section keeps its place in
-        // the order while it loads, rather than appearing under the table and
-        // shoving it down when it arrives.
-        const panelToken = ++panelSeq;
-        const placeholder = renderBoxPlaceholder();
-        counterPanel.appendChild(placeholder);
-
-        counterPanel.appendChild(renderCounterTable(data, boss, calcCounters(data, boss)));
-        renderBoxVsBoss(data, boss).then((section) => {
-          if (panelToken === panelSeq && counterPanel.style.display !== "none") {
-            placeholder.replaceWith(section);
-          } else {
-            placeholder.remove();
-          }
-        });
-        counterPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      card.addEventListener("click", () => openSpecies(boss, data, RD.maxBattleTier.replace("{tier}", tier), card, true));
 
       grid.appendChild(card);
     }
@@ -846,7 +755,6 @@ function buildMaxBattlesSection(data: GameData): HTMLElement {
     wrap.appendChild(section);
   }
 
-  wrap.appendChild(counterPanel);
   return wrap;
 }
 
@@ -1089,15 +997,47 @@ function renderRaids(data: GameData): void {
     return;
   }
 
-  app.appendChild(buildRaidsView(data));
+  // The list on the left, the species field page in a sticky pane on the right (1020px and
+  // up). Narrower screens open the field page in the sheet instead.
+  const split = document.createElement("div");
+  split.className = "fk-raids-split";
+  const list = document.createElement("div");
+  list.className = "fk-raids-list";
+  const pane = document.createElement("aside");
+  pane.id = "fk-pane";
+  pane.className = "fk-pane fk-card";
+  split.append(list, pane);
+  app.appendChild(split);
+
+  list.appendChild(buildRaidsView(data));
 
   const upNext = buildUpNextSection(data);
-  if (upNext) app.appendChild(upNext);
+  if (upNext) list.appendChild(upNext);
 
   if (data.maxBattles && Object.keys(data.maxBattles).length > 0) {
-    app.appendChild(buildMaxBattlesSection(data));
+    list.appendChild(buildMaxBattlesSection(data));
   }
+
+  // A link from search (/raids#boss=Name) opens that boss; otherwise wide screens open on the
+  // first boss, so the pane is never empty.
+  if (!openFromHash() && paneQuery.matches) list.querySelector<HTMLElement>(".fk-specimen")?.click();
 }
+
+function openFromHash(): boolean {
+  const m = (location.hash || "").match(/boss=([^&]+)/);
+  if (!m) return false;
+  const name = decodeURIComponent(m[1]);
+  const card = Array.from(app.querySelectorAll<HTMLElement>(".fk-specimen")).find((c) => c.dataset.boss === name);
+  if (!card) return false;
+  // The boss may sit on a tier tab that is not showing: switch to it first.
+  const section = card.closest<HTMLElement>(".tier-block");
+  const tab = section?.dataset.tier ? app.querySelector<HTMLElement>('.raid-tab[data-tier="' + section.dataset.tier + '"]') : null;
+  if (section && section.style.display === "none" && tab) tab.click();
+  card.click();
+  card.scrollIntoView({ block: "center" });
+  return true;
+}
+window.addEventListener("hashchange", () => { openFromHash(); });
 
 // paintedFrom fingerprints what is currently on screen, so a revalidation that
 // brings back the same grid does not throw away the tab and filters the trainer had

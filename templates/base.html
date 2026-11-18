@@ -1,83 +1,88 @@
 {{define "base"}}<!DOCTYPE html>
-<html lang="{{.Lang}}">
+<html lang="{{.Lang}}" data-page="{{block "pagekind" .}}legacy{{end}}">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>{{block "title" .}}FlexDex{{end}} | pogo.hails.app</title>
-  <link rel="icon" type="image/png" href="https://assets.hails.cc/assets/favicon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/static/app/icons/logo.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/app/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/static/app/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#161c19" id="fk-theme-color">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FlexDex">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <script>
+  // Before the first paint: pick light or dark from the saved Field Kit setting (same key and
+  // values as ts/shared/theme.ts) and hold fades off until the theme engine has run, so a
+  // refresh never flashes the wrong colors.
+  (function () {
+    var r = document.documentElement, m = "system";
+    r.classList.add("preload");
+    try { var s = JSON.parse(localStorage.getItem("flexdex-fieldkit") || "null"); if (s && s.mode) m = s.mode; } catch (e) {}
+    var dark;
+    if (m === "dark") dark = true;
+    else if (m === "light") dark = false;
+    else if (m === "sun") { var d = new Date(), h = d.getHours() + d.getMinutes() / 60; dark = h < 5 || h >= 21; }
+    else dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    // Pages not restyled for the Field Kit yet are drawn for dark only.
+    if (r.getAttribute("data-page") === "legacy") dark = true;
+    r.setAttribute("data-boot", dark ? "dark" : "light");
+  })();
+  </script>
+  <link rel="preload" href="/static/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/main.css?v={{.AssetVersion}}">
+  <link rel="stylesheet" href="/static/css/fieldkit.css?v={{.AssetVersion}}">
   <meta name="csrf-token" content="{{.CSRFToken}}">
 </head>
-<body>
+<body class="fk" data-route="{{if eq .Path "/"}}home{{else}}page{{end}}">
 
-<div id="particles-js"></div>
+{{/* Behind everything: the topographic map and today's weather (ts/shared/topo.ts, weatherfx.ts). */}}
+<div class="fk-ground" aria-hidden="true"><canvas id="fk-topo"></canvas><div class="fk-weather" id="fk-weather"></div></div>
 
-<button class="nav-burger" id="nav-burger" aria-label="Open menu" aria-expanded="false">
-  <span></span><span></span><span></span>
-</button>
+{{/* Field Kit shell: status bar, navigation strap, sheets. Pages render inside .fk-frame. */}}
+<header class="fk-status">
+  <a class="fk-brand" href="/" aria-label="{{T "nav.home_link"}}"><img class="fk-logo" src="/static/app/icons/logo.svg" alt="" width="30" height="30"></a>
+  <span class="fk-clock mono" id="fk-clock" aria-hidden="true"></span>
+  {{if .User}}<span class="fk-wchip" id="fk-wchip" data-boosts="{{T "nav.weather_boosts"}}" hidden></span>{{end}}
+  <span class="fk-spacer"></span>
+  <button type="button" class="fk-icon-btn" id="fk-open-search" aria-label="{{T "search.open"}}" aria-haspopup="dialog" aria-keyshortcuts="/"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
+  {{if .User}}<a class="fk-icon-btn" href="/notifications" id="nav-notif-btn" data-inbox aria-label="{{T "nav.notifications"}}" aria-haspopup="dialog"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg><span class="fk-count" id="nav-notif-badge" style="display:none"></span></a>{{end}}
+  <button type="button" class="fk-icon-btn{{if .User}} fk-me{{end}}" data-sheet="account" aria-label="{{T "nav.account"}}" aria-haspopup="dialog">{{if .User}}<span class="fk-av" aria-hidden="true">{{initial .User.Username}}</span>{{else}}<svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>{{end}}</button>
+</header>
 
-<div class="nav-sidebar" id="nav-sidebar" aria-hidden="true">
-  <div class="nav-sidebar-top">
-    <a href="/" class="nav-sidebar-brand">FlexDex</a>
-    <button class="nav-sidebar-close" id="nav-sidebar-close" aria-label="Close menu">&times;</button>
+{{$calc := or .Maintenance.DPSEnabled (or .Maintenance.IVEnabled .Maintenance.PVPEnabled)}}
+{{$calcOn := or (pathActive .Path "/dps") (or (pathActive .Path "/iv") (pathActive .Path "/pvp"))}}
+<nav class="fk-dock" aria-label="{{T "nav.apps"}}">
+  <a class="fk-mark" href="/" aria-label="{{T "nav.home_link"}}"><img class="fk-logo" src="/static/app/icons/logo.svg" alt=""><span class="fk-wm">FlexDex</span></a>
+  {{/* The app list scrolls inside the strap on short screens; the logo, the palette and the stitched seam stay put. */}}
+  <div class="fk-dock-scroll">
+  <span class="fk-hop" aria-hidden="true"></span>
+  <a class="fk-item" data-slot="home" href="/"{{if eq .Path "/"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>{{T "nav.home"}}</span></a>
+  {{if .Maintenance.RaidsEnabled}}<a class="fk-item" data-slot="raids" href="/raids"{{if pathActive .Path "/raids"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-raids"/></svg><span>{{T "nav.raids"}}</span></a>{{end}}
+  {{if .Maintenance.EventsEnabled}}<a class="fk-item" data-slot="events" href="/events"{{if pathActive .Path "/events"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-events"/></svg><span>{{T "nav.events"}}</span></a>{{end}}
+  {{if .Maintenance.ShiniesEnabled}}<a class="fk-item" data-slot="dex" href="/shinies"{{if pathActive .Path "/shinies"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-dex"/></svg><span>{{T "nav.dex"}}</span></a>{{end}}
+  <button type="button" class="fk-item narrow" data-slot="more" data-sheet="more" aria-haspopup="dialog"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>{{T "nav.more"}}</span></button>
+  {{if $calc}}<a class="fk-item wide" href="{{if .Maintenance.DPSEnabled}}/dps{{else if .Maintenance.IVEnabled}}/iv{{else}}/pvp{{end}}"{{if $calcOn}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-calc"/></svg><span>{{T "nav.calc"}}</span></a>{{end}}
+  {{if .Maintenance.TrainersEnabled}}<a class="fk-item wide" href="/trainers"{{if or (pathActive .Path "/trainers") (pathActive .Path "/trainer")}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-trainers"/></svg><span>{{T "nav.trainers"}}</span></a>{{end}}
+  {{if .Maintenance.RaidFinderEnabled}}<a class="fk-item wide" href="/raidfinder"{{if pathActive .Path "/raidfinder"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg><span>{{T "nav.raidfinder"}}</span></a>{{end}}
+  {{if .User}}
+  <span class="fk-group wide" aria-hidden="true">{{T "nav.group.you"}}</span>
+  {{if .Maintenance.IVEnabled}}<a class="fk-item wide" href="/box"{{if pathActive .Path "/box"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg><span>{{T "nav.mybox"}}</span></a>{{end}}
+  <a class="fk-item wide" href="/social/{{.User.Username}}"{{if pathActive .Path "/social"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-friends"/></svg><span>{{T "nav.friends"}}</span></a>
+  {{if gt .ReportCount 0}}<a class="fk-item wide" href="/reports"{{if pathActive .Path "/reports"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-inbox"/></svg><span>{{T "nav.reports"}}</span>{{if gt .ReportUnread 0}}<b class="fk-count">{{.ReportUnread}}</b>{{end}}</a>{{end}}
+  {{if or .User.IsMod .User.IsTranslator}}
+  <span class="fk-group wide" aria-hidden="true">{{T "nav.group.staff"}}</span>
+  {{if .User.IsMod}}<a class="fk-item wide" href="/admin"{{if pathActive .Path "/admin"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg><span>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</span>{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<b class="fk-count">{{.CostumeReviewCount}}</b>{{end}}</a>{{end}}
+  <a class="fk-item wide" href="/translate"{{if pathActive .Path "/translate"}} aria-current="page"{{end}}><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg><span>{{T "nav.translate"}}</span></a>
+  {{end}}
+  {{end}}
   </div>
-  <div class="nav-links" id="nav-links">
-    <div class="nav-group">
-      <span class="nav-group-label">{{T "nav.group.tools"}}</span>
-      {{if .Maintenance.RaidsEnabled}}<a href="/raids" class="nav-item{{if pathActive .Path "/raids"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg><span>{{T "nav.raids"}}</span></a>{{end}}
-      {{if .Maintenance.DPSEnabled}}<a href="/dps" class="nav-item{{if pathActive .Path "/dps"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>{{T "nav.dps"}}</span></a>{{end}}
-      {{if .Maintenance.IVEnabled}}<a href="/iv" class="nav-item{{if pathActive .Path "/iv"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg><span>{{T "nav.iv"}}</span></a>{{end}}
-      {{if and .User .Maintenance.IVEnabled}}<a href="/box" class="nav-item{{if pathActive .Path "/box"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>{{T "nav.box"}}</span></a>{{end}}
-      {{if .Maintenance.PVPEnabled}}<a href="/pvp" class="nav-item{{if pathActive .Path "/pvp"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>{{T "nav.pvp"}}</span></a>{{end}}
-      {{if .Maintenance.EventsEnabled}}<a href="/events" class="nav-item{{if pathActive .Path "/events"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg><span>{{T "nav.events"}}</span></a>{{end}}
-      {{if .Maintenance.TrainersEnabled}}<a href="/trainers" class="nav-item{{if pathActive .Path "/trainers"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>{{T "nav.trainers"}}</span></a>{{end}}
-      {{if .Maintenance.RaidFinderEnabled}}<a href="/raidfinder" class="nav-item{{if pathActive .Path "/raidfinder"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg><span>{{T "nav.raidfinder"}}</span></a>{{end}}
-      {{if .StoreEnabled}}<a href="/store" class="nav-item{{if pathActive .Path "/store"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span>{{T "nav.store"}}</span></a>{{end}}
-      {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}<a href="/translate" class="nav-item{{if pathActive .Path "/translate"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg><span>{{T "nav.translate"}}</span></a>{{end}}
-    </div>
-    {{if .User}}
-    <div class="nav-group">
-      <span class="nav-group-label">{{T "nav.group.account"}}</span>
-      {{if .Maintenance.ShiniesEnabled}}<a href="/shinies" class="nav-item nav-link-highlight{{if pathActive .Path "/shinies"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg><span>{{T "nav.collection"}}</span></a>{{end}}
-      <a href="/social/{{.User.Username}}" class="nav-item nav-link-highlight{{if pathActive .Path "/social/"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg><span>Social</span></a>
-      <a href="/settings" class="nav-item{{if pathActive .Path "/settings"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>{{T "nav.settings"}}</span></a>
-      <button type="button" class="nav-item nav-bug-link" id="nav-bug-btn"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg><span>{{T "nav.bug"}}</span></button>
-      {{if .User.IsMod}}<a href="/admin" class="nav-item{{if pathActive .Path "/admin"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</span>{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<span class="nav-reports-badge">{{.CostumeReviewCount}}</span>{{end}}</a>{{end}}
-      {{if gt .ReportCount 0}}<a href="/reports" class="nav-item nav-reports-link{{if pathActive .Path "/reports"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg><span>{{T "nav.reports"}}</span>{{if gt .ReportUnread 0}}<span class="nav-reports-badge">{{.ReportUnread}}</span>{{end}}</a>{{end}}
-    </div>
-    {{else}}
-    <div class="nav-group">
-      <a href="/login" class="nav-item{{if pathActive .Path "/login"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg><span>{{T "nav.login"}}</span></a>
-      <a href="/register" class="nav-item nav-link-highlight{{if pathActive .Path "/register"}} active{{end}}"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg><span>{{T "nav.signup"}}</span></a>
-    </div>
-    {{end}}
-    <div class="nav-group">
-      <a href="https://github.com/Hailey-Ross/hailsDotGO/wiki" class="nav-item" target="_blank" rel="noopener"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg><span>{{T "nav.wiki"}}</span></a>
-    </div>
-    {{if .User}}
-    <div class="nav-user-row">
-      <a href="/notifications" class="nav-notif-link" id="nav-notif-btn" title="{{T "nav.notifications"}}">🔔<span class="nav-notif-badge" id="nav-notif-badge" style="display:none"></span></a>
-      <a href="/trainer/{{.User.Username}}" class="nav-username-link">{{if .User.IsSuperAdmin}}<span class="staff-icon" title="Owner">👑</span>{{else if .User.IsAdmin}}<span class="staff-icon" title="Admin">💎</span>{{else if .User.IsMod}}<span class="staff-icon" title="Moderator">🏅</span>{{else if .User.IsTester}}<span class="staff-icon" title="Tester">🧪</span>{{end}}{{.User.Username}}</a>
-      <form method="POST" action="/logout" style="display:block;margin:0">
-        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-        <button type="submit" class="nav-logout-icon" onclick="return confirm({{T "nav.logout_confirm"}})">×</button>
-      </form>
-    </div>
-    {{end}}
-    <form method="POST" action="/lang" class="lang-switcher">
-      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
-      {{range .Langs}}<button name="code" value="{{.}}" class="lang-btn{{if eq $.Lang .}} active{{end}}">{{upper .}}</button>{{end}}
-    </form>
-    {{if not .User}}<a href="/login?next=/" class="nav-item nav-bug-link"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg><span>{{T "nav.bug"}}</span></a>{{end}}
-  </div>
-  <div class="nav-footer">
-    <p>{{T "footer.fan_made"}} &bull; {{T "footer.not_affiliated"}} &bull; <a href="/credits">{{T "footer.credits"}}</a></p>
-  </div>
-</div>
-<div class="nav-overlay" id="nav-overlay"></div>
+  {{if eq .Path "/appearance"}}<a class="fk-foot" href="/appearance" aria-current="page" aria-label="{{T "nav.appearance"}}"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></a>{{else}}<button type="button" class="fk-foot" data-sheet="appearance" aria-label="{{T "nav.appearance"}}" aria-haspopup="dialog"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></button>{{end}}
+</nav>
+
+<div class="fk-frame">
 
 {{if .User}}
 <div class="bug-modal-overlay" id="bug-modal-overlay" aria-hidden="true">
@@ -151,6 +156,181 @@
   <p>{{T "footer.not_affiliated"}}</p>
   <p><a href="/privacy">Privacy</a></p>
 </footer>
+</div>
+
+{{/* Search (concept): raid bosses, Pokemon, trainers, events and the site's own pages. ts/shared/search.ts. */}}
+<div class="fk-search" id="fk-search" role="dialog" aria-modal="true" aria-label="{{T "search.open"}}" hidden
+     data-none="{{T "search.none"}}" data-boss="{{T "search.kind.boss"}}" data-mega="{{T "home.raids.mega"}}" data-tier="{{T "home.raids.tier"}}"
+     data-mon="{{T "search.kind.mon"}}" data-trainer="{{T "search.kind.trainer"}}" data-event="{{T "search.kind.event"}}" data-page="{{T "search.kind.page"}}">
+  <div class="fk-search-box">
+    <div class="fk-search-field">
+      <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+      <label for="fk-q" class="sr">{{T "search.placeholder"}}</label>
+      <input id="fk-q" type="search" placeholder="{{T "search.placeholder"}}" autocomplete="off" spellcheck="false">
+      <button type="button" class="fk-icon-btn" id="fk-close-search" aria-label="{{T "nav.close"}}"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="fk-results" id="fk-results" role="listbox" aria-label="{{T "search.open"}}"></div>
+  </div>
+</div>
+
+<div class="fk-scrim" id="fk-scrim"></div>
+<section class="fk-sheet" id="fk-sheet" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+  <div class="fk-grab" id="fk-grab"><span></span><button type="button" class="fk-icon-btn fk-sheet-close" id="fk-sheet-close" aria-label="{{T "nav.close"}}"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+  <div id="fk-sheet-body"></div>
+</section>
+
+{{/* Sheet contents. Server rendered so every link keeps its feature gate and the forms carry
+     their CSRF token; shell.ts copies one into the sheet when it opens. */}}
+<template id="fk-tpl-account">
+  <div class="fk-me-card">
+    {{if .User}}
+    <span class="fk-av big" aria-hidden="true">{{initial .User.Username}}</span>
+    <div><b>{{.User.Username}}</b><div class="fk-meta">{{if .User.IsSuperAdmin}}{{T "nav.role.super"}}{{else if .User.IsAdmin}}{{T "nav.role.admin"}}{{else if .User.IsMod}}{{T "nav.role.mod"}}{{else if .User.IsTester}}{{T "nav.role.tester"}}{{else}}{{T "nav.role.trainer"}}{{end}}</div></div>
+    {{else}}
+    <img class="fk-logo" src="/static/app/icons/logo.svg" alt="" width="56" height="56">
+    <div><b>{{T "nav.welcome"}}</b><div class="fk-meta">{{T "nav.welcome_sub"}}</div></div>
+    {{end}}
+  </div>
+  <div class="fk-menu">
+    {{if .User}}
+    <a href="/trainer/{{.User.Username}}"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>{{T "nav.profile"}}</a>
+    {{if .Maintenance.IVEnabled}}<a href="/box"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg>{{T "nav.box"}}</a>{{end}}
+    <a href="/social/{{.User.Username}}"><svg class="ic" aria-hidden="true"><use href="#i-friends"/></svg>{{T "nav.friends"}}</a>
+    {{if gt .ReportCount 0}}<a href="/reports"><svg class="ic" aria-hidden="true"><use href="#i-inbox"/></svg>{{T "nav.reports"}}{{if gt .ReportUnread 0}}<b class="fk-count">{{.ReportUnread}}</b>{{end}}</a>{{end}}
+    <span class="fk-sep"></span>
+    <a href="/settings"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>{{T "nav.settings"}}</a>
+    <button type="button" data-sheet="appearance"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg>{{T "nav.appearance"}}</button>
+    {{if .StoreEnabled}}<a href="/store"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg>{{T "nav.support"}}</a>{{end}}
+    {{if or .User.IsMod .User.IsTranslator}}
+    <span class="fk-sep"></span>
+    {{if .User.IsMod}}<a href="/admin"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<b class="fk-count">{{.CostumeReviewCount}}</b>{{end}}</a>{{end}}
+    <a href="/translate"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg>{{T "nav.translate"}}</a>
+    {{else if .Maintenance.TranslatorAppsEnabled}}
+    <a href="/translate"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg>{{T "nav.help_translate"}}</a>
+    {{end}}
+    <span class="fk-sep"></span>
+    <button type="button" id="nav-bug-btn" data-close-sheet><svg class="ic" aria-hidden="true"><use href="#i-bug"/></svg>{{T "nav.bug"}}</button>
+    {{else}}
+    <a href="/login"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>{{T "nav.signin"}}</a>
+    <a href="/register"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>{{T "nav.create_account"}}</a>
+    <button type="button" data-sheet="appearance"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg>{{T "nav.appearance"}}</button>
+    {{if .Maintenance.TranslatorAppsEnabled}}<a href="/translate"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg>{{T "nav.help_translate"}}</a>{{end}}
+    <span class="fk-sep"></span>
+    <a href="/login?next=/"><svg class="ic" aria-hidden="true"><use href="#i-bug"/></svg>{{T "nav.bug"}}</a>
+    {{end}}
+    <button type="button" data-install hidden><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>{{T "app.install"}}</button>
+    <a href="https://github.com/Hailey-Ross/hailsDotGO/wiki" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg>{{T "nav.wiki"}}</a>
+    <a href="/credits"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg>{{T "nav.credits"}}</a>
+    <a href="/privacy"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>{{T "nav.privacy"}}</a>
+    {{if .User}}
+    <form method="POST" action="/logout" data-confirm="{{T "nav.logout_confirm"}}">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <button type="submit"><svg class="ic" aria-hidden="true"><use href="#i-out"/></svg>{{T "nav.signout"}}</button>
+    </form>
+    {{end}}
+  </div>
+</template>
+
+{{if .User}}<template id="fk-tpl-inbox">
+  <div><span class="fk-label">{{T "notifications.inbox"}}</span><h2 class="fk-sheet-title">{{T "notifications.title"}}</h2></div>
+  <div class="fk-notes" data-empty="{{T "notifications.up_to_date"}}" data-join="{{T "notifications.join"}}" data-state-open="{{T "notifications.state_open"}}" data-state-full="{{T "notifications.state_full"}}" data-state-raiding="{{T "notifications.state_raiding"}}"><div class="fk-dots" aria-hidden="true"><i></i><i></i><i></i></div></div>
+  <div class="fk-actions"><a class="fk-btn ghost" href="/notifications">{{T "notifications.see_all"}}</a><a class="fk-btn ghost" href="/settings">{{T "nav.settings"}}</a></div>
+</template>{{end}}
+{{/* iPhone and iPad cannot be offered an install button, so they get a one time hint instead. */}}
+<template id="fk-tpl-ios">
+  <aside class="fk-ios-hint" role="note">
+    <img class="fk-logo" src="/static/app/icons/logo.svg" alt="" width="40" height="40">
+    <div><b>{{T "app.ios_title"}}</b><span>{{T "app.ios_body"}}</span></div>
+    <button type="button" class="fk-icon-btn" data-ios-dismiss aria-label="{{T "nav.close"}}"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </aside>
+</template>
+<template id="fk-tpl-more">
+  <div><span class="fk-label">{{T "nav.more_label"}}</span><h2 class="fk-sheet-title">{{T "nav.more"}}</h2></div>
+  <div class="fk-kit">
+    {{if or .Maintenance.DPSEnabled (or .Maintenance.IVEnabled .Maintenance.PVPEnabled)}}<a class="fk-tool" href="{{if .Maintenance.DPSEnabled}}/dps{{else if .Maintenance.IVEnabled}}/iv{{else}}/pvp{{end}}"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-calc"/></svg></span>{{T "nav.calc"}}</a>{{end}}
+    {{if .Maintenance.TrainersEnabled}}<a class="fk-tool" href="/trainers"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-trainers"/></svg></span>{{T "nav.trainers"}}</a>{{end}}
+    {{if .Maintenance.RaidFinderEnabled}}<a class="fk-tool" href="/raidfinder"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg></span>{{T "nav.raidfinder"}}</a>{{end}}
+    {{if .User}}
+    {{if .Maintenance.IVEnabled}}<a class="fk-tool" href="/box"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg></span>{{T "nav.mybox"}}</a>{{end}}
+    <a class="fk-tool" href="/social/{{.User.Username}}"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-friends"/></svg></span>{{T "nav.friends"}}</a>
+    {{if gt .ReportCount 0}}<a class="fk-tool" href="/reports"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-inbox"/></svg>{{if gt .ReportUnread 0}}<b class="fk-count">{{.ReportUnread}}</b>{{end}}</span>{{T "nav.reports"}}</a>{{end}}
+    <a class="fk-tool" href="/settings"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></span>{{T "nav.settings"}}</a>
+    {{else}}
+    <a class="fk-tool" href="/login"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg></span>{{T "nav.signin"}}</a>
+    {{end}}
+    <button type="button" class="fk-tool" data-sheet="appearance"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></span>{{T "nav.appearance"}}</button>
+    {{if .StoreEnabled}}<a class="fk-tool" href="/store"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg></span>{{T "nav.store"}}</a>{{end}}
+    <a class="fk-tool" href="/credits"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg></span>{{T "footer.credits"}}</a>
+    {{if .User}}{{if .User.IsMod}}<a class="fk-tool" href="/admin"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<b class="fk-count">{{.CostumeReviewCount}}</b>{{end}}</span>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}{{end}}
+    {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}<a class="fk-tool" href="/translate"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span>{{T "nav.translate"}}</a>{{end}}
+    <button type="button" class="fk-tool" data-install hidden><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg></span>{{T "app.install_short"}}</button>
+    <a class="fk-tool" href="https://github.com/Hailey-Ross/hailsDotGO/wiki" target="_blank" rel="noopener"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg></span>{{T "nav.wiki"}}</a>
+  </div>
+</template>
+
+<template id="fk-tpl-appearance">
+  <h2 class="fk-sheet-title">{{T "nav.appearance"}}</h2>
+  <div class="fk-set">
+    <b>{{T "appearance.mode"}}</b>
+    <div class="fk-seg" role="group" aria-label="{{T "appearance.mode"}}">
+      <button type="button" data-mode="system">{{T "appearance.mode.system"}}</button>
+      <button type="button" data-mode="light">{{T "appearance.mode.light"}}</button>
+      <button type="button" data-mode="dark">{{T "appearance.mode.dark"}}</button>
+      <button type="button" data-mode="sun">{{T "appearance.mode.sun"}}</button>
+    </div>
+    <small class="fk-meta">{{T "appearance.mode.sun_note"}}</small>
+  </div>
+  <a class="fk-btn ghost" href="/appearance"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg>{{T "appearance.all_themes"}}</a>
+  <form class="fk-set" method="POST" action="/lang">
+    <b>{{T "appearance.language"}}</b>
+    <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+    <div class="fk-seg" role="group" aria-label="{{T "appearance.language"}}">
+      {{range .Langs}}<button name="code" value="{{.}}" aria-pressed="{{if eq $.Lang .}}true{{else}}false{{end}}">{{upper .}}</button>{{end}}
+    </div>
+  </form>
+</template>
+
+{{/* Icons (24px line icons drawn for FlexDex). The logo itself is an image, static/app/icons/logo.svg,
+     which is the owner's own artwork and is kept out of git (deployed from disk). */}}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8.5a1 1 0 0 1-1 1h-4.5V15h-5v5.5H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-raids" viewBox="0 0 24 24"><path d="M12 3.5 14 9l5.5.5-4.2 3.6 1.3 5.4L12 15.6l-4.6 2.9 1.3-5.4L4.5 9.5 10 9z"/></symbol>
+  <symbol id="i-events" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M9 3.5v4M15 3.5v4"/></symbol>
+  <symbol id="i-dex" viewBox="0 0 24 24"><path d="M6 4.5h10.5a2 2 0 0 1 2 2V20H8a2 2 0 0 1-2-2z"/><path d="M6 18a2 2 0 0 1 2-2h10.5M10 8.5h5"/></symbol>
+  <symbol id="i-calc" viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="3"/><path d="M8.5 7.5h7M8.5 12h1M12 12h1M15.5 12h0M8.5 16h1M12 16h1M15.5 16h0"/></symbol>
+  <symbol id="i-trainers" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="8.5" r="2.5"/><path d="M15.5 13.6A4.5 4.5 0 0 1 21 18"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4M5.5 4.5h11l-2.5 4 2.5 4h-11"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.9 1.4-1.9-.5-1.2.3-2.4 1.6-2.4H17a3.5 3.5 0 0 0 3.5-3.5C20.5 7.6 16.7 3.5 12 3.5z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.6"/><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><circle cx="10" cy="9" r="3.4"/><path d="M4 19.5a6 6 0 0 1 10.5-4M18 13v6M15 16h6"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="13" rx="2.5"/><path d="M3.5 11h17M9.5 14.5h5M6 7l2-3.5h8L18 7"/></symbol>
+  <symbol id="i-friends" viewBox="0 0 24 24"><circle cx="8.5" cy="9" r="3"/><circle cx="16" cy="9.5" r="2.5"/><path d="M3 19c.6-3 2.8-4.7 5.5-4.7S13.4 16 14 19M14.5 14.6c2.6-.4 5.6.9 6.5 4.4"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13.5 6.5 5h11l2.5 8.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13.5h4.5l1.5 2.5h4l1.5-2.5H20"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5 19 6v6c0 4.2-3 7.2-7 8.5-4-1.3-7-4.3-7-8.5V6z"/><path d="M12 8v5M12 16h0"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.7 3.5 5.5 3.5 8.5s-1 5.8-3.5 8.5c-2.5-2.7-3.5-5.5-3.5-8.5s1-5.8 3.5-8.5z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 19.5s-7.5-4.5-7.5-10A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.5 2.5c0 5.5-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8h0"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 5h4.5a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H14M10 16l-4-4 4-4M6 12h10"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7.5" y="7.5" width="9" height="12" rx="4.5"/><path d="M12 11v8.5M9.5 7.5a2.5 2.5 0 0 1 5 0M4 12h3.5M16.5 12H20M5 7.5l2.8 2M19 7.5l-2.8 2M5 18l2.8-2M19 18l-2.8-2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.5c-2-1.5-4.5-2-8-2v13c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-13c-3.5 0-6 .5-8 2zM12 6.5v13"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19 13 11"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-wx-clear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></symbol>
+  <symbol id="i-wx-partly" viewBox="0 0 24 24"><path d="M9 4v1.5M4.2 6.2l1 1M3 11h1.5M12.8 6.2l-1 1"/><path d="M6.3 11.4A3.5 3.5 0 0 1 12.4 8"/><path d="M8 19.5h9a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.4 1.6A2.7 2.7 0 0 0 8 19.5z"/></symbol>
+  <symbol id="i-wx-cloudy" viewBox="0 0 24 24"><path d="M7 18.5h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.8A3.1 3.1 0 0 0 7 18.5z"/></symbol>
+  <symbol id="i-wx-rain" viewBox="0 0 24 24"><path d="M7 14.5h10a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.6 1.6A2.7 2.7 0 0 0 7 14.5z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/></symbol>
+  <symbol id="i-wx-windy" viewBox="0 0 24 24"><path d="M3 9h11a3 3 0 1 0-3-3"/><path d="M3 14h15a3 3 0 1 1-3 3"/><path d="M3 19h6"/></symbol>
+  <symbol id="i-wx-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 6l2.5-1.5M9.5 19.5 12 18l2.5 1.5"/></symbol>
+  <symbol id="i-wx-fog" viewBox="0 0 24 24"><path d="M4 9h16M3 13h13M7 17h13M5 21h9"/></symbol>
+</svg>
 
 <script>const SITE_LANG = {{.Lang}};</script>
 <script>
@@ -222,123 +402,7 @@ const JSC = {
   vs:                  {{T "js.common.vs"}}
 };
 </script>
-<script>
-  (function() {
-    // Optional: overlay a background image from hails.cc asset pool
-    var bgs = [
-      'https://assets.hails.cc/i/bg1.jpg',
-      'https://assets.hails.cc/i/bg2_transFlag.jpg',
-      'https://assets.hails.cc/i/bg3_paintIt.jpg'
-    ];
-    var chosen = bgs[Math.floor(Math.random() * bgs.length)];
-    var img = new Image();
-    img.onload = function() {
-      document.body.style.backgroundImage = "url('" + chosen + "')";
-    };
-    img.src = chosen;
-  })();
-</script>
-
-<script src="https://assets.hails.cc/particlejs/particles.js"></script>
-<script>
-if (typeof particlesJS !== 'undefined') {
-  particlesJS("particles-js", {
-    particles: {
-      number: { value: 91, density: { enable: true, value_area: 800 } },
-      color: { value: "#ffffff" },
-      shape: {
-        type: "polygon",
-        stroke: { width: 0, color: "#000000" },
-        polygon: { nb_sides: 5 }
-      },
-      opacity: {
-        value: 0.8337742716500719,
-        random: true,
-        anim: { enable: true, speed: 1, opacity_min: 0, sync: false }
-      },
-      size: {
-        value: 2,
-        random: true,
-        anim: { enable: false, speed: 4, size_min: 0.3, sync: false }
-      },
-      line_linked: {
-        enable: false,
-        distance: 112.2388442605866,
-        color: "#8e8e8e",
-        opacity: 0.3367165327817598,
-        width: 1
-      },
-      move: {
-        enable: true,
-        speed: 1,
-        direction: "none",
-        random: true,
-        straight: false,
-        out_mode: "out",
-        bounce: false,
-        attract: { enable: true, rotateX: 600, rotateY: 600 }
-      }
-    },
-    interactivity: {
-      detect_on: "window",
-      events: {
-        onhover: { enable: true, mode: "repulse" },
-        onclick: { enable: false, mode: "push" },
-        resize: true
-      },
-      modes: {
-        grab: { distance: 400, line_linked: { opacity: 1 } },
-        bubble: { distance: 250, size: 0, duration: 2, opacity: 0, speed: 3 },
-        repulse: { distance: 97.44926547616141, duration: 0.4 },
-        push: { particles_nb: 4 },
-        remove: { particles_nb: 2 }
-      }
-    },
-    retina_detect: true
-  });
-}
-</script>
-
-<script>
-(function() {
-  var burger   = document.getElementById('nav-burger');
-  var sidebar  = document.getElementById('nav-sidebar');
-  var overlay  = document.getElementById('nav-overlay');
-  var closeBtn = document.getElementById('nav-sidebar-close');
-  if (!burger || !sidebar) return;
-
-  function openMenu() {
-    sidebar.classList.add('open');
-    overlay && overlay.classList.add('open');
-    burger.classList.add('open');
-    burger.setAttribute('aria-expanded', 'true');
-    sidebar.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeMenu() {
-    sidebar.classList.remove('open');
-    overlay && overlay.classList.remove('open');
-    burger.classList.remove('open');
-    burger.setAttribute('aria-expanded', 'false');
-    sidebar.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-  }
-
-  burger.addEventListener('click', function() {
-    sidebar.classList.contains('open') ? closeMenu() : openMenu();
-  });
-  if (overlay)  overlay.addEventListener('click', closeMenu);
-  if (closeBtn) closeBtn.addEventListener('click', closeMenu);
-
-  sidebar.querySelectorAll('a').forEach(function(a) {
-    a.addEventListener('click', closeMenu);
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeMenu();
-  });
-})();
-</script>
-
+<script src="/static/js/shell.js?v={{.AssetVersion}}"></script>
 {{block "scripts" .}}{{end}}
 {{if .User}}
 <script>
@@ -362,3 +426,19 @@ window.PR_I18N = {
 </body>
 </html>
 {{end}}
+
+{{/* Sign in, create account and password pages: the live landscape with a big clock above the card. */}}
+{{define "fk-signin-hero"}}<div class="fk-hero fk-signin-hero fk-settle">
+  <div class="fk-sky-fx" aria-hidden="true"></div>
+  <canvas class="fk-land" aria-hidden="true"></canvas>
+  <div class="fk-hello"><div class="fk-big-clock mono" data-big-clock aria-hidden="true"></div><div class="fk-hello-sub" data-big-date></div></div>
+</div>{{end}}
+{{define "fk-auth-logo"}}<img class="fk-logo" src="/static/app/icons/logo.svg" alt="" width="56" height="56">{{end}}
+
+{{/* Calc: DPS, IV and PvP are one app with a switch; each keeps its own URL. */}}
+{{define "fk-calc-head"}}<script>window.CALC_CARDS = { attacker: {{T "calc.card.attacker"}}, against: {{T "calc.card.against"}}, result: {{T "calc.card.result"}}, yours: {{T "calc.card.yours"}}, ivs: {{T "calc.card.ivs"}}, pokemon: {{T "calc.card.pokemon"}}, rankings: {{T "calc.card.rankings"}}, empty: {{T "calc.card.empty"}} };</script><div class="fk-head fk-calc-head"><div><h1>{{T "nav.calc"}}</h1><p>{{if pathActive .Path "/iv"}}{{T "iv.subtitle"}}{{else if pathActive .Path "/pvp"}}{{T "pvp.subtitle"}}{{else}}{{T "dps.subtitle"}}{{end}}</p></div>
+  <nav class="fk-seg" aria-label="{{T "nav.calc"}}">{{if .Maintenance.DPSEnabled}}<a class="fk-seg-link" href="/dps"{{if pathActive .Path "/dps"}} aria-current="page"{{end}}>{{T "calc.tab.dps"}}</a>{{end}}{{if .Maintenance.IVEnabled}}<a class="fk-seg-link" href="/iv"{{if pathActive .Path "/iv"}} aria-current="page"{{end}}>{{T "calc.tab.iv"}}</a>{{end}}{{if .Maintenance.PVPEnabled}}<a class="fk-seg-link" href="/pvp"{{if pathActive .Path "/pvp"}} aria-current="page"{{end}}>{{T "calc.tab.pvp"}}</a>{{end}}</nav>
+</div>{{end}}
+
+{{/* Theme names as JSON, for cards whose tab shows the current theme (the sign-in card). */}}
+{{define "fk_theme_names"}}{"trailhead":"{{T "theme.trailhead.name"}}","kanto":"{{T "theme.kanto.name"}}","johto":"{{T "theme.johto.name"}}","hoenn":"{{T "theme.hoenn.name"}}","sinnoh":"{{T "theme.sinnoh.name"}}","unova":"{{T "theme.unova.name"}}","kalos":"{{T "theme.kalos.name"}}","alola":"{{T "theme.alola.name"}}","galar":"{{T "theme.galar.name"}}","paldea":"{{T "theme.paldea.name"}}","t-normal":"{{T "theme.t-normal.name"}}","t-fire":"{{T "theme.t-fire.name"}}","t-water":"{{T "theme.t-water.name"}}","t-grass":"{{T "theme.t-grass.name"}}","t-electric":"{{T "theme.t-electric.name"}}","t-ice":"{{T "theme.t-ice.name"}}","t-fighting":"{{T "theme.t-fighting.name"}}","t-poison":"{{T "theme.t-poison.name"}}","t-ground":"{{T "theme.t-ground.name"}}","t-flying":"{{T "theme.t-flying.name"}}","t-psychic":"{{T "theme.t-psychic.name"}}","t-bug":"{{T "theme.t-bug.name"}}","t-rock":"{{T "theme.t-rock.name"}}","t-ghost":"{{T "theme.t-ghost.name"}}","t-dragon":"{{T "theme.t-dragon.name"}}","t-dark":"{{T "theme.t-dark.name"}}","t-steel":"{{T "theme.t-steel.name"}}","t-fairy":"{{T "theme.t-fairy.name"}}","custom":"{{T "theme.custom.name"}}"}{{end}}

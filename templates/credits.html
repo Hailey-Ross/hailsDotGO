@@ -1,6 +1,9 @@
 ﻿{{define "title"}}{{T "credits.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
+<div class="fk-head fk-settings-head">
 <div class="page-header">
   <h1>{{T "credits.heading"}}</h1>
 </div>
@@ -10,11 +13,12 @@
   <button class="tab-btn" data-tab="api">{{T "credits.tab.api"}}</button>
   <button class="tab-btn" data-tab="changelog">{{T "credits.tab.changelog"}}</button>
 </div>
+</div>
 
 <div id="tab-about" class="tab-panel active">
   <div class="credits-card">
-    <h2>{{T "credits.about.what_title"}}</h2>
-    <p>{{T "credits.about.what_body"}}</p>
+    <div class="fk-credits-intro">{{template "fk-auth-logo"}}<div><h2>{{T "credits.about.what_title"}}</h2>
+    <p>{{T "credits.about.what_body"}}</p></div></div>
     <p>{{T "credits.about.disclaimer"}}</p>
   </div>
 
@@ -106,9 +110,9 @@
     <p>{{T "credits.api.your_access_body"}}</p>
     <p style="margin-top:0.75rem"><strong>{{T "credits.api.your_access_how_title"}}</strong></p>
     <p>{{T "credits.api.your_access_cookie_note"}}</p>
-    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>Cookie: hgo_session=&lt;your-token&gt;</code></pre>
+    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--old-r-sm);font-size:0.82rem;overflow-x:auto"><code>Cookie: hgo_session=&lt;your-token&gt;</code></pre>
     <p>{{T "credits.api.your_access_example_label"}}</p>
-    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);font-size:0.82rem;overflow-x:auto"><code>curl -H "Cookie: hgo_session=&lt;your-token&gt;" https://pogo.hails.app/api/private/data</code></pre>
+    <pre style="margin:0.5rem 0;padding:0.6rem 0.9rem;background:rgba(0,0,0,0.4);border-radius:var(--old-r-sm);font-size:0.82rem;overflow-x:auto"><code>curl -H "Cookie: hgo_session=&lt;your-token&gt;" https://pogo.hails.app/api/private/data</code></pre>
     <p style="margin-top:0.5rem;color:var(--text-2);font-size:0.82rem">{{T "credits.api.your_access_warning"}}</p>
   </div>
   {{end}}{{end}}
@@ -130,6 +134,46 @@
   </div>
 
   <div class="changelog">
+
+    <div class="cl-entry fade-up">
+      <div class="cl-date">2026-11-17</div>
+      <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">A whole new look</h2>
+          <ul class="cl-list">
+            <li>FlexDex now looks like a trainer's field kit, in light or dark</li>
+            <li>A new home page with today's raids, the next Community Day, events and your shiny dex</li>
+            <li>Pick from 28 themes, or mix your own, on the new Appearance page</li>
+            <li>A moving map and today's weather sit behind every page</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Easier to get around</h2>
+          <ul class="cl-list">
+            <li>A new menu bar, at the bottom on phones and down the side on bigger screens</li>
+            <li>Tap a raid boss or an event to see everything about it in one place</li>
+            <li>Log a raid shiny straight from its raid page</li>
+            <li>Notifications open right from the bell</li>
+            <li>Search Pokémon, raids, events, trainers and pages from the top bar, or press /</li>
+            <li>Tap a trainer to see their card, friend code and favorite Pokémon</li>
+            <li>Raid Finder shows each boss as a card with who is in the lobby</li>
+            <li>The calculators show your inputs and results side by side</li>
+            <li>Event pages show their Pokémon up front</li>
+          </ul>
+        </div>
+
+        <div class="cl-item">
+          <h2 class="cl-title">Install it like an app</h2>
+          <ul class="cl-list">
+            <li>Add FlexDex to your home screen on Android, iPhone and iPad</li>
+            <li>Optional interface sounds and vibration, with their own settings</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
 
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-11-02</div>

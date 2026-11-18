@@ -6,6 +6,12 @@ import type { Picker } from "./shared/picker";
 import { getEvolveTargets, getEvolutionFamily, EvolveTarget } from "./shared/evolutions";
 import { cardRegionalForms, recordableRegions, setRegionalShinyOverrides, setRegionalShinyDates, isRegionalShiny, regionalShinyDate, regionalVariantId, isPatternOnlyRegion, unownLetter, vivillonGeo, REGION_ORDER, UNOWN_LETTERS, VIVILLON_PATTERNS } from "./shared/regionalForms";
 import type { GameData, ShinyPokemon, ShinyDexEntry } from "./shared/types";
+import { sticker, trimStickers } from "./shared/sticker";
+import { stampSVG } from "./shared/stamp";
+import { feedback } from "./shared/feel";
+
+const SPARK_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>';
+const escHTML = (t: string) => t.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch] as string));
 
 declare const JSC: Record<string, string>;
 declare const SH: Record<string, string>;
@@ -521,18 +527,21 @@ async function init() {
   rebuildState(userShinies);
 
   app.innerHTML = `
-    <div class="page-header">
+    <div class="page-header fk-head"><div>
       <h1>${SH.heading}</h1>
       <p id="sc-counter" class="page-header-sub"></p>
     </div>
-    <div class="tabs" id="sc-tabs">
+      <div class="fk-dex-ring" aria-hidden="true"><svg class="fk-ring" id="sc-ring" viewBox="0 0 100 100"></svg>
+        <div class="fk-big"><span id="sc-ring-have">0</span><small> / <span id="sc-ring-total">0</span></small></div></div>
+    </div>
+    <div class="tabs fk-dex-tabs" id="sc-tabs">
       <button class="tab-btn active" data-tab="all">${SH.tabAll}</button>
       <button class="tab-btn" data-tab="caught">${SH.tabCaught}</button>
       <button class="tab-btn" data-tab="evolved">${SH.tabEvolved}</button>
       <button class="tab-btn" data-tab="missing">${SH.tabMissing}</button>
     </div>
-    <input id="sc-search" type="text" class="search-input"
-           style="width:100%;margin-bottom:0.5rem;display:block"
+    <div class="fk-gens" id="sc-gens" role="group"></div>
+    <input id="sc-search" type="text" class="search-input fk-find"
            placeholder="${JSC.search}">
     <label class="sc-filter-toggle" id="sc-unreleased-wrap">
       <input type="checkbox" id="sc-show-unreleased">
@@ -569,6 +578,11 @@ async function init() {
   modal.innerHTML = `
     <div class="sc-modal-inner">
       <button class="sc-modal-close">&times;</button>
+      <div class="fk-sp-top fk-dex-sp" id="sc-sp-top">
+        <span id="sc-sp-sticker"></span>
+        <div style="min-width:0"><span class="fk-label" id="sc-sp-kicker"></span><div class="sc-modal-name"></div><div class="row" id="sc-sp-status"></div></div>
+        <span id="sc-sp-stamp"></span>
+      </div>
       <div class="shiny-compare" id="sc-compare-wrap">
         <div class="shiny-compare-side">
           <img class="shiny-compare-img" id="sc-modal-normal" alt="">
@@ -583,9 +597,6 @@ async function init() {
         <summary class="sc-form-summary">${JSC.otherForms}</summary>
         <div class="sc-form-body" id="sc-form-body"></div>
       </details>
-      <div class="shiny-modal-name-row">
-        <div class="sc-modal-name"></div>
-      </div>
       <div class="poke-cry-controls" id="sc-cry-controls" style="display:none">
         <button class="poke-cry-btn" id="sc-modal-cry" title="${JSC.playCry}">🔊</button>
         <input type="range" class="poke-volume-slider" id="sc-modal-volume" min="0" max="100" value="100" title="${JSC.volume}">
@@ -683,6 +694,22 @@ async function init() {
     (document.getElementById("sc-modal-shiny") as HTMLImageElement).src = spriteUrl(c.spriteId);
     modalName.textContent = regionalDisplayName(gameData, s.name, c.region);
     modalStatus.textContent = "";
+    // The field page header (concept): the shiny on a sticker, its catalog number and generation,
+    // whether it is in the album, and the stamp that thumps on when it is logged.
+    const spSticker = document.getElementById("sc-sp-sticker");
+    if (spSticker) {
+      spSticker.innerHTML = sticker(s.name, spriteUrl(c.spriteId), [], true, 104).replace('class="fk-sticker"', 'class="fk-sticker drop-in"');
+      trimStickers(spSticker);
+    }
+    const kicker = document.getElementById("sc-sp-kicker");
+    if (kicker) kicker.textContent = (SH.catalogGen || "No. {n}, Gen {g}").replace("{n}", String(s.id).padStart(4, "0")).replace("{g}", String(genOf(s.id)));
+    const owned = cardCaught(s.name, c.region, caughtCardKeys);
+    const statusEl = document.getElementById("sc-sp-status");
+    if (statusEl) statusEl.innerHTML = owned
+      ? `<span class="fk-shiny">${SPARK_SVG}${escHTML(SH.statusCaught || "Shiny caught")}</span>`
+      : `<span class="fk-meta">${escHTML(SH.statusAvailable || "Shiny available")}</span>`;
+    const stampHost = document.getElementById("sc-sp-stamp");
+    if (stampHost) stampHost.innerHTML = stampSVG(false, SH.stampHeader || "FLEXDEX FIELD LOG", SH.stampWord || "LOGGED", typeof SITE_LANG !== "undefined" ? SITE_LANG : undefined);
 
     const flavorP    = document.getElementById("sc-modal-flavor")  as HTMLElement;
     const genusEl    = document.getElementById("sc-modal-genus")   as HTMLElement;
@@ -825,6 +852,11 @@ async function init() {
 
     const ok = await apiAdd(modalTarget.species.name, form, modalTarget.region, costume, eventTag, method, modalCaughtInput.value);
     if (ok) {
+      // Stamp it into the field log, let it land, then close.
+      const stamp = modal.querySelector(".fk-stamp");
+      if (stamp) { stamp.classList.remove("on"); void (stamp as HTMLElement).getBoundingClientRect(); stamp.classList.add("on"); }
+      feedback("stamp");
+      await new Promise((r) => setTimeout(r, stamp && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1100 : 0));
       userShinies = await fetchUserShinies();
       rebuildState(userShinies);
       updateCounter();
@@ -1491,7 +1523,48 @@ async function init() {
 
   let activeTab = "all";
 
+  // Generations, as in the concept's Dex: chips under the tabs narrow the grid tabs to one.
+  const GEN_ENDS = [151, 251, 386, 493, 649, 721, 809, 905, 1025];
+  const genOf = (id: number) => { const i = GEN_ENDS.findIndex((end) => id <= end); return i < 0 ? 9 : i + 1; };
+  let activeGen = 0;
+  const gensEl = document.getElementById("sc-gens");
+  function renderGens() {
+    if (!gensEl) return;
+    const labels: [number, string][] = [[0, SH.genAll || "All generations"]];
+    for (let g = 1; g <= 9; g++) labels.push([g, (SH.genN || "Gen {n}").replace("{n}", String(g))]);
+    gensEl.innerHTML = labels.map(([g, l]) => `<button type="button" class="fk-gen" data-gen="${g}" aria-pressed="${activeGen === g}">${l}</button>`).join("");
+  }
+  gensEl?.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest("[data-gen]") as HTMLElement | null;
+    if (!b) return;
+    activeGen = Number(b.dataset.gen) || 0;
+    renderGens();
+    renderTab();
+  });
+  renderGens();
+
+  // The ring beside the title: released shinies you have, out of every released one.
+  function renderRing() {
+    const svgEl = document.getElementById("sc-ring");
+    if (!svgEl) return;
+    const released = allCards.filter((c) => c.released);
+    const have = released.filter((c) => cardCaught(c.species.name, c.region, caughtCardKeys)).length;
+    const total = released.length;
+    const segs = 30, on = total ? Math.round((have / total) * segs) : 0, R = 42, gap = 4;
+    let out = "";
+    for (let i = 0; i < segs; i++) {
+      const a0 = ((i / segs) * 360 - 90 + gap / 2) * Math.PI / 180, a1 = (((i + 1) / segs) * 360 - 90 - gap / 2) * Math.PI / 180;
+      out += `<path class="seg-arc${i < on ? " on" : ""}" d="M${(50 + R * Math.cos(a0)).toFixed(2)} ${(50 + R * Math.sin(a0)).toFixed(2)} A${R} ${R} 0 0 1 ${(50 + R * Math.cos(a1)).toFixed(2)} ${(50 + R * Math.sin(a1)).toFixed(2)}"/>`;
+    }
+    svgEl.innerHTML = out;
+    const h = document.getElementById("sc-ring-have"), t = document.getElementById("sc-ring-total");
+    if (h) h.textContent = have.toLocaleString();
+    if (t) t.textContent = total.toLocaleString();
+  }
+
   function renderTab() {
+    renderRing();
+    if (gensEl) gensEl.style.display = activeTab === "all" || activeTab === "missing" ? "" : "none";
     // The unreleased toggle is only meaningful on the two grid tabs.
     const toggleWrap = document.getElementById("sc-unreleased-wrap");
     if (toggleWrap) {
@@ -1506,7 +1579,7 @@ async function init() {
       renderCaughtList(true);
     } else {
       // With the toggle off this is byte for byte the list that shipped before the flags existed.
-      const visible = allCards.filter(cardVisible);
+      const visible = allCards.filter((c) => cardVisible(c) && (!activeGen || genOf(c.species.id) === activeGen));
       // Missing is a to-do list of shinies you could go out and catch, so an announced one does not
       // belong on it however visible it is on All. Ticking the toggle still opts into the wish list.
       const source = activeTab === "missing"
@@ -1562,6 +1635,17 @@ async function init() {
       openEditModal(handle);
     }
   }
+
+  // A link from search (/shinies#mon=Name) opens that Pokemon's field page.
+  const openMonFromHash = () => {
+    const m = (location.hash || "").match(/mon=([^&]+)/);
+    if (!m) return;
+    const name = decodeURIComponent(m[1]);
+    const card = allCards.find((c) => c.species.name === name && !c.region) || allCards.find((c) => c.species.name === name);
+    if (card) openAddModal(card);
+  };
+  openMonFromHash();
+  if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("hashchange", openMonFromHash);
 }
 
 init();

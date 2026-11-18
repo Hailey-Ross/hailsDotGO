@@ -23,7 +23,7 @@ export const dateFmt = new Intl.DateTimeFormat(typeof SITE_LANG !== "undefined" 
 // The pieces a calendar needs, all from Intl rather than from locale strings: they
 // are already translated everywhere, and the raids page carries no localised date
 // wording of its own.
-const siteLang = () => (typeof SITE_LANG !== "undefined" ? SITE_LANG : "en");
+export const siteLang = () => (typeof SITE_LANG !== "undefined" ? SITE_LANG : "en");
 
 // monthDayFmt labels a calendar cell that opens a new month, so "1" reads as "1 Oct".
 export const monthDayFmt = new Intl.DateTimeFormat(siteLang(), { month: "short", day: "numeric" });

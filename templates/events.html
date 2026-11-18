@@ -1,12 +1,21 @@
 {{define "title"}}{{T "events.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="page-header">
-  <h1>{{T "events.title"}}</h1>
-  <p>{{T "events.subtitle"}}</p>
+<section class="fk-page fk-events">
+<div class="fk-head"><div><h1>{{T "events.title"}}</h1><p>{{T "events.subtitle"}}</p></div></div>
+
+
+<div id="events-app">
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>{{T "events.loading"}}</p>
+  </div>
 </div>
 
-<details class="subscribe-panel" id="subscribe">
+<div class="fk-sub-wrap" data-tab="{{T "events.js.tab_calendar"}}">
+<details class="subscribe-panel fk-sub-card" id="subscribe">
   <summary class="subscribe-summary">
     <svg class="subscribe-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
@@ -34,13 +43,8 @@
     <p class="subscribe-hint">{{T "events.subscribe.hint"}}</p>
   </div>
 </details>
-
-<div id="events-app">
-  <div class="loading-state">
-    <div class="spinner"></div>
-    <p>{{T "events.loading"}}</p>
-  </div>
 </div>
+</section>
 {{end}}
 
 {{define "scripts"}}
@@ -68,7 +72,19 @@ const EV = {
   subCopied:  {{T "events.subscribe.copied"}},
   calGoogle:  {{T "events.add.google"}},
   calDownload:{{T "events.add.download"}},
-  calAdd:     {{T "events.add.calendar"}}
+  calAdd:     {{T "events.add.calendar"}},
+  all:        {{T "events.js.all"}},
+  now:        {{T "events.js.now"}},
+  next:       {{T "events.js.next"}},
+  to:         {{T "events.js.to"}},
+  left:       {{T "events.js.left"}},
+  toGo:       {{T "events.js.to_go"}},
+  leftLabel:  {{T "events.js.left_label"}},
+  untilStarts:{{T "events.js.until_starts"}},
+  startsAt:   {{T "events.js.starts_at"}},
+  endsAt:     {{T "events.js.ends_at"}},
+  details:    {{T "events.js.details"}},
+  noneDay:    {{T "events.js.none_day"}}
 };
 </script>
 <script src="/static/js/events.js?v={{.AssetVersion}}"></script>

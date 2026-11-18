@@ -1,5 +1,7 @@
 {{define "title"}}{{T "store.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header">
   <h1>{{T "store.title"}}</h1>
@@ -91,7 +93,7 @@
   <h2 class="store-section-title">{{T "store.tag.title"}}</h2>
   {{if $d.TagRequest}}
     {{if eq $d.TagRequest.Status "pending"}}
-    <div class="admin-message" style="background:var(--surface-2);color:var(--text-1)">
+    <div class="admin-message" style="background:var(--old-surface-2);color:var(--text-1)">
       {{T "store.tag.pending"}}
     </div>
     {{else if eq $d.TagRequest.Status "approved"}}

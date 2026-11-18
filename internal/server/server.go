@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -240,6 +241,22 @@ func assetLinks(path string) http.HandlerFunc {
 	}
 }
 
+// rootFile serves one file from static/ at a root path. The install-as-app pieces must live at the
+// site root: a service worker only controls pages under its own path, and the manifest is linked
+// from every page.
+func rootFile(path, contentType, cacheControl string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Cache-Control", cacheControl)
+		w.Write(b)
+	}
+}
+
 func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	r := chi.NewRouter()
 	// First in the stack: every limiter and the request log below read RemoteAddr,
@@ -285,6 +302,10 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// Static files are GET-only; no CSRF needed. Asset URLs carry a content-derived ?v=
 	// query (see handlers.computeAssetVersion), so a long cache is safe: changed files get
 	// a new URL and are refetched, unchanged files stay cached.
+	// Go's built-in type table has no entry for woff2, and a server without /etc/mime.types
+	// would send the self-hosted fonts as octet-stream.
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	staticFS := http.StripPrefix("/static/", http.FileServer(http.Dir("static")))
 	r.Handle("/static/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Cache-Control", "public, max-age=31536000")
@@ -319,6 +340,14 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// http.FileServer does not hide dot-directories. Harmless: the platform reads only
 	// the canonical path below, and nothing links to the other one.
 	r.Method(http.MethodGet, "/.well-known/assetlinks.json", assetLinks(assetLinksPath))
+	// Install as an app (static/app/). The worker is never cached by the browser beyond a revalidation,
+	// so an update reaches every installed copy on its next visit.
+	manifest := rootFile("static/app/manifest.webmanifest", "application/manifest+json", "public, max-age=3600")
+	worker := rootFile("static/app/sw.js", "text/javascript; charset=utf-8", "no-cache")
+	r.Method(http.MethodGet, "/manifest.webmanifest", manifest)
+	r.Method(http.MethodHead, "/manifest.webmanifest", manifest)
+	r.Method(http.MethodGet, "/sw.js", worker)
+	r.Method(http.MethodHead, "/sw.js", worker)
 	r.Method(http.MethodHead, "/.well-known/assetlinks.json", assetLinks(assetLinksPath))
 
 	// Mobile API -- outside CSRF group (Bearer tokens are not CSRF-vulnerable).
@@ -784,6 +813,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/box", h.GetBoxPage)
 		r.Get("/credits", h.Credits)
 		r.Get("/privacy", h.Privacy)
+		r.Get("/appearance", h.Appearance)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
 		})

@@ -1,5 +1,7 @@
 {{define "title"}}{{T "reports.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header">
   <h1>{{T "reports.title"}}</h1>
@@ -17,7 +19,7 @@
     </div>
   </aside>
 
-  <section class="reports-thread">
+  <section class="reports-thread" data-tab="{{T "reports.tab_conversation"}}">
     <div class="reports-thread-empty" id="reports-thread-empty">{{T "reports.select_prompt"}}</div>
     <div class="reports-thread-inner" id="reports-thread-inner" style="display:none">
       <header class="reports-thread-head">

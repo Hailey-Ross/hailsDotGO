@@ -1,10 +1,10 @@
 {{define "title"}}{{T "iv.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="page-header">
-  <h1>{{T "iv.title"}}</h1>
-  <p>{{T "iv.subtitle"}}</p>
-</div>
+<section class="fk-calc">
+{{template "fk-calc-head" .}}
 
 <div id="iv-app">
   <div class="loading-state">
@@ -12,6 +12,7 @@
     <p>{{T "iv.loading"}}</p>
   </div>
 </div>
+</section>
 {{end}}
 
 {{define "scripts"}}

@@ -205,6 +205,7 @@ function DirHash([string]$relDir) {
 $trackedFiles = @(
     @{ src = "hailsDotGO-linux";           dst = "/opt/hailsdotgo/hailsDotGO";            binary = $true  },
     @{ src = "static\css\main.css";        dst = "/opt/hailsdotgo/static/css/";           binary = $false },
+    @{ src = "static\css\fieldkit.css";    dst = "/opt/hailsdotgo/static/css/";           binary = $false },
     @{ src = "static\maintenance.html";    dst = "/opt/hailsdotgo/static/";               binary = $false },
     @{ src = "hailsdotgo.service";         dst = "/opt/hailsdotgo/hailsdotgo.service";    binary = $false }
 )
@@ -231,6 +232,10 @@ $trackedDirs = @(
     # Put (plain scp) does not, so a $trackedFiles entry would fail against a VPS that
     # has no static/.well-known yet.
     @{ src = "static\.well-known"; dst = "/opt/hailsdotgo/static"; key = "static/.well-known" },
+    # Self-hosted Field Kit fonts (woff2 plus their OFL license files).
+    @{ src = "static\fonts"; dst = "/opt/hailsdotgo/static"; key = "static/fonts" },
+    # Install as an app: manifest, service worker, offline page and icons (also served at /manifest.webmanifest and /sw.js).
+    @{ src = "static\app"; dst = "/opt/hailsdotgo/static"; key = "static/app" },
     # OCR microservice: syncs file CONTENTS into /opt/hailsdotgo-ocr and restarts the OCR
     # service. NOTE: a requirements.txt change still needs a manual `pip install` on the VPS.
     @{ src = "ocr-service"; dst = "/opt/hailsdotgo-ocr"; key = "ocr-service"; stripTop = $true; restartOcr = $true }

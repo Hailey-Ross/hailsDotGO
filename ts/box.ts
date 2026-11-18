@@ -10,6 +10,7 @@ import { loadGameData, pokeSprite, pokeName } from "./shared/gamedata";
 import { createPicker } from "./shared/picker";
 import type { PickerEntry } from "./shared/picker";
 import type { GameData } from "./shared/types";
+import { sticker, trimStickers } from "./shared/sticker";
 
 declare const BOX_CTX: { loggedIn: boolean };
 declare const BX: Record<string, string>;
@@ -151,58 +152,50 @@ async function main() {
   await loadPage(0);
 }
 
+// Saved Pokemon as compact field cards (concept "My Pokemon"): the Pokemon on a sticker, its name
+// and form, CP and level, the three IVs as small bars, and the IV percent with Remove beside it.
 function buildTable(data: GameData, entries: BoxEntry[], reload: () => void): HTMLElement {
-  const wrap = el("div", "table-wrap");
-  const table = el("table", "iv-table");
+  const grid = el("div", "fk-mons");
 
-  const thead = el("thead");
-  const hr = el("tr");
-  for (const h of [BX.colPokemon, BX.colLevel, BX.colIv, BX.colCp, BX.colActions]) {
-    hr.appendChild(el("th", undefined, h));
-  }
-  thead.appendChild(hr);
-  table.appendChild(thead);
+  entries.forEach((e, i) => {
+    const card = el("article", "fk-card fk-mon-card fk-settle");
+    card.style.setProperty("--i", String(Math.min(i, 12)));
 
-  const tbody = el("tbody");
-  for (const e of entries) {
-    const tr = el("tr");
-
-    const nameTd = el("td");
-    nameTd.style.whiteSpace = "nowrap";
     const stat = (data.pokemon ?? []).find(
       (p) => p.pokemon_name.toLowerCase() === e.pokemon_name.toLowerCase()
     );
-    if (stat) {
-      const img = el("img");
-      // Nothing in the bundle separates two forms of a species for sprite
-      // purposes: both Zacian rows are pokemon_id 888, so the dex number alone
-      // drew Hero of Many Battles beside the text "(Crowned_sword)". The server
-      // resolves the form's own art and sends it; the dex sprite is the right
-      // answer only when it does not.
-      img.src = e.sprite_url || pokeSprite(stat.pokemon_id);
-      img.alt = e.pokemon_name;
-      img.className = "poke-sprite";
-      img.loading = "lazy";
-      img.decoding = "async";
-      nameTd.appendChild(img);
-    }
-    nameTd.append(` ${pokeName(data, e.pokemon_name)}`);
-    if (e.form && e.form !== "Normal") nameTd.append(` (${e.form})`);
+    // Nothing in the bundle separates two forms of a species for sprite purposes: both Zacian
+    // rows are pokemon_id 888. The server resolves the form's own art and sends it; the dex
+    // sprite is the right answer only when it does not.
+    const sprite = e.sprite_url || (stat ? pokeSprite(stat.pokemon_id) : undefined);
+    const holder = el("span");
+    holder.innerHTML = sticker(e.pokemon_name, sprite, [], false, 54);
+    card.appendChild(holder.firstElementChild!);
+
+    const info = el("div", "info");
+    const name = el("b", undefined, pokeName(data, e.pokemon_name) + (e.form && e.form !== "Normal" ? ` (${e.form})` : ""));
+    info.appendChild(name);
     const tag = statusTag(e);
-    if (tag) nameTd.appendChild(tag);
-    tr.appendChild(nameTd);
+    if (tag) name.appendChild(tag);
+    info.appendChild(el("div", "fk-meta mono", `CP ${e.cp}, L${e.level}`));
+    const bars = el("div", "ivbars");
+    for (const [k, v] of [["ATK", e.atk_iv], ["DEF", e.def_iv], ["STA", e.sta_iv]] as const) {
+      const s = el("span", undefined, `${k} ${v === null ? "?" : v}`);
+      const bar = el("i");
+      bar.style.setProperty("--w", v === null ? "0%" : `${(v / 15) * 100}%`);
+      s.appendChild(bar);
+      bars.appendChild(s);
+    }
+    info.appendChild(bars);
+    card.appendChild(info);
 
-    tr.appendChild(el("td", undefined, String(e.level)));
-
+    const pctBox = el("div", "pct");
     const pct = ivPercent(e);
-    tr.appendChild(el("td", undefined, pct === null ? "?" : pct.toFixed(1) + "%"));
-
-    tr.appendChild(el("td", undefined, String(e.cp)));
-
-    const actTd = el("td");
+    pctBox.append(pct === null ? "?" : Math.round(pct) + "%");
+    const small = el("small");
     const del = el("button", "btn btn-sm btn-danger", BX.btnDelete);
-    // A column of buttons all reading "Remove" tells a screen reader user nothing
-    // about which Pokemon each one destroys.
+    // A column of buttons all reading "Remove" tells a screen reader user nothing about which
+    // Pokemon each one destroys.
     del.setAttribute("aria-label", BX.btnDeleteNamed.replace("{name}", pokeName(data, e.pokemon_name)));
     del.type = "button";
     del.addEventListener("click", async () => {
@@ -219,15 +212,15 @@ function buildTable(data: GameData, entries: BoxEntry[], reload: () => void): HT
         del.disabled = false;
       }
     });
-    actTd.appendChild(del);
-    tr.appendChild(actTd);
+    small.appendChild(del);
+    pctBox.appendChild(small);
+    card.appendChild(pctBox);
 
-    tbody.appendChild(tr);
-  }
+    grid.appendChild(card);
+  });
 
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  return wrap;
+  trimStickers(grid);
+  return grid;
 }
 
 function buildPager(pager: HTMLElement, total: number, offset: number, go: (o: number) => void) {

@@ -62,9 +62,12 @@ function rankIVs(data: GameData, poke: PokemonStat, cap: number): IVRank[] {
 function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
+    wrap.className = "fk-split";
+    const CC = (window as unknown as { CALC_CARDS?: Record<string, string> }).CALC_CARDS || {};
 
     const form = document.createElement("div");
     form.className = "calc-form";
+    form.dataset.tab = CC.pokemon || "";
 
     const input = document.createElement("input");
     input.type = "text";
@@ -79,7 +82,9 @@ function buildLeaguePanel(data: GameData, cap: number): () => HTMLElement {
     form.appendChild(btn);
 
     const resultArea = document.createElement("div");
-    resultArea.className = "result-area";
+    resultArea.className = "result-area fk-result-card";
+    resultArea.dataset.tab = CC.rankings || "";
+    resultArea.dataset.empty = CC.empty || "";
 
     btn.addEventListener("click", () => {
       const poke = pokemonByName(data, input.value.trim());

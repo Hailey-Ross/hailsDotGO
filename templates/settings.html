@@ -1,17 +1,13 @@
 {{define "title"}}{{T "settings.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
+<div class="fk-head fk-settings-head">
 <div class="page-header">
   <h1>{{T "settings.title"}}</h1>
   <p class="page-sub">{{T "settings.subtitle"}}</p>
 </div>
-
-{{if .Data.Success}}
-<div class="settings-success">{{T "settings.saved"}}</div>
-{{end}}
-{{if .Data.Error}}
-<div class="auth-error" style="margin-bottom:1rem">{{.Data.Error}}</div>
-{{end}}
 
 <div class="tabs" id="settings-tabs">
   <button class="tab-btn active" data-tab="profile">{{T "settings.tab.profile"}}</button>
@@ -20,6 +16,14 @@
   <button class="tab-btn" data-tab="blocked">{{T "settings.tab.blocked"}}</button>
   <button class="tab-btn" data-tab="notif_settings">{{T "settings.tab.notifications"}}</button>
 </div>
+</div>
+
+{{if .Data.Success}}
+<div class="settings-success">{{T "settings.saved"}}</div>
+{{end}}
+{{if .Data.Error}}
+<div class="auth-error" style="margin-bottom:1rem">{{.Data.Error}}</div>
+{{end}}
 
 <div class="settings-wrap">
   <form method="POST" action="/settings" class="settings-form">

@@ -1,5 +1,7 @@
 {{define "title"}}{{T "raidfinder.page_title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header">
   <div>
@@ -16,7 +18,7 @@
 {{else}}
 
 {{if and .User .Data.IncompleteProfile}}
-<div class="raid-profile-banner">
+<div class="raid-profile-banner fk-warn" role="alert">
   ⚠ {{T "raidfinder.incomplete_profile_banner"}} <a href="/settings">{{T "raidlobby.go_settings"}}</a>
 </div>
 {{end}}
@@ -49,6 +51,7 @@
 {{if .Maintenance.RaidFinderEnabled}}
 <script>
 const RF2 = {
+  tierN: {{T "home.raids.tier"}}, tierMega: {{T "home.raids.mega"}},
   // shared chrome
   refresh:        {{T "raidlobby.refresh"}},
   errorLoad:      {{T "raidlobby.error_load"}},

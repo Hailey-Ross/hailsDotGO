@@ -1,10 +1,10 @@
 {{define "title"}}{{T "pvp.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="page-header">
-  <h1>{{T "pvp.title"}}</h1>
-  <p>{{T "pvp.subtitle"}}</p>
-</div>
+<section class="fk-calc">
+{{template "fk-calc-head" .}}
 
 <div id="pvp-app">
   <div class="loading-state">
@@ -12,6 +12,7 @@
     <p>{{T "pvp.loading"}}</p>
   </div>
 </div>
+</section>
 {{end}}
 
 {{define "scripts"}}

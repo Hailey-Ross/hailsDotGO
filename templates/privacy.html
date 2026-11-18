@@ -1,5 +1,7 @@
 {{define "title"}}Privacy{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 <div class="page-header">
   <h1>Privacy</h1>
@@ -16,7 +18,7 @@
   <p>This is the part worth reading. When you tap the scanner in the Android app,
      it captures <strong>one frame of your entire screen</strong> and reads it
      twice: once on your device, and once by sending that frame to this server,
-     where a recogniser reads the level arc, recovers a nicknamed Pokemon from its
+     where a recognizer reads the level arc, recovers a nicknamed Pokemon from its
      candy label, and corrects a partly hidden CP.</p>
   <p>The frame is the whole screen, not a crop of the Pokemon. Anything else
      visible at that moment, such as a notification banner or a message preview,
@@ -36,7 +38,7 @@
   <h2>Your account</h2>
   <p>An account stores a username, an email address, and a password kept only as a
      bcrypt hash. Optionally it stores a trainer name, friend code, trainer level,
-     pronouns, avatar, favourite Pokemon, and a city, region and country if you
+     pronouns, avatar, favorite Pokemon, and a city, region and country if you
      choose to enter them.</p>
   <p>You control how much of that is public. The location display setting can hide
      your location entirely, show only your country, or show your city and region.

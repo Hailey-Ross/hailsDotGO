@@ -187,6 +187,14 @@ var tmplFuncs = template.FuncMap{
 	"divf":  func(a, b int) float64 { return float64(a) / float64(b) },
 	"upper": strings.ToUpper,
 	"T":     func(key string) string { return key }, // replaced per-request via Clone+Funcs
+	// initial is the first letter of a name, uppercased, for avatar badges. It works on runes,
+	// so a name starting with a multi-byte letter is never cut in half.
+	"initial": func(name string) string {
+		for _, r := range name {
+			return strings.ToUpper(string(r))
+		}
+		return ""
+	},
 	"pathActive": func(currentPath, prefix string) bool {
 		return currentPath == prefix || strings.HasPrefix(currentPath, prefix+"/")
 	},
@@ -198,7 +206,7 @@ func (h *Handlers) loadTemplates() {
 		"home", "raids", "dps", "pvp", "events", "iv", "box", "credits", "maintenance",
 		"login", "register", "shinies", "admin", "settings", "trainers", "store",
 		"translate", "raidfinder", "trainer", "social", "notifications", "reports",
-		"forgot_password", "reset_password", "verify_email", "privacy",
+		"forgot_password", "reset_password", "verify_email", "privacy", "appearance",
 	}
 	for _, page := range pages {
 		t, err := template.New("base.html").Funcs(tmplFuncs).ParseFiles(
@@ -355,8 +363,39 @@ func scriptSafeJSON(b []byte) string {
 	return scriptJSONEscaper.Replace(string(b))
 }
 
+// homeData feeds the launcher: the greeting name and the shiny dex ring.
+type homeData struct {
+	DexTotal int    // species whose shiny is out in the game
+	DexHave  int    // of those, how many the signed-in trainer has logged (0 for visitors)
+	Name     string // the greeting's name: the in-game trainer name, else the username; empty for visitors
+}
+
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "home", nil)
+	var d homeData
+	released := map[int]bool{}
+	for _, s := range h.store.ShinyDexCards() {
+		if s.ShinyReleased {
+			released[s.ID] = true
+		}
+	}
+	d.DexTotal = len(released)
+	if u := h.currentUser(r); u != nil {
+		d.Name = u.Username
+		var tn string
+		if h.db.QueryRow(`SELECT trainer_name FROM users WHERE id = ?`, u.ID).Scan(&tn) == nil && strings.TrimSpace(tn) != "" {
+			d.Name = strings.TrimSpace(tn)
+		}
+		if rows, err := h.db.Query(`SELECT DISTINCT pokemon_id FROM user_shinies WHERE user_id = ?`, u.ID); err == nil {
+			for rows.Next() {
+				var id int
+				if rows.Scan(&id) == nil && released[id] {
+					d.DexHave++
+				}
+			}
+			rows.Close()
+		}
+	}
+	h.render(w, r, "home", d)
 }
 
 func (h *Handlers) Raids(w http.ResponseWriter, r *http.Request) {
@@ -384,6 +423,12 @@ func (h *Handlers) Credits(w http.ResponseWriter, r *http.Request) {
 // whether to install must be able to read it without an account.
 func (h *Handlers) Privacy(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "privacy", nil)
+}
+
+// Appearance is the Field Kit theme page: mode, habitat, weather preview, motion. Everything on it
+// is saved in the browser, so it needs no account.
+func (h *Handlers) Appearance(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "appearance", nil)
 }
 
 func (h *Handlers) APIData(w http.ResponseWriter, r *http.Request) {

@@ -852,13 +852,17 @@ func (h *Handlers) AdminChangeRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var targetUsername string
-	if err := h.db.QueryRow(`SELECT username FROM users WHERE id = ?`, id).Scan(&targetUsername); err != nil {
-		writeJSONError(w, h.t(r, "error.user_not_found"), http.StatusNotFound)
+	targetUsername, targetRole, ok := h.targetUser(w, r, id)
+	if !ok {
 		return
 	}
 	if targetUsername == auth.SuperadminUser {
 		writeJSONError(w, h.t(r, "error.adm_role_superadmin"), http.StatusForbidden)
+		return
+	}
+	// The same rule as every other staff action: only on someone strictly below you. Without it
+	// an Admin could change another Admin's role, including demoting them.
+	if !h.mayActOn(w, r, targetUsername, targetRole) {
 		return
 	}
 

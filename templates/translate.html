@@ -1,5 +1,7 @@
 {{define "title"}}{{T "translate.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
 
 {{if eq .Data.State "landing"}}
@@ -10,7 +12,7 @@
   <div style="font-size:2.5rem;margin-bottom:1rem">🌐</div>
   <p style="font-size:1rem;line-height:1.7;color:var(--text-2);margin-bottom:1.75rem">{{T "translate.landing.desc"}}</p>
   <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-    <a href="/login?next=/translate" class="btn-primary" style="display:inline-block;padding:0.6rem 1.4rem;border-radius:var(--r-sm);font-weight:600;text-decoration:none">{{T "translate.landing.cta_login"}}</a>
+    <a href="/login?next=/translate" class="btn-primary" style="display:inline-block;padding:0.6rem 1.4rem;border-radius:var(--old-r-sm);font-weight:600;text-decoration:none">{{T "translate.landing.cta_login"}}</a>
     <a href="/register" class="btn-secondary" style="display:inline-block;padding:0.6rem 1.4rem">{{T "translate.landing.cta_register"}}</a>
   </div>
 </div>
@@ -241,11 +243,11 @@ otherCheck.addEventListener('change', function() {
 #tl-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
 .tl-row { border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.8rem; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.2fr); gap: 0.75rem; }
 .tl-row-info { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
-.tl-key { font-family: monospace; font-size: 0.78rem; color: var(--gold, #f0c050); word-break: break-all; }
+.tl-key { font-family: monospace; font-size: 0.78rem; color: var(--old-gold, #f0c050); word-break: break-all; }
 .tl-en, .tl-current { font-size: 0.84rem; word-break: break-word; }
 .tl-en strong, .tl-current strong { color: var(--text-2); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 0.35rem; }
 .tl-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; width: fit-content; }
-.tl-badge-pending { background: rgba(240, 192, 80, 0.15); color: var(--gold, #f0c050); }
+.tl-badge-pending { background: rgba(240, 192, 80, 0.15); color: var(--old-gold, #f0c050); }
 .tl-badge-rejected { background: rgba(252, 129, 129, 0.15); color: #fc8181; }
 .tl-row-edit { display: flex; flex-direction: column; gap: 0.4rem; }
 .tl-row-edit textarea { width: 100%; min-height: 56px; resize: vertical; font-size: 0.85rem; }

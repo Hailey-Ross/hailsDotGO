@@ -75,10 +75,12 @@ function cardSpriteImg(src: string, alt: string, cls: string): HTMLImageElement 
 function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLElement {
   return () => {
     const wrap = document.createElement("div");
-    wrap.className = "dps-calc-panel";
+    wrap.className = "dps-calc-panel fk-split";
+    const CC = (window as unknown as { CALC_CARDS?: Record<string, string> }).CALC_CARDS || {};
 
     const form = document.createElement("div");
     form.className = "calc-form";
+    form.dataset.tab = CC.attacker || "";
 
     const fastSel = buildMoveSelect(
       data.fastMoves!.map((m) => ({ value: m.name, label: m.name, type: m.type })),
@@ -111,6 +113,7 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
 
     const targetBlock = document.createElement("div");
     targetBlock.className = "calc-form";
+    targetBlock.dataset.tab = CC.against || "";
     targetBlock.style.marginTop = "0.75rem";
 
     const targetHeader = document.createElement("span");
@@ -141,7 +144,9 @@ function buildCalcPanel(data: GameData, allEntries: PickerEntry[]): () => HTMLEl
 
 
     const resultArea = document.createElement("div");
-    resultArea.className = "result-area";
+    resultArea.className = "result-area fk-result-card";
+    resultArea.dataset.tab = CC.result || "";
+    resultArea.dataset.empty = CC.empty || "";
 
     calcBtn.addEventListener("click", () => {
       const poke = attackerPicker.getSelected()?.data as PokemonStat | undefined;

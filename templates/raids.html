@@ -1,10 +1,10 @@
 {{define "title"}}{{T "raids.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="page-header">
-  <h1>{{T "raids.title"}}</h1>
-  <p>{{T "raids.subtitle"}}</p>
-</div>
+<section class="fk-page fk-raids">
+<div class="fk-head"><div><h1>{{T "raids.title"}}</h1><p>{{T "raids.subtitle"}}</p></div></div>
 
 <div id="weather-banner-slot"></div>
 
@@ -14,6 +14,7 @@
     <p>{{T "raids.loading"}}</p>
   </div>
 </div>
+</section>
 {{end}}
 
 {{define "scripts"}}
@@ -70,7 +71,26 @@ const RD = {
   // changes the counter rankings on this page. The key keeps its raidfinder
   // namespace: it is already translated in every locale and renaming an English
   // key orphans the translator edits that point at it.
-  wxSuffix:        {{T "raidfinder.weather_boost_suffix"}}
+  wxSuffix:        {{T "raidfinder.weather_boost_suffix"}},
+
+  // Field Kit specimen cards and the species field page.
+  catalogNo:      {{T "raids.js.catalog_no"}},
+  raidKind:       {{T "raids.js.raid_kind"}},
+  maxBattleTier:  {{T "raids.js.max_battle_tier"}},
+  minCp:          {{T "raids.js.min_cp"}},
+  maxCp:          {{T "raids.js.max_cp"}},
+  boosted:        {{T "raids.js.boosted"}},
+  baseStats:      {{T "raids.js.base_stats"}},
+  whereToFind:    {{T "raids.js.where_to_find"}},
+  shinyAvailable: {{T "home.shiny_available"}},
+  noShiny:        {{T "raids.js.no_shiny"}},
+  logShiny:       {{T "raids.js.log_shiny"}},
+  logged:         {{T "raids.js.logged"}},
+  logFailed:      {{T "raids.js.log_failed"}},
+  stampHeader:    {{T "raids.js.stamp_header"}},
+  stampWord:      {{T "raids.js.stamp_word"}},
+  openDex:        {{T "raids.js.open_dex"}},
+  compareCalc:    {{T "raids.js.compare_calc"}}
 };
 // The weather endpoint needs a session, since it reads the city off the
 // trainer's own profile.

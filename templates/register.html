@@ -1,8 +1,12 @@
 {{define "title"}}{{T "register.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="auth-wrap">
-  <div class="auth-card">
+<div class="auth-wrap fk-signin">
+  {{template "fk-signin-hero" .}}
+  <div class="auth-card fk-card fk-settle" style="--i:1" data-tab="{{T "login.tab"}}" data-theme-tab='{{template "fk_theme_names"}}'>
+    {{template "fk-auth-logo"}}
     <h1 class="auth-title">{{T "register.title"}}</h1>
     <p class="auth-sub">{{T "register.subtitle"}}</p>
 
@@ -30,15 +34,15 @@
              value="{{if .Data.Form}}{{index .Data.Form "email"}}{{end}}">
 
       <label class="auth-label" for="password">{{T "register.password"}}</label>
-      <input class="auth-input" type="password" id="password" name="password"
-             autocomplete="new-password" required minlength="8">
+      <span class="fk-pw"><input class="auth-input" type="password" id="password" name="password"
+             autocomplete="new-password" required minlength="8"><button type="button" class="fk-icon-btn" data-show-pw aria-label="{{T "login.show_password"}}" data-label-hide="{{T "login.hide_password"}}" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></span>
       <span class="auth-hint">{{T "register.password_hint"}}</span>
 
       <button type="submit" class="btn-primary auth-btn">{{T "register.submit"}}</button>
     </form>
     {{end}}
 
-    <p class="auth-alt">{{T "register.have_account"}} <a href="/login">{{T "register.login_link"}}</a></p>
+    <div class="fk-auth-links"><a href="/login">{{T "register.have_account_link"}}</a></div>
   </div>
 </div>
 {{end}}

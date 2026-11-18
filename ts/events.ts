@@ -5,7 +5,22 @@
 declare var EV: Record<string, string>;
 declare var SITE_LANG: string;
 
-import { parseLocal, dateFmt, relTime } from "./shared/time";
+import { parseLocal, relTime, weekdayFmt, siteLang } from "./shared/time";
+import { openSheet } from "./shared/fk";
+import { sticker, trimStickers } from "./shared/sticker";
+
+// Type colors for the event stickers, from the current raid feed (most event bosses are out right
+// now); anything else gets the sticker's neutral ring.
+const monTypes = new Map<string, string[]>();
+const raidFeed: NamedMon[] = [];
+if (typeof fetch !== "undefined") {
+  fetch("/api/raids").then((r) => (r.ok ? r.json() : {})).then((d: Record<string, { pokemon_name: string; types?: string[] }[]>) => {
+    for (const list of Object.values(d || {})) for (const b of list as { pokemon_name: string; types?: string[]; image_url?: string; can_be_shiny?: boolean }[]) {
+      if (b.types?.length) monTypes.set(b.pokemon_name, b.types);
+      raidFeed.push({ name: b.pokemon_name, image: b.image_url || "", canBeShiny: !!b.can_be_shiny });
+    }
+  }).catch(() => undefined);
+}
 
 const app = document.getElementById("events-app")!;
 
@@ -60,25 +75,14 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return node;
 }
 
-const modal = el("div", "shiny-modal");
-const modalInner = el("div", "event-modal-inner");
-modal.appendChild(modalInner);
-document.body.appendChild(modal);
-modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("open"); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.remove("open"); });
-
+// Concept: the event's Pokemon as stickers (type ring, shiny badge), name underneath.
 function monChip(mon: NamedMon): HTMLElement {
-  const chip = el("div", "event-poke");
-  const img = el("img");
-  img.src = mon.image;
-  img.alt = mon.name;
-  img.loading = "lazy";
-  img.decoding = "async";
-  img.onerror = () => { img.style.display = "none"; };
-  chip.appendChild(img);
-  const label = el("span", undefined, mon.canBeShiny ? `${mon.name} ✨` : mon.name);
-  if (mon.canBeShiny) label.title = EV.canBeShiny;
+  const chip = el("div", "event-poke fk-boss");
+  chip.innerHTML = sticker(mon.name, mon.image || undefined, monTypes.get(mon.name) || [], !!mon.canBeShiny, 58);
+  const label = el("span", undefined, mon.name);
+  if (mon.canBeShiny) chip.title = EV.canBeShiny;
   chip.appendChild(label);
+  trimStickers(chip);
   return chip;
 }
 
@@ -313,131 +317,237 @@ function googleCalendarUrl(ev: PogoEvent): string | null {
   return "https://calendar.google.com/calendar/render?" + parts.join("&");
 }
 
+// The event field page, opened in the shell's sheet: what it is, when, how long is left, add it
+// to a calendar, then the full details (scraped event page, or the feed's own data).
 function openModal(ev: PogoEvent) {
-  modalInner.innerHTML = "";
-
-  if (ev.image) {
-    const img = el("img", "event-modal-img");
-    img.src = ev.image;
-    img.alt = ev.name;
-    img.onerror = () => { img.style.display = "none"; };
-    modalInner.appendChild(img);
-  }
-
-  const head = el("div", "event-modal-head");
-  head.appendChild(el("span", "event-badge", ev.heading || ev.eventType));
-  head.appendChild(el("h2", "event-modal-name", ev.name));
-  modalInner.appendChild(head);
-
   const start = parseLocal(ev.start);
   const end = parseLocal(ev.end);
-  const times = el("div", "event-times event-modal-times");
-  if (start) times.appendChild(el("div", undefined, `${EV.starts}: ${dateFmt.format(start)}`));
-  if (end) times.appendChild(el("div", undefined, `${EV.ends}: ${dateFmt.format(end)}`));
-  modalInner.appendChild(times);
+  const now = Date.now();
+  const live = !!start && start.getTime() <= now && (!end || end.getTime() > now);
 
-  // Add just this event to a calendar, with the correct time in the viewer's zone.
-  // The Google button is a plain calendar.google.com web link on every platform
-  // (the same reliable kind the whole-feed Subscribe button uses); a browser
-  // cannot launch the Google Calendar app's event editor via an intent. On a
-  // phone the .ics link is the reliable native-app path, so it leads.
-  const googleHref = start ? googleCalendarUrl(ev) : null;
+  const page = el("article", "fk-species fk-event");
+  page.style.setProperty("--t1", "var(--accent)");
+  page.style.setProperty("--t2", "var(--land2)");
+
+  const top = el("div", "fk-sp-top");
+  const headText = el("div");
+  headText.style.minWidth = "0";
+  headText.appendChild(el("span", "fk-label", ev.heading || prettyType(ev.eventType)));
+  headText.appendChild(el("h2", undefined, ev.name));
+  const row = el("div", "row");
+  row.appendChild(el("span", "fk-chip", live ? EV.now : EV.next));
+  headText.appendChild(row);
+  top.appendChild(headText);
+  page.appendChild(top);
+
+  // Concept: the event's Pokemon as a row of stickers under the header.
+  const x = ev.extraData;
+  const mons: NamedMon[] = [];
+  if (x?.raidbattles?.bosses) mons.push(...x.raidbattles.bosses);
+  if (x?.spotlight) mons.push({ name: x.spotlight.name, image: x.spotlight.image, canBeShiny: x.spotlight.canBeShiny });
+  if (x?.communityday?.spawns) mons.push(...x.communityday.spawns);
+  // Some raid events arrive with an empty boss list: fall back to the current bosses the title names.
+  if (!mons.length && x?.raidbattles) {
+    const title = ev.name.toLowerCase();
+    for (const b of raidFeed) if (title.includes(b.name.toLowerCase())) mons.push(b);
+  }
+  if (mons.length) {
+    const strip = el("div", "event-poke-grid fk-ev-stickers");
+    const seen = new Set<string>();
+    for (const m of mons) if (!seen.has(m.name) && seen.size < 12) { seen.add(m.name); strip.appendChild(monChip(m)); }
+    page.appendChild(strip);
+  }
+
+  if (ev.image) {
+    const img = el("img", "fk-event-img");
+    img.src = ev.image;
+    img.alt = "";
+    img.onerror = () => { img.remove(); };
+    page.appendChild(img);
+  }
+
+  const notes = el("div", "fk-notes");
+  const note = (v: string, k: string, until?: number) => {
+    const n = el("div", "fk-note-tile");
+    const vEl = el("div", "v", v);
+    vEl.style.fontSize = "15px";
+    if (until) { vEl.dataset.until = String(until); vEl.classList.add("fk-left"); }
+    n.append(vEl, el("div", "k", k));
+    notes.appendChild(n);
+  };
+  if (start) note(dayFmt(start), EV.startsAt.replace("{t}", timeFmt(start)));
+  if (end) note(dayFmt(end), EV.endsAt.replace("{t}", timeFmt(end)));
+  const target = live ? end : start;
+  if (target) note(relTime(target.getTime() - now), live ? EV.leftLabel : EV.untilStarts, target.getTime());
+  page.appendChild(notes);
+
+  // Add just this event to a calendar, with the correct time in the viewer's zone. The
+  // Google button is a plain calendar.google.com web link on every platform; a browser
+  // cannot launch the Google Calendar app's event editor. On a phone the .ics link is the
+  // reliable native-app path, so it leads.
   if (start) {
-    const cal = el("div", "event-cal-actions");
+    const cal = el("div", "fk-actions");
+    const googleHref = googleCalendarUrl(ev);
+    const dl = el("a", isMobile ? "fk-btn" : "fk-btn ghost", isMobile ? EV.calAdd : EV.calDownload);
+    dl.href = eventICSUrl(ev);
     if (googleHref) {
-      const g = el("a", isMobile ? "sub-btn" : "sub-btn sub-btn-primary", EV.calGoogle);
+      const g = el("a", isMobile ? "fk-btn ghost" : "fk-btn", EV.calGoogle);
       g.href = googleHref;
       g.target = "_blank";
       g.rel = "noopener";
-      cal.appendChild(g);
-    }
-    const dl = el("a", isMobile ? "sub-btn sub-btn-primary" : "sub-btn", isMobile ? EV.calAdd : EV.calDownload);
-    dl.href = eventICSUrl(ev);
-    cal.appendChild(dl);
-    modalInner.appendChild(cal);
+      if (isMobile) cal.append(dl, g); else cal.append(g, dl);
+    } else cal.appendChild(dl);
+    page.appendChild(cal);
   }
 
   // Full details: scraped LeekDuck content when available, extraData fallback otherwise.
+  const details = el("div");
+  details.appendChild(el("div", "fk-sub", EV.details));
   const body = el("div", "event-detail-html");
-  modalInner.appendChild(body);
+  details.appendChild(body);
+  page.appendChild(details);
   loadDetail(ev, body);
 
   if (ev.link) {
-    const linkWrap = el("div", "event-modal-link");
-    const a = el("a", undefined, EV.leekduck + " ↗");
+    const a = el("a", "fk-btn ghost", EV.leekduck + " ↗");
     a.href = ev.link;
     a.target = "_blank";
     a.rel = "noopener";
-    linkWrap.appendChild(a);
-    modalInner.appendChild(linkWrap);
+    const wrap = el("div", "fk-actions");
+    wrap.appendChild(a);
+    page.appendChild(wrap);
   }
 
-  modal.classList.add("open");
+  openSheet(page);
 }
 
-function buildCard(ev: PogoEvent, now: number): HTMLElement {
-  const card = el("div", "event-card");
+const dayFmt = (d: Date) => d.toLocaleDateString(siteLang(), { weekday: "short", month: "short", day: "numeric" });
+const timeFmt = (d: Date) => d.toLocaleTimeString(siteLang(), { hour: "numeric", minute: "2-digit" });
 
-  if (ev.image) {
-    const img = el("img", "event-card-img");
-    img.src = ev.image;
-    img.alt = ev.name;
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.onerror = () => { img.style.display = "none"; };
-    card.appendChild(img);
-  }
-
-  const body = el("div", "event-card-body");
-  body.appendChild(el("span", "event-badge", ev.heading || ev.eventType));
-  body.appendChild(el("h3", "event-card-name", ev.name));
-
+// An event as an index card tabbed with its kind: name, when, a time bar while it runs, and
+// how long is left (or to go).
+function buildCard(ev: PogoEvent, now: number, i: number): HTMLElement {
   const start = parseLocal(ev.start);
   const end = parseLocal(ev.end);
-  const times = el("div", "event-times");
-  if (start) times.appendChild(el("div", undefined, `${EV.starts}: ${dateFmt.format(start)}`));
-  if (end) times.appendChild(el("div", undefined, `${EV.ends}: ${dateFmt.format(end)}`));
-  body.appendChild(times);
-
-  const upcoming = start !== null && start.getTime() > now;
-  const target = upcoming ? start : end;
-  if (target) {
-    const chip = el("span", "event-countdown");
-    chip.dataset.target = String(target.getTime());
-    chip.dataset.prefix = upcoming ? EV.startsIn : EV.endsIn;
-    chip.textContent = `${chip.dataset.prefix} ${relTime(target.getTime() - now)}`;
-    body.appendChild(chip);
+  const live = !!start && start.getTime() <= now;
+  const card = el("button", "fk-card fk-ev fk-settle" + (live ? " live" : ""));
+  card.type = "button";
+  card.style.setProperty("--i", String(Math.min(i, 12)));
+  card.dataset.tab = ev.heading || prettyType(ev.eventType);
+  card.appendChild(el("span", "nm", ev.name));
+  if (start) {
+    const same = !!end && start.toDateString() === end.toDateString();
+    const whenText = dayFmt(start) + ", " + timeFmt(start) + (end ? " " + EV.to + " " + (same ? timeFmt(end) : dayFmt(end) + ", " + timeFmt(end)) : "");
+    card.appendChild(el("span", "when", whenText));
   }
-
-  card.appendChild(body);
+  if (live && start && end) {
+    const bar = el("span", "fk-timebar");
+    const fill = el("i");
+    fill.dataset.w = (((end.getTime() - now) / (end.getTime() - start.getTime())) * 100).toFixed(1);
+    bar.appendChild(fill);
+    card.appendChild(bar);
+  }
+  const target = live ? end : start;
+  if (target) {
+    const foot = el("span", "foot");
+    const lft = el("span", "left fk-left", relTime(target.getTime() - now));
+    lft.dataset.until = String(target.getTime());
+    foot.append(lft, el("span", "fk-meta", live ? EV.left : EV.toGo));
+    card.appendChild(foot);
+  }
   card.addEventListener("click", () => openModal(ev));
   return card;
 }
 
-function renderSection(title: string, events: PogoEvent[], now: number): HTMLElement {
-  const sec = el("div", "events-section");
-  sec.appendChild(el("h2", undefined, title));
-  if (!events.length) {
-    sec.appendChild(el("p", "empty-state", EV.none));
-    return sec;
+let evView: "all" | "now" | "next" = "all";
+let evDay: string | null = null;
+let feed: PogoEvent[] = [];
+const keyOf = (d: Date) => d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
+
+function overlaps(ev: PogoEvent, from: Date, to: Date): boolean {
+  const s = parseLocal(ev.start), e = parseLocal(ev.end);
+  if (!s) return false;
+  return s < to && (e ? e : new Date(s.getTime() + 3600000)) > from;
+}
+
+// The week ahead as seven day tiles (dots show how busy each day is; tap one to filter), the
+// All / Happening now / Coming up switch, then the cards.
+function renderEvents(): void {
+  const now = Date.now();
+  app.innerHTML = "";
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const week = el("div", "fk-week");
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today); d.setDate(today.getDate() + i);
+    const dEnd = new Date(d); dEnd.setDate(d.getDate() + 1);
+    const n = feed.filter((ev) => overlaps(ev, d, dEnd)).length;
+    const day = el("button", "fk-day" + (i === 0 ? " today" : ""));
+    day.type = "button";
+    day.dataset.day = keyOf(d);
+    day.setAttribute("aria-pressed", String(evDay === keyOf(d)));
+    day.append(el("span", "dw", weekdayFmt.format(d)), el("span", "dn", String(d.getDate())));
+    const dots = el("span", "ev-dots");
+    for (let k = 0; k < Math.min(n, 3); k++) dots.appendChild(el("i"));
+    day.appendChild(dots);
+    day.addEventListener("click", () => { evDay = evDay === keyOf(d) ? null : keyOf(d); renderEvents(); });
+    week.appendChild(day);
   }
-  const grid = el("div", "event-grid");
-  for (const ev of events) grid.appendChild(buildCard(ev, now));
-  sec.appendChild(grid);
-  return sec;
+  app.appendChild(week);
+
+  const seg = el("div", "fk-seg fk-ev-seg");
+  seg.setAttribute("role", "group");
+  for (const [v, label] of [["all", EV.all], ["now", EV.now], ["next", EV.next]] as const) {
+    const b = el("button", undefined, label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(evView === v));
+    b.addEventListener("click", () => { evView = v; renderEvents(); });
+    seg.appendChild(b);
+  }
+  app.appendChild(seg);
+
+  let dayFrom: Date | null = null, dayTo: Date | null = null;
+  if (evDay) {
+    const p = evDay.split("-").map(Number);
+    dayFrom = new Date(p[0], p[1], p[2]); dayTo = new Date(dayFrom); dayTo.setDate(dayFrom.getDate() + 1);
+  }
+  const list = feed.filter((ev) => {
+    const s = parseLocal(ev.start), e = parseLocal(ev.end);
+    if (e && e.getTime() < now) return false;
+    const live = !s || s.getTime() <= now;
+    if (evView === "now" && !live) return false;
+    if (evView === "next" && live) return false;
+    if (dayFrom && dayTo && !overlaps(ev, dayFrom, dayTo)) return false;
+    return true;
+  }).sort((a, b) => {
+    // Running events first, ending soonest; then what is coming, starting soonest.
+    const sa = parseLocal(a.start)?.getTime() ?? 0, sb = parseLocal(b.start)?.getTime() ?? 0;
+    const la = sa <= now, lb = sb <= now;
+    if (la !== lb) return la ? -1 : 1;
+    if (la) return (parseLocal(a.end)?.getTime() ?? Infinity) - (parseLocal(b.end)?.getTime() ?? Infinity);
+    return sa - sb;
+  });
+
+  const grid = el("div", "fk-evs");
+  list.forEach((ev, i) => grid.appendChild(buildCard(ev, now, i)));
+  if (!list.length) grid.appendChild(el("p", "fk-empty", evDay ? EV.noneDay : EV.none));
+  app.appendChild(grid);
+  requestAnimationFrame(() => requestAnimationFrame(() => grid.querySelectorAll<HTMLElement>(".fk-timebar i").forEach((i) => { i.style.width = i.dataset.w + "%"; })));
+}
+
+// A link from search (/events#event=ID) opens that event's field page.
+function openEventFromHash(): void {
+  const m = (location.hash || "").match(/event=([^&]+)/);
+  if (!m) return;
+  const ev = feed.find((e) => e.eventID === decodeURIComponent(m[1]));
+  if (ev) openModal(ev);
 }
 
 function tickCountdowns() {
   const now = Date.now();
-  app.querySelectorAll<HTMLElement>(".event-countdown").forEach((chip) => {
-    const target = Number(chip.dataset.target);
-    if (!target) return;
-    const ms = target - now;
-    if (ms <= 0) {
-      chip.style.display = "none";
-      return;
-    }
-    chip.textContent = `${chip.dataset.prefix} ${relTime(ms)}`;
+  document.querySelectorAll<HTMLElement>(".fk-left[data-until]").forEach((n) => {
+    const ms = Number(n.dataset.until) - now;
+    n.textContent = relTime(Math.max(0, ms));
   });
 }
 
@@ -580,31 +690,10 @@ async function init() {
     }
     if (addFeedTypes) addFeedTypes(events);
 
-    const now = Date.now();
-    const current: PogoEvent[] = [];
-    const upcoming: PogoEvent[] = [];
-    for (const ev of events) {
-      const start = parseLocal(ev.start);
-      const end = parseLocal(ev.end);
-      if (end && end.getTime() < now) continue; // past
-      if (start && start.getTime() > now) {
-        upcoming.push(ev);
-      } else {
-        current.push(ev);
-      }
-    }
-    // Current: ending soonest first (no end time sorts last).
-    current.sort((a, b) => {
-      const ea = parseLocal(a.end)?.getTime() ?? Infinity;
-      const eb = parseLocal(b.end)?.getTime() ?? Infinity;
-      return ea - eb;
-    });
-    // Upcoming: starting soonest first.
-    upcoming.sort((a, b) => (parseLocal(a.start)?.getTime() ?? 0) - (parseLocal(b.start)?.getTime() ?? 0));
-
-    app.innerHTML = "";
-    app.appendChild(renderSection(EV.current, current, now));
-    app.appendChild(renderSection(EV.upcoming, upcoming, now));
+    feed = events;
+    renderEvents();
+    openEventFromHash();
+    window.addEventListener("hashchange", openEventFromHash);
     setInterval(tickCountdowns, 60000);
   } catch (err) {
     app.innerHTML = `<div class="error-state">${EV.error}</div>`;

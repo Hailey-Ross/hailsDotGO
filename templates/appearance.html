@@ -1,0 +1,110 @@
+{{define "title"}}{{T "appearance.title"}}{{end}}
+
+{{define "pagekind"}}fieldkit{{end}}
+
+{{define "content"}}
+<section class="fk-page" aria-labelledby="ap-h">
+  <div class="fk-head"><div><h1 id="ap-h">{{T "appearance.title"}}</h1><p>{{T "appearance.sub"}}</p></div></div>
+  <div class="fk-set-grid">
+    <section class="fk-card fk-set-card fk-settle" data-tab="{{T "appearance.tab.light"}}" aria-labelledby="ap-mode-h">
+      <h2 id="ap-mode-h">{{T "appearance.time_h"}}</h2>
+      <p class="fk-note">{{T "appearance.time_note"}}</p>
+      <div class="fk-seg" role="group" aria-labelledby="ap-mode-h">
+        <button type="button" data-mode="system">{{T "appearance.mode.system"}}</button>
+        <button type="button" data-mode="light">{{T "appearance.mode.light"}}</button>
+        <button type="button" data-mode="dark">{{T "appearance.mode.dark"}}</button>
+        <button type="button" data-mode="sun">{{T "appearance.mode.sun"}}</button>
+      </div>
+      <div class="fk-row-set" id="ap-sun-row" hidden>
+        <label for="ap-sun">{{T "appearance.preview_time"}}<small>{{T "appearance.preview_note"}}</small></label>
+        <div class="fk-slider"><input type="range" id="ap-sun" min="0" max="23.75" step="0.25"><output id="ap-sun-out" for="ap-sun">--:--</output></div>
+      </div>
+    </section>
+
+    <section class="fk-card fk-set-card fk-settle" style="--i:1" data-tab="{{T "appearance.tab.habitat"}}" aria-labelledby="ap-hab-h">
+      <h2 id="ap-hab-h">{{T "appearance.habitat_h"}}</h2>
+      <p class="fk-note">{{T "appearance.habitat_note"}}</p>
+      <div class="fk-habitats" id="ap-habitats"></div>
+      <div class="fk-builder" id="ap-builder" hidden></div>
+    </section>
+
+    <section class="fk-card fk-set-card fk-settle" style="--i:2" data-tab="{{T "appearance.tab.outdoors"}}" aria-labelledby="ap-wx-h">
+      <h2 id="ap-wx-h">{{T "appearance.weather_h"}}</h2>
+      <p class="fk-note">{{T "appearance.weather_note"}}</p>
+      <div class="fk-seg" role="group" aria-labelledby="ap-wx-h">
+        <button type="button" data-wx="live">{{T "appearance.wx.live"}}</button>
+        <button type="button" data-wx="clear">{{T "appearance.wx.clear"}}</button>
+        <button type="button" data-wx="partly">{{T "appearance.wx.partly"}}</button>
+        <button type="button" data-wx="cloudy">{{T "appearance.wx.cloudy"}}</button>
+        <button type="button" data-wx="rain">{{T "appearance.wx.rain"}}</button>
+        <button type="button" data-wx="windy">{{T "appearance.wx.windy"}}</button>
+        <button type="button" data-wx="snow">{{T "appearance.wx.snow"}}</button>
+        <button type="button" data-wx="fog">{{T "appearance.wx.fog"}}</button>
+      </div>
+      <div class="fk-row-set">
+        <label for="ap-motion">{{T "appearance.motion"}}<small id="ap-motion-note"></small></label>
+        <input type="checkbox" class="fk-switch" id="ap-motion" role="switch">
+      </div>
+    </section>
+
+    <section class="fk-card fk-set-card fk-settle" style="--i:3" data-tab="{{T "appearance.tab.feel"}}" aria-labelledby="ap-feel-h">
+      <h2 id="ap-feel-h">{{T "appearance.feel_h"}}</h2>
+      <div class="fk-row-set" style="border-top:0;margin-top:0">
+        <label for="ap-sound">{{T "appearance.sound"}}<small>{{T "appearance.sound_note"}}</small></label>
+        <input type="checkbox" class="fk-switch" id="ap-sound" role="switch">
+      </div>
+      <div class="fk-row-set">
+        <label for="ap-vol">{{T "appearance.volume"}}</label>
+        <div class="fk-slider"><input type="range" id="ap-vol" min="0" max="100" step="5"><output id="ap-vol-out" for="ap-vol">60%</output></div>
+      </div>
+      <div class="fk-row-set">
+        <label for="ap-haptics">{{T "appearance.haptics"}}<small>{{T "appearance.haptics_note"}}</small></label>
+        <input type="checkbox" class="fk-switch" id="ap-haptics" role="switch">
+      </div>
+    </section>
+
+    <section class="fk-card fk-set-card fk-settle" style="--i:4" data-tab="{{T "appearance.tab.words"}}" aria-labelledby="ap-lang-h">
+      <h2 id="ap-lang-h">{{T "appearance.language"}}</h2>
+      <form method="POST" action="/lang" style="margin-top:12px">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+        <div class="fk-seg" role="group" aria-labelledby="ap-lang-h">
+          {{range .Langs}}<button name="code" value="{{.}}" aria-pressed="{{if eq $.Lang .}}true{{else}}false{{end}}">{{upper .}}</button>{{end}}
+        </div>
+      </form>
+    </section>
+  </div>
+</section>
+{{end}}
+
+{{define "scripts"}}
+<script>
+window.AP_I18N = {
+  regions: {{T "appearance.group.regions"}}, types: {{T "appearance.group.types"}}, own: {{T "appearance.group.own"}},
+  motionOn: {{T "appearance.motion_on"}}, motionOff: {{T "appearance.motion_off"}}, motionReduced: {{T "appearance.motion_reduced"}},
+  parts: {
+    horizon: [{{T "appearance.part.horizon"}}, {{T "appearance.part.horizon_note"}}],
+    map: [{{T "appearance.part.map"}}, {{T "appearance.part.map_note"}}],
+    colors: [{{T "appearance.part.colors"}}, {{T "appearance.part.colors_note"}}],
+    accent: [{{T "appearance.part.accent"}}, {{T "appearance.part.accent_note"}}]
+  },
+  names: {
+    "trailhead": [{{T "theme.trailhead.name"}}, {{T "theme.trailhead.mood"}}], "kanto": [{{T "theme.kanto.name"}}, {{T "theme.kanto.mood"}}],
+    "johto": [{{T "theme.johto.name"}}, {{T "theme.johto.mood"}}], "hoenn": [{{T "theme.hoenn.name"}}, {{T "theme.hoenn.mood"}}],
+    "sinnoh": [{{T "theme.sinnoh.name"}}, {{T "theme.sinnoh.mood"}}], "unova": [{{T "theme.unova.name"}}, {{T "theme.unova.mood"}}],
+    "kalos": [{{T "theme.kalos.name"}}, {{T "theme.kalos.mood"}}], "alola": [{{T "theme.alola.name"}}, {{T "theme.alola.mood"}}],
+    "galar": [{{T "theme.galar.name"}}, {{T "theme.galar.mood"}}], "paldea": [{{T "theme.paldea.name"}}, {{T "theme.paldea.mood"}}],
+    "t-normal": [{{T "theme.t-normal.name"}}, {{T "theme.t-normal.mood"}}], "t-fire": [{{T "theme.t-fire.name"}}, {{T "theme.t-fire.mood"}}],
+    "t-water": [{{T "theme.t-water.name"}}, {{T "theme.t-water.mood"}}], "t-grass": [{{T "theme.t-grass.name"}}, {{T "theme.t-grass.mood"}}],
+    "t-electric": [{{T "theme.t-electric.name"}}, {{T "theme.t-electric.mood"}}], "t-ice": [{{T "theme.t-ice.name"}}, {{T "theme.t-ice.mood"}}],
+    "t-fighting": [{{T "theme.t-fighting.name"}}, {{T "theme.t-fighting.mood"}}], "t-poison": [{{T "theme.t-poison.name"}}, {{T "theme.t-poison.mood"}}],
+    "t-ground": [{{T "theme.t-ground.name"}}, {{T "theme.t-ground.mood"}}], "t-flying": [{{T "theme.t-flying.name"}}, {{T "theme.t-flying.mood"}}],
+    "t-psychic": [{{T "theme.t-psychic.name"}}, {{T "theme.t-psychic.mood"}}], "t-bug": [{{T "theme.t-bug.name"}}, {{T "theme.t-bug.mood"}}],
+    "t-rock": [{{T "theme.t-rock.name"}}, {{T "theme.t-rock.mood"}}], "t-ghost": [{{T "theme.t-ghost.name"}}, {{T "theme.t-ghost.mood"}}],
+    "t-dragon": [{{T "theme.t-dragon.name"}}, {{T "theme.t-dragon.mood"}}], "t-dark": [{{T "theme.t-dark.name"}}, {{T "theme.t-dark.mood"}}],
+    "t-steel": [{{T "theme.t-steel.name"}}, {{T "theme.t-steel.mood"}}], "t-fairy": [{{T "theme.t-fairy.name"}}, {{T "theme.t-fairy.mood"}}],
+    "custom": [{{T "theme.custom.name"}}, {{T "theme.custom.mood"}}]
+  }
+};
+</script>
+<script src="/static/js/appearance.js?v={{.AssetVersion}}"></script>
+{{end}}

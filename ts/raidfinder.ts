@@ -7,6 +7,36 @@ import { createPicker } from './shared/picker';
 import type { Picker, PickerEntry } from './shared/picker';
 import { loadGameData, pokeSprite, pokeName } from './shared/gamedata';
 import type { GameData } from './shared/types';
+import { sticker, trimStickers } from './shared/sticker';
+
+// Boss art for the field kit stickers, from the public raid feed (loaded once; names without art,
+// such as custom lobbies for a boss no longer out, fall back to the sticker's initials).
+interface BossArt { img?: string; types: string[]; shiny: boolean; }
+const bossArt = new Map<string, BossArt>();
+let bossArtLoaded: Promise<void> | null = null;
+function loadBossArt(): Promise<void> {
+  if (!bossArtLoaded) {
+    bossArtLoaded = fetch('/api/raids').then((r) => (r.ok ? r.json() : {})).then((d: Record<string, { pokemon_name: string; image_url?: string; types?: string[]; can_be_shiny?: boolean }[]>) => {
+      for (const list of Object.values(d || {})) for (const b of list) bossArt.set(b.pokemon_name, { img: b.image_url, types: b.types || [], shiny: !!b.can_be_shiny });
+    }).catch(() => undefined);
+  }
+  return bossArtLoaded;
+}
+function bossSticker(name: string, size: number): string {
+  const a = bossArt.get(name);
+  // Wrapped so the art can be dropped in later without redrawing the card (see initRaidFinder).
+  return '<span class="fk-boss-art" data-boss-art="' + esc(name) + '" data-size="' + size + '">' + sticker(name, a?.img, a?.types || [], !!a?.shiny, size) + '</span>';
+}
+function initialsAv(name: string, empty = false): string {
+  if (empty) return '<span class="fk-av fk-av-empty" aria-hidden="true"></span>';
+  return '<span class="fk-av" aria-hidden="true">' + esc((name || '?').slice(0, 2).toUpperCase()) + '</span>';
+}
+/** The concept's member strip: one avatar per trainer in, dashed rings for the open slots. */
+function memberStrip(names: string[], total: number): string {
+  let out = '';
+  for (let i = 0; i < Math.max(total, names.length); i++) out += i < names.length ? initialsAv(names[i]) : initialsAv('', true);
+  return '<div class="fk-members">' + out + '</div>';
+}
 
 type Dict = Record<string, string>;
 declare const RF2: Dict;
@@ -138,9 +168,9 @@ function api(method: string, url: string, body?: unknown): Promise<any> {
     .then((r) => r.json());
 }
 
-function tierLabel(tier: number): string {
-  const map: Record<number, string> = { 1: 'T1', 3: 'T3', 5: 'T5', 6: 'Mega' };
-  return map[tier] ? '[' + map[tier] + '] ' : '';
+function tierName(tier: number): string {
+  if (tier === 6) return RF2.tierMega || 'Mega';
+  return tier ? (RF2.tierN || 'Tier {n}').replace('{n}', String(tier)) : '';
 }
 
 function staffIcon(badge?: string): string {
@@ -199,15 +229,6 @@ function copyButton(code: string): HTMLButtonElement {
   });
   return btn;
 }
-
-const POKEBALL_SVG =
-  '<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-  '<circle cx="32" cy="32" r="30" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>' +
-  '<path class="ball-top" d="M2 32 A30 30 0 0 1 62 32 Z" fill="#9b59b6" opacity="0.85"/>' +
-  '<path d="M2 32 A30 30 0 0 0 62 32 Z" fill="rgba(255,255,255,0.82)"/>' +
-  '<line x1="2" y1="32" x2="62" y2="32" stroke="rgba(255,255,255,0.2)" stroke-width="3"/>' +
-  '<circle cx="32" cy="32" r="8" fill="rgba(0,0,0,0.6)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>' +
-  '<circle cx="32" cy="32" r="4" fill="rgba(255,255,255,0.15)"/></svg>';
 
 // Elements carrying data-deadline (ISO timestamp) get their text updated
 // every 250ms from the server-corrected clock. Crossing zero schedules one
@@ -292,7 +313,16 @@ function renderError(): void {
   if (root) root.innerHTML = '<div class="error-state">' + esc(RF2.errorLoad) + '</div>';
 }
 
+let lastMode = '';
 function renderFromState(st: RaidState): void {
+  renderScreen(st);
+  // Polls redraw the same screen every few seconds; only its first draw should animate in, or the
+  // lobby blinks on every poll. Removing the class before the browser paints skips the animation.
+  if (st.mode === lastMode && root) root.querySelectorAll('.fade-up, .fk-settle').forEach((el) => el.classList.remove('fade-up', 'fk-settle'));
+  lastMode = st.mode;
+}
+
+function renderScreen(st: RaidState): void {
   switch (st.mode) {
     case 'queued':
       renderQueued(st);
@@ -706,14 +736,15 @@ function refreshOverview(): void {
       }
 
       const list = document.createElement('div');
-      list.className = 'raid-posts-list';
+      list.className = 'raid-posts-list fk-queues';
       items.sort((a, b) => b.boss_tier - a.boss_tier || a.boss_name.localeCompare(b.boss_name));
       items.forEach((b) => {
         const row = document.createElement('div');
-        row.className = 'raid-overview-row fade-up';
+        row.className = 'raid-overview-row fk-card fk-queue fk-settle';
+        row.style.setProperty('--i', String(list.children.length));
         row.innerHTML =
-          '<span class="raid-post-boss">' + esc(tierLabel(b.boss_tier)) + esc(b.boss_name) + '</span>' +
-          '<span class="raid-overview-counts">' + b.open_lobbies + ' ' + esc(RF2.openLobbies) + ' · ' + b.queue_len + ' ' + esc(RF2.inQueue) + '</span>';
+          '<div class="fk-q-top">' + bossSticker(b.boss_name, 50) + '<div class="fk-q-info"><span class="raid-post-boss">' + esc(b.boss_name) + '</span><span class="fk-meta">' + esc(tierName(b.boss_tier)) + '</span></div></div>' +
+          '<span class="raid-overview-counts fk-qstate">' + b.open_lobbies + ' ' + esc(RF2.openLobbies) + ', ' + b.queue_len + ' ' + esc(RF2.inQueue) + '</span>';
         // Normal users queue from here; the server requires an open lobby.
         if (RAID_CTX.loggedIn && b.open_lobbies > 0) {
           row.appendChild(queueJoinButton(b.boss_name, b.boss_tier));
@@ -722,16 +753,18 @@ function refreshOverview(): void {
       });
       customs.forEach((c) => {
         const row = document.createElement('div');
-        row.className = 'raid-overview-row raid-overview-row--custom fade-up';
+        row.className = 'raid-overview-row raid-overview-row--custom fk-card fk-queue fk-settle';
+        row.style.setProperty('--i', String(list.children.length));
         row.innerHTML =
-          '<span class="raid-post-boss">' + esc(tierLabel(c.boss_tier)) + esc(c.boss_name) + ' <span class="raid-custom-badge">' + esc(RF2.customBadge) + '</span></span>' +
-          '<span class="raid-overview-counts">' + esc(RF2.hostedBy) + ' ' + esc(c.host) + (c.note ? ' · ' + esc(c.note) : '') + '</span>';
+          '<div class="fk-q-top">' + bossSticker(c.boss_name, 50) + '<div class="fk-q-info"><span class="raid-post-boss">' + esc(c.boss_name) + ' <span class="raid-custom-badge">' + esc(RF2.customBadge) + '</span></span><span class="fk-meta">' + esc(tierName(c.boss_tier)) + '</span></div></div>' +
+          '<span class="raid-overview-counts fk-qstate">' + esc(RF2.hostedBy) + ' ' + esc(c.host) + (c.note ? ', ' + esc(c.note) : '') + '</span>';
         if (RAID_CTX.loggedIn) {
           row.appendChild(queueJoinButton(c.boss_name, c.boss_tier));
         }
         list.appendChild(row);
       });
       cur.appendChild(list);
+      trimStickers(list);
     });
 }
 
@@ -744,9 +777,8 @@ function renderQueued(st: RaidState): void {
   const card = document.createElement('div');
   card.className = 'raid-wait-card fade-up';
   card.innerHTML =
-    '<div class="pokeball-spinner">' + POKEBALL_SVG + '</div>' +
-    '<h3>' + esc(RF2.waitingTitle) + '</h3>' +
-    '<div class="raid-wait-boss">' + esc(tierLabel(q.boss_tier)) + esc(q.boss_name) + '</div>' +
+    '<div class="fk-q-top">' + bossSticker(q.boss_name, 56) + '<div class="fk-q-info"><div class="raid-wait-boss">' + esc(q.boss_name) + '</div><span class="fk-meta">' + esc(tierName(q.boss_tier)) + '</span></div></div>' +
+    '<h3 class="fk-qstate"><span class="fk-dots" aria-hidden="true"><i></i><i></i><i></i></span>' + esc(RF2.waitingTitle) + '</h3>' +
     '<div class="raid-wait-pos">' + esc(RF2.queuePos) + ' <strong>#' + q.position + '</strong> ' + esc(RF2.queueOf) + ' ' + q.total +
     (q.priority ? ' <span class="raid-priority-badge">' + esc(RF2.priorityBadge) + '</span>' : '') + '</div>';
 
@@ -758,6 +790,7 @@ function renderQueued(st: RaidState): void {
   });
   card.appendChild(leave);
   root.appendChild(card);
+  trimStickers(card);
 }
 
 
@@ -766,9 +799,11 @@ function lobbyHeader(lb: Lobby): HTMLElement {
   top.className = 'raid-post-top';
   const wrap = document.createElement('div');
   wrap.className = 'raid-post-boss-wrap';
-  wrap.innerHTML = '<span class="raid-post-boss">' + esc(tierLabel(lb.boss_tier)) + esc(lb.boss_name) + '</span>' +
+  wrap.innerHTML = bossSticker(lb.boss_name, 56) + '<div class="fk-q-info"><span class="raid-post-boss">' + esc(lb.boss_name) + '</span><span class="fk-meta">' + esc(tierName(lb.boss_tier)) +
     (lb.is_custom ? ' <span class="raid-custom-badge">' + esc(RF2.customBadge) + '</span>' : '') +
-    (lb.weather_boosted ? ' <span class="raid-wx-badge">' + esc(RF2.badgeBoosted) + '</span>' : '');
+    (lb.weather_boosted ? ' <span class="raid-wx-badge">' + esc(RF2.badgeBoosted) + '</span>' : '') + '</span>' +
+    memberStrip([lb.host.trainer_name || lb.host.username].concat(lb.members.filter((m) => m.state === 'confirmed').map((m) => m.trainer_name || m.username)), lb.max_members + 1) + '</div>';
+  trimStickers(wrap);
   top.appendChild(wrap);
   const count = document.createElement('span');
   count.className = 'raid-post-players';
@@ -1098,6 +1133,14 @@ function buildFeedbackCard(f: FeedbackDue): HTMLElement {
 
 
 function initRaidFinder(): void {
+  // Fetch the boss art early; screens drawn before it lands redraw on the next state poll.
+  loadBossArt().then(() => {
+    document.querySelectorAll<HTMLElement>('[data-boss-art]').forEach((el) => {
+      if (el.querySelector('img') || !bossArt.has(el.dataset.bossArt || '')) return;
+      el.outerHTML = bossSticker(el.dataset.bossArt || '', Number(el.dataset.size) || 50);
+    });
+    if (root) trimStickers(root);
+  });
   if (loaded || !root) return;
   loaded = true;
   fetchState();

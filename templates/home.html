@@ -1,79 +1,82 @@
 {{define "title"}}{{T "home.title"}}{{end}}
 
+{{/* Restyled for the Field Kit: opts out of the dark-only legacy mode (see base.html). */}}
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="hero">
-  <h1>FlexDex</h1>
-  <p class="hero-sub">Pokémon GO tools by <a href="https://links.hails.cc">hails.cc</a></p>
-</div>
+<section class="fk-page fk-home" aria-labelledby="fk-hello">
+  <div class="fk-hero fk-settle" id="fk-hero">
+    <div class="fk-sky-fx" aria-hidden="true"></div>
+    <canvas class="fk-land" aria-hidden="true"></canvas>
+    <div class="fk-hello"><h1 id="fk-hello"></h1><div class="fk-hello-sub" id="fk-today"></div></div>
+  </div>
 
-<div class="tool-grid">
-  {{if .Maintenance.RaidsEnabled}}
-  <a href="/raids" class="tool-card raids-card">
-    <div class="tool-icon">⚔️</div>
-    <h2>{{T "home.raids.title"}}</h2>
-    <p>{{T "home.raids.desc"}}</p>
-  </a>
-  {{end}}
+  <div class="fk-home-grid">
+    <div class="fk-col">
+      {{if .Maintenance.RaidsEnabled}}
+      <article class="fk-card fk-settle" style="--i:1" data-tab="{{T "home.tab.raids"}}" aria-labelledby="fk-w-raids">
+        <div class="fk-card-head"><h2 id="fk-w-raids">{{T "home.raids.heading"}}</h2><a class="fk-more" href="/raids">{{T "home.raids.all"}}</a></div>
+        <div class="fk-tiers" id="fk-raids-now"><div class="fk-dots" aria-hidden="true"><i></i><i></i><i></i></div></div>
+      </article>
+      {{end}}
+      {{if .Maintenance.EventsEnabled}}
+      <article class="fk-card fk-settle" style="--i:3" data-tab="{{T "home.tab.trail"}}" aria-labelledby="fk-w-trail">
+        <div class="fk-card-head"><h2 id="fk-w-trail">{{T "home.trail.heading"}}</h2><span class="fk-label">{{T "home.trail.local"}}</span></div>
+        <div class="fk-trail" id="fk-trail"></div>
+      </article>
+      {{end}}
+    </div>
+    <div class="fk-col">
+      {{if .Maintenance.EventsEnabled}}
+      <article class="fk-card fk-settle" style="--i:2" data-tab="{{T "home.tab.cd"}}" aria-label="{{T "home.tab.cd"}}">
+        <div class="fk-cd" id="fk-cd"></div>
+      </article>
+      <article class="fk-card fk-settle" style="--i:4" data-tab="{{T "home.tab.now"}}" aria-labelledby="fk-w-now">
+        <h2 id="fk-w-now" class="sr">{{T "home.tab.now"}}</h2>
+        <div class="fk-now-list" id="fk-now"></div>
+      </article>
+      {{end}}
+      {{if .Maintenance.ShiniesEnabled}}
+      <article class="fk-card fk-settle" style="--i:5" data-tab="{{T "home.tab.dex"}}" aria-labelledby="fk-w-dex">
+        <a class="fk-dexrow" href="{{if .User}}/shinies{{else}}/login?next=/shinies{{end}}">
+          <svg class="fk-ring" id="fk-dex-ring" viewBox="0 0 100 100" aria-hidden="true" data-have="{{.Data.DexHave}}" data-total="{{.Data.DexTotal}}"></svg>
+          <div><h2 id="fk-w-dex">{{T "home.dex.heading"}}</h2>
+            <div class="fk-big"><span id="fk-dex-count">{{.Data.DexHave}}</span><small> / {{.Data.DexTotal}}</small></div>
+            <div class="fk-meta">{{if .User}}{{T "home.dex.yours"}}{{else}}{{T "home.dex.signin"}}{{end}}</div></div>
+        </a>
+      </article>
+      {{end}}
+      <article class="fk-card fk-settle" style="--i:6" data-tab="{{T "home.tab.kit"}}" aria-label="{{T "home.tab.kit"}}">
+        <div class="fk-kit">
+          {{if .Maintenance.RaidsEnabled}}<a class="fk-tool" href="/raids"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-raids"/></svg></span>{{T "nav.raids"}}</a>{{end}}
+          {{if .Maintenance.EventsEnabled}}<a class="fk-tool" href="/events"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-events"/></svg></span>{{T "nav.events"}}</a>{{end}}
+          {{if .Maintenance.ShiniesEnabled}}<a class="fk-tool" href="/shinies"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-dex"/></svg></span>{{T "nav.dex"}}</a>{{end}}
+          {{if .Maintenance.DPSEnabled}}<a class="fk-tool" href="/dps"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-calc"/></svg></span>{{T "nav.dps"}}</a>{{end}}
+          {{if .Maintenance.IVEnabled}}<a class="fk-tool" href="/iv"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-compass"/></svg></span>{{T "nav.iv"}}</a>{{end}}
+          {{if .Maintenance.PVPEnabled}}<a class="fk-tool" href="/pvp"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-leaf"/></svg></span>{{T "nav.pvp"}}</a>{{end}}
+          {{if .Maintenance.TrainersEnabled}}<a class="fk-tool" href="/trainers"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-trainers"/></svg></span>{{T "nav.trainers"}}</a>{{end}}
+          {{if .Maintenance.RaidFinderEnabled}}<a class="fk-tool" href="/raidfinder"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-flag"/></svg></span>{{T "nav.raidfinder"}}</a>{{end}}
+          <button type="button" class="fk-tool" data-sheet="appearance"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></span>{{T "nav.appearance"}}</button>
+          {{if .User}}<a class="fk-tool" href="/settings"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></span>{{T "nav.settings"}}</a>
+          {{else}}<a class="fk-tool" href="/login"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg></span>{{T "nav.signin"}}</a>{{end}}
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+{{end}}
 
-  {{if .Maintenance.DPSEnabled}}
-  <a href="/dps" class="tool-card dps-card">
-    <div class="tool-icon">📊</div>
-    <h2>{{T "home.dps.title"}}</h2>
-    <p>{{T "home.dps.desc"}}</p>
-  </a>
-  {{end}}
-
-  {{if .Maintenance.PVPEnabled}}
-  <a href="/pvp" class="tool-card pvp-card">
-    <div class="tool-icon">🏆</div>
-    <h2>{{T "home.pvp.title"}}</h2>
-    <p>{{T "home.pvp.desc"}}</p>
-  </a>
-  {{end}}
-
-  {{if .Maintenance.EventsEnabled}}
-  <a href="/events" class="tool-card events-card">
-    <div class="tool-icon">📅</div>
-    <h2>{{T "home.events.title"}}</h2>
-    <p>{{T "home.events.desc"}}</p>
-  </a>
-  {{end}}
-
-  {{if .Maintenance.TrainersEnabled}}
-  <a href="/trainers" class="tool-card trainers-card">
-    <div class="tool-icon">👥</div>
-    <h2>{{T "home.trainers.title"}}</h2>
-    <p>{{T "home.trainers.desc"}}</p>
-  </a>
-  {{end}}
-
-  {{if and .Maintenance.TrainersEnabled .Maintenance.RaidFinderEnabled}}
-  <a href="/raidfinder" class="tool-card raidfinder-card">
-    <div class="tool-icon">🔍</div>
-    <h2>{{T "home.raidfinder.title"}}</h2>
-    <p>{{T "home.raidfinder.desc"}}</p>
-  </a>
-  {{end}}
-
-  {{if and .User .Maintenance.ShiniesEnabled}}
-  <a href="/shinies" class="tool-card shinies-card">
-    <div class="tool-icon">🌟</div>
-    <h2>{{T "home.shinies.title"}}</h2>
-    <p>{{T "home.shinies.desc"}}</p>
-  </a>
-  {{end}}
-
-  {{if or .Maintenance.TranslatorAppsEnabled (and .User .User.IsTranslator)}}
-  <a href="/translate" class="tool-card translator-card">
-    <div class="tool-icon">🌐</div>
-    {{if and .User .User.IsTranslator}}
-    <h2>{{T "home.translate.workspace_title"}}</h2>
-    <p>{{T "home.translate.workspace_desc"}}</p>
-    {{else}}
-    <h2>{{T "home.translate.title"}}</h2>
-    <p>{{T "home.translate.desc"}}</p>
-    {{end}}
-  </a>
-  {{end}}
-</div>
+{{define "scripts"}}
+<script>
+window.HOME_I18N = {
+  greetLate: {{T "home.greet.late"}}, greetMorning: {{T "home.greet.morning"}}, greetAfternoon: {{T "home.greet.afternoon"}}, greetEvening: {{T "home.greet.evening"}},
+  todaySuffix: {{T "home.today_suffix"}},
+  mega: {{T "home.raids.mega"}}, tier: {{T "home.raids.tier"}}, raidsNone: {{T "home.raids.none"}},
+  trailToday: {{T "home.trail.today"}}, trailHere: {{T "home.trail.here"}}, trailHereSub: {{T "home.trail.here_sub"}}, trailBoosted: {{T "home.trail.boosted"}},
+  cdNone: {{T "home.cd.none"}}, cdToday: {{T "home.cd.today"}}, cdDays: {{T "home.cd.days"}}, cdTo: {{T "home.cd.to"}}, shinyAvailable: {{T "home.shiny_available"}},
+  nowNone: {{T "home.now.none"}}, nowLeft: {{T "home.now.left"}}
+};
+window.HOME_ME = {{.Data.Name}};
+</script>
+<script src="/static/js/home.js?v={{.AssetVersion}}"></script>
 {{end}}

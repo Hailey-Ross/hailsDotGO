@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "FlexDex",
+  "short_name": "FlexDex",
+  "description": "Pokemon GO field kit: raids and counters, events, your shiny dex, DPS and IV calculators, trainers and raid groups.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12002F",
+  "theme_color": "#161c19",
+  "categories": ["games", "utilities"],
+  "icons": [
+    { "src": "/static/app/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/app/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/app/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/app/icons/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

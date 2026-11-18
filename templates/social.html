@@ -1,6 +1,9 @@
 {{define "title"}}{{if .Data.TrainerName}}{{.Data.TrainerName}}{{else}}@{{.Data.Username}}{{end}}'s Connections{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
+<div class="fk-head fk-social-head">
 <div class="page-header">
   <h1>{{if .Data.TrainerName}}{{.Data.TrainerName}}{{else}}@{{.Data.Username}}{{end}}'s Connections</h1>
   <p class="page-subtitle"><a href="/trainer/{{.Data.Username}}" style="color:var(--accent)">@{{.Data.Username}}</a></p>
@@ -10,6 +13,7 @@
   <button class="tab-btn" data-tab="friends">{{T "social.tab_friends"}} <span style="opacity:0.65;font-size:0.85em">({{len .Data.Friends}})</span></button>
   <button class="tab-btn" data-tab="followers">{{T "social.tab_followers"}} <span style="opacity:0.65;font-size:0.85em">({{len .Data.Followers}})</span></button>
   <button class="tab-btn" data-tab="following">{{T "social.tab_following"}} <span style="opacity:0.65;font-size:0.85em">({{len .Data.Following}})</span></button>
+</div>
 </div>
 
 <div id="tab-friends" class="tab-panel">

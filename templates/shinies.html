@@ -1,9 +1,13 @@
 {{define "title"}}{{T "shinies.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
+<section class="fk-page fk-dex">
 <div id="shinies-app">
   <div class="loading-state"><div class="spinner"></div><span>{{T "shinies.loading"}}</span></div>
 </div>
+</section>
 {{end}}
 
 {{define "scripts"}}
@@ -19,6 +23,13 @@ const SH = {
   tabAll:          {{T "shinies.js.tab_all"}},
   tabCaught:       {{T "shinies.js.tab_caught"}},
   tabMissing:      {{T "shinies.js.tab_missing"}},
+  genAll:          {{T "shinies.js.gen_all"}},
+  genN:            {{T "shinies.js.gen_n"}},
+  catalogGen:      {{T "shinies.js.catalog_gen"}},
+  statusCaught:    {{T "shinies.js.status_caught"}},
+  statusAvailable: {{T "shinies.js.status_available"}},
+  stampHeader:     {{T "raids.js.stamp_header"}},
+  stampWord:       {{T "raids.js.stamp_word"}},
   unavailable:     {{T "shinies.js.unavailable"}},
   addToCollection: {{T "shinies.js.add_to_collection"}},
   add:             {{T "shinies.js.add"}},

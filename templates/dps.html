@@ -1,10 +1,10 @@
 {{define "title"}}{{T "dps.title"}}{{end}}
 
+{{define "pagekind"}}fieldkit{{end}}
+
 {{define "content"}}
-<div class="page-header">
-  <h1>{{T "dps.title"}}</h1>
-  <p>{{T "dps.subtitle"}}</p>
-</div>
+<section class="fk-calc">
+{{template "fk-calc-head" .}}
 
 <div id="dps-app">
   <div class="loading-state">
@@ -12,6 +12,7 @@
     <p>{{T "dps.loading"}}</p>
   </div>
 </div>
+</section>
 {{end}}
 
 {{define "scripts"}}
