@@ -99,9 +99,13 @@ func (h *Handlers) Playtest(w http.ResponseWriter, r *http.Request) {
 			c.Num, c.External = j+1, c.Link != "" && !strings.HasPrefix(c.Link, "/")
 		}
 	}
+	build, sha, scanned := h.mobileBuildScan()
 	h.render(w, r, "playtest", struct {
 		InviteURL string
 		Steps     []ptStep
 		Total     int
-	}{PlaytestInviteURL, steps, len(steps)})
+		Build     int
+		SHA256    string
+		Scanned   bool
+	}{PlaytestInviteURL, steps, len(steps), build, sha, scanned})
 }

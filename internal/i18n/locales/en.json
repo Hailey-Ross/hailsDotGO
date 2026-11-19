@@ -1979,5 +1979,14 @@
   "playtest.privacy.link": "Read the Privacy page",
   "playtest.banner.title": "Try FlexDex for Android",
   "playtest.banner.sub": "Join the open beta and help test the app before it reaches Google Play.",
-  "playtest.banner.cta": "Join the playtest"
+  "playtest.banner.cta": "Join the playtest",
+  "playtest.safe.tab": "Is it safe?",
+  "playtest.safe.title": "Is FlexDex safe to install?",
+  "playtest.safe.p1": "Every release of FlexDex is scanned on VirusTotal, a free service that checks a file with dozens of antivirus engines from different security companies. The report is public, so you can look for yourself.",
+  "playtest.safe.build": "Build",
+  "playtest.safe.clean": "no security vendor flagged this build.",
+  "playtest.safe.link": "See the VirusTotal report",
+  "playtest.safe.hash": "SHA-256 fingerprint of this build (it matches the file App Tester installs):",
+  "playtest.safe.p2": "A clean scan is good evidence, not a guarantee. App Tester itself is Google's own app, and Chrome's \"File might be harmful\" warning appears for every app downloaded outside Google Play.",
+  "playtest.report.p3": "Can't get as far as the app? Email"
 }

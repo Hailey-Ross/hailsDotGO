@@ -19,6 +19,12 @@ import (
 // require either a deploy or a code change.
 const mobileBuildSettingKey = "mobile_build_number"
 
+// mobileBuildHashKey stores the SHA-256 of the published APK as "<build>:<sha256>", so the
+// hash is only ever shown next to the build it was computed from: if the number changes by
+// another path (the admin form, the mobile admin route), the stored pair stops matching and
+// the Playtest page hides the scan link rather than pointing at a different file.
+const mobileBuildHashKey = "mobile_build_sha256"
+
 // buildNumberMax rejects a fat fingered entry. Build numbers climb by one; a
 // value in the millions is a typo, and once stored it would tell every install
 // it is out of date with no way for the app to tell the difference.
@@ -114,7 +120,8 @@ func (h *Handlers) MobileBuildSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Build int `json:"build"`
+		Build  int     `json:"build"`
+		SHA256 *string `json:"sha256"` // optional; exactly 64 lowercase hex
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, "invalid request", http.StatusBadRequest)
@@ -123,6 +130,10 @@ func (h *Handlers) MobileBuildSet(w http.ResponseWriter, r *http.Request) {
 	n := body.Build
 	if !validBuildNumber(n) {
 		writeJSONError(w, "build must be a whole number between 1 and 1000000", http.StatusBadRequest)
+		return
+	}
+	if body.SHA256 != nil && !validSHA256(*body.SHA256) {
+		writeJSONError(w, "sha256 must be exactly 64 lowercase hex characters", http.StatusBadRequest)
 		return
 	}
 
@@ -135,6 +146,17 @@ func (h *Handlers) MobileBuildSet(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.setMobileBuildNumber(n); err != nil {
 		log.Printf("mobile: save build number: %v", err)
+		writeJSONError(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// A post without sha256 clears the stored hash (an older release script), so the
+	// Playtest card never links a scan of a different build.
+	hash := ""
+	if body.SHA256 != nil {
+		hash = strconv.Itoa(n) + ":" + *body.SHA256
+	}
+	if err := h.setSiteSetting(mobileBuildHashKey, hash); err != nil {
+		log.Printf("mobile: save build hash: %v", err)
 		writeJSONError(w, "server error", http.StatusInternalServerError)
 		return
 	}
@@ -179,4 +201,62 @@ func (h *Handlers) AdminUpdateMobileBuild(w http.ResponseWriter, r *http.Request
 		ActiveInvites:    h.loadActiveInvites(r),
 		SuperadminUser:   auth.SuperadminUser,
 	})
+}
+
+// validSHA256 accepts exactly 64 lowercase hex characters, the form sha256sum prints.
+func validSHA256(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func (h *Handlers) setSiteSetting(key, value string) error {
+	_, err := h.db.Exec(`
+		INSERT INTO site_settings (setting_key, setting_value)
+		VALUES (?, ?)
+		ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`, key, value)
+	return err
+}
+
+// parseBuildHash splits a stored "<build>:<sha256>" pair; ok is false for an empty or
+// malformed value.
+func parseBuildHash(v string) (int, string, bool) {
+	num, sha, found := strings.Cut(v, ":")
+	if !found {
+		return 0, "", false
+	}
+	n, ok := parseBuildNumber(num)
+	if !ok || !validSHA256(sha) {
+		return 0, "", false
+	}
+	return n, sha, true
+}
+
+// mobileBuildScan is the published build and the SHA-256 of its APK, when the stored hash
+// belongs to the build currently published. Never part of the public GET, which the
+// installed apps parse as a bare number.
+func (h *Handlers) mobileBuildScan() (int, string, bool) {
+	cur := h.mobileBuildNumber()
+	var v string
+	h.db.QueryRow(`SELECT setting_value FROM site_settings WHERE setting_key = ?`, mobileBuildHashKey).Scan(&v)
+	if n, sha, ok := parseBuildHash(v); ok && n == cur {
+		return n, sha, true
+	}
+	if sha, ok := knownBuildScans[cur]; ok {
+		return cur, sha, true
+	}
+	return cur, "", false
+}
+
+// knownBuildScans covers builds released before the release step posted its hash. Build 97's
+// APK was scanned by hand (VirusTotal: 0 malicious, 0 suspicious, 67 engines clean) and is
+// the exact file Firebase App Distribution serves (its binary id is the same SHA-256).
+var knownBuildScans = map[int]string{
+	97: "72e61eea091ae9b2830a133d033587e8b07868bb84df31e1a80b287d20258f73",
 }

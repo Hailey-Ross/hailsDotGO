@@ -90,6 +90,17 @@
   </article>
 
   <div class="fk-pt-after">
+    <article class="fk-card fk-pt-safe" data-tab="{{T "playtest.safe.tab"}}" id="pt-safe">
+      <h2>{{T "playtest.safe.title"}}</h2>
+      <p>{{T "playtest.safe.p1"}}</p>
+      {{if .Data.Scanned}}
+      <p class="fk-pt-ok"><b>{{T "playtest.safe.build"}} {{.Data.Build}}:</b> {{T "playtest.safe.clean"}}</p>
+      <p><a class="fk-pt-btn fk-pt-btn-quiet" href="https://www.virustotal.com/gui/file/{{.Data.SHA256}}" target="_blank" rel="noopener">{{T "playtest.safe.link"}}</a></p>
+      <p class="fk-note">{{T "playtest.safe.hash"}} <code class="fk-pt-hash">{{.Data.SHA256}}</code></p>
+      {{end}}
+      <p class="fk-note">{{T "playtest.safe.p2"}}</p>
+    </article>
+
     <article class="fk-card" data-tab="{{T "playtest.updates.tab"}}" id="pt-updates">
       <h2>{{T "playtest.updates.title"}}</h2>
       <p>{{T "playtest.updates.intro"}}</p>
@@ -121,6 +132,7 @@
       <h2>{{T "playtest.report.title"}}</h2>
       <p>{{T "playtest.report.p1"}}</p>
       <p>{{T "playtest.report.p2"}}</p>
+      <p>{{T "playtest.report.p3"}} <a href="mailto:flexdex@hails.app">flexdex@hails.app</a></p>
     </article>
 
     <article class="fk-card" data-tab="{{T "playtest.privacy.tab"}}">
