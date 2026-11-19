@@ -252,7 +252,13 @@ func TestCorruptCatalogOverlayFallsBackInsteadOfCrashing(t *testing.T) {
 	Init(d)
 	t.Cleanup(func() { Init(t.TempDir()) })
 
-	if len(Unlabelled()) == 0 {
+	// Asked of the catalog itself. This used to check that something was still
+	// unlabeled, which stopped being true (and failed) the day every embedded code
+	// got a name, with the catalog perfectly intact.
+	mu.RLock()
+	n := len(cat.Codes)
+	mu.RUnlock()
+	if n == 0 || !KnownCode("f:HALLOWEEN_2026") {
 		t.Error("a corrupt overlay must fall back to the embedded catalog, not empty the site")
 	}
 }
