@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type bwEntry struct {
@@ -49,6 +52,46 @@ func (bl *bwLimiter) realIP(r *http.Request) string {
 	return ip
 }
 
+// bwTicketKey carries a *bwTicket from Meter down to Handler.
+type bwTicketKey struct{}
+
+// bwTicket is how a metered route tells Meter, which sits outside the compressor, that
+// the bytes this request put on the wire count toward its IP's budget.
+type bwTicket struct{ metered bool }
+
+// Meter counts what a response actually costs on the wire. It must be registered
+// BEFORE middleware.Compress so it sees compressed bytes: counted inside the
+// compressor (as Handler alone does), an 862 KB game data bundle that travels as
+// 125 KB charged the full 862 KB, so a crowded network ran out of budget about seven
+// times sooner than the bandwidth it really used. Only routes wrapped in Handler are
+// counted; every other request passes through untouched.
+func (bl *bwLimiter) Meter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t := &bwTicket{}
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r.WithContext(context.WithValue(r.Context(), bwTicketKey{}, t)))
+		if t.metered {
+			bl.add(bl.realIP(r), int64(ww.BytesWritten()), time.Now())
+		}
+	})
+}
+
+// add charges bytes to an IP's window and blocks it once the window is over the limit.
+func (bl *bwLimiter) add(ip string, n int64, now time.Time) {
+	bl.mu.Lock()
+	defer bl.mu.Unlock()
+	entry := bl.windows[ip]
+	if entry == nil || now.Sub(entry.since) > bl.window {
+		entry = &bwEntry{since: now}
+		bl.windows[ip] = entry
+	}
+	entry.bytes += n
+	if entry.bytes > bl.limit {
+		bl.blocked[ip] = now.Add(bl.penalty)
+		delete(bl.windows, ip)
+	}
+}
+
 func (bl *bwLimiter) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := bl.realIP(r)
@@ -63,21 +106,16 @@ func (bl *bwLimiter) Handler(next http.Handler) http.Handler {
 		}
 		bl.mu.Unlock()
 
+		// Normal path: Meter, outside the compressor, counts the bytes on the wire.
+		if t, ok := r.Context().Value(bwTicketKey{}).(*bwTicket); ok {
+			t.metered = true
+			next.ServeHTTP(w, r)
+			return
+		}
+		// No Meter in the chain (a test, or a router built without it): count here.
 		cw := &countingWriter{ResponseWriter: w}
 		next.ServeHTTP(cw, r)
-
-		bl.mu.Lock()
-		entry := bl.windows[ip]
-		if entry == nil || now.Sub(entry.since) > bl.window {
-			entry = &bwEntry{since: now}
-			bl.windows[ip] = entry
-		}
-		entry.bytes += cw.written
-		if entry.bytes > bl.limit {
-			bl.blocked[ip] = now.Add(bl.penalty)
-			delete(bl.windows, ip)
-		}
-		bl.mu.Unlock()
+		bl.add(ip, cw.written, now)
 	})
 }
 

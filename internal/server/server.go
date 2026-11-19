@@ -267,6 +267,12 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		inner: &middleware.DefaultLogFormatter{Logger: log.New(os.Stdout, "", log.LstdFlags)},
 	}))
 	r.Use(middleware.Recoverer)
+	// Bandwidth limiter for the public data endpoints: 15 MB per IP per 5-minute
+	// window, 30-minute block on breach, counted across every route wrapped in
+	// apiBW.Handler. Its Meter sits just outside the compressor so the budget is
+	// spent on the bytes that actually travel, not the uncompressed size.
+	apiBW := newBWLimiter(15*1024*1024, 5*time.Minute, 30*time.Minute)
+	r.Use(apiBW.Meter)
 	r.Use(middleware.Compress(5))
 	r.Use(securityHeaders)
 
@@ -293,9 +299,6 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 	// Registered before Start, so the startup fetch is covered too.
 	store.SetEventsAppliedHook(h.ReconcileEventSubscriptions)
 
-	// Bandwidth limiter: 15 MB per IP per 5-minute window; 30-minute block on breach.
-	// Counts aggregate bytes across all seven public API endpoints for the same IP.
-	apiBW := newBWLimiter(15*1024*1024, 5*time.Minute, 30*time.Minute)
 
 	// CSRF-exempt: PayPal sends server-to-server POSTs without browser CSRF tokens.
 	r.Post("/api/store/webhook", h.StoreWebhook)
