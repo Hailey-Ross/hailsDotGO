@@ -9,7 +9,8 @@
 <section class="fk-page fk-playtest" id="pt" aria-labelledby="pt-title"
   data-signed-in="{{if .User}}1{{end}}"
   data-t-progress="{{T "playtest.ui.progress"}}" data-t-copied="{{T "playtest.start.copied"}}"
-  data-t-all="{{T "playtest.start.all"}}" data-t-guided="{{T "playtest.start.guided"}}">
+  data-t-all="{{T "playtest.start.all"}}" data-t-guided="{{T "playtest.start.guided"}}"
+  data-t-screen="{{T "playtest.ui.screen_of"}}" data-t-cheers="{{T "playtest.ui.cheers"}}" data-t-step-done="{{T "playtest.ui.step_done"}}">
   <header class="fk-pt-head fk-settle">
     <span class="fk-label">{{T "playtest.kicker"}}</span>
     <h1 id="pt-title">{{T "playtest.heading"}}</h1>
@@ -63,17 +64,23 @@
     </header>
     <ol class="fk-pt-cards">
       {{range $j, $c := $s.Cards}}
-      <li class="fk-card fk-pt-card{{if $c.Warn}} is-warn{{end}}{{if not $c.Img}} no-img{{end}}" data-pt-card="{{$c.ID}}">
-        {{if $c.Img}}<button type="button" class="fk-pt-shot" data-pt-zoom aria-label="{{T "playtest.ui.zoom"}}"><img src="/static/playtest/{{$c.Img}}.webp" width="432" height="960" loading="lazy" alt="{{T (printf "playtest.c.%s.title" $c.ID)}}"></button>{{end}}
+      <li class="fk-card fk-pt-card{{if $c.Warn}} is-warn{{end}}{{if not $c.Img}} no-img{{end}}" data-pt-card="{{$c.ID}}" data-pt-index="{{$j}}">
+        {{if $c.Img}}<button type="button" class="fk-pt-shot" data-pt-zoom aria-label="{{T "playtest.ui.zoom"}}"><img src="/static/playtest/{{$c.Img}}.webp" width="432" height="960" loading="lazy" alt="{{T (printf "playtest.c.%s.title" $c.ID)}}">{{if $c.SX}}<span class="fk-pt-spot" style="left:{{$c.SX}}%;top:{{$c.SY}}%" aria-hidden="true"><i></i><b>{{T "playtest.ui.tap_here"}}</b></span>{{end}}</button>{{end}}
         <div class="fk-pt-text">
           <h3><span class="n">{{$c.Num}}</span>{{T (printf "playtest.c.%s.title" $c.ID)}}</h3>
           <p>{{T (printf "playtest.c.%s.body" $c.ID)}}</p>
           {{if $c.Link}}<p><a class="fk-pt-btn" href="{{$c.Link}}"{{if $c.External}} target="_blank" rel="noopener"{{end}}>{{T $c.LinkKey}}</a></p>{{end}}
           <label class="fk-pt-tick"><input type="checkbox" data-pt-tick="{{$c.ID}}"><span>{{T "playtest.ui.done"}}</span></label>
+          <details class="fk-pt-miss"><summary>{{T "playtest.ui.not_seeing"}}</summary><p>{{if $c.Miss}}{{T (printf "playtest.c.%s.miss" $c.ID)}}{{else}}{{T "playtest.ui.miss_generic"}}{{end}}</p><a class="fk-pt-link" href="#pt-help-{{$s.Help}}" data-pt-help="{{$s.Help}}">{{T "playtest.ui.open_help"}}</a></details>
         </div>
       </li>
       {{end}}
     </ol>
+    <div class="fk-pt-flip" hidden>
+      <button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-cprev>{{T "playtest.ui.back"}}</button>
+      <span class="fk-pt-screen" data-pt-screen></span>
+      <button type="button" class="fk-pt-btn fk-pt-next" data-pt-cnext><span>{{T "playtest.ui.done_next"}}</span></button>
+    </div>
     <footer class="fk-pt-step-foot">
       <a class="fk-pt-link" href="#pt-help-{{$s.Help}}" data-pt-help="{{$s.Help}}">{{T "playtest.ui.stuck"}}</a>
       <span class="fk-pt-nav" hidden>
@@ -144,6 +151,9 @@
       <p>{{T "playtest.privacy.p2"}} <a href="/privacy">{{T "playtest.privacy.link"}}</a></p>
     </article>
   </div>
+
+  <div class="fk-pt-toast" data-pt-toast role="status" aria-live="polite" hidden></div>
+  <div class="fk-pt-confetti" data-pt-confetti aria-hidden="true"></div>
 
   <div class="fk-pt-zoom" data-pt-zoombox hidden role="dialog" aria-modal="true">
     <button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-zoomclose>{{T "playtest.ui.close"}}</button>

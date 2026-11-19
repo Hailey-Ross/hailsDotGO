@@ -32,7 +32,12 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
+
+	"pogo.hails.cc/internal/auth"
 )
 
 // userPurgeAfter is how long a marked account is retained before its row is destroyed.
@@ -193,8 +198,14 @@ func cleanupUserReferences(tx *sql.Tx, id uint64) error {
 // The `deleted_at IS NULL` in the WHERE makes this idempotent in the way that matters: marking an
 // already marked account must not restart its retention clock.
 func (h *Handlers) markUserDeleted(id uint64, username string) (int64, error) {
+	// A trainer who already deleted themselves becomes a staff deletion here (deleted_self = 0),
+	// so they can no longer cancel it by signing in. Their retention clock is left as it was.
+	if _, err := h.db.Exec(`UPDATE users SET deleted_self = 0 WHERE id = ? AND username = ? AND deleted_at IS NOT NULL`,
+		id, username); err != nil {
+		return 0, err
+	}
 	res, err := h.db.Exec(
-		`UPDATE users SET deleted_at = UTC_TIMESTAMP() WHERE id = ? AND username = ? AND deleted_at IS NULL`,
+		`UPDATE users SET deleted_at = UTC_TIMESTAMP(), deleted_self = 0 WHERE id = ? AND username = ? AND deleted_at IS NULL`,
 		id, username)
 	if err != nil {
 		return 0, err
@@ -225,11 +236,93 @@ func (h *Handlers) markUserDeleted(id uint64, username string) (int64, error) {
 // instead of quietly succeeding, so the panel can say so rather than imply it undid something.
 func (h *Handlers) restoreUser(id uint64, username string) (int64, error) {
 	res, err := h.db.Exec(
-		`UPDATE users SET deleted_at = NULL WHERE id = ? AND username = ? AND deleted_at IS NOT NULL`,
+		`UPDATE users SET deleted_at = NULL, deleted_self = 0 WHERE id = ? AND username = ? AND deleted_at IS NOT NULL`,
 		id, username)
 	if err != nil {
 		return 0, err
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
+}
+
+// errSelfDeleteNotAllowed refuses a self deletion the site cannot survive: the superadmin's
+// account is matched by username from the environment, and deleting it would lock the owner out.
+var errSelfDeleteNotAllowed = errors.New("this account cannot be deleted from here")
+
+// selfDeleteAccount is a trainer deleting their own account (Settings, the app). It is the same
+// mark as a staff deletion, with deleted_self set so that signing in again within the hold
+// cancels it (owner decision 2026-11-18). Before the mark, every trade conversation and connect
+// request ends exactly as a block would end it (owner decision), with the deleting trainer as
+// the blocker. After it, web and app sessions end (markUserDeleted already clears them, and app
+// sign-ins live in the same table) and push tokens are removed so nothing reaches the phone.
+// Returns when the row will be purged.
+func (h *Handlers) selfDeleteAccount(id uint, username string, now time.Time) (time.Time, error) {
+	if auth.SuperadminUser != "" && strings.EqualFold(username, auth.SuperadminUser) {
+		return time.Time{}, errSelfDeleteNotAllowed
+	}
+	partners := map[uint]bool{}
+	if rows, err := h.db.Query(`
+		SELECT CASE WHEN from_user = ? THEN to_user ELSE from_user END FROM trade_contacts WHERE from_user = ? OR to_user = ?
+		UNION
+		SELECT CASE WHEN a_user = ? THEN b_user ELSE a_user END FROM trade_threads
+		 WHERE (a_user = ? OR b_user = ?) AND state IN ('open', 'agreed')`, id, id, id, id, id, id); err == nil {
+		for rows.Next() {
+			var p sql.NullInt64
+			if rows.Scan(&p) == nil && p.Valid {
+				partners[uint(p.Int64)] = true
+			}
+		}
+		rows.Close()
+	} else {
+		return time.Time{}, err
+	}
+	for p := range partners {
+		if err := h.endTradeContacts(id, p, now); err != nil {
+			return time.Time{}, err
+		}
+		if err := h.endTradeThreads(id, p, now); err != nil {
+			return time.Time{}, err
+		}
+	}
+	if _, err := h.db.Exec(
+		`UPDATE users SET deleted_at = UTC_TIMESTAMP(), deleted_self = 1 WHERE id = ? AND username = ? AND deleted_at IS NULL`,
+		id, username); err != nil {
+		return time.Time{}, err
+	}
+	if _, err := h.db.Exec(`DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+		log.Printf("self delete %d: clearing sessions: %v", id, err)
+	}
+	if _, err := h.db.Exec(`DELETE FROM mobile_device_tokens WHERE user_id = ?`, id); err != nil {
+		log.Printf("self delete %d: clearing push tokens: %v", id, err)
+	}
+	var markedAt time.Time
+	if err := h.db.QueryRow(`SELECT deleted_at FROM users WHERE id = ?`, id).Scan(&markedAt); err != nil {
+		return now.Add(userPurgeAfter), nil
+	}
+	return markedAt.Add(userPurgeAfter), nil
+}
+
+// cancelSelfDeletion is the sign in path for an account its owner deleted: if the username and
+// password match a self deletion still inside its hold, the mark is lifted and the account id is
+// returned, so the caller signs the trainer in as usual. Staff deletions (deleted_self = 0) never
+// match. ok is false whenever nothing was cancelled, including a wrong password, so the caller
+// answers exactly as it would for an unknown account.
+func (h *Handlers) cancelSelfDeletion(username, password string) (uint, bool) {
+	var id uint
+	var hash string
+	err := h.db.QueryRow(`SELECT id, password FROM users
+		WHERE username = ? AND deleted_at IS NOT NULL AND deleted_self = 1
+		  AND deleted_at > UTC_TIMESTAMP() - INTERVAL 90 DAY`, username).Scan(&id, &hash)
+	if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+		return 0, false
+	}
+	res, err := h.db.Exec(`UPDATE users SET deleted_at = NULL, deleted_self = 0 WHERE id = ? AND deleted_self = 1`, id)
+	if err != nil {
+		return 0, false
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return 0, false
+	}
+	log.Printf("user %d signed in and cancelled their own deletion", id)
+	return id, true
 }

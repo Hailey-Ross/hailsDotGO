@@ -8,30 +8,35 @@
 </div>
 
 <div class="credits-card">
-  <p>Last updated 27 August 2026. This describes what FlexDex actually does with
-     your data, on the website and in the Android app. It is written to match the
-     code rather than to cover every eventuality, and it is deliberately short.</p>
+  <p>Last updated 18 November 2026. This describes what FlexDex actually does with
+     your data, on the website and in the Android app. FlexDex is a hobby project run
+     by one person, and this page is written to match the code rather than to cover
+     every eventuality.</p>
+  <p>Questions, or anything you want changed or deleted:
+     <a href="mailto:flexdex@hails.app">flexdex@hails.app</a>.</p>
+  <p>FlexDex is not directed at children under 13, and does not knowingly collect
+     data from them.</p>
 </div>
 
 <div class="credits-card">
   <h2>The IV scanner captures your screen</h2>
-  <p>This is the part worth reading. When you tap the scanner in the Android app,
-     it captures <strong>one frame of your entire screen</strong> and reads it
-     twice: once on your device, and once by sending that frame to this server,
-     where a recognizer reads the level arc, recovers a nicknamed Pokemon from its
-     candy label, and corrects a partly hidden CP.</p>
+  <p>This is the part worth reading. When you use the scanner in the Android app,
+     it captures <strong>one frame of your entire screen</strong> and reads it on
+     your phone.</p>
   <p>The frame is the whole screen, not a crop of the Pokemon. Anything else
      visible at that moment, such as a notification banner or a message preview,
-     is part of the image.</p>
-  <p>The image is held in memory and processed. It is <strong>not written to disk
-     on the server, and not stored anywhere afterwards</strong>. Release builds of
-     the app do not write it to your phone either.</p>
-  <p>You can turn this off. In the app, under App settings, switch off
-     <strong>Server-assisted scan</strong> and the frame never leaves your device.
-     The on-device reader is less accurate, and often cannot resolve IVs on its
-     own, which is why the server pass exists.</p>
-  <p>The values read from a scan, such as the species, CP, level and stardust
-     cost, are written to the server log. The image is not.</p>
+     is part of the image while it is being read.</p>
+  <p>The image <strong>never leaves your phone</strong>: it is read on the device and
+     released straight away, and release builds of the app never write it to
+     storage. What is sent to this server is only the reading, as numbers and
+     names: the species and form, CP, HP, stardust cost, your trainer level, the
+     appraisal, whether it is lucky, shadow or purified, and the level arc. The
+     server uses them to work out the IVs. These readings are not written to the
+     server log.</p>
+  <p>On the website, the IV calculator can read a screenshot you upload. That
+     image is sent to this server, read in memory and not stored anywhere
+     afterwards; the values read from it (species, CP, trainer level and similar)
+     are written to the server log.</p>
 </div>
 
 <div class="credits-card">
@@ -44,17 +49,60 @@
      your location entirely, show only your country, or show your city and region.
      A private profile hides your trainer name and friend code from other
      trainers.</p>
-  <p>Anything you save yourself, such as your Pokemon box, shiny collection and
-     raid history, is stored against your account.</p>
+  <p>Anything you save yourself, such as your Pokemon box, shiny collection, raid
+     history and event reminders, is stored against your account. Event reminders
+     set in the app also store your phone's time zone (for example
+     America/Denver), so a reminder fires at the right local time.</p>
+</div>
+
+<div class="credits-card">
+  <h2>Trades and messages</h2>
+  <p>Willing to Trade conversations use ready made messages only; nothing you type
+     is stored. The conversation is stored on this server and visible to the two
+     trainers in it, and to staff when a report points at it. A conversation with
+     no messages for 14 days is hidden from both trainers, kept for staff for a
+     year, and then deleted unless a report still points at it.</p>
 </div>
 
 <div class="credits-card">
   <h2>The app</h2>
-  <p>If you allow notifications, the app registers a Firebase Cloud Messaging
-     token with this server so it can tell you when a raid you joined is ready.
-     The token is stored with the device model name, and is removed when you sign
-     out.</p>
-  <p>Signing in stores a session token on your device in encrypted storage.</p>
+  <p>Signing in stores a session token on your phone in encrypted storage. Sessions
+     last up to 30 days and end when you sign out.</p>
+  <p>If you allow notifications, the app registers a Firebase Cloud Messaging token
+     with this server so it can tell you about raid lobbies and event reminders.
+     Google processes that token to deliver the notifications, and Firebase keeps an
+     installation id for the app. The token is stored here with the device model
+     name, and is removed when you sign out.</p>
+</div>
+
+<div class="credits-card">
+  <h2>Usage data and crash reports (app)</h2>
+  <p>The app uses Google Analytics for Firebase to see which screens are used and
+     how scans go: screen views (by screen type, not by what is on them) and scan
+     steps. It does not send your username, does not use the advertising id, and
+     ad personalization is off. Usage data is on by default; you can turn it off in
+     the app's Settings, <strong>Share usage data</strong>.</p>
+  <p>The app uses Firebase Crashlytics to report crashes: the device model, Android
+     version, app version, what the app was doing (the stack trace), and a few app
+     details such as the species that was being scanned. Reports of crashes are
+     still sent when usage data is off; the extra details and reports of problems
+     that did not crash the app stop.</p>
+  <p>Usage data from the app (Google Analytics for Firebase) is kept for 2 months
+     at the event level and 14 months at the user level, then deleted; Google may
+     keep anonymous aggregate totals. Crash reports (Firebase Crashlytics) are kept
+     for 90 days. You can turn usage data off in the app's Settings, Share usage
+     data.</p>
+  <p>Google is the processor for both. See
+     <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>
+     and <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase's privacy information</a>.</p>
+</div>
+
+<div class="credits-card">
+  <h2>The Android beta</h2>
+  <p>While the app is in open beta it is shared through Firebase App Distribution.
+     Joining gives Google your email address and your device's details (its name,
+     manufacturer, model and Android version) so it can send you test versions.
+     How to join and how to leave is on the <a href="/playtest">Playtest page</a>.</p>
 </div>
 
 <div class="credits-card">
@@ -66,27 +114,54 @@
 
 <div class="credits-card">
   <h2>Third parties</h2>
-  <p>There is no advertising, no analytics, and nothing is sold or shared for
-     marketing. Payments for supporter items are handled by PayPal, which receives
-     what it needs to take the payment; this site never sees your card details.</p>
-  <p>Pokemon sprites and event artwork are loaded from public sources including
-     PokeAPI and LeekDuck, and trainer avatars from Pokemon Showdown. Requesting
-     an image tells that host your IP address, as any image on any website does.</p>
+  <p>There is no advertising, and nothing is sold or shared for marketing. Apart
+     from Google's Firebase services in the app (above), these services see a
+     little of your data:</p>
+  <ul class="credits-list">
+    <li>Resend sends this site's emails (confirming your address, resetting your
+        password), so it receives your email address and the message.</li>
+    <li>Open-Meteo is asked for the weather where you are: the server sends it the
+        city you entered (or its coordinates), nothing else about you.</li>
+    <li>Your browser loads Pokedex details from PokeAPI and event artwork from
+        LeekDuck. Requesting them tells those hosts your IP address, as any image
+        or request on any website does. Pokemon pictures are served from this site
+        itself.</li>
+    <li>Donations are not set up yet. If they are, PayPal will handle them and
+        receive what it needs to take the payment; this site never sees card
+        details.</li>
+  </ul>
 </div>
 
 <div class="credits-card">
-  <h2>Deleting your data</h2>
-  <p>Ask, and the account and everything attached to it is deleted: shinies, raid
-     history, reports, messages, the lot. There is no automated button for this
-     yet; contact a staff member through the reports page, or email
-     <a href="mailto:flexdex@hails.app">flexdex@hails.app</a>, and it will be done.</p>
-  <p>A deleted account leaves the site immediately. It stops appearing anywhere, it
-     can no longer be signed into, and its sessions end there and then. The record
-     underneath is held for 90 days after that, so an account deleted by mistake
-     can be put back, and is then erased for good.</p>
-  <p>If you would rather it were erased outright with no holding period, say so
-     when you ask and it is done that way instead. Nothing is kept back either
-     way: the 90 days exist to make a mistake fixable, not to keep your data.</p>
+  <h2>How long things are kept</h2>
+  <ul class="credits-list">
+    <li>Your account and what you save: until you delete it (see below).</li>
+    <li>Sessions: up to 30 days, and they end when you sign out. Push tokens: until
+        you sign out or delete the account.</li>
+    <li>The server log records each request with its IP address, plus the values
+        read from website screenshots. It is kept for a few months and then
+        rotated away.</li>
+    <li>App usage data and crash reports: as above (2 and 14 months; 90 days).</li>
+    <li>Trade conversations: as above (hidden after 14 idle days, deleted after a
+        year).</li>
+  </ul>
+</div>
+
+<div class="credits-card" id="deleting">
+  <h2>Deleting your account</h2>
+  <p>You can delete your account yourself: on this website in Settings, Delete
+     account, or in the app in Settings, Delete account. If you can no longer sign
+     in, email <a href="mailto:flexdex@hails.app">flexdex@hails.app</a> from the
+     address on the account. The <a href="/delete-account">Delete your account</a>
+     page explains every way and exactly what happens.</p>
+  <p>A deleted account leaves the site immediately: it stops appearing anywhere,
+     you are signed out everywhere, and open trades end. The record underneath is
+     held for 90 days so a mistake can be fixed; signing in again during that time
+     cancels the deletion. After 90 days it is erased for good. If you would rather
+     it were erased right away, say so by email and it is done that way.</p>
+  <p>Reports and staff moderation records are kept without your name, so staff
+     history stays complete. Trade conversations keep only the name you had at the
+     time.</p>
 </div>
 
 <div class="credits-card">

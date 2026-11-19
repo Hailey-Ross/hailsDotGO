@@ -116,7 +116,7 @@ func TestMarkIsScopedToLiveAccounts(t *testing.T) {
 	if i < 0 {
 		t.Fatal("markUserDeleted is gone")
 	}
-	body := src[i:min(i+900, len(src))]
+	body := src[i:min(i+1600, len(src))]
 	if !strings.Contains(body, "AND deleted_at IS NULL") {
 		t.Error("markUserDeleted does not scope its UPDATE to unmarked rows, so re-deleting an account restarts its retention window")
 	}

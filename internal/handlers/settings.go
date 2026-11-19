@@ -248,6 +248,7 @@ type blockedUserEntry struct {
 }
 
 type settingsData struct {
+	Deletion        string // ?deletion= outcome: cancelled, wrong_password, confirm, error
 	Success         bool
 	Error           string
 	TrainerName     string
@@ -303,6 +304,7 @@ func (h *Handlers) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	d.PokemonList = h.store.PokemonList()
 	d.TagRequest = h.queryTagRequest(u.ID)
 	d.BlockedUsers = h.blockedUsers(u.ID)
+	d.Deletion = r.URL.Query().Get("deletion")
 	h.render(w, r, "settings", d)
 }
 

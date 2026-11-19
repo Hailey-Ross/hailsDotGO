@@ -22,6 +22,12 @@ type ptCard struct {
 	Warn     bool
 	Link     string
 	LinkKey  string
+	// SX, SY place the "tap here" ring on the screenshot, in percent of its width and
+	// height (0 means no ring). Measured on the 432x960 images in static/playtest.
+	SX, SY int
+	// Miss: this screen has its own "Not seeing this screen?" text (playtest.c.<ID>.miss);
+	// otherwise the generic one shows.
+	Miss bool
 }
 
 // ptStep is one step of the guide. Text comes from playtest.st.<ID>.title and .intro.
@@ -39,50 +45,50 @@ type ptStep struct {
 func playtestSteps() []ptStep {
 	return []ptStep{
 		{ID: "account", Help: "login", Cards: []ptCard{
-			{ID: "acc_register", Img: "site-register", Link: "/register", LinkKey: "playtest.account.register"},
-			{ID: "acc_confirm", Img: "site-banner"},
-			{ID: "acc_profile", Img: "site-settings"},
-			{ID: "acc_location", Img: "site-location"},
+			{ID: "acc_register", Img: "site-register", Link: "/register", LinkKey: "playtest.account.register", SX: 50, SY: 67},
+			{ID: "acc_confirm", Img: "site-banner", SX: 50, SY: 19},
+			{ID: "acc_profile", Img: "site-settings", SX: 45, SY: 32},
+			{ID: "acc_location", Img: "site-location", SX: 50, SY: 61},
 			{ID: "acc_two", Warn: true},
-			{ID: "acc_signin", Img: "site-login"},
+			{ID: "acc_signin", Img: "site-login", SX: 50, SY: 82},
 		}},
 		{ID: "join", Help: "email", Cards: []ptCard{
-			{ID: "join_open", Img: "03-google-signin", Link: PlaytestInviteURL, LinkKey: "playtest.join_button"},
-			{ID: "join_signup", Img: "a-ready-to-test", Warn: true},
-			{ID: "join_in", Img: "b-youre-in"},
-			{ID: "join_accept", Img: "c-test-apps-pending"},
-			{ID: "join_consent", Img: "d-consent", Warn: true},
-			{ID: "join_release", Img: "e-release-page"},
+			{ID: "join_open", Img: "03-google-signin", Link: PlaytestInviteURL, LinkKey: "playtest.join_button", SX: 50, SY: 40},
+			{ID: "join_signup", Img: "a-ready-to-test", Warn: true, SX: 50, SY: 67, Miss: true},
+			{ID: "join_in", Img: "b-youre-in", SX: 50, SY: 54},
+			{ID: "join_accept", Img: "c-test-apps-pending", SX: 32, SY: 37, Miss: true},
+			{ID: "join_consent", Img: "d-consent", Warn: true, SX: 12, SY: 66, Miss: true},
+			{ID: "join_release", Img: "e-release-page", SX: 65, SY: 94},
 		}},
 		{ID: "tester", Help: "signin", Cards: []ptCard{
 			{ID: "t_intro"},
-			{ID: "t_download", Img: "f-download-apk"},
-			{ID: "t_harmful", Img: "g-file-might-be-harmful"},
-			{ID: "t_open", Img: "h-downloaded-open"},
-			{ID: "t_blocked", Img: "j-unknown-apps-blocked"},
-			{ID: "t_allow", Img: "k-allow-from-source", Warn: true},
-			{ID: "t_install", Img: "l-install-app-tester"},
-			{ID: "t_done", Img: "m-app-tester-installed"},
+			{ID: "t_download", Img: "f-download-apk", SX: 80, SY: 64, Miss: true},
+			{ID: "t_harmful", Img: "g-file-might-be-harmful", SX: 77, SY: 57, Miss: true},
+			{ID: "t_open", Img: "h-downloaded-open", SX: 85, SY: 15, Miss: true},
+			{ID: "t_blocked", Img: "j-unknown-apps-blocked", SX: 85, SY: 57, Miss: true},
+			{ID: "t_allow", Img: "k-allow-from-source", Warn: true, SX: 88, SY: 43},
+			{ID: "t_install", Img: "l-install-app-tester", SX: 82, SY: 57},
+			{ID: "t_done", Img: "m-app-tester-installed", SX: 82, SY: 57},
 		}},
 		{ID: "signin", Help: "missing", Cards: []ptCard{
-			{ID: "s_google", Img: "n-app-tester-signin"},
-			{ID: "s_choose", Img: "p-choose-account", Warn: true},
-			{ID: "s_share", Img: "o-app-tester-share-info"},
-			{ID: "s_access", Img: "q-access-checkbox", Warn: true},
-			{ID: "s_list", Img: "s-app-tester-list"},
-			{ID: "s_start", Img: "t-start-testing-consent"},
+			{ID: "s_google", Img: "n-app-tester-signin", SX: 55, SY: 57},
+			{ID: "s_choose", Img: "p-choose-account", Warn: true, SX: 50, SY: 53, Miss: true},
+			{ID: "s_share", Img: "o-app-tester-share-info", SX: 63, SY: 84},
+			{ID: "s_access", Img: "q-access-checkbox", Warn: true, SX: 85, SY: 58, Miss: true},
+			{ID: "s_list", Img: "s-app-tester-list", SX: 30, SY: 24, Miss: true},
+			{ID: "s_start", Img: "t-start-testing-consent", SX: 11, SY: 52},
 		}},
 		{ID: "install", Help: "notinstalled", Cards: []ptCard{
-			{ID: "i_download", Img: "u-flexdex-release"},
-			{ID: "i_notif", Img: "v-app-tester-notifications"},
-			{ID: "i_wait", Img: "w-downloading"},
-			{ID: "i_unknown", Img: "y2-app-tester-allow", Warn: true},
-			{ID: "i_install", Img: "y4-install-flexdex"},
-			{ID: "i_open", Img: "y5-installed-open"},
+			{ID: "i_download", Img: "u-flexdex-release", SX: 18, SY: 53},
+			{ID: "i_notif", Img: "v-app-tester-notifications", SX: 50, SY: 54},
+			{ID: "i_wait", Img: "w-downloading", SX: 25, SY: 55},
+			{ID: "i_unknown", Img: "y2-app-tester-allow", Warn: true, SX: 88, SY: 44, Miss: true},
+			{ID: "i_install", Img: "y4-install-flexdex", SX: 82, SY: 55, Miss: true},
+			{ID: "i_open", Img: "y5-installed-open", SX: 18, SY: 53},
 		}},
 		{ID: "first", Help: "bubble", Cards: []ptCard{
-			{ID: "f_notif", Img: "y6-flexdex-notifications"},
-			{ID: "f_login", Img: "y7-flexdex-login"},
+			{ID: "f_notif", Img: "y6-flexdex-notifications", SX: 50, SY: 53},
+			{ID: "f_login", Img: "y7-flexdex-login", SX: 50, SY: 60, Miss: true},
 			{ID: "f_perms"},
 		}},
 	}

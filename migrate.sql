@@ -1172,3 +1172,11 @@ ALTER TABLE bug_reports
   ADD COLUMN trade_thread_id INT UNSIGNED NULL DEFAULT NULL,
   ADD KEY idx_br_trade (trade_thread_id),
   ADD CONSTRAINT fk_br_trade FOREIGN KEY (trade_thread_id) REFERENCES trade_threads (id) ON DELETE SET NULL;
+
+-- 57. Deleting your own account (2026-11-18)
+-- A trainer can now delete their own account (Settings, the app, and the public
+-- /delete-account page explain how). It uses the same mark-then-purge window as a
+-- staff deletion, with one difference: signing in again within the 90 days cancels
+-- a deletion the trainer started themselves. deleted_self is what tells the two
+-- apart, so an account staff removed can never be revived by signing in.
+ALTER TABLE users ADD COLUMN deleted_self TINYINT(1) NOT NULL DEFAULT 0 AFTER deleted_at;

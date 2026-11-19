@@ -1,0 +1,53 @@
+{{define "title"}}{{T "account.page.title"}}{{end}}
+
+{{define "pagekind"}}fieldkit{{end}}
+
+{{define "content"}}
+{{/* Public on purpose: Google Play lists this address, and someone who can no longer sign in
+     has to be able to read it. Keep it in step with privacy.html and account_delete.go. */}}
+<section class="fk-page fk-playtest" aria-labelledby="da-title">
+  <header class="fk-pt-head">
+    <span class="fk-label">{{T "account.page.kicker"}}</span>
+    <h1 id="da-title">{{T "account.page.title"}}</h1>
+    <p class="fk-pt-lede">{{T "account.page.lede"}}</p>
+  </header>
+
+  {{if .Data.Done}}
+  <article class="fk-card fk-pt-done" data-tab="{{T "account.page.done_tab"}}">
+    <h2>{{T "account.page.done_title"}}</h2>
+    <p>{{T "account.page.done_body"}}</p>
+  </article>
+  {{end}}
+
+  <article class="fk-card" data-tab="{{T "account.page.how_tab"}}" id="how">
+    <h2>{{T "account.page.how_title"}}</h2>
+    <p><b>{{T "account.page.site_t"}}</b> {{T "account.page.site_b"}}</p>
+    <p><a class="fk-pt-btn fk-pt-btn-quiet" href="/settings#delete-account">{{T "account.page.site_link"}}</a></p>
+    <p><b>{{T "account.page.app_t"}}</b> {{T "account.page.app_b"}}</p>
+    <p><b>{{T "account.page.email_t"}}</b> {{T "account.page.email_b"}} <a href="mailto:flexdex@hails.app">flexdex@hails.app</a></p>
+  </article>
+
+  <article class="fk-card" data-tab="{{T "account.page.after_tab"}}" id="what-happens">
+    <h2>{{T "account.page.after_title"}}</h2>
+    <ul class="fk-pt-list">
+      <li>{{T "account.page.after_now"}}</li>
+      <li>{{T "account.page.after_trades"}}</li>
+      <li>{{T "account.page.after_hold"}}</li>
+      <li>{{T "account.page.after_purge"}}</li>
+      <li>{{T "account.page.after_sooner"}}</li>
+    </ul>
+  </article>
+
+  <article class="fk-card" data-tab="{{T "account.page.deleted_tab"}}" id="deleted">
+    <h2>{{T "account.page.deleted_title"}}</h2>
+    <p>{{T "account.page.deleted_body"}}</p>
+    <h2>{{T "account.page.kept_title"}}</h2>
+    <ul class="fk-pt-list">
+      <li>{{T "account.page.kept_reports"}}</li>
+      <li>{{T "account.page.kept_trades"}}</li>
+      <li>{{T "account.page.kept_google"}}</li>
+    </ul>
+    <p>{{T "account.page.privacy"}} <a href="/privacy">{{T "account.page.privacy_link"}}</a></p>
+  </article>
+</section>
+{{end}}

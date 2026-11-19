@@ -21,6 +21,9 @@
 {{if .Data.Success}}
 <div class="settings-success">{{T "settings.saved"}}</div>
 {{end}}
+{{if eq .Data.Deletion "cancelled"}}
+<div class="settings-success">{{T "account.delete.cancelled"}}</div>
+{{end}}
 {{if .Data.Error}}
 <div class="auth-error" style="margin-bottom:1rem">{{.Data.Error}}</div>
 {{end}}
@@ -202,6 +205,23 @@
     </div>
 
   </form>
+
+  <div class="settings-section settings-danger" id="delete-account">
+    <h2 class="settings-section-title">{{T "account.delete.title"}}</h2>
+    <p class="settings-hint">{{T "account.delete.what"}}</p>
+    <p class="settings-hint">{{T "account.delete.hold"}}</p>
+    <p class="settings-hint"><a href="/delete-account">{{T "account.delete.more"}}</a></p>
+    {{if eq .Data.Deletion "wrong_password"}}<div class="auth-error">{{T "account.delete.wrong_password"}}</div>{{end}}
+    {{if eq .Data.Deletion "confirm"}}<div class="auth-error">{{T "account.delete.need_confirm"}}</div>{{end}}
+    {{if eq .Data.Deletion "error"}}<div class="auth-error">{{T "account.delete.failed"}}</div>{{end}}
+    <form method="POST" action="/settings/delete-account" class="settings-delete-form">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.CSRFToken}}">
+      <label class="settings-label" for="del-password">{{T "account.delete.password"}}</label>
+      <input class="auth-input" type="password" id="del-password" name="password" autocomplete="current-password" required>
+      <label class="settings-check"><input type="checkbox" name="confirm" value="1" required> {{T "account.delete.confirm"}}</label>
+      <button type="submit" class="btn-danger settings-delete-btn">{{T "account.delete.button"}}</button>
+    </form>
+  </div>
 
   {{if .Data.TagRequest}}
   <div id="tab-tag_request" class="tab-panel">

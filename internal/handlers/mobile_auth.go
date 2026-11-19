@@ -68,6 +68,16 @@ func (h *Handlers) MobileLogin(w http.ResponseWriter, r *http.Request) {
 	err := h.db.QueryRow(
 		`SELECT id, password, disabled FROM users WHERE username = ? AND deleted_at IS NULL`, body.Username,
 	).Scan(&userID, &hash, &disabled)
+	cancelled := false
+	if err == sql.ErrNoRows {
+		// A trainer who deleted their own account cancels it by signing in within the hold.
+		if _, ok := h.cancelSelfDeletion(body.Username, body.Password); ok {
+			cancelled = true
+			err = h.db.QueryRow(
+				`SELECT id, password, disabled FROM users WHERE username = ? AND deleted_at IS NULL`, body.Username,
+			).Scan(&userID, &hash, &disabled)
+		}
+	}
 	if err == sql.ErrNoRows {
 		writeJSONError(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -101,11 +111,15 @@ func (h *Handlers) MobileLogin(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(`SELECT COALESCE(trainer_level,0) FROM users WHERE id = ?`, u.ID).Scan(&userResp.TrainerLevel)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	resp := map[string]any{
 		"token":      token,
 		"expires_at": time.Now().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339),
 		"user":       userResp,
-	})
+	}
+	if cancelled {
+		resp["deletion_cancelled"] = true // the app tells the trainer their deletion was undone
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handlers) MobileLogout(w http.ResponseWriter, r *http.Request) {

@@ -433,6 +433,14 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 			// over 1700 entries and would dwarf the settings it belongs to.
 			r.Get("/settings", h.MobileSettingsGet)
 			r.Put("/settings", h.MobileSettingsPut)
+			// Deleting your own account (password confirmed). 5 tries a minute, answered
+			// with code slow_down beyond that, so a guessed password cannot be hammered.
+			r.With(httprate.Limit(5, time.Minute, httprate.WithKeyFuncs(httprate.KeyByIP),
+				httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusTooManyRequests)
+					w.Write([]byte(`{"error":"Slow down, please try again in a minute.","code":"slow_down"}`))
+				}))).Post("/account/delete", h.MobileAccountDelete)
 			r.Get("/settings/avatars", h.MobileSettingsAvatars)
 
 			// Trainers directory, one profile, and the social lists. All three go through
@@ -834,6 +842,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/credits", h.Credits)
 		r.Get("/privacy", h.Privacy)
 		r.Get("/playtest", h.Playtest)
+		r.Get("/delete-account", h.DeleteAccountPage)
 		r.Get("/appearance", h.Appearance)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
@@ -883,6 +892,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/settings", h.RequireAuth(h.SettingsPage))
 		r.Post("/settings", h.RequireAuth(h.SettingsUpdate))
+		r.With(httprate.LimitByIP(5, time.Minute)).Post("/settings/delete-account", h.RequireAuth(h.SettingsDeleteAccount))
 		r.Get("/shinies", h.RequireAuth(h.ShiniesPage))
 		r.Get("/admin", h.RequireMod(h.AdminPage))
 		// Trade Assist staff tools (internal/handlers/trades_staff.go): moderators and up.

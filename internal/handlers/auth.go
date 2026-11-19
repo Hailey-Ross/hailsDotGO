@@ -60,6 +60,15 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	var disabledReason string
 	err := h.db.QueryRow(`SELECT id, password, disabled, COALESCE(disabled_reason,'') FROM users WHERE username = ? AND deleted_at IS NULL`, username).
 		Scan(&userID, &hash, &disabled, &disabledReason)
+	cancelled := false
+	if err == sql.ErrNoRows {
+		// A trainer who deleted their own account cancels it by signing in within the hold.
+		if _, ok := h.cancelSelfDeletion(username, password); ok {
+			cancelled = true
+			err = h.db.QueryRow(`SELECT id, password, disabled, COALESCE(disabled_reason,'') FROM users WHERE username = ? AND deleted_at IS NULL`, username).
+				Scan(&userID, &hash, &disabled, &disabledReason)
+		}
+	}
 	if err == sql.ErrNoRows {
 		fail(h.t(r, "error.invalid_credentials"))
 		return
@@ -94,6 +103,9 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	next := r.FormValue("next")
 	if !safeNextPath(next) {
 		next = "/shinies"
+	}
+	if cancelled {
+		next = "/settings?deletion=cancelled"
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }

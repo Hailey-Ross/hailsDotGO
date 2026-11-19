@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
   -- read path immediately, row retained until the purge sweep removes it. See
   -- migrate.sql section 53 and userPurgeAfter in internal/handlers.
   deleted_at       DATETIME      NULL DEFAULT NULL,
+  -- 1 when the trainer deleted the account themselves: signing in within the hold cancels it.
+  deleted_self     TINYINT(1)    NOT NULL DEFAULT 0,
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   trainer_name     VARCHAR(64)   NOT NULL DEFAULT '',
   trainer_code     VARCHAR(16)   NOT NULL DEFAULT '',
@@ -963,7 +965,8 @@ INSERT IGNORE INTO schema_migrations (section, name) VALUES
   (53, 'Marking an account for deletion instead of removing it (2026-08-31)'),
   (54, 'Making a queued write safe to retry (2026-09-06)'),
   (55, 'Turning Japanese on (2026-09-19)'),
-  (56, 'Trade Assist and Messaging (2026-11-18)');
+  (56, 'Trade Assist and Messaging (2026-11-18)'),
+  (57, 'Deleting your own account (2026-11-18)');
 
 -- After first deploy: register your admin account via the UI, then run:
 --   UPDATE users SET role = 'admin' WHERE username = 'yourusername';
