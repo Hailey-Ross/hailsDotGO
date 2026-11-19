@@ -51,7 +51,7 @@ func TestShellRenders(t *testing.T) {
 			name: "admin",
 			pd: PageData{User: &auth.User{Username: "staff", Role: "admin", Translator: true}, Maintenance: all, Lang: "en", Path: "/admin",
 				CostumeReviewCount: 3, StoreEnabled: true},
-			want: []string{`href="/admin" aria-current="page"`, `<b class="fk-count">3</b>`, `href="/translate"`, `href="/store"`},
+			want: []string{`href="/admin" aria-current="page"`, `<b class="fk-count">3</b>`, `href="/translate"`, `href="/support"`},
 		},
 		{
 			name:    "calc gated",

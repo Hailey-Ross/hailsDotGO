@@ -367,7 +367,7 @@ function renderIdle(st: RaidState | null): void {
     root.appendChild(dyn);
 
     if (RAID_CTX.loggedIn) {
-      // Pre-queueing for bosses without a host is a staff / super donator perk;
+      // Pre-queueing for bosses without a host is a staff tool;
       // everyone else queues from the open lobbies list below.
       if (RAID_CTX.canPreQueue) root.appendChild(buildQueueForm());
       root.appendChild(buildHostForm());
@@ -442,7 +442,7 @@ function showFormError(el: HTMLElement, msg: string): void {
   el.style.display = '';
 }
 
-// Pre-queue card (staff / super donator): queue for any current boss before
+// Pre-queue card (staff only): queue for any current boss before
 // a host opens a lobby for it.
 function buildQueueForm(): HTMLElement {
   const card = document.createElement('div');

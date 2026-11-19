@@ -30,10 +30,6 @@ const (
 	// Staff reports are non-negotiable: fixed weight, no reliability/age factors.
 	trustStaffWeight = 2.0
 
-	// Read-time bonus for any active store purchase; never persisted, so it
-	// disappears on expiry and a single weighted dislike outweighs it.
-	trustStoreBonus = 5.0
-
 	// Public tier thresholds on effective trust.
 	trustTierCautionBelow = -10.0
 	trustTierTrustedFrom  = 25.0
@@ -362,22 +358,11 @@ func (h *Handlers) recomputeTrustScore(userID uint) {
 		WHERE id = ?`, userID, userID)
 }
 
-func (h *Handlers) hasAnyActivePurchase(userID uint) bool {
-	var count int
-	h.db.QueryRow(`
-		SELECT COUNT(*) FROM purchases
-		WHERE user_id = ? AND status = 'completed'
-		  AND (expires_at IS NULL OR expires_at > NOW())`,
-		userID).Scan(&count)
-	return count > 0
-}
-
+// effectiveTrust is the trust score as it stands. Donations add nothing to it: since
+// 2026-11-18 supporting the site only ever gives cosmetics (owner decision).
 func (h *Handlers) effectiveTrust(userID uint) float64 {
 	var score float64
 	h.db.QueryRow(`SELECT COALESCE(trust_score, 0) FROM users WHERE id = ?`, userID).Scan(&score)
-	if h.hasAnyActivePurchase(userID) {
-		score += trustStoreBonus
-	}
 	return score
 }
 

@@ -277,9 +277,6 @@ func (h *Handlers) listTrainers() []trainerEntry {
 		if aIsStaff {
 			return aRank < bRank
 		}
-		if a.SuperDonator != b.SuperDonator {
-			return a.SuperDonator
-		}
 		if a.RaidXP != b.RaidXP {
 			return a.RaidXP > b.RaidXP
 		}

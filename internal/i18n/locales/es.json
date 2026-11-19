@@ -5,7 +5,7 @@
   "nav.events":     "Eventos",
   "nav.shinydex":   "Dex Shiny",
   "nav.trainers":   "Entrenadores",
-  "nav.store":      "Tienda",
+  "nav.store":      "Apoyar",
   "nav.collection": "Mi Colección",
   "nav.settings":   "Ajustes",
   "nav.admin":      "Admin",
@@ -415,14 +415,14 @@
   "raidfinder.or":           "o",
   "raidfinder.signup_cta":   "regístrate",
 
-  "store.title":          "Apoya el Sitio",
-  "store.subtitle":       "Ventajas que mantienen la comunidad. Sin pay-to-win.",
-  "store.not_configured": "La tienda aún no está configurada para pagos. Vuelve pronto.",
+  "store.title":          "Apoya FlexDex",
+  "store.subtitle":       "FlexDex lo hace y lo mantiene una sola persona, por diversión. Las donaciones son totalmente opcionales y ayudan con los gastos. Todo en el sitio sigue siendo gratis para todos.",
+  "store.not_configured": "Las donaciones aún no están disponibles. ¡Gracias por pensar en ello!",
   "store.already_active": "Ya activo",
   "store.unavailable":    "No disponible",
-  "store.login_purchase": "Inicia sesión para comprar",
+  "store.login_purchase": "Inicia sesión para donar",
   "store.no_items":       "No hay artículos disponibles ahora mismo.",
-  "store.perks.title":    "Tus Ventajas Activas",
+  "store.perks.title":    "Tus ventajas de apoyo",
   "store.perks.permanent":"Permanente",
 
   "store.tag.title":           "Solicitud de Etiqueta Personalizada",
@@ -437,8 +437,8 @@
   "store.tag.form.submit":     "Enviar para Revisión",
   "store.tag.submitted":       "¡Enviado! El equipo revisará tu solicitud.",
 
-  "store.flash.success":   "¡Compra completada! Tus ventajas ya están activas.",
-  "store.flash.cancelled": "Compra cancelada.",
+  "store.flash.success":   "¡Gracias por tu apoyo! Tus ventajas ya están activas.",
+  "store.flash.cancelled": "Donación cancelada.",
   "store.flash.error":     "Algo salió mal. Por favor, inténtalo de nuevo.",
 
   "trainers.title":       "Entrenadores",
@@ -805,7 +805,7 @@
   "shinydex.js.tip_research": "Encuentro de recompensa de las tareas de investigación de campo",
   "shinydex.js.tip_wild": "Aparece aleatoriamente en el mapa",
   "shinydex.js.unavailable": "Datos de shiny no disponibles. Vuelve más tarde.",
-  "store.buy": "Comprar",
+  "store.buy": "Donar",
   "store.perks.expires": "Caduca",
   "store.tag.error": "Error al enviar la solicitud.",
   "trainers.avatar_alt": "entrenador",
@@ -985,5 +985,7 @@
   "trade.push.trade_answer_needed.body": "{name} ha respondido si se hizo vuestro intercambio. Responde tú también.",
   "trade.preset.sys_confirmed_me": "Has confirmado el intercambio.",
   "trade.preset.sys_reminder_me": "Te hemos recordado que confirmes.",
-  "trade.preset.sys_offer_modified_me": "Has cambiado tu shiny: {before} ahora es {after}."
+  "trade.preset.sys_offer_modified_me": "Has cambiado tu shiny: {before} ahora es {after}.",
+  "store.cosmetic_only": "Quienes apoyan solo reciben cosméticos, como una insignia de apoyo y un nombre arcoíris. Nunca nada que dé ventaja.",
+  "store.perks.donator_badge": "Una insignia de apoyo y un nombre arcoíris en tu tarjeta de entrenador"
 }

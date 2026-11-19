@@ -56,7 +56,6 @@ type storePageData struct {
 	Items        []storeItem
 	Purchases    []userPurchase
 	HasSupporter bool
-	HasPriority  bool
 	TagRequest   *tagRequestStatus
 	PayPalReady  bool
 	FlashMsg     string
@@ -71,7 +70,7 @@ func (h *Handlers) StorePage(w http.ResponseWriter, r *http.Request) {
 
 	if storeActive {
 		rows, err := h.db.Query(
-			`SELECT id, name, slug, description, price_cents, type, benefit FROM store_items WHERE active = 1 ORDER BY sort_order`)
+			`SELECT id, name, slug, description, price_cents, type, benefit FROM store_items WHERE active = 1 AND benefit <> 'queue_priority' ORDER BY sort_order`)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -100,7 +99,6 @@ func (h *Handlers) StorePage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		data.HasSupporter = h.hasActivePurchase(u.ID, "supporter")
-		data.HasPriority = h.hasActivePurchase(u.ID, "queue_priority")
 
 		data.TagRequest = h.queryTagRequest(u.ID)
 
@@ -220,26 +218,26 @@ func (h *Handlers) StoreCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 
 	slug := strings.TrimSpace(r.FormValue("item"))
 	if slug == "" {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 
 	var item storeItem
 	if err := h.db.QueryRow(
-		`SELECT id, name, slug, description, price_cents, type, benefit FROM store_items WHERE slug = ? AND active = 1`, slug,
+		`SELECT id, name, slug, description, price_cents, type, benefit FROM store_items WHERE slug = ? AND active = 1 AND benefit <> 'queue_priority'`, slug,
 	).Scan(&item.ID, &item.Name, &item.Slug, &item.Description, &item.PriceCents, &item.Type, &item.Benefit); err != nil {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 
 	if item.Type == "one_time" && h.hasActivePurchase(u.ID, item.Benefit) {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 
@@ -252,7 +250,7 @@ func (h *Handlers) StoreCheckout(w http.ResponseWriter, r *http.Request) {
 	order, err := createPayPalOrder(item.PriceCents, item.Name, base+"/store/return", base+"/store/cancel")
 	if err != nil {
 		log.Printf("store: create PayPal order: %v", err)
-		http.Redirect(w, r, "/store?status=error", http.StatusSeeOther)
+		http.Redirect(w, r, "/support?status=error", http.StatusSeeOther)
 		return
 	}
 
@@ -261,7 +259,7 @@ func (h *Handlers) StoreCheckout(w http.ResponseWriter, r *http.Request) {
 		u.ID, item.ID, order.ID,
 	); err != nil {
 		log.Printf("store: insert purchase: %v", err)
-		http.Redirect(w, r, "/store?status=error", http.StatusSeeOther)
+		http.Redirect(w, r, "/support?status=error", http.StatusSeeOther)
 		return
 	}
 
@@ -271,7 +269,7 @@ func (h *Handlers) StoreCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	http.Redirect(w, r, "/store?status=error", http.StatusSeeOther)
+	http.Redirect(w, r, "/support?status=error", http.StatusSeeOther)
 }
 
 func (h *Handlers) StoreReturn(w http.ResponseWriter, r *http.Request) {
@@ -287,7 +285,7 @@ func (h *Handlers) StoreReturn(w http.ResponseWriter, r *http.Request) {
 
 	orderID := r.URL.Query().Get("token")
 	if orderID == "" {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 
@@ -298,23 +296,23 @@ func (h *Handlers) StoreReturn(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, item_id, status FROM purchases WHERE paypal_order_id = ? AND user_id = ? LIMIT 1`,
 		orderID, u.ID,
 	).Scan(&purchaseID, &itemID, &currentStatus); err != nil {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 	// Webhook may have already captured and completed this purchase.
 	if currentStatus == "completed" {
-		http.Redirect(w, r, "/store?status=success", http.StatusSeeOther)
+		http.Redirect(w, r, "/support?status=success", http.StatusSeeOther)
 		return
 	}
 	if currentStatus != "pending" {
-		http.Redirect(w, r, "/store", http.StatusSeeOther)
+		http.Redirect(w, r, "/support", http.StatusSeeOther)
 		return
 	}
 
 	if _, err := capturePayPalOrder(orderID); err != nil {
 		log.Printf("store: capture PayPal order %s: %v", orderID, err)
 		h.db.Exec(`UPDATE purchases SET status = 'cancelled' WHERE id = ? AND status = 'pending'`, purchaseID)
-		http.Redirect(w, r, "/store?status=cancelled", http.StatusSeeOther)
+		http.Redirect(w, r, "/support?status=cancelled", http.StatusSeeOther)
 		return
 	}
 
@@ -335,7 +333,7 @@ func (h *Handlers) StoreReturn(w http.ResponseWriter, r *http.Request) {
 		`UPDATE purchases SET status = 'completed', completed_at = NOW(), expires_at = ? WHERE id = ? AND status = 'pending'`,
 		expiresAt, purchaseID,
 	)
-	http.Redirect(w, r, "/store?status=success", http.StatusSeeOther)
+	http.Redirect(w, r, "/support?status=success", http.StatusSeeOther)
 }
 
 func (h *Handlers) StoreCancel(w http.ResponseWriter, r *http.Request) {
@@ -349,7 +347,7 @@ func (h *Handlers) StoreCancel(w http.ResponseWriter, r *http.Request) {
 			)
 		}
 	}
-	http.Redirect(w, r, "/store?status=cancelled", http.StatusSeeOther)
+	http.Redirect(w, r, "/support?status=cancelled", http.StatusSeeOther)
 }
 
 // StoreWebhook handles CHECKOUT.ORDER.APPROVED from PayPal.

@@ -638,23 +638,12 @@ func (h *Handlers) serveMaintenance(w http.ResponseWriter, r *http.Request, page
 
 func (h *Handlers) hasActivePurchase(userID uint, benefit string) bool {
 	var count int
-	// Super donators inherit queue priority perks.
-	if benefit == "queue_priority" {
-		h.db.QueryRow(`
-			SELECT COUNT(*) FROM purchases p
-			JOIN store_items i ON i.id = p.item_id
-			WHERE p.user_id = ? AND p.status = 'completed'
-			  AND i.benefit IN ('queue_priority','super_donator')
-			  AND (p.expires_at IS NULL OR p.expires_at > NOW())`,
-			userID).Scan(&count)
-	} else {
-		h.db.QueryRow(`
-			SELECT COUNT(*) FROM purchases p
-			JOIN store_items i ON i.id = p.item_id
-			WHERE p.user_id = ? AND p.status = 'completed' AND i.benefit = ?
-			  AND (p.expires_at IS NULL OR p.expires_at > NOW())`,
-			userID, benefit).Scan(&count)
-	}
+	h.db.QueryRow(`
+		SELECT COUNT(*) FROM purchases p
+		JOIN store_items i ON i.id = p.item_id
+		WHERE p.user_id = ? AND p.status = 'completed' AND i.benefit = ?
+		  AND (p.expires_at IS NULL OR p.expires_at > NOW())`,
+		userID, benefit).Scan(&count)
 	return count > 0
 }
 

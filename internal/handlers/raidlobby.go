@@ -166,11 +166,11 @@ func (h *Handlers) canCustomLobby(u *auth.User) bool {
 	return h.effectiveTrust(u.ID) >= h.settingFloat("raid_custom_lobby_min_trust", 50)
 }
 
-// canPreQueue gates queueing for bosses with no open lobby yet: staff and
-// active super donators may wait for a host; everyone else queues from the
-// open lobbies list.
+// canPreQueue gates queueing for bosses with no open lobby yet: staff may wait
+// for a host; everyone else queues from the open lobbies list. Donors no longer
+// get this (2026-11-18: supporting the site only ever gives cosmetics).
 func (h *Handlers) canPreQueue(u *auth.User) bool {
-	return u.IsMod() || h.hasActivePurchase(u.ID, "super_donator")
+	return u.IsMod()
 }
 
 func (h *Handlers) hostingLobbyID(userID uint) uint64 {
@@ -837,10 +837,9 @@ func (h *Handlers) APIRaidQueueJoin(w http.ResponseWriter, r *http.Request) {
 		tier = body.BossTier
 	}
 
+	// Nobody jumps the queue any more: queue priority was a paid perk, removed
+	// 2026-11-18. The column stays (and stays 0) so older rows and schemas still fit.
 	priority := 0
-	if h.hasActivePurchase(u.ID, "queue_priority") {
-		priority = 1
-	}
 	if _, err := h.db.Exec(`
 		INSERT INTO raid_queue (user_id, boss_name, boss_tier, priority, enqueued_at)
 		VALUES (?, ?, ?, ?, NOW(3))

@@ -5,7 +5,7 @@
   "nav.events":     "Events",
   "nav.shinydex":   "Shiny-Dex",
   "nav.trainers":   "Trainer",
-  "nav.store":      "Shop",
+  "nav.store":      "Unterstützen",
   "nav.collection": "Meine Sammlung",
   "nav.settings":   "Einstellungen",
   "nav.admin":      "Admin",
@@ -415,14 +415,14 @@
   "raidfinder.or":           "oder",
   "raidfinder.signup_cta":   "registriere dich",
 
-  "store.title":          "Die Website unterstützen",
-  "store.subtitle":       "Vorteile, die die Community am Laufen halten. Kein Pay-to-Win.",
-  "store.not_configured": "Der Shop ist noch nicht für Zahlungen konfiguriert. Schau bald wieder vorbei.",
+  "store.title":          "FlexDex unterstützen",
+  "store.subtitle":       "FlexDex wird von einer einzigen Person gemacht und betrieben, aus Spaß. Spenden sind völlig freiwillig und helfen bei den laufenden Kosten. Alles auf der Website bleibt für alle kostenlos.",
+  "store.not_configured": "Spenden sind noch nicht eingerichtet. Danke, dass du daran denkst!",
   "store.already_active": "Bereits aktiv",
   "store.unavailable":    "Nicht verfügbar",
-  "store.login_purchase": "Anmelden zum Kaufen",
+  "store.login_purchase": "Anmelden zum Spenden",
   "store.no_items":       "Zurzeit keine Artikel verfügbar.",
-  "store.perks.title":    "Deine aktiven Vorteile",
+  "store.perks.title":    "Deine Unterstützer-Vorteile",
   "store.perks.permanent":"Dauerhaft",
 
   "store.tag.title":           "Benutzerdefiniertes Tag anfragen",
@@ -437,8 +437,8 @@
   "store.tag.form.submit":     "Zur Prüfung einreichen",
   "store.tag.submitted":       "Eingereicht! Das Team wird deine Anfrage prüfen.",
 
-  "store.flash.success":   "Kauf abgeschlossen! Deine Vorteile sind jetzt aktiv.",
-  "store.flash.cancelled": "Kauf abgebrochen.",
+  "store.flash.success":   "Danke für deine Unterstützung! Deine Vorteile sind jetzt aktiv.",
+  "store.flash.cancelled": "Spende abgebrochen.",
   "store.flash.error":     "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
 
   "trainers.title":       "Trainer",
@@ -805,7 +805,7 @@
   "shinydex.js.tip_research": "Belohnungsbegegnung aus Feldforschungsaufgaben",
   "shinydex.js.tip_wild": "Erscheint zufällig in der Spielwelt",
   "shinydex.js.unavailable": "Shiny-Daten nicht verfügbar. Schau später wieder vorbei.",
-  "store.buy": "Kaufen",
+  "store.buy": "Spenden",
   "store.perks.expires": "Läuft ab",
   "store.tag.error": "Fehler beim Einreichen der Anfrage.",
   "trainers.avatar_alt": "Trainer",
@@ -985,5 +985,7 @@
   "trade.push.trade_answer_needed.body": "{name} hat geantwortet, ob euer Tausch stattgefunden hat. Bitte antworte auch.",
   "trade.preset.sys_confirmed_me": "Du hast den Tausch bestätigt.",
   "trade.preset.sys_reminder_me": "Wir haben dich ans Bestätigen erinnert.",
-  "trade.preset.sys_offer_modified_me": "Du hast dein Shiny geändert: aus {before} wurde {after}."
+  "trade.preset.sys_offer_modified_me": "Du hast dein Shiny geändert: aus {before} wurde {after}.",
+  "store.cosmetic_only": "Unterstützer bekommen nur Kosmetisches, etwa ein Unterstützer-Abzeichen und einen Regenbogennamen. Niemals etwas, das einen Vorteil verschafft.",
+  "store.perks.donator_badge": "Ein Unterstützer-Abzeichen und ein Regenbogenname auf deiner Trainerkarte"
 }

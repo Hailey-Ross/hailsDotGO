@@ -1412,6 +1412,19 @@ img.fk-prof-av, .fk-av.fk-prof-av { width: 76px; height: 76px; flex: none; borde
 .fk-pt-step-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .fk-pt-nav:not([hidden]) { display: inline-flex; gap: 10px; margin-left: auto; }
 .fk-pt-done { border-color: var(--accent); text-align: center; }
+.fk-pt-faqlink { margin: 10px 0 0; }
+/* "Is it safe?" stands out: a light gold ring that breathes slowly. Reduced motion keeps the
+   ring and drops the breathing (the global reduced motion rule stills it). */
+.fk-pt-safe { border-color: color-mix(in srgb, var(--gold) 70%, transparent); }
+/* Same selector strength as the page-wide "cards bounce in" rule, which would otherwise replace
+   the glow; the card still bounces in first, then starts to glow. */
+:root[data-page="fieldkit"] main.container .fk-playtest .fk-pt-safe { animation: fk-settle 0.62s cubic-bezier(0.22, 1, 0.36, 1) both, fk-safe-glow 3.2s ease-in-out 0.7s infinite; }
+.fk-pt-safe[data-tab]::before { border-color: color-mix(in srgb, var(--gold) 70%, transparent); color: var(--gold); }
+@keyframes fk-safe-glow {
+  0%, 100% { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--gold) 60%, transparent), 0 0 14px 1px color-mix(in srgb, var(--gold) 30%, transparent), var(--shadow); }
+  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 85%, transparent), 0 0 34px 8px color-mix(in srgb, var(--gold) 45%, transparent), var(--shadow); }
+}
+.fk-pt-after > .fk-card { scroll-margin-top: calc(var(--bar-h) + 24px); }
 .fk-pt-hash { display: block; margin-top: 4px; font-family: var(--font-mono); font-size: 11.5px; overflow-wrap: anywhere; color: var(--fg-2); }
 .fk-pt-done h2 { font-size: 24px !important; }
 .fk-pt-after { display: grid; gap: 18px; margin-top: 8px; }

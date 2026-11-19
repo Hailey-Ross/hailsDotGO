@@ -353,10 +353,7 @@ CREATE TABLE IF NOT EXISTS store_items (
 INSERT IGNORE INTO store_items (name, slug, description, price_cents, type, benefit, sort_order) VALUES
   ('Supporter Pack', 'supporter',
    'Submit a custom tag (staff-reviewed) that appears on your trainer profile. Includes a Supporter badge.',
-   299, 'bimonthly', 'supporter', 1),
-  ('Priority Pass', 'priority_pass',
-   'Jump to the front of the raid join queue for 30 days.',
-   799, 'monthly', 'queue_priority', 2);
+   299, 'bimonthly', 'supporter', 1);
 
 CREATE TABLE IF NOT EXISTS purchases (
   id              INT UNSIGNED NOT NULL AUTO_INCREMENT,

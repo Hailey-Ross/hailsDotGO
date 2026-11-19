@@ -16,7 +16,7 @@ The site is called FlexDex, the same name as its Android app. The repository, Go
 - In-app bug reports ("Report Me Not") with a threaded reporter and staff messenger, labels, assignments, canned responses, and satisfaction ratings
 - Player reporting for bad actors (spoofing, harassment, and more) routed to a shared moderator queue
 - User accounts (open or invite-only registration) with signup email confirmation and self-service password reset by email, plus staff roles, strikes, tags, and awards
-- Supporter store with optional donation perks (PayPal)
+- Support FlexDex: optional donations with cosmetic-only perks (PayPal; not implemented yet)
 - Multi-language UI (English, Spanish, French, German, Japanese) with a built-in translator workspace, community application workflow, and automatic GitHub sync that keeps approved translations safe across updates. Pokémon names are accepted in any of those languages wherever the site asks for one, and stored under their English name so a collection entered in one language still lines up with everything else
 - Public JSON API with rate limits, plus an unthrottled private API for trusted consumers
 - **FlexDex for Android**, a companion app on the same account and the same database, which scans a Pokémon straight off your screen while you play and carries almost the whole site as native screens
@@ -37,7 +37,7 @@ Everything beyond the quick start below lives in the **[project wiki](https://gi
 | Run the site day to day | [Operations](https://github.com/Hailey-Ross/hailsDotGO/wiki/Operations) |
 | Use the JSON API | [API Reference](https://github.com/Hailey-Ross/hailsDotGO/wiki/API-Reference) |
 | Use the Android companion app | [Companion App](https://github.com/Hailey-Ross/hailsDotGO/wiki/Companion-App) |
-| Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder) (early alpha), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Store](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
+| Learn how a feature works | [Raids and Counters](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raids-and-Counters), [Raid Finder](https://github.com/Hailey-Ross/hailsDotGO/wiki/Raid-Finder) (early alpha), [Social Features](https://github.com/Hailey-Ross/hailsDotGO/wiki/Social-Features), [Trust and Awards](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trust-and-Awards), [Shiny Tracking](https://github.com/Hailey-Ross/hailsDotGO/wiki/Shiny-Tracking), [Trainer Directory](https://github.com/Hailey-Ross/hailsDotGO/wiki/Trainer-Directory), [Support FlexDex (donations, not implemented yet)](https://github.com/Hailey-Ross/hailsDotGO/wiki/Store) |
 | Understand roles and permissions | [Accounts and Roles](https://github.com/Hailey-Ross/hailsDotGO/wiki/Accounts-and-Roles), [Admin Guide](https://github.com/Hailey-Ross/hailsDotGO/wiki/Admin-Guide) |
 | Report a bug or a player, and triage reports | [Bug Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Bug-Reports), [Player Reports](https://github.com/Hailey-Ross/hailsDotGO/wiki/Player-Reports) |
 | Translate the site or add a language | [Localization](https://github.com/Hailey-Ross/hailsDotGO/wiki/Localization), [Translator Workspace](https://github.com/Hailey-Ross/hailsDotGO/wiki/Translator-Workspace) |
@@ -85,7 +85,7 @@ Beyond that:
 - The IV calculator, a DPS calculator and the PvP IV ranker, with the battle math running on the phone rather than being fetched
 - Events with detail pages, and a bell that sets up to five reminders per event, resolved in your own timezone by the server
 - Push notifications for the raid lifecycle, event reminders and report activity (a tap opens the report), with staff alerts on their own Admin alerts channel
-- The trainer directory, profiles, social, reports, sign up, password reset and the full admin panel as native screens; the store, translator workspace, credits and privacy stay web views on purpose
+- The trainer directory, profiles, social, reports, sign up, password reset and the full admin panel as native screens; the Support page, translator workspace, credits and privacy stay web views on purpose
 - Twelve theme colors, any color off a wheel, or the hue Android took from your wallpaper, in light, dark or system at three contrast levels, plus a bottom bar you choose the seats of yourself
 - An update notice on launch when a newer build is out, linking straight to the tester list
 

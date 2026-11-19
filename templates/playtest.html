@@ -14,6 +14,7 @@
     <span class="fk-label">{{T "playtest.kicker"}}</span>
     <h1 id="pt-title">{{T "playtest.heading"}}</h1>
     <p class="fk-pt-lede">{{T "playtest.lede"}}</p>
+    <p class="fk-pt-faqlink"><a class="fk-pt-link" href="#pt-safe">{{T "playtest.faq_link"}}</a></p>
   </header>
 
   <article class="fk-card fk-pt-start fk-settle" style="--i:1" data-tab="{{T "playtest.start.tab"}}" id="pt-start">
@@ -92,6 +93,7 @@
   <div class="fk-pt-after">
     <article class="fk-card fk-pt-safe" data-tab="{{T "playtest.safe.tab"}}" id="pt-safe">
       <h2>{{T "playtest.safe.title"}}</h2>
+      <p>{{T "playtest.safe.who"}}</p>
       <p>{{T "playtest.safe.p1"}}</p>
       {{if .Data.Scanned}}
       <p class="fk-pt-ok"><b>{{T "playtest.safe.build"}} {{.Data.Build}}:</b> {{T "playtest.safe.clean"}}</p>
@@ -99,6 +101,7 @@
       <p class="fk-note">{{T "playtest.safe.hash"}} <code class="fk-pt-hash">{{.Data.SHA256}}</code></p>
       {{end}}
       <p class="fk-note">{{T "playtest.safe.p2"}}</p>
+      <p class="fk-pt-warn">{{T "playtest.safe.choice"}}</p>
     </article>
 
     <article class="fk-card" data-tab="{{T "playtest.updates.tab"}}" id="pt-updates">

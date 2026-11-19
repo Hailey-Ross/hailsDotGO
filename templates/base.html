@@ -219,7 +219,7 @@
     <span class="fk-sep"></span>
     <a href="/settings"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>{{T "nav.settings"}}</a>
     <button type="button" data-sheet="appearance"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg>{{T "nav.appearance"}}</button>
-    {{if .StoreEnabled}}<a href="/store"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg>{{T "nav.support"}}</a>{{end}}
+    {{if .StoreEnabled}}<a href="/support"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg>{{T "nav.support"}}</a>{{end}}
     {{if or .User.IsMod .User.IsTranslator}}
     <span class="fk-sep"></span>
     {{if .User.IsMod}}<a href="/admin"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<b class="fk-count">{{.CostumeReviewCount}}</b>{{end}}</a>{{end}}
@@ -288,7 +288,7 @@
     <a class="fk-tool" href="/login"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg></span>{{T "nav.signin"}}</a>
     {{end}}
     <button type="button" class="fk-tool" data-sheet="appearance"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></span>{{T "nav.appearance"}}</button>
-    {{if .StoreEnabled}}<a class="fk-tool" href="/store"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg></span>{{T "nav.store"}}</a>{{end}}
+    {{if .StoreEnabled}}<a class="fk-tool" href="/support"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg></span>{{T "nav.store"}}</a>{{end}}
     <a class="fk-tool fk-tool-invite" href="/playtest"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg></span>{{T "nav.playtest"}}</a>
     <a class="fk-tool" href="/credits"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg></span>{{T "footer.credits"}}</a>
     {{if .User}}{{if .User.IsMod}}<a class="fk-tool" href="/admin"><span class="fk-tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg>{{if and .User.IsAdmin (gt .CostumeReviewCount 0)}}<b class="fk-count">{{.CostumeReviewCount}}</b>{{end}}</span>{{if .User.IsAdmin}}{{T "nav.admin"}}{{else}}{{T "nav.mod"}}{{end}}</a>{{end}}{{end}}

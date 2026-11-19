@@ -866,7 +866,14 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/messages", h.RequireAuth(h.MessagesPage))
 		r.Get("/raidfinder", h.RaidFinderPage)
 
-		r.Get("/store", h.StorePage)
+		r.Get("/support", h.StorePage)
+		r.Get("/store", func(w http.ResponseWriter, r *http.Request) {
+			to := "/support"
+			if r.URL.RawQuery != "" {
+				to += "?" + r.URL.RawQuery
+			}
+			http.Redirect(w, r, to, http.StatusMovedPermanently)
+		})
 		r.Post("/store/checkout", h.RequireAuth(h.StoreCheckout))
 		r.Get("/store/return", h.StoreReturn)
 		r.Get("/store/cancel", h.StoreCancel)

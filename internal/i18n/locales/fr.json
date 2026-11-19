@@ -5,7 +5,7 @@
   "nav.events":     "Événements",
   "nav.shinydex":   "Dex Chromatique",
   "nav.trainers":   "Dresseurs",
-  "nav.store":      "Boutique",
+  "nav.store":      "Soutenir",
   "nav.collection": "Ma Collection",
   "nav.settings":   "Paramètres",
   "nav.admin":      "Admin",
@@ -415,14 +415,14 @@
   "raidfinder.or":           "ou",
   "raidfinder.signup_cta":   "inscrivez-vous",
 
-  "store.title":          "Soutenir le Site",
-  "store.subtitle":       "Des avantages qui font vivre la communauté. Sans pay-to-win.",
-  "store.not_configured": "La boutique n'est pas encore configurée pour les paiements. Revenez bientôt.",
+  "store.title":          "Soutenir FlexDex",
+  "store.subtitle":       "FlexDex est créé et géré par une seule personne, pour le plaisir. Les dons sont entièrement facultatifs et aident à couvrir les frais. Tout sur le site reste gratuit pour tout le monde.",
+  "store.not_configured": "Les dons ne sont pas encore en place. Merci d'y avoir pensé !",
   "store.already_active": "Déjà actif",
   "store.unavailable":    "Indisponible",
-  "store.login_purchase": "Connectez-vous pour acheter",
+  "store.login_purchase": "Connectez-vous pour faire un don",
   "store.no_items":       "Aucun article disponible pour le moment.",
-  "store.perks.title":    "Vos Avantages Actifs",
+  "store.perks.title":    "Vos avantages de soutien",
   "store.perks.permanent":"Permanent",
 
   "store.tag.title":           "Demande d'Étiquette Personnalisée",
@@ -437,8 +437,8 @@
   "store.tag.form.submit":     "Soumettre pour Révision",
   "store.tag.submitted":       "Soumis ! L'équipe examinera votre demande.",
 
-  "store.flash.success":   "Achat effectué ! Vos avantages sont maintenant actifs.",
-  "store.flash.cancelled": "Achat annulé.",
+  "store.flash.success":   "Merci pour votre soutien ! Vos avantages sont maintenant actifs.",
+  "store.flash.cancelled": "Don annulé.",
   "store.flash.error":     "Une erreur s'est produite. Veuillez réessayer.",
 
   "trainers.title":       "Dresseurs",
@@ -805,7 +805,7 @@
   "shinydex.js.tip_research": "Rencontre de récompense des tâches d'étude de terrain",
   "shinydex.js.tip_wild": "Rencontré aléatoirement dans la nature",
   "shinydex.js.unavailable": "Données chromatiques indisponibles. Revenez plus tard.",
-  "store.buy": "Acheter",
+  "store.buy": "Faire un don",
   "store.perks.expires": "Expire",
   "store.tag.error": "Erreur lors de l'envoi de la demande.",
   "trainers.avatar_alt": "dresseur",
@@ -985,5 +985,7 @@
   "trade.push.trade_answer_needed.body": "{name} a indiqué si votre échange a eu lieu. Répondez aussi, s'il vous plaît.",
   "trade.preset.sys_confirmed_me": "Vous avez confirmé l'échange.",
   "trade.preset.sys_reminder_me": "Nous vous avons rappelé de confirmer.",
-  "trade.preset.sys_offer_modified_me": "Vous avez modifié votre chromatique : {before} est maintenant {after}."
+  "trade.preset.sys_offer_modified_me": "Vous avez modifié votre chromatique : {before} est maintenant {after}.",
+  "store.cosmetic_only": "Les soutiens ne reçoivent que des éléments cosmétiques, comme un badge de soutien et un nom arc-en-ciel. Jamais rien qui donne un avantage.",
+  "store.perks.donator_badge": "Un badge de soutien et un nom arc-en-ciel sur votre carte de Dresseur"
 }
