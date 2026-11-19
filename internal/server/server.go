@@ -267,11 +267,11 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		inner: &middleware.DefaultLogFormatter{Logger: log.New(os.Stdout, "", log.LstdFlags)},
 	}))
 	r.Use(middleware.Recoverer)
-	// Bandwidth limiter for the public data endpoints: 15 MB per IP per 5-minute
-	// window, 30-minute block on breach, counted across every route wrapped in
+	// Bandwidth limiter for the public data endpoints: 25 MB per IP per 5-minute
+	// window, 10-minute block on breach, counted across every route wrapped in
 	// apiBW.Handler. Its Meter sits just outside the compressor so the budget is
 	// spent on the bytes that actually travel, not the uncompressed size.
-	apiBW := newBWLimiter(15*1024*1024, 5*time.Minute, 30*time.Minute)
+	apiBW := newBWLimiter(25*1024*1024, 5*time.Minute, 10*time.Minute)
 	r.Use(apiBW.Meter)
 	r.Use(middleware.Compress(5))
 	r.Use(securityHeaders)
@@ -367,9 +367,9 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		// Public game data aliases with stable versioned URLs for mobile clients.
 		// Rate-limited to match the legacy web API (server.go ~line 305).
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/pokemon", h.APIPokemon)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/raids", h.APIRaids)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/events", h.APIEvents)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/pokemon", h.APIPokemon)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/raids", h.APIRaids)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/events", h.APIEvents)
 		// The detail route existed only on the CSRF-protected web path and the
 		// private path, so the app reached it at /api/events/{id} and got away with
 		// it because it is a GET. That made it the one events call outside the
@@ -379,8 +379,8 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// group below still win over this parameter: chi matches a static segment
 		// before a wildcard, so an unauthenticated GET there is a 401 and not an
 		// "unknown event" 404.
-		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/events/{id}", h.APIEventDetail)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/data", h.APIData)
+		r.With(apiBW.Handler, httprate.LimitByIP(60, 2*time.Minute)).Get("/events/{id}", h.APIEventDetail)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/data", h.APIData)
 		// Dynamic and polled by the app, so a looser standalone limit.
 		r.With(httprate.LimitByIP(20, time.Minute)).Get("/raid/overview", h.MobileRaidOverview)
 
@@ -402,7 +402,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		// 10 per 2 minutes the other public reads use. Each answers an ETag and a
 		// 304, so a launch that has not missed a translation costs a few hundred bytes.
 		r.With(httprate.LimitByIP(20, time.Minute)).Get("/i18n", h.MobileLangs)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/i18n/{lang}", h.MobileI18nBundle)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/i18n/{lang}", h.MobileI18nBundle)
 
 		// Newest published app build, as bare digits, so an install can tell it is
 		// stale. Public for the same reason /maintenance is: a logged out app needs
@@ -833,6 +833,7 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 		r.Get("/box", h.GetBoxPage)
 		r.Get("/credits", h.Credits)
 		r.Get("/privacy", h.Privacy)
+		r.Get("/playtest", h.Playtest)
 		r.Get("/appearance", h.Appearance)
 		r.Get("/changelog", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/credits?tab=changelog", http.StatusMovedPermanently)
@@ -1106,19 +1107,21 @@ func New(store *pogodata.Store, db *sql.DB, csrfKey []byte) http.Handler {
 
 		r.Get("/api/weather", h.RequireAuth(h.APIWeather))
 
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/data", h.APIData)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/raids", h.APIRaids)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/maxbattles", h.APIMaxBattles)
-		// Raised from 10 to match the detail endpoint below. This is an
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/data", h.APIData)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/raids", h.APIRaids)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/maxbattles", h.APIMaxBattles)
+		// Relaxed 2026-11-18 (owner: casual users and new apps should never feel
+		// squeezed; 30 days of logs showed no refusals at the old limits). Events
+		// were raised earlier from 10 to match the detail endpoint below. This is an
 		// unauthenticated read that every visitor to /events performs, and the
 		// reasoning recorded further down (a household, a campus or carrier grade
 		// NAT can put many genuine trainers behind one address) applies here just
 		// as much as it does to login. apiBW, the bandwidth cap, is the real abuse
 		// ceiling and is untouched.
-		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/events", h.APIEvents)
-		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/events/{id}", h.APIEventDetail)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
-		r.With(apiBW.Handler, httprate.LimitByIP(10, 2*time.Minute)).Get("/api/moves", h.APIMoves)
+		r.With(apiBW.Handler, httprate.LimitByIP(60, 2*time.Minute)).Get("/api/events", h.APIEvents)
+		r.With(apiBW.Handler, httprate.LimitByIP(60, 2*time.Minute)).Get("/api/events/{id}", h.APIEventDetail)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/pokemon", h.APIPokemon)
+		r.With(apiBW.Handler, httprate.LimitByIP(30, 2*time.Minute)).Get("/api/moves", h.APIMoves)
 
 		r.Get("/api/app/data", h.RequireAuthAPI(h.APIData))
 

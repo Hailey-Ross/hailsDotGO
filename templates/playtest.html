@@ -1,0 +1,140 @@
+{{define "title"}}{{T "playtest.title"}}{{end}}
+
+{{define "pagekind"}}fieldkit{{end}}
+
+{{define "content"}}
+{{/* The guide works without JavaScript: every step is in the page. ts/playtest.ts turns it
+     into one step at a time with progress, ticks remembered in this browser, a zoom view
+     for the pictures and "Stuck?" links that open the matching help answer. */}}
+<section class="fk-page fk-playtest" id="pt" aria-labelledby="pt-title"
+  data-signed-in="{{if .User}}1{{end}}"
+  data-t-progress="{{T "playtest.ui.progress"}}" data-t-copied="{{T "playtest.start.copied"}}"
+  data-t-all="{{T "playtest.start.all"}}" data-t-guided="{{T "playtest.start.guided"}}">
+  <header class="fk-pt-head fk-settle">
+    <span class="fk-label">{{T "playtest.kicker"}}</span>
+    <h1 id="pt-title">{{T "playtest.heading"}}</h1>
+    <p class="fk-pt-lede">{{T "playtest.lede"}}</p>
+  </header>
+
+  <article class="fk-card fk-pt-start fk-settle" style="--i:1" data-tab="{{T "playtest.start.tab"}}" id="pt-start">
+    <h2>{{T "playtest.start.title"}}</h2>
+    <div class="fk-pt-q">
+      <p><b>{{T "playtest.start.q_account"}}</b></p>
+      {{if .User}}
+      <p class="fk-pt-ok">{{T "playtest.start.signed_in"}}</p>
+      {{else}}
+      <div class="fk-pt-choice" role="group">
+        <button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-account="yes">{{T "playtest.start.yes"}}</button>
+        <button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-account="no">{{T "playtest.start.no"}}</button>
+      </div>
+      <p class="fk-note">{{T "playtest.account.body"}}</p>
+      {{end}}
+    </div>
+    <div class="fk-pt-q">
+      <p><b>{{T "playtest.start.q_device"}}</b></p>
+      <p class="fk-pt-device" data-pt-device="android" hidden>{{T "playtest.start.android"}}</p>
+      <p class="fk-pt-device fk-pt-warn" data-pt-device="iphone" hidden>{{T "playtest.start.iphone"}}</p>
+      <div class="fk-pt-device" data-pt-device="desktop" hidden>
+        <p>{{T "playtest.start.desktop"}}</p>
+        <button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-copy>{{T "playtest.start.copy"}}</button>
+      </div>
+    </div>
+    <div class="fk-pt-actions">
+      <button type="button" class="fk-pt-btn" data-pt-go hidden>{{T "playtest.start.go"}}</button>
+      <button type="button" class="fk-pt-link" data-pt-mode hidden>{{T "playtest.start.all"}}</button>
+    </div>
+  </article>
+
+  <nav class="fk-pt-rail" aria-label="{{T "playtest.title"}}" hidden>
+    <ol>
+      {{range $i, $s := .Data.Steps}}<li><button type="button" data-pt-goto="{{$i}}"><span class="n">{{$s.Num}}</span><span class="t">{{T (printf "playtest.st.%s.title" $s.ID)}}</span></button></li>{{end}}
+    </ol>
+    <div class="fk-pt-bar"><i></i></div>
+    <p class="fk-pt-count" data-pt-count></p>
+  </nav>
+
+  {{range $i, $s := .Data.Steps}}
+  <section class="fk-pt-step" id="pt-step-{{$s.ID}}" data-pt-step="{{$i}}" aria-labelledby="pt-h-{{$s.ID}}">
+    <header class="fk-pt-step-head">
+      <span class="fk-label">{{T "playtest.ui.step"}} {{$s.Num}} {{T "playtest.ui.of"}} {{$.Data.Total}}</span>
+      <h2 id="pt-h-{{$s.ID}}">{{T (printf "playtest.st.%s.title" $s.ID)}}</h2>
+      <p>{{T (printf "playtest.st.%s.intro" $s.ID)}}</p>
+    </header>
+    <ol class="fk-pt-cards">
+      {{range $j, $c := $s.Cards}}
+      <li class="fk-card fk-pt-card{{if $c.Warn}} is-warn{{end}}{{if not $c.Img}} no-img{{end}}" data-pt-card="{{$c.ID}}">
+        {{if $c.Img}}<button type="button" class="fk-pt-shot" data-pt-zoom aria-label="{{T "playtest.ui.zoom"}}"><img src="/static/playtest/{{$c.Img}}.webp" width="432" height="960" loading="lazy" alt="{{T (printf "playtest.c.%s.title" $c.ID)}}"></button>{{end}}
+        <div class="fk-pt-text">
+          <h3><span class="n">{{$c.Num}}</span>{{T (printf "playtest.c.%s.title" $c.ID)}}</h3>
+          <p>{{T (printf "playtest.c.%s.body" $c.ID)}}</p>
+          {{if $c.Link}}<p><a class="fk-pt-btn" href="{{$c.Link}}"{{if $c.External}} target="_blank" rel="noopener"{{end}}>{{T $c.LinkKey}}</a></p>{{end}}
+          <label class="fk-pt-tick"><input type="checkbox" data-pt-tick="{{$c.ID}}"><span>{{T "playtest.ui.done"}}</span></label>
+        </div>
+      </li>
+      {{end}}
+    </ol>
+    <footer class="fk-pt-step-foot">
+      <a class="fk-pt-link" href="#pt-help-{{$s.Help}}" data-pt-help="{{$s.Help}}">{{T "playtest.ui.stuck"}}</a>
+      <span class="fk-pt-nav" hidden>
+        {{if gt $s.Num 1}}<button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-prev>{{T "playtest.ui.back"}}</button>{{end}}
+        {{if not $s.Last}}<button type="button" class="fk-pt-btn" data-pt-next>{{T "playtest.ui.next"}}</button>{{else}}<button type="button" class="fk-pt-btn" data-pt-finish>{{T "playtest.ui.finish"}}</button>{{end}}
+      </span>
+    </footer>
+  </section>
+  {{end}}
+
+  <article class="fk-card fk-pt-done" id="pt-done" hidden>
+    <h2>{{T "playtest.done.title"}}</h2>
+    <p>{{T "playtest.done.body"}}</p>
+    <button type="button" class="fk-pt-link" data-pt-reset>{{T "playtest.ui.reset"}}</button>
+  </article>
+
+  <div class="fk-pt-after">
+    <article class="fk-card" data-tab="{{T "playtest.updates.tab"}}" id="pt-updates">
+      <h2>{{T "playtest.updates.title"}}</h2>
+      <p>{{T "playtest.updates.intro"}}</p>
+      <ol class="fk-pt-list">
+        <li>{{T "playtest.updates.email"}}</li>
+        <li>{{T "playtest.updates.tester"}}</li>
+        <li>{{T "playtest.updates.card"}}</li>
+      </ol>
+      <p>{{T "playtest.updates.build"}}</p>
+      <p>{{T "playtest.updates.rollback"}}</p>
+    </article>
+
+    <article class="fk-card" data-tab="{{T "playtest.help.tab"}}" id="pt-help">
+      <h2>{{T "playtest.help.title"}}</h2>
+      <div class="fk-pt-faq">
+        <details id="pt-help-missing"><summary>{{T "playtest.help.q_missing"}}</summary><p>{{T "playtest.help.a_missing"}}</p></details>
+        <details id="pt-help-email"><summary>{{T "playtest.help.q_email"}}</summary><p>{{T "playtest.help.a_email"}}</p></details>
+        <details id="pt-help-notinstalled"><summary>{{T "playtest.help.q_notinstalled"}}</summary><p>{{T "playtest.help.a_notinstalled"}}</p>
+          <button type="button" class="fk-pt-shot fk-pt-shot-sm" data-pt-zoom aria-label="{{T "playtest.ui.zoom"}}"><img src="/static/playtest/x-old-install-uninstall.webp" width="432" height="960" loading="lazy" alt=""></button></details>
+        <details id="pt-help-signin"><summary>{{T "playtest.help.q_signin"}}</summary><p>{{T "playtest.help.a_signin"}}</p></details>
+        <details id="pt-help-bubble"><summary>{{T "playtest.help.q_bubble"}}</summary><p>{{T "playtest.help.a_bubble"}}</p></details>
+        <details id="pt-help-login"><summary>{{T "playtest.help.q_login"}}</summary><p>{{T "playtest.help.a_login"}}</p></details>
+        <details id="pt-help-leave"><summary>{{T "playtest.help.q_leave"}}</summary><p>{{T "playtest.help.a_leave"}} <a href="https://appdistribution.firebase.google.com" target="_blank" rel="noopener">appdistribution.firebase.google.com</a></p>
+          <button type="button" class="fk-pt-shot fk-pt-shot-sm" data-pt-zoom aria-label="{{T "playtest.ui.zoom"}}"><img src="/static/playtest/z-account-overview-delete.webp" width="432" height="960" loading="lazy" alt=""></button></details>
+      </div>
+    </article>
+
+    <article class="fk-card" data-tab="{{T "playtest.report.tab"}}">
+      <h2>{{T "playtest.report.title"}}</h2>
+      <p>{{T "playtest.report.p1"}}</p>
+      <p>{{T "playtest.report.p2"}}</p>
+    </article>
+
+    <article class="fk-card" data-tab="{{T "playtest.privacy.tab"}}">
+      <h2>{{T "playtest.privacy.title"}}</h2>
+      <p>{{T "playtest.privacy.p1"}}</p>
+      <p>{{T "playtest.privacy.p2"}} <a href="/privacy">{{T "playtest.privacy.link"}}</a></p>
+    </article>
+  </div>
+
+  <div class="fk-pt-zoom" data-pt-zoombox hidden role="dialog" aria-modal="true">
+    <button type="button" class="fk-pt-btn fk-pt-btn-quiet" data-pt-zoomclose>{{T "playtest.ui.close"}}</button>
+    <img alt="">
+  </div>
+</section>
+{{end}}
+
+{{define "scripts"}}<script src="/static/js/playtest.js?v={{.AssetVersion}}" defer></script>{{end}}

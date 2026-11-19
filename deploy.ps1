@@ -236,6 +236,8 @@ $trackedDirs = @(
     @{ src = "static\fonts"; dst = "/opt/hailsdotgo/static"; key = "static/fonts" },
     # Install as an app: manifest, service worker, offline page and icons (also served at /manifest.webmanifest and /sw.js).
     @{ src = "static\app"; dst = "/opt/hailsdotgo/static"; key = "static/app" },
+    # Screenshots for the /playtest guide (Android open beta), WebP.
+    @{ src = "static\playtest"; dst = "/opt/hailsdotgo/static"; key = "static/playtest" },
     # OCR microservice: syncs file CONTENTS into /opt/hailsdotgo-ocr and restarts the OCR
     # service. NOTE: a requirements.txt change still needs a manual `pip install` on the VPS.
     @{ src = "ocr-service"; dst = "/opt/hailsdotgo-ocr"; key = "ocr-service"; stripTop = $true; restartOcr = $true }

@@ -23,6 +23,11 @@
   </div>
 
   <div class="credits-card">
+    <h2>{{T "credits.about.playtest_title"}}</h2>
+    <p>{{T "credits.about.playtest_body"}} <a href="/playtest">{{T "credits.about.playtest_link"}}</a></p>
+  </div>
+
+  <div class="credits-card">
     <h2>{{T "credits.about.sources_title"}}</h2>
     <ul class="credits-list">
       <li><a href="https://pogoapi.net" target="_blank" rel="noopener">PoGoAPI</a>: {{T "credits.about.source_pogoapi"}}</li>
@@ -62,14 +67,14 @@
         <tr><td><code>GET /api/data</code></td><td>{{T "credits.api.data_desc"}}</td><td>{{T "credits.api.data_limit"}}</td></tr>
         <tr><td><code>GET /api/raids</code></td><td>{{T "credits.api.raids_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
         <tr><td><code>GET /api/maxbattles</code></td><td>{{T "credits.api.maxbattles_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
-        <tr><td><code>GET /api/events</code></td><td>{{T "credits.api.events_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
+        <tr><td><code>GET /api/events</code></td><td>{{T "credits.api.events_desc"}}</td><td>{{T "credits.api.event_detail_limit"}}</td></tr>
         <tr><td><code>GET /api/events/{id}</code></td><td>{{T "credits.api.event_detail_desc"}}</td><td>{{T "credits.api.event_detail_limit"}}</td></tr>
         <tr><td><code>GET /api/pokemon</code></td><td>{{T "credits.api.pokemon_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
         <tr><td><code>GET /api/moves</code></td><td>{{T "credits.api.moves_desc"}}</td><td>{{T "credits.api.raids_limit"}}</td></tr>
       </tbody>
     </table>
     <p style="margin-top:1rem">{{T "credits.api.bw_note"}}</p>
-    <p style="margin-top:0.5rem">{{T "credits.api.cache_note"}} <code>Cache-Control: public, max-age=300</code>. {{T "credits.api.cache_note2"}}</p>
+    <p style="margin-top:0.5rem">{{T "credits.api.cache_note"}} <code>ETag</code> + <code>Cache-Control: no-cache</code>. {{T "credits.api.cache_note2"}}</p>
   </div>
 
   <div class="credits-card">
@@ -138,6 +143,13 @@
     <div class="cl-entry fade-up">
       <div class="cl-date">2026-11-18</div>
       <div class="cl-body">
+
+        <div class="cl-item">
+          <h2 class="cl-title">Playtest the Android app</h2>
+          <ul class="cl-list">
+            <li>A new Playtest page walks you through joining the FlexDex for Android open beta, step by step</li>
+          </ul>
+        </div>
 
         <div class="cl-item">
           <h2 class="cl-title">Easier on the eyes</h2>
